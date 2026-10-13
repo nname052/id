@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>برومو بسيط</title>
+<!--
+  برومو بسيط (6.5 ثانية، 1080×1920) بقواعد التكوين: رسمة بطل واحدة + سطرين كلام في كل مشهد، وباليتة واحدة، وخط واحد بوزنين.
+  الكلمات بتظهر في نفس لحظة نطقها (توقيت Forced Alignment من تجربة ElevenLabs).
+-->
+<link rel="stylesheet" href="../fonts/fonts.css">
+<style>
+  :root { --bg: #fef6e4; --navy: #001858; --ink: #172c66; --pink: #f582ae; --teal: #8bd3dd; }
+  html, body { margin: 0; width: 1080px; height: 1920px; overflow: hidden; background: var(--bg); }
+  #stage { position: relative; width: 1080px; height: 1920px; overflow: hidden; }
+  .abs { position: absolute; }
+  #blob { width: 760px; height: 760px; border-radius: 50%; background: var(--teal); opacity: .35; }
+  .scene { position: absolute; inset: 0; }
+  .illus { position: absolute; left: 110px; top: 270px; width: 860px; height: 740px; color: var(--pink); }
+  .illus svg { width: 100%; height: 100%; }
+  .text { position: absolute; left: 80px; right: 80px; top: 1080px; text-align: center; font-family: "Alexandria"; }
+  .line { overflow: hidden; padding: 0 10px; white-space: nowrap; }
+  .line span { display: inline-block; }
+  .small { font-size: 76px; font-weight: 500; color: var(--ink); line-height: 1.5; }
+  .big { font-size: 170px; font-weight: 800; color: var(--navy); line-height: 1.35; }
+  .accent { color: var(--pink); }
+  .mark { position: relative; display: inline-block; }
+  .mark::before { content: ""; position: absolute; left: -10px; right: -10px; bottom: 22px; height: 46px; background: var(--pink);
+                  opacity: .45; border-radius: 10px; transform-origin: right center; transform: scaleX(var(--p, 0)); z-index: -1; }
+  #end .text { top: 760px; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="abs" id="blob"></div>
+
+  <div class="scene" id="s1">
+    <div class="illus" data-src="../assets/undraw/questions.svg"></div>
+    <div class="text">
+      <div class="line small"><span data-t="0.18">أنا</span> <span data-t="0.36">عارف</span> <span data-t="0.78">إنك</span></div>
+      <div class="line big"><span data-t="1.06">خايف</span> <span data-t="1.34" class="accent">تفشل...</span></div>
+    </div>
+  </div>
+
+  <div class="scene" id="s2">
+    <div class="illus" data-src="../assets/undraw/stepping-up.svg"></div>
+    <div class="text">
+      <div class="line small"><span data-t="3.00">بس</span> <span data-t="3.20">الخوف</span></div>
+      <div class="line big"><span class="mark" id="mark"><span data-t="4.00">مش</span> <span data-t="4.18">هيحميك.</span></span></div>
+    </div>
+  </div>
+
+  <div class="scene" id="end">
+    <div class="text">
+      <div class="line small"><span data-t="5.25">خليك</span></div>
+      <div class="line big"><span data-t="5.40">أشجع</span></div>
+      <div class="line big"><span data-t="5.60" class="accent">من خوفك</span></div>
+    </div>
+  </div>
+</div>
+<script>
+  window.DURATION = 6.5;
+  const $ = (s) => document.querySelector(s);
+  const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+  const easeOut = (x) => 1 - Math.pow(1 - clamp(x), 3);
+  const easeInOut = (x) => (x = clamp(x), x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+  const lerp = (a, b, p) => a + (b - a) * p;
+
+  // كل مشهد: إمتى بيبدأ وإمتى بيخلص (بالثواني)
+  const SCENES = [["#s1", 0, 2.9], ["#s2", 2.9, 5.05], ["#end", 5.05, 99]];
+  // الدايرة الخلفية بتنتقل بين المشاهد: [الوقت، x، y، الحجم]
+  const BLOB = [[0, 160, 260, 1], [2.9, 160, 260, 1], [3.3, 300, 340, 0.85], [5.05, 300, 340, 0.85], [5.45, 160, 580, 1.15]];
+  const words = [...document.querySelectorAll("[data-t]")];
+
+  window.ready = (async () => {
+    await Promise.all([...document.querySelectorAll(".illus")].map(async (el) => {
+      el.innerHTML = await (await fetch(el.dataset.src)).text();
+    }));
+    await document.fonts.ready;
+    // لو السطر أعرض من المساحة، نصغّر الخط بدل ما يتقص
+    document.querySelectorAll(".line").forEach((l) => {
+      const max = 920, w = l.scrollWidth;
+      if (w > max) l.style.fontSize = parseFloat(getComputedStyle(l).fontSize) * max / w + "px";
+    });
+    window.renderAt(0);
+  })();
+
+  function blobAt(t) {
+    let i = BLOB.length - 1;
+    while (i > 0 && BLOB[i][0] > t) i--;
+    const a = BLOB[i], b = BLOB[Math.min(i + 1, BLOB.length - 1)];
+    const p = b[0] > a[0] ? easeInOut((t - a[0]) / (b[0] - a[0])) : 0;
+    return [lerp(a[1], b[1], p), lerp(a[2], b[2], p), lerp(a[3], b[3], p)];
+  }
+
+  window.renderAt = function (t) {
+    // الدايرة الخلفية: بتتنقل بنعومة وبتتنفس
+    const [x, y, s] = blobAt(t);
+    $("#blob").style.transform = `translate(${x}px, ${y}px) scale(${s * (1 + 0.03 * Math.sin(t * 1.6))})`;
+
+    // المشاهد: دخول (طلوع + ظهور) وخروج (طلوع لفوق + اختفاء)
+    for (const [sel, start, end] of SCENES) {
+      const el = $(sel);
+      const out = easeInOut((t - end + 0.3) / 0.3);
+      el.style.display = t >= start - 0.01 && t < end + 0.01 ? "" : "none";
+      el.style.opacity = 1 - out;
+      el.style.transform = `translateY(${-90 * out}px)`;
+      const ill = el.querySelector(".illus");
+      if (ill) {
+        const p = easeOut((t - start - 0.05) / 0.6);
+        ill.style.opacity = p;
+        ill.style.transform = `translateY(${(1 - p) * 60 + Math.sin((t - start) * 1.8) * 8}px) scale(${0.94 + 0.06 * p})`;
+      }
+    }
+
+    // الكلمات: كل كلمة بتطلع من تحت في لحظة نطقها
+    for (const w of words) {
+      const p = easeOut((t - parseFloat(w.dataset.t) + 0.05) / 0.35);
+      w.style.transform = `translateY(${(1 - p) * 110}%)`;
+      w.style.opacity = p;
+    }
+
+    // خط تحت "مش هيحميك" بيترسم من اليمين للشمال
+    $("#mark").style.setProperty("--p", easeInOut((t - 4.25) / 0.6));
+  };
+</script>
+</body>
+</html>
