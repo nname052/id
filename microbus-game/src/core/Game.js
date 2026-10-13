@@ -134,6 +134,30 @@ export class Game {
     this.hud.toast('إنت دلوقتي في كرسي السواق — دوس W', 3);
   }
 
+  /** جودة تلقائية: لو الجهاز ضعيف (FPS قليل) نقلل الدقة والضلال */
+  _adaptQuality(dt) {
+    if (!this.started) return;
+    const q = (this._q ||= { t: 0, frames: 0, level: 0, cooldown: 4 });
+    q.t += dt; q.frames++;
+    q.cooldown -= dt;
+    if (q.t < 3) return;
+    const fps = q.frames / q.t;
+    q.t = 0; q.frames = 0;
+    if (fps < 40 && q.cooldown <= 0 && q.level < 2) {
+      q.level++;
+      q.cooldown = 4;
+      if (q.level === 1) this.renderer.setPixelRatio(1);
+      if (q.level === 2) {
+        this.renderer.setPixelRatio(0.8);
+        this.env.sun.shadow.mapSize.set(1024, 1024);
+        this.env.sun.shadow.map?.dispose();
+        this.env.sun.shadow.map = null;
+      }
+      this._resize();
+      console.info('[Quality] تقليل الجودة تلقائيًا → مستوى', q.level, `(${fps.toFixed(0)} FPS)`);
+    }
+  }
+
   /** للتجربة: شغّل المحاكاة بسرعة من غير رسم (game.debugSim(3, {throttle:1})) */
   debugSim(seconds, input = {}) {
     const inp = { throttle: 0, brake: 0, steer: 0, handbrake: 0, actions: {}, ...input };
@@ -204,6 +228,7 @@ export class Game {
       near.forEach((p, i) => this.lampLights[i].position.copy(p));
     }
 
+    this._adaptQuality(dt);
     const inside = this.cams.modeId === 'cockpit';
     this.audio.update(dt, { player: this.player, camera: this.camera, traffic: this.traffic, inside, horn: input.horn });
     this.hud.update(dt, ph, this.lights);

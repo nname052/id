@@ -13,6 +13,8 @@ export const MODEL_ASSETS = {
     rotationY: 180,            // لو الموديل طالع بضهره، غيّرها لـ 0 أو 90 أو -90
     offset: [0, 0, 0],         // إزاحة يدوية (متر) لو محتاج تظبط مكانه
     hasInterior: false,        // true لو الموديل فيه صالون داخلي كامل (هنخفي الصالون الإجرائي)
+    proceduralMirrors: true,   // false لو الموديل فيه مرايات جانبية خاصة بيه
+    steeringAxis: [0, 0, 1],   // محور دوران الدركسيون جوه الموديل (جرّب [0,1,0] لو بيلف غلط)
     // أسماء الـ nodes جوه الموديل (لو موجودة بنحركها؛ لو مش موجودة بنستخدم العجل الإجرائي)
     nodes: { wheelFL: 'wheel_FL', wheelFR: 'wheel_FR', wheelRL: 'wheel_RL', wheelRR: 'wheel_RR', steeringWheel: 'steering_wheel' },
   },

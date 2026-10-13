@@ -55,7 +55,9 @@ export class CameraSystem {
     const pts = [];
     for (let z = ROAD.zMax - 15; z > ROAD.zMin + 10; z -= 28) {
       const side = (Math.round(z / 28) % 2) ? 1 : -1;
-      pts.push(new THREE.Vector3(side * (ROAD.curb + 2.5), 1.4 + ((z * 7) % 3 + 3) % 3 * 2.2, z));
+      // يا تحت أوراق الشجر (1.5م) يا فوقها (9.5م) عشان الكاميرا متدخلش جوه شجرة
+      const high = Math.round(z / 28) % 3 === 0;
+      pts.push(new THREE.Vector3(side * (ROAD.sidewalkOuter - 0.7), high ? 9.5 : 1.5, z));
     }
     for (const c of CROSSINGS) {
       pts.push(new THREE.Vector3(ROAD.curb + 4, 9, c.z + c.half + 6));

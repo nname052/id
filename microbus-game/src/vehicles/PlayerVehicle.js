@@ -32,7 +32,8 @@ export class PlayerVehicle {
     model.position.z = 0.15; // مركز الموديل → مركز جسم الميكروباص
     this.rig.shell.add(model);
     this.rig.exterior.visible = false;
-    for (const m of this.rig.mirrors) m.holder.visible = true;
+    // المرايات الإجرائية شغالة (بتعكس فعلًا). لو موديلك فيه مرايات خاصة بيه: proceduralMirrors: false
+    if (cfg.proceduralMirrors === false) this.rig.mirrors = this.rig.mirrors.filter((m) => { if (m.side !== 0) { m.holder.visible = false; return false; } return true; });
     const names = cfg.nodes || {};
     const ids = { FL: names.wheelFL, FR: names.wheelFR, RL: names.wheelRL, RR: names.wheelRR };
     for (const w of this.rig.wheels) {
