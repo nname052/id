@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>تجربة المكتبات</title>
+<!--
+  تجربة المكتبات المجانية مع بعض (6 ثواني، 1080×1920):
+  شخصية Open Peeps بتتكلم (البق ماشي مع توقيت ElevenLabs) + إيموجي Lottie + رسمة unDraw + أيقونة Lucide بتترسم.
+  كل حاجة بتتحسب من t جوه renderAt(t). window.ready لازم يخلص قبل أول فريم (تحميل الملفات).
+-->
+<link rel="stylesheet" href="../fonts/fonts.css">
+<style>
+  html, body { margin: 0; width: 1080px; height: 1920px; overflow: hidden; background: #fef6e4; }
+  #stage { position: relative; width: 1080px; height: 1920px; overflow: hidden; }
+  .abs { position: absolute; }
+  #illus { left: 90px; top: 1180px; width: 900px; color: #f582ae; opacity: .9; }
+  #illus svg { width: 100%; height: auto; }
+  #peep { left: 190px; top: 330px; width: 700px; height: 700px; transform-origin: 50% 90%; }
+  #peep svg { width: 100%; height: 100%; }
+  .emoji { width: 240px; height: 240px; }
+  #icon { right: 70px; top: 290px; width: 150px; height: 150px; color: #001858; }
+  #icon svg { width: 100%; height: 100%; }
+  #title { top: 120px; left: 0; width: 100%; text-align: center; font: 900 110px/1.2 "Lalezar"; color: #001858; }
+  #sub { top: 1060px; left: 60px; right: 60px; text-align: center; font: 700 70px/1.5 "Cairo"; color: #172c66; }
+  #sub span { padding: 0 6px; border-radius: 14px; }
+  #sub span.on { background: #f582ae; color: #fff; }
+  #credit { bottom: 40px; left: 0; width: 100%; text-align: center; font: 400 26px "Tajawal"; color: #8a8fa8; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="abs" id="illus"></div>
+  <div class="abs" id="title">الخوف من الفشل</div>
+  <div class="abs" id="icon"></div>
+  <div class="abs" id="peep"></div>
+  <div class="abs emoji" id="emojiA"></div>
+  <div class="abs emoji" id="emojiB"></div>
+  <div class="abs" id="sub"></div>
+  <div class="abs" id="credit">Animated emoji by Google · Open Peeps · unDraw · Lucide</div>
+</div>
+<script src="../assets/peeps/peeps.js"></script>
+<script src="../assets/vendor/lottie_svg.min.js"></script>
+<script>
+  window.DURATION = 6;
+  const $ = (id) => document.getElementById(id);
+  const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+  const easeOut = (x) => 1 - Math.pow(1 - clamp(x), 3);
+  const back = (x) => { x = clamp(x); const c = 1.7; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
+
+  // توقيت الكلام الحقيقي من تجربة ElevenLabs (phase0/out/elevenlabs)
+  const WORDS = [["أنا", 0.14, 0.24], ["عارف", 0.28, 0.64], ["إنك", 0.68, 0.96], ["خايف", 0.98, 1.20], ["تفشل...", 1.24, 2.88],
+                 ["بس", 2.92, 3.16], ["الخوف", 3.19, 3.60], ["مش", 3.76, 4.08], ["هيحميك.", 4.12, 4.80]];
+  const CHAR = { head: "short3", facialHair: "goatee1", skin: "#d08b5b", clothing: "#8bd3dd", headContrast: "#2c1b18" };
+  // البق: وشوش مفتوحة ومقفولة بنبدّل بينهم وهو بيتكلم، والإحساس بيتغيّر مع الجملة
+  const FACES = { worried: ["concerned", "concernedFear"], strong: ["serious", "explaining"], blink: "eyesClosed" };
+  const peepCache = {};
+  const peepSvg = (face) => (peepCache[face] ??= Peeps.svg({ ...CHAR, face }));
+
+  let emojiA, emojiB, iconPaths = [];
+  window.ready = (async () => {
+    const [ill, ico, a, b] = await Promise.all([
+      fetch("../assets/undraw/thinking-mode.svg").then((r) => r.text()),
+      fetch("../assets/icons/lucide/shield-check.svg").then((r) => r.text()),
+      fetch("../assets/emoji/1f630.json").then((r) => r.json()),
+      fetch("../assets/emoji/1f4aa.json").then((r) => r.json()),
+    ]);
+    $("illus").innerHTML = ill;
+    $("icon").innerHTML = ico;
+    iconPaths = [...$("icon").querySelectorAll("path, circle, line, polyline, rect")];
+    iconPaths.forEach((p) => { const L = p.getTotalLength ? p.getTotalLength() : 100; p.dataset.len = L; p.style.strokeDasharray = L; });
+    const load = (data, el) => new Promise((res) => {
+      const anim = lottie.loadAnimation({ container: $(el), renderer: "svg", loop: false, autoplay: false, animationData: data });
+      anim.addEventListener("DOMLoaded", () => res(anim));
+    });
+    emojiA = await load(a, "emojiA");
+    emojiB = await load(b, "emojiB");
+    $("sub").innerHTML = WORDS.map(([w]) => `<span>${w}</span>`).join(" ");
+    window.renderAt(0);
+  })();
+
+  // إيموجي Lottie: بنروح لفريم محدد حسب t (من غير تشغيل تلقائي)، فالنتيجة ثابتة
+  function seekLottie(anim, t) {
+    const total = anim.totalFrames, fr = anim.frameRate || 30;
+    anim.goToAndStop(((t * fr) % total + total) % total, true);
+  }
+
+  window.renderAt = function (t) {
+    // الكلمة الحالية
+    const idx = WORDS.findIndex(([, a, b]) => t >= a && t < b + 0.05);
+    const speaking = idx >= 0;
+    const mood = t < 2.9 ? "worried" : "strong";
+
+    // الشخصية: البق بيفتح ويقفل ~8 مرات في الثانية وهو بيتكلم، ورمشة كل 2.3 ثانية، وهزة راس خفيفة
+    let face = FACES[mood][0];
+    if (speaking && Math.floor(t * 8) % 2 === 0) face = FACES[mood][1];
+    if (t % 2.3 > 2.15) face = FACES.blink;
+    const peep = $("peep");
+    if (peep.dataset.face !== face) { peep.innerHTML = peepSvg(face); peep.dataset.face = face; }
+    const enter = back((t - 0.0) / 0.6);
+    peep.style.transform = `translateY(${(1 - enter) * 300}px) rotate(${Math.sin(t * 3.1) * (speaking ? 2.5 : 1)}deg)`;
+    peep.style.opacity = clamp(t / 0.3);
+
+    // الإيموجي: 😰 مع الخوف، و 💪 مع "مش هيحميك"
+    const strong = t >= 3.1;
+    // الاتنين بيتحسبوا في كل فريم (حتى المستخبي) علشان حالتهم ما تعتمدش على الفريمات اللي قبل كده
+    [[emojiA, "emojiA", 0.9, 60, !strong], [emojiB, "emojiB", 3.1, 780, strong]].forEach(([anim, id, start, left, show]) => {
+      seekLottie(anim, t);
+      const em = $(id);
+      em.style.display = show ? "" : "none";
+      em.style.left = left + "px";
+      em.style.top = "420px";
+      em.style.transform = `scale(${back((t - start) / 0.4)})`;
+    });
+
+    // الأيقونة بتترسم خط بخط مع "هيحميك"
+    const draw = easeOut((t - 4.1) / 0.9);
+    iconPaths.forEach((p) => (p.style.strokeDashoffset = p.dataset.len * (1 - draw)));
+    $("icon").style.opacity = draw > 0 ? 1 : 0;
+
+    // الرسمة والعنوان
+    $("illus").style.transform = `translateY(${(1 - easeOut((t - 0.3) / 0.8)) * 200}px)`;
+    $("illus").style.opacity = clamp((t - 0.3) / 0.5) * 0.9;
+    $("title").style.transform = `scale(${0.9 + 0.1 * easeOut(t / 0.5)})`;
+    $("title").style.opacity = clamp(t / 0.4);
+
+    // الترجمة (كاريوكي)
+    [...$("sub").children].forEach((s, i) => (s.className = i === idx ? "on" : ""));
+  };
+</script>
+</body>
+</html>

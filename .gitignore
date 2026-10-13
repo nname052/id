@@ -16,3 +16,11 @@ __pycache__/
 
 # قوايم مولّدة
 voices.csv
+
+# مكتبات الرسومات (بتتنزل بـ: uv run python assets/fetch_assets.py)
+assets/vendor/
+assets/peeps/
+assets/undraw/
+assets/icons/
+assets/emoji/
+assets/catalog.json

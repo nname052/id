@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>فيديو مرجعي تجريبي</title>
+<!--
+  فيديو موشن جرافيك تجريبي (10 ثواني، 1080×1920) علشان نقيس سرعة الريندر في المرحلة 0.
+  القاعدة: كل حاجة على الشاشة بتتحسب من t بس جوه renderAt(t). مفيش requestAnimationFrame ولا Math.random ولا CSS transitions.
+-->
+<style>
+  @font-face { font-family: "Reem Kufi"; src: url("../fonts/ReemKufi-Variable.ttf") format("truetype"); font-weight: 400 700; }
+  @font-face { font-family: "IBM Plex Sans Arabic"; src: url("../fonts/IBMPlexSansArabic-Regular.ttf") format("truetype"); font-weight: 400; }
+  @font-face { font-family: "IBM Plex Sans Arabic"; src: url("../fonts/IBMPlexSansArabic-Bold.ttf") format("truetype"); font-weight: 700; }
+
+  html, body { margin: 0; width: 1080px; height: 1920px; overflow: hidden; background: #0f0e17; }
+  #stage { position: relative; width: 1080px; height: 1920px; overflow: hidden; }
+  svg { position: absolute; inset: 0; }
+  .title { position: absolute; top: 560px; width: 100%; text-align: center; font: 700 132px/1.3 "Reem Kufi"; color: #fffffe; }
+  .title span { display: inline-block; margin: 0 14px; }
+  .sub { position: absolute; top: 980px; width: 100%; text-align: center; font: 700 64px/1.5 "IBM Plex Sans Arabic"; color: #a7a9be; }
+  .sub span { margin: 0 8px; }
+  .sub span.on { color: #ff8906; }
+  .counter { position: absolute; bottom: 300px; width: 100%; text-align: center; font: 700 220px/1 "Reem Kufi"; color: #ff8906; }
+  .label { position: absolute; bottom: 230px; width: 100%; text-align: center; font: 400 48px "IBM Plex Sans Arabic"; color: #a7a9be; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <svg viewBox="0 0 1080 1920" width="1080" height="1920">
+    <defs>
+      <radialGradient id="glow"><stop offset="0" stop-color="#ff8906" stop-opacity=".55"/><stop offset="1" stop-color="#ff8906" stop-opacity="0"/></radialGradient>
+    </defs>
+    <circle id="glow1" cx="540" cy="700" r="600" fill="url(#glow)"/>
+    <g id="rings"></g>
+    <rect id="bar" x="90" y="1780" height="12" rx="6" fill="#ff8906"/>
+  </svg>
+  <div class="title" id="title"></div>
+  <div class="sub" id="sub"></div>
+  <div class="counter" id="counter"></div>
+  <div class="label" id="label">من الناس بيأجلوا بسبب الخوف</div>
+</div>
+<script>
+  window.DURATION = 10;
+  const TITLE = ["الخوف", "من", "الفشل"];
+  const SUB = ["أنا", "عارف", "إنك", "خايف", "تفشل...", "بس", "الخوف", "مش", "هيحميك."];
+  // توقيت كل كلمة (ثواني) زي اللي بيرجع من ElevenLabs
+  const SUB_T = [2.0, 2.3, 2.6, 2.9, 3.3, 5.0, 5.3, 5.8, 6.1];
+
+  const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+  const easeOut = (x) => 1 - Math.pow(1 - clamp(x), 3);
+  const easeInOut = (x) => (x = clamp(x), x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+
+  const $ = (id) => document.getElementById(id);
+  $("title").innerHTML = TITLE.map((w) => `<span>${w}</span>`).join("");
+  $("sub").innerHTML = SUB.map((w) => `<span>${w}</span>`).join(" ");
+  const rings = $("rings");
+  for (let i = 0; i < 6; i++) {
+    const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    c.setAttribute("fill", "none");
+    c.setAttribute("stroke", "#ff8906");
+    rings.appendChild(c);
+  }
+
+  window.renderAt = function (t) {
+    // الإضاءة بتتنفس
+    $("glow1").setAttribute("r", 560 + 60 * Math.sin(t * 1.4));
+
+    // دواير بتطلع من النص وتختفي (كل دايرة متأخرة عن اللي قبلها)
+    [...rings.children].forEach((c, i) => {
+      const p = ((t * 0.35 + i / 6) % 1);
+      c.setAttribute("cx", 540);
+      c.setAttribute("cy", 700);
+      c.setAttribute("r", 120 + p * 700);
+      c.setAttribute("stroke-width", 6 * (1 - p));
+      c.setAttribute("opacity", 0.5 * (1 - p));
+    });
+
+    // العنوان: كل كلمة بتنزل وتظهر ورا التانية، وفي الآخر العنوان كله بيطلع لفوق
+    const exit = easeInOut((t - 7.5) / 0.8);
+    [...$("title").children].forEach((s, i) => {
+      const p = easeOut((t - 0.3 - i * 0.35) / 0.6);
+      s.style.opacity = p * (1 - exit);
+      s.style.transform = `translateY(${(1 - p) * 80 - exit * 200}px) scale(${0.85 + 0.15 * p})`;
+    });
+
+    // الترجمة: أسلوب الكاريوكي، الكلمة الحالية بتنوّر
+    const subIn = easeOut((t - 1.7) / 0.4);
+    $("sub").style.opacity = subIn * (1 - exit);
+    [...$("sub").children].forEach((s, i) => {
+      const next = SUB_T[i + 1] ?? 7.0;
+      s.className = t >= SUB_T[i] && t < next ? "on" : "";
+    });
+
+    // عدّاد من 0 لـ 73%
+    const cp = easeOut((t - 7.8) / 1.6);
+    $("counter").textContent = `${Math.round(73 * cp)}%`;
+    $("counter").style.opacity = clamp((t - 7.7) / 0.3);
+    $("label").style.opacity = clamp((t - 8.3) / 0.4);
+
+    // شريط التقدم تحت
+    $("bar").setAttribute("width", 900 * clamp(t / window.DURATION));
+  };
+
+  window.renderAt(0);
+</script>
+</body>
+</html>
