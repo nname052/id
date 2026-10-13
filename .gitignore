@@ -1,0 +1,15 @@
+# أسرار
+.env
+
+# مخرجات
+videos/
+phase0/out/
+phase0_results.md
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# macOS
+.DS_Store

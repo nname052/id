@@ -1,0 +1,13 @@
+[project]
+name = "tiktok-motion"
+version = "0.0.1"
+description = "Local TikTok motion-graphics video generator"
+requires-python = ">=3.12"
+dependencies = [
+    "requests>=2.32",
+    "playwright>=1.48",
+    "psutil>=6.0",
+]
+
+[tool.uv]
+package = false
