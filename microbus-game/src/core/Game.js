@@ -15,6 +15,7 @@ import { AudioSystem } from '../audio/AudioSystem.js';
 import { AssetManager, applyTextureOverrides } from '../assets/AssetManager.js';
 import { Input } from './Input.js';
 import { HUD } from '../ui/HUD.js';
+import { TouchControls, isTouchDevice } from '../ui/TouchControls.js';
 
 const FIXED_DT = 1 / 120;
 const nextFrame = () => new Promise((r) => requestAnimationFrame(() => r()));
@@ -37,7 +38,8 @@ export class Game {
 
     // ===== الرندر =====
     const renderer = (this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' }));
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+    this.mobile = isTouchDevice();
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, this.mobile ? 1 : 1.5));
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -57,6 +59,7 @@ export class Game {
     S('السما والشمس...', 0.4);
     await nextFrame();
     this.env = new Environment(renderer, this.scene, this.M);
+    if (this.mobile) this.env.sun.shadow.mapSize.set(1024, 1024);
 
     S('بناء الشارع...', 0.5);
     await nextFrame();
@@ -72,6 +75,7 @@ export class Game {
     await nextFrame();
     this.audio = new AudioSystem(this.assets);
     this.player = new PlayerVehicle(this.scene, this.assets);
+    this.player.lowPower = this.mobile;
     this.player.physics.onImpact = (v) => { this.audio.impact(v); this.cams.shake = Math.min(1.5, v / 4); };
 
     S('المرور والمشاة...', 0.82);
@@ -87,6 +91,7 @@ export class Game {
     };
 
     this.input = new Input();
+    if (this.mobile) { document.body.classList.add('touch'); this.touch = new TouchControls(); this.input.touch = this.touch; }
     this.hud = new HUD();
     this.cams = new CameraSystem(this.camera, this.player, renderer.domElement);
     this.cams.mode = 3; // سينمائية ورا شاشة البداية
@@ -131,7 +136,9 @@ export class Game {
     this.cams.mode = 0;
     this.cams.snap = true;
     this.hud.show();
-    this.hud.toast('إنت دلوقتي في كرسي السواق — دوس W', 3);
+    if (this.touch) { this.touch.show(); document.getElementById('help').classList.add('hidden'); this.hud.helpTimer = 0; }
+    if (this.mobile) document.documentElement.requestFullscreen?.().catch(() => {});
+    this.hud.toast(this.mobile ? 'دوس بنزين واسحب الدركسيون' : 'إنت دلوقتي في كرسي السواق — دوس W', 3);
   }
 
   /** جودة تلقائية: لو الجهاز ضعيف (FPS قليل) نقلل الدقة والضلال */
@@ -232,6 +239,7 @@ export class Game {
     const inside = this.cams.modeId === 'cockpit';
     this.audio.update(dt, { player: this.player, camera: this.camera, traffic: this.traffic, inside, horn: input.horn });
     this.hud.update(dt, ph, this.lights);
+    if (this.touch) this.touch.setWheelAngle(ph.steeringWheelAngle);
 
     if (inside) this.player.renderMirrors(this.renderer, this.scene, this.camera.position);
     this.renderer.render(this.scene, this.camera);

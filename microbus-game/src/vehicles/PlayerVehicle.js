@@ -75,6 +75,7 @@ export class PlayerVehicle {
 
   renderMirrors(renderer, scene, cameraPos) {
     if (!this.mirrorCams.length) return;
+    if (this.lowPower && (this._skip = !this._skip)) return;
     const i = this._mirrorFrame++ % this.mirrorCams.length;
     const { m, rt, cam } = this.mirrorCams[i];
     const facePos = m.face.getWorldPosition(new THREE.Vector3());

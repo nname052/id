@@ -40,6 +40,17 @@ export class Input {
       actions: { camera: this.consume('KeyC'), reset: this.consume('KeyR'), time: this.consume('KeyT'), help: this.consume('KeyI') || this.consume('F1'), mute: this.consume('KeyM'), fps: this.consume('KeyF') },
     };
     this.pressed.clear();
+    // تحكم اللمس (موبايل)
+    const t = this.touch;
+    if (t && t.active) {
+      const ts = t.state;
+      if (Math.abs(ts.steer) > 0.02) { st.steer = ts.steer; st.analog = true; }
+      st.throttle = Math.max(st.throttle, ts.throttle);
+      st.brake = Math.max(st.brake, ts.brake);
+      st.handbrake = Math.max(st.handbrake, ts.handbrake);
+      st.horn = st.horn || ts.horn;
+      for (const a of t.takeActions()) st.actions[a] = true;
+    }
     // Gamepad (Xbox / PlayStation بالـ standard mapping)
     const pads = navigator.getGamepads ? navigator.getGamepads() : [];
     const gp = (this.gamepadIndex != null && pads[this.gamepadIndex]) || [...pads].find((p) => p);
