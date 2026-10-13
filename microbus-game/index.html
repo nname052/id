@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#141414" />
+  <title>ميكروباص مصر</title>
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="./src/ui/style.css" />
+</head>
+<body>
+  <div id="app"></div>
+
+  <!-- شاشة التحميل / البداية -->
+  <div id="start">
+    <div class="card">
+      <h1>ميكروباص مصر</h1>
+      <p class="sub">نسخة تجريبية أولى · شارع مصري واحد</p>
+      <div id="progress"><div id="bar"></div></div>
+      <p id="status">بيتحمّل...</p>
+      <button id="go" disabled>اركب الميكروباص ▶</button>
+      <div class="keys">
+        <div><kbd>W</kbd> بنزين</div>
+        <div><kbd>S</kbd> فرامل / ريوس</div>
+        <div><kbd>A</kbd> <kbd>D</kbd> دركسيون</div>
+        <div><kbd>Space</kbd> فرامل يد</div>
+        <div><kbd>C</kbd> تغيير الكاميرا</div>
+        <div><kbd>R</kbd> رجوع للطريق</div>
+        <div><kbd>H</kbd> كلاكس</div>
+        <div><kbd>T</kbd> نهار / غروب / ليل</div>
+      </div>
+      <p class="hint">اسحب بالماوس عشان تبص حواليك وتشوف المرايات · يدعم يد التحكم (Gamepad)</p>
+    </div>
+  </div>
+
+  <div id="hud" class="hidden">
+    <div class="dash">
+      <div class="speed"><span id="hud-speed">0</span><small>كم/س</small></div>
+      <div class="gear-box"><span id="hud-gear">1</span><small>فتيس</small></div>
+      <div class="rpm-wrap"><div id="hud-rpm"></div></div>
+      <div class="steer-icon"><svg id="hud-steer" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="currentColor" stroke-width="3"/><circle cx="20" cy="20" r="4" fill="currentColor"/><path d="M20 4v12M6 26l10-4M34 26l-10-4" stroke="currentColor" stroke-width="3"/></svg></div>
+      <div id="hud-signal" class="sig"><i></i></div>
+    </div>
+  </div>
+  <div id="toast"></div>
+  <div id="fps" class="hidden"></div>
+  <div id="help" class="hidden">
+    <b>التحكم</b>
+    W بنزين · S فرامل/ريوس · A/D دركسيون · Space فرامل يد · C كاميرا · R رجوع للطريق<br />
+    H كلاكس · Q/E بص يمين وشمال · B بص ورا · T وقت اليوم · M صوت · F عداد FPS · I إخفاء/إظهار المساعدة
+  </div>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+{
+  "name": "egypt-microbus",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --open",
+    "start": "vite --open",
+    "build": "vite build",
+    "preview": "vite preview --open",
+    "test:physics": "node tools/physics-test.mjs"
+  },
+  "dependencies": {
+    "three": "0.170.0"
+  },
+  "devDependencies": {
+    "vite": "6.0.7"
+  }
+}
