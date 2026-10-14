@@ -157,11 +157,14 @@ export class VehiclePhysics {
       this.wheelAngle += (target - this.wheelAngle) * Math.min(1, dt * 9);
       this.wheelVel = (this.wheelAngle - prev) / dt;
     } else if (Math.abs(input.steer || 0) > 0.01) {
-      // كيبورد: لفة ثابتة السرعة (أسرع لو بترجع عكس الاتجاه)
-      const target = clamp(input.steer, -1, 1) * maxWheel;
-      const rate = (maxWheel * 1.15) / (1 + u * 0.03);
+      // كيبورد (أسهم/A-D): السهم مش بيلف الدركسيون لآخره. أقصى لفة بتقل مع السرعة
+      // (زي السواق الحقيقي اللي بيلف حتة صغيرة على السريع)، واللفة نفسها بالراحة
+      const ks = this.keySens ?? 1;
+      const limit = maxWheel * clamp(ks / (1 + u * 0.26), 0.07, 1);
+      const target = clamp(input.steer, -1, 1) * limit;
+      const rate = (maxWheel * 0.75 * ks) / (1 + u * 0.14);
       const diff = target - this.wheelAngle;
-      const r = Math.sign(diff) !== Math.sign(this.wheelAngle) && Math.abs(this.wheelAngle) > 0.3 ? rate * 1.7 : rate;
+      const r = Math.sign(diff) !== Math.sign(this.wheelAngle) && Math.abs(this.wheelAngle) > 0.3 ? rate * 2 : rate;
       const prev = this.wheelAngle;
       this.wheelAngle += clamp(diff, -r * dt, r * dt);
       this.wheelVel = (this.wheelAngle - prev) / dt;

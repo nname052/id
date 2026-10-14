@@ -8,6 +8,7 @@ export const SCHEMA = [
   { group: 'الكاميرا' },
   { key: 'fov', type: 'range', label: 'زاوية الرؤية من كرسي السواق', min: 55, max: 90, step: 1, fmt: (v) => `${v}°`, def: 62 },
   { key: 'seat', type: 'seg', label: 'مكان الكرسي (كاميرا السواق)', options: [['near', 'قريب'], ['normal', 'عادي'], ['back', 'لورا']], def: 'normal' },
+  { key: 'keySteer', type: 'seg', label: 'حساسية الدركسيون بالكيبورد', options: [['0.6', 'هادية'], ['1', 'عادية'], ['1.4', 'سريعة']], def: '1' },
   { key: 'lookSens', type: 'range', label: 'حساسية لف الكاميرا', min: 0.4, max: 2, step: 0.1, fmt: (v) => `${(+v).toFixed(1)}×`, def: 1 },
   { key: 'mirrorInsets', type: 'seg', label: 'المرايات الجانبية على حرف الشاشة', options: [['auto', 'تلقائي'], ['on', 'دايمًا'], ['off', 'مقفولة']], def: 'auto' },
   { group: 'الجرافيكس' },

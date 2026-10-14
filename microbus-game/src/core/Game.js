@@ -134,6 +134,7 @@ export class Game {
     this.settings.mount(this.touch ? this.touch.root.querySelector('.t-top') : null);
     this.cams = new CameraSystem(this.camera, this.player, renderer.domElement);
     this.cams.settings = this.settings;
+    this.cams.colliders = this._colliders;
     this.mirrorInsets = new MirrorInsets(this.player, this.touch);
     this.passengers = new Passengers(this.scene, this.player, { hud: this.hud, audio: this.audio, settings: this.settings });
     this.passengers._updateHud();
@@ -325,6 +326,7 @@ export class Game {
   _applySetting(k, v) {
     switch (k) {
       case 'mirrorInsets': this.mirrorInsets.mode = v; break;
+      case 'keySteer': this.player.physics.keySens = +v; break;
       case 'seat': {
         const rig = this.player.rig;
         if (rig.eyeBase) { const o = { near: [-0.16, -0.03], normal: [0, 0], back: [0.14, 0.04] }[v] || [0, 0]; rig.eye.position.set(rig.eyeBase.x, rig.eyeBase.y + o[1], rig.eyeBase.z + o[0]); }

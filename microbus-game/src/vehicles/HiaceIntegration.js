@@ -332,7 +332,7 @@ function buildHiaceInterior(group, rig, D) {
     mats.dashGrain = tex(heightToNormal(h, N, N, 1.6), { srgb: false });
     mats.dashGrain.repeat.set(6, 6);
     mats.dash = new THREE.MeshStandardMaterial({ color: 0x2c2d30, roughness: 0.82, vertexColors: true, normalMap: mats.dashGrain, normalScale: new THREE.Vector2(0.45, 0.45) });
-    mats.pillarTrim = new THREE.MeshStandardMaterial({ color: 0x4b4945, roughness: 0.9, normalMap: mats.dashGrain, normalScale: new THREE.Vector2(0.3, 0.3) });
+    mats.pillarTrim = new THREE.MeshStandardMaterial({ color: 0x2a2928, roughness: 0.9, normalMap: mats.dashGrain, normalScale: new THREE.Vector2(0.3, 0.3) });
     mats.doorCard = new THREE.MeshStandardMaterial({ color: 0x5d5b57, roughness: 0.88, normalMap: mats.dashGrain, normalScale: new THREE.Vector2(0.35, 0.35), vertexColors: true });
   }
 
@@ -464,12 +464,13 @@ function buildHiaceInterior(group, rig, D) {
   hb.rotation.x = 0.12; group.add(hb); rig.handbrake = hb;
 
   // ===== زينة: شرّابة فوق الزجاج + سبحة =====
+  // الشرّابة: رفيعة وفوق خالص عند حرف السقف (كانت عريضة وبتقفل أعلى الرؤية)
   const fr = new GeoBuilder();
   fr.setColor([0.55, 0.05, 0.08]);
-  fr.box(-D.wsHalf + 0.02, wtY - 0.05, z(wtF + 0.03), D.wsHalf - 0.02, wtY - 0.015, z(wtF));
-  for (let x = -D.wsHalf + 0.04; x < D.wsHalf - 0.03; x += 0.06) {
-    fr.setColor(Math.round(x * 16) % 3 === 0 ? [0.85, 0.65, 0.15] : [0.6, 0.05, 0.1]);
-    fr.addGeometry(new THREE.CylinderGeometry(0.004, 0.008, 0.04, 5), M4(x, wtY - 0.07, z(wtF + 0.02)));
+  fr.box(-D.wsHalf + 0.02, wtY + 0.005, z(wtF + 0.03), D.wsHalf - 0.02, wtY + 0.025, z(wtF));
+  for (let x = -D.wsHalf + 0.04; x < D.wsHalf - 0.03; x += 0.05) {
+    fr.setColor(Math.round(x * 20) % 3 === 0 ? [0.85, 0.65, 0.15] : [0.6, 0.05, 0.1]);
+    fr.addGeometry(new THREE.CylinderGeometry(0.003, 0.006, 0.022, 5), M4(x, wtY - 0.004, z(wtF + 0.02)));
   }
   group.add(new THREE.Mesh(fr.build(), mats.decor));
   // مراية جوه
@@ -515,7 +516,7 @@ function buildHiaceInterior(group, rig, D) {
     };
     for (const sx of [-1, 1]) {
       const bot = [sx * (D.wsHalf + 0.03), wbY - 0.02, z(wbF + 0.02)], top = [sx * (D.wsHalf - 0.03), wtY - 0.02, z(wtF - 0.02)];
-      beam(bot, top, 0.11, 0.06, mats.pillarTrim, new THREE.Vector3(-sx * 0.03, 0, 0.03));
+      beam(bot, top, 0.075, 0.045, mats.pillarTrim, new THREE.Vector3(-sx * 0.025, 0, 0.025));
     }
     // تجاليد الأبواب الأمامية (شمال = السواق، يمين = الراكب)
     const sill = wbY - 0.12, dz0 = z(dashBackF + 0.02), dz1 = z(seatF - 0.38);

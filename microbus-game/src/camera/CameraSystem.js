@@ -46,8 +46,12 @@ export class CameraSystem {
   _initMouse(dom) {
     dom.addEventListener('pointerdown', (e) => { this.look.dragging = true; this.look.lastX = e.clientX; this.look.lastY = e.clientY; });
     window.addEventListener('pointerup', () => { this.look.dragging = false; });
+    window.addEventListener('pointercancel', () => { this.look.dragging = false; });
+    window.addEventListener('blur', () => { this.look.dragging = false; });
     window.addEventListener('pointermove', (e) => {
       if (!this.look.dragging) return;
+      // الزرار اتساب برا الشاشة (بيحصل كتير على الماك) → وقف السحب بدل ما الكاميرا تفضل تلف لوحدها
+      if (e.pointerType === 'mouse' && !e.buttons) { this.look.dragging = false; return; }
       const dx = e.clientX - this.look.lastX, dy = e.clientY - this.look.lastY;
       this.look.lastX = e.clientX; this.look.lastY = e.clientY;
       this.look.yaw = THREE.MathUtils.clamp(this.look.yaw - dx * 0.004 * this._sens(), -2.2, 2.2);
@@ -77,6 +81,26 @@ export class CameraSystem {
       pts.push(new THREE.Vector3(x, y, z));
     }
     return pts;
+  }
+
+  /** الكاميرا اللي ورا متدخلش جوه عمارة: لو الخط من العربية للكاميرا بيخبط في مبنى نقرّبها */
+  _avoidWalls(px, pz, cam) {
+    if (!this.colliders) return;
+    const dx = cam.x - px, dz = cam.z - pz;
+    const box = { cx: (px + cam.x) / 2, cz: (pz + cam.z) / 2, hx: Math.abs(dx) / 2 + 2, hz: Math.abs(dz) / 2 + 2, angle: 0 };
+    const list = this.colliders(box).filter((c) => c.kind === 'building' || c.kind === 'wall' || c.kind === 'edge');
+    if (!list.length) return;
+    let tMax = 1;
+    for (let t = 0.25; t <= 1.0001; t += 0.05) {
+      const x = px + dx * t, z = pz + dz * t;
+      const hit = list.some((c) => {
+        const ca = Math.cos(c.angle || 0), sa = Math.sin(c.angle || 0), rx = x - c.cx, rz = z - c.cz;
+        const lx = rx * ca - rz * sa, lz = rx * sa + rz * ca;
+        return Math.abs(lx) < c.hx + 0.4 && Math.abs(lz) < c.hz + 0.4;
+      });
+      if (hit) { tMax = Math.max(0.25, t - 0.08); break; }
+    }
+    if (tMax < 1) { cam.x = px + dx * tMax; cam.z = pz + dz * tMax; cam.y += (1 - tMax) * 1.5; }
   }
 
   /** look: دخل الجيم باد (العصاية اليمين) */
@@ -127,7 +151,7 @@ export class CameraSystem {
       cam.position.copy(pos);
       p.rig.body.getWorldQuaternion(_q);
       // بص شوية في اتجاه اللفة (زي السواق الحقيقي)
-      const steerLook = ph.steerSmooth * 0.16 * Math.min(1, Math.abs(ph.forwardSpeed) / 3 + 0.3);
+      const steerLook = ph.steerSmooth * 0.07 * Math.min(1, Math.abs(ph.forwardSpeed) / 6);
       _e.set((p.rig.eyePitch ?? -0.2) + this.look.pitch, this.look.yaw + steerLook, 0, 'YXZ');
       cam.quaternion.copy(_q).multiply(_q3.setFromEuler(_e));
     } else if (id === 'chase') {
@@ -141,6 +165,7 @@ export class CameraSystem {
       const camYaw = this.chaseYaw + this.look.yaw;
       const baseY = ph.heave - ph.spec.cgHeight;
       const target = _v.set(root.position.x + Math.sin(camYaw) * dist, baseY + 3.3 + this.look.pitch * 3, root.position.z + Math.cos(camYaw) * dist);
+      this._avoidWalls(root.position.x, root.position.z, target);
       if (this.snap) this.chasePos.copy(target); else this.chasePos.lerp(target, Math.min(1, dt * 9));
       cam.position.copy(this.chasePos);
       const fwd = ph.forward;
