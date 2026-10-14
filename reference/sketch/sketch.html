@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>الخمس دقايق المصرية</title>
+<!--
+  سكيتش كوميدي (1080×1920): Claire واقفة في الشارع تحت البيت بتكلّم Aj اللي لسه مرمي على الكنبة.
+  الصوت والتوقيت من timeline.json (اتعمل بـ make_voices.py). اللقطات بتتقطع بين الشارع والأوضة.
+  الشخصيات من Mixamo، والحركات من مكتبة anims/ (lib/mixamo.js بيحوّلها على كل شخصية)، والبق ماشي مع حروف الصوت.
+-->
+<link rel="stylesheet" href="../../fonts/fonts.css">
+<style>
+  html, body { margin: 0; width: 1080px; height: 1920px; overflow: hidden; background: #000; }
+  canvas { display: block; }
+  #subs { position: absolute; left: 60px; right: 60px; top: 1250px; text-align: center; }
+  #subs .who { display: inline-block; font: 700 34px "Alexandria"; color: #fff; padding: 4px 18px; border-radius: 999px; margin-bottom: 10px; }
+  #subs .line { display: inline-block; background: rgba(10, 12, 30, .55); padding: 10px 26px; border-radius: 26px; font: 800 52px/1.45 "Alexandria"; color: #fff; text-shadow: 0 3px 0 rgba(0,0,0,.55), 0 0 24px rgba(0,0,0,.45); }
+  #subs .line span { opacity: .35; }
+  #subs .line span.said { opacity: 1; }
+  #subs .line span.now { color: #ffd166; }
+  #title { position: absolute; top: 150px; left: 0; right: 0; text-align: center; font: 800 58px "Alexandria"; color: #fff;
+           text-shadow: 0 4px 24px rgba(0,0,0,.5); }
+  #title small { display: block; font: 500 34px "Alexandria"; opacity: .9; }
+  #punch { position: absolute; top: 220px; left: 50px; right: 50px; text-align: center; color: #fff; }
+  #punch .a { font: 800 76px/1.3 "Alexandria"; text-shadow: 0 4px 0 #c2410c, 0 0 30px rgba(0,0,0,.4); }
+  #punch .b { display: inline-block; margin-top: 18px; font: 800 92px/1.2 "Alexandria"; color: #001858; background: #ffd166;
+              padding: 6px 34px; border-radius: 26px; transform-origin: center; }
+  #flash { position: absolute; inset: 0; background: #000; opacity: 0; pointer-events: none; }
+</style>
+<script type="importmap">
+  { "imports": { "three": "../../assets/vendor/three/three.module.js", "three/addons/": "../../assets/vendor/three/addons/" } }
+</script>
+</head>
+<body>
+<div id="title">الخمس دقايق المصرية<small>⏰ سكيتش</small></div>
+<div id="subs"></div>
+<div id="punch"><div class="a">الخمس دقايق المصرية</div><div class="b">= ساعة وربع 😂</div></div>
+<div id="flash"></div>
+<script type="module">
+  import * as THREE from "three";
+  import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+  import { loadCharacter, action, addMouth, setMouth, lipTrack, wordTimes, addPhone, hdriEnvironment } from "../lib/mixamo.js";
+
+  const W = 1080, H = 1920;
+  const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+  const ease = (x) => (x = clamp(x), x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+  const lerp = (a, b, p) => a + (b - a) * p;
+  const $ = (id) => document.getElementById(id);
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setSize(W, H);
+  renderer.setPixelRatio(1);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  document.body.prepend(renderer.domElement);
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(40, W / H, 0.05, 200);
+  const gltf = new GLTFLoader();
+  const load = async (path, pos, rotY = 0, s = 1) => {
+    const g = (await gltf.loadAsync(path)).scene;
+    g.position.set(...pos); g.rotation.y = rotY; g.scale.setScalar(s);
+    g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    scene.add(g);
+    return g;
+  };
+
+  // ---------- الشارع (حوالين 0,0,0) ----------
+  const CITY = 4.5; // KayKit City: البلاطة 2 وحدة ← 9 متر
+  const C = "../../assets/3d/kaykit-city/";
+  async function buildStreet() {
+    for (const [n, x] of [["building_D", -9], ["building_A", 0], ["building_E", 9], ["building_B", 18], ["building_C", -18]])
+      await load(`${C}${n}.gltf`, [x, 0, -7], 0, CITY);
+    for (const x of [-18, -9, 0, 9, 18]) {
+      await load(`${C}base.gltf`, [x, 0, 1.3], 0, CITY);            // رصيف
+      await load(`${C}road_straight.gltf`, [x, 0, 10.3], Math.PI / 2, CITY); // الشارع
+    }
+    await load(`${C}car_taxi.gltf`, [3.6, 0.3, 7.6], Math.PI / 2, CITY);
+    await load(`${C}car_sedan.gltf`, [-6.5, 0.3, 7.6], -Math.PI / 2, CITY);
+    await load(`${C}streetlight.gltf`, [-3.4, 0.45, 3.5], 0, CITY);
+    await load(`${C}bench.gltf`, [3.2, 0.45, -0.6], 0, CITY);
+    await load(`${C}bush.gltf`, [-1.8, 0.45, -1.2], 0, CITY);
+    await load(`${C}bush.gltf`, [5.6, 0.45, -1.2], 0, CITY);
+    await load(`${C}firehydrant.gltf`, [-2.6, 0.45, 2.6], 0, CITY);
+  }
+  const sun = new THREE.DirectionalLight("#fff1d6", 2.2);
+  sun.position.set(-8, 14, 10);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  Object.assign(sun.shadow.camera, { left: -12, right: 12, top: 12, bottom: -6 });
+  scene.add(sun, sun.target);
+
+  // ---------- الأوضة (حوالين 40,0,0) ----------
+  const R = 40, F = "../../assets/3d/kaykit-furniture/", FURN = 0.66;
+  async function buildRoom() {
+    const wall = new THREE.MeshStandardMaterial({ color: "#f3e4cc", roughness: 0.9 });
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(8, 8), new THREE.MeshStandardMaterial({ color: "#c8935f", roughness: 0.75 }));
+    floor.rotation.x = -Math.PI / 2; floor.position.set(R, 0.002, 0); floor.receiveShadow = true; scene.add(floor);
+    const back = new THREE.Mesh(new THREE.PlaneGeometry(8, 5), wall); back.position.set(R, 2.5, -3); back.receiveShadow = true; scene.add(back);
+    const left = new THREE.Mesh(new THREE.PlaneGeometry(8, 5), wall); left.position.set(R - 3, 2.5, 0); left.rotation.y = Math.PI / 2; left.receiveShadow = true; scene.add(left);
+    await load(`${F}couch_pillows.gltf`, [R, 0, -2.3], 0, FURN);
+    await load(`${F}table_low.gltf`, [R, 0, -0.9], 0, FURN);
+    await load(`${F}rug_rectangle_stripes_A.gltf`, [R, 0, -0.9], 0, 1.0);
+    await load(`${F}lamp_standing.gltf`, [R + 1.7, 0, -2.4], 0, FURN);
+    await load(`${F}pictureframe_large_B.gltf`, [R, 1.55, -2.95], 0, FURN);
+    await load(`${F}shelf_B_large_decorated.gltf`, [R - 2.7, 0, -1.4], Math.PI / 2, FURN);
+    await load(`${F}cactus_medium_A.gltf`, [R + 2.4, 0, -2.4], 0, FURN);
+  }
+  const roomLight = new THREE.PointLight("#ffd9a8", 18, 9, 1.6);
+  roomLight.position.set(R + 1.2, 2.6, 0.8);
+  roomLight.castShadow = true;
+  scene.add(roomLight);
+
+  // ---------- الشخصيات والتوقيت ----------
+  let T, claire, aj, lines = [], A = {};
+  window.ready = (async () => {
+    T = await (await fetch("timeline.json")).json();
+    window.DURATION = T.duration;
+    await hdriEnvironment(renderer, scene, "kloofendal_48d_partly_cloudy_puresky");
+    scene.environmentIntensity = 0.8;
+    await Promise.all([buildStreet(), buildRoom()]);
+
+    claire = await loadCharacter("characters/Claire", { heightM: 1.66 });
+    claire.root.position.set(0.6, 0.45, 1.2);
+    scene.add(claire.root);
+    aj = await loadCharacter("Aj_Idle", { heightM: 1.75 });
+    aj.root.position.set(R, 0, -1.95);
+    scene.add(aj.root);
+    addMouth(claire); addMouth(aj);
+    addPhone(claire); addPhone(aj);
+
+    A.c_phone = await action(claire, "phone_call");
+    A.c_angry = await action(claire, "angry_point");
+    A.c_defeat = await action(claire, "defeated");
+    A.a_sit = await action(aj, "sitting_idle", "lower");
+    A.a_sitUp = await action(aj, "sitting_idle", "upper");
+    A.a_phone = await action(aj, "phone_call", "upper");
+    A.a_laugh = await action(aj, "sitting_laughing", "upper");
+
+    for (const ln of T.lines) {
+      const al = await (await fetch(ln.align)).json();
+      lines.push({ ...ln, lip: lipTrack(al), words: wordTimes(al) });
+    }
+    await document.fonts.ready;
+    window.renderAt(0);
+  })();
+
+  // ---------- اللقطات ----------
+  // كل لقطة: من إمتى لإمتى، فين (الشارع/الأوضة)، والكاميرا [من، لـ] (مكان + بتبص على فين)
+  const shots = () => {
+    const L = T.lines, cut = (i) => L[i].start - 0.2;
+    return [
+      { a: 0, b: cut(1), where: "street", cam: [[2.2, 2.4, 9.5], [0.6, 1.4, 1.2]], cam2: [[1.6, 1.85, 4.2], [0.55, 1.75, 1.2]] },
+      { a: cut(1), b: cut(2), where: "room", cam: [[R + 1.4, 1.5, 2.6], [R, 0.95, -1.9]], cam2: [[R + 1.0, 1.35, 1.7], [R, 1.05, -1.9]] },
+      { a: cut(2), b: cut(3), where: "street", cam: [[1.1, 1.95, 3.0], [0.55, 1.8, 1.2]], cam2: [[0.95, 1.95, 2.55], [0.55, 1.82, 1.2]] },
+      { a: cut(3), b: L[3].start + L[3].dur + 0.25, where: "room", cam: [[R - 0.9, 1.4, 1.9], [R, 1.05, -1.9]], cam2: [[R - 0.6, 1.3, 1.4], [R, 1.1, -1.9]] },
+      { a: L[3].start + L[3].dur + 0.25, b: 999, where: "street", cam: [[1.6, 2.2, 5.2], [0.55, 1.5, 1.2]], cam2: [[1.4, 2.0, 4.2], [0.55, 1.45, 1.2]] },
+    ];
+  };
+
+  const PHONE_AT_EAR = 5.0; // في phone_call الإيد اليمين على الودن من ثانية 4.6 لـ 34
+  const tmp = new THREE.Vector3(), look = new THREE.Vector3();
+  window.renderAt = (t) => {
+    const S = shots(), i = S.findIndex((s) => t >= s.a && t < s.b), s = S[i];
+    const p = ease((t - s.a) / (s.b - s.a));
+    tmp.fromArray(s.cam[0]).lerp(look.fromArray(s.cam2[0]), p);
+    camera.position.copy(tmp);
+    camera.lookAt(look.fromArray(s.cam[1]).lerp(tmp.fromArray(s.cam2[1]), p));
+    scene.background = new THREE.Color(s.where === "street" ? "#9fd3f5" : "#1a1410");
+    sun.intensity = s.where === "street" ? 2.2 : 0;
+    roomLight.intensity = s.where === "room" ? 18 : 0;
+    $("flash").style.opacity = Math.max(0, 1 - (t - s.a) / 0.12) * (i > 0 ? 0.6 : 0); // ومضة سريعة عند القطع
+
+    // Claire: بتكلّم في الموبايل وهي متضايقة ← بتشاور بزعل ← بتستسلم
+    const L = T.lines;
+    const w = { c_phone: 1, c_angry: 0, c_defeat: 0 };
+    if (i >= 2) { const k = ease((t - (L[2].start - 0.3)) / 0.4); w.c_angry = k; w.c_phone = 1 - k; }
+    if (i >= 4) { const k = ease((t - s.a) / 0.4); w.c_defeat = k; w.c_angry *= 1 - k; w.c_phone *= 1 - k; }
+    for (const [k, v] of Object.entries(w)) A[k].setEffectiveWeight(v);
+    A.c_phone.time = (PHONE_AT_EAR + t) % A.c_phone.getClip().duration; // حركة الموبايل بتبدأ بطلب الرقم: نبدأ من لما الإيد توصل للودن
+    A.c_angry.time = Math.max(0, t - (L[2].start - 0.3)) % A.c_angry.getClip().duration;
+    A.c_defeat.time = Math.min(Math.max(0, t - S[4].a), A.c_defeat.getClip().duration - 0.01);
+    claire.mixer.update(0);
+    claire.phone.visible = w.c_phone > 0.5;
+
+    // Aj: قاعد على الكنبة وماسك الموبايل، وبيضحك في أول الجملة الأخيرة
+    const laugh = clamp(1 - Math.abs(t - (L[3].start + 0.4)) / 0.9);
+    A.a_sit.setEffectiveWeight(1);
+    A.a_phone.setEffectiveWeight(1 - laugh); A.a_laugh.setEffectiveWeight(laugh); A.a_sitUp.setEffectiveWeight(0);
+    for (const k of ["a_sit", "a_laugh", "a_sitUp"]) A[k].time = t % A[k].getClip().duration;
+    A.a_phone.time = (PHONE_AT_EAR + t) % A.a_phone.getClip().duration;
+    aj.mixer.update(0);
+
+    // البق: كل واحد بيتكلم في جملته بس
+    let mc = 0, ma = 0;
+    for (const ln of lines) { const o = ln.lip(t - ln.start); if (ln.who === "claire") mc = Math.max(mc, o); else ma = Math.max(ma, o); }
+    setMouth(claire, mc); setMouth(aj, ma);
+
+    renderer.render(scene, camera);
+
+    // الترجمة: الجملة الحالية، والكلمة اللي بتتقال بتنوّر
+    const cur = lines.find((ln) => t >= ln.start - 0.15 && t <= ln.start + ln.dur + 0.35);
+    const subs = $("subs");
+    if (cur) {
+      const local = t - cur.start;
+      const color = cur.who === "claire" ? "#e5487a" : "#2f7de1";
+      subs.innerHTML = `<div class="who" style="background:${color}">${cur.who === "claire" ? "Claire" : "Aj"}</div><div class="line">` +
+        cur.words.map((wd) => `<span class="${local >= wd.start ? "said" : ""} ${local >= wd.start && local < wd.end + 0.08 ? "now" : ""}">${wd.text}</span>`).join(" ") + "</div>";
+      subs.style.opacity = 1;
+    } else subs.style.opacity = 0;
+
+    $("title").style.opacity = clamp(1 - (t - 0.9) / 0.3);
+    const pk = clamp((t - S[4].a - 0.5) / 0.35);
+    $("punch").style.opacity = pk;
+    $("punch").querySelector(".b").style.transform = `scale(${0.6 + 0.4 * pk + 0.05 * Math.sin(t * 9) * pk}) rotate(${-3 + 3 * pk}deg)`;
+  };
+</script>
+</body>
+</html>
