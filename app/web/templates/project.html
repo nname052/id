@@ -20,7 +20,7 @@
 
   const busy = (txt) => `<div class="row"><span class="spinner"></span><b>${esc(txt)}</b></div>`;
   const RUNNING_TEXT = { script: "Claude بيكتب السكريبت…", scenes: "Claude بيخطط المشاهد وبيدوّر في المكتبات…", tts: "بنجهّز النص للنطق…",
-    audio: "ElevenLabs بيولّد الصوت…", render: "بنصدّر الفيديو…" };
+    audio: "ElevenLabs بيولّد الصوت…", render: "بنصدّر الفيديو…", audio_sentence: "بنعيد الجملة…", audio_review: "بنراجع النطق…" };
 
   // المرحلة اللي محتاجة انتباهك دلوقتي
   function current(p) {
@@ -61,23 +61,24 @@
 
   function panel(p) {
     const s = current(p), st = p.stages[s] || {};
-    const k = `${s}:${st.status}:${p.has_video}:${JSON.stringify(st.progress || "")}`;
+    const k = `${s}:${st.status}:${p.has_video}:${JSON.stringify(st.progress || "")}:${p.notice || ""}:${JSON.stringify(p.review || "")}`;
     if (k === lastKey || (dirty && st.status === "review")) return;
     lastKey = k; dirty = false;
     const el = $("#panel");
-    if (s === "done") { el.innerHTML = doneHTML(p); return; }
+    const notice = p.notice ? `<div class="note warn">${esc(p.notice)}</div>` : "";
+    if (s === "done") { el.innerHTML = notice + doneHTML(p); return; }
     const blocked = stuck(p, s);
     if (blocked) { el.innerHTML = `<h2>${STAGE_NAMES[s]}</h2>` + blocked; return; }
     if (["running", "queued"].includes(st.status)) {
       let extra = "";
       if (s === "render" && st.progress) { const pc = Math.round((st.progress.done / st.progress.total) * 100); extra = `<div class="progress"><div style="width:${pc}%"></div></div><div class="muted">فريم ${st.progress.done} من ${st.progress.total}</div>`; }
       if (s === "audio" && p.audio_cost) extra = `<div class="muted">هيستهلك حوالي ${p.audio_cost} credit</div>`;
-      el.innerHTML = `<h2>${STAGE_NAMES[s]}</h2>` + busy(RUNNING_TEXT[s]) + extra;
+      el.innerHTML = `<h2>${STAGE_NAMES[s]}</h2>` + busy(RUNNING_TEXT[st.job] || RUNNING_TEXT[s]) + extra;
       return;
     }
     if (s === "script") el.innerHTML = scriptHTML(p);
     else if (s === "scenes") el.innerHTML = scenesHTML(p);
-    else if (s === "audio") el.innerHTML = audioHTML(p);
+    else if (s === "audio") el.innerHTML = notice + audioHTML(p);
     else el.innerHTML = `<h2>${STAGE_NAMES[s]}</h2><div class="actions"><button class="primary" data-act="approve" data-stage="${s}">كمّل</button></div>`;
   }
 
@@ -118,13 +119,30 @@
   }
 
   function audioHTML(p) {
-    const el = (p.usage || {}).elevenlabs || {};
+    const el = (p.usage || {}).elevenlabs || {}, words = p.words || [], flags = (p.review || {}).flags || {};
+    const tts = (p.tts || { lines: [] }).lines;
+    const rows = tts.map((ln) => {
+      const ws = words.filter((w) => w.sid === ln.id), bad = flags[String(ln.id)] || [];
+      const badI = new Set(bad.map((b) => b.i));
+      const start = ws.length ? ws[0].start : 0, end = ws.length ? ws[ws.length - 1].end : 0;
+      return `<div class="scene-card" style="align-items:flex-start">
+        <button class="play-seg" data-a="${start}" data-b="${end}" title="اسمع الجملة">▶</button>
+        <div class="grow">${ws.map((w) => badI.has(w.i) ? `<b style="color:var(--err)" title="اتسمعت: ${esc((bad.find((b) => b.i === w.i) || {}).heard || "")}">${esc(w.word)}</b>` : esc(w.word)).join(" ")}
+          ${bad.length ? `<div class="muted" style="color:var(--err)">ممكن تكون اتنطقت غلط: ${bad.map((b) => `«${esc(b.word)}» (اتسمعت «${esc(b.heard || "؟")}»)`).join("، ")}</div>` : ""}
+          <div class="row" style="margin-top:6px">
+            <button data-act="fixword" data-sid="${ln.id}" style="padding:4px 10px;font-size:13px">✎ صلّح نطق كلمة</button>
+            <button data-act="regensent" data-sid="${ln.id}" style="padding:4px 10px;font-size:13px">↻ أعد الجملة (${ln.tts.length} credit)</button>
+          </div></div></div>`;
+    }).join("");
     return `<h2>${STAGE_NAMES.audio}</h2>
-      <audio controls style="width:100%" src="/files/${PID}/audio/voice.mp3?v=${Date.now()}"></audio>
-      <div class="muted">استهلك ${el.actual ?? "?"} credit (المتبقي ${el.left ?? "?"}). المعاينة على الشمال بقت بالصوت والتوقيت الحقيقي.</div>
+      <audio id="voice" controls style="width:100%" src="/files/${PID}/audio/voice.mp3?v=${Date.now()}"></audio>
+      <div class="muted">استهلك ${el.actual ?? "?"} credit (المتبقي ${el.left ?? "?"}). اسمع كل جملة لوحدها، ولو كلمة اتنطقت غلط صلّحها وأعد الجملة دي بس.</div>
+      ${p.review ? `<div class="note ${Object.keys(flags).length ? "warn" : "ok"}">${Object.keys(flags).length ? "المراجعة لقت كلمات ممكن تكون اتنطقت غلط (باللون الأحمر)." : "✓ المراجعة ما لقتش كلمات غلط."}</div>` : ""}
+      <div class="scenes" style="margin-top:12px">${rows}</div>
       <div class="actions">
         <button class="primary" data-act="approve" data-stage="audio">✓ موافق، صدّر الفيديو</button>
-        <button data-act="regen" data-stage="audio">↻ ولّد الصوت تاني (${p.audio_cost || "?"} credit)</button>
+        <button data-act="review">🔎 راجع النطق (اختياري)</button>
+        <button data-act="regen" data-stage="audio">↻ ولّد الصوت كله تاني (${p.audio_cost || "?"} credit)</button>
       </div>`;
   }
 
@@ -132,9 +150,16 @@
     return `<h2>✓ الفيديو جاهز</h2>
       <div class="row"><a class="btn primary" href="/files/${PID}/output/video.mp4?download=1">⬇ نزّل MP4</a><a class="btn" href="/library">المكتبة</a></div>
       ${p.credits_text ? `<div class="note ok" style="margin-top:14px">حط السطر ده في وصف الفيديو (الرخصة بتطلبه):<br><b dir="ltr">${esc(p.credits_text)}</b></div>` : ""}
-      <div class="actions"><button data-act="regen" data-stage="render">↻ صدّر تاني</button></div>`;
+      <div class="actions"><button data-act="regen" data-stage="render">↻ صدّر تاني</button><button data-act="back-audio">🎙 راجع الصوت أو صلّح جملة</button></div>`;
   }
 
+  // تشغيل جملة واحدة من الصوت
+  let segStop = null;
+  $("#panel").addEventListener("click", (e) => {
+    const b = e.target.closest(".play-seg"); if (!b) return;
+    const v = $("#voice"); v.currentTime = +b.dataset.a; v.play();
+    clearInterval(segStop); segStop = setInterval(() => { if (v.currentTime >= +b.dataset.b + 0.15) { v.pause(); clearInterval(segStop); } }, 50);
+  });
   $("#panel").addEventListener("input", (e) => { if (e.target.classList.contains("sent")) dirty = true; });
   $("#panel").addEventListener("click", async (e) => {
     const b = e.target.closest("button[data-act]");
@@ -146,6 +171,20 @@
       if (b.dataset.act === "approve") await api(`/api/projects/${PID}/stages/${stage}/approve`, { method: "POST" });
       if (b.dataset.act === "regen") await api(`/api/projects/${PID}/stages/${stage}/regenerate`, { method: "POST", body: { instruction: ($("#instr") || {}).value || null } });
       if (b.dataset.act === "resume") await api(`/api/projects/${PID}/resume`, { method: "POST" });
+      if (b.dataset.act === "review") await api(`/api/projects/${PID}/audio/review`, { method: "POST" });
+      if (b.dataset.act === "back-audio") await api(`/api/projects/${PID}/stages/audio/reopen`, { method: "POST" });
+      if (b.dataset.act === "regensent") await api(`/api/projects/${PID}/audio/sentence/${b.dataset.sid}`, { method: "POST" });
+      if (b.dataset.act === "fixword") {
+        // الكلمة الغلط ← نطقها الصح في القاموس (بيفضل لكل الفيديوهات) ← إعادة الجملة دي بس
+        const word = prompt("الكلمة اللي اتنطقت غلط (زي ما هي مكتوبة في الجملة):");
+        if (!word) { b.disabled = false; return; }
+        const fix = prompt(`اكتب «${word}» زي ما المفروض تتنطق (بالتشكيل، مثلًا: ضَجِيج):`);
+        if (!fix) { b.disabled = false; return; }
+        const st = await api("/api/style");
+        st.pronunciations[word.trim()] = fix.trim();
+        await api("/api/style", { method: "PUT", body: st });
+        await api(`/api/projects/${PID}/audio/sentence/${b.dataset.sid}`, { method: "POST" });
+      }
       dirty = false; lastKey = ""; phoneKey = "";
       await tick();
     } catch (err) { alert(err.message); b.disabled = false; }

@@ -5,7 +5,7 @@ import threading
 import time
 import traceback
 
-from . import store
+from . import prefs, store
 from .llm.claude_code import LimitReached
 from .pipeline import audio, render, scenes, script, tts_prep
 
@@ -13,15 +13,23 @@ _q: queue.Queue = queue.Queue()
 PORT = 8000
 REVIEW = {"script", "scenes", "audio"}       # بعدهم بنستنى موافقتك
 NEXT = {"script": "scenes", "scenes": "tts", "tts": "audio", "audio": "render"}
+SUB = {"audio_sentence": "audio", "audio_review": "audio"}  # مهام صغيرة جوه مرحلة الصوت
 DOWNSTREAM = {"script": ["scenes", "tts", "audio", "render"], "scenes": ["render"], "tts": ["audio", "render"], "audio": ["render"]}
 
 
-def enqueue(pid: str, stage: str, **kw) -> None:
+def learn(text: str, source: str) -> None:
+    """ملف الذوق بيتحدّث في نفس الطابور (طلب Claude واحد في نفس الوقت)."""
+    _q.put((None, "learn", {"text": text, "source": source}))
+
+
+def enqueue(pid: str, job: str, **kw) -> None:
+    stage = SUB.get(job, job)
+
     def mark(p):
-        p["stages"][stage] = {**p["stages"].get(stage, {}), "status": "queued", "error": None}
+        p["stages"][stage] = {**p["stages"].get(stage, {}), "status": "queued", "error": None, "job": job}
         p["status"] = "queued"
     store.update(pid, mark)
-    _q.put((pid, stage, kw))
+    _q.put((pid, job, kw))
 
 
 def mark_stale(pid: str, stage: str) -> None:
@@ -33,20 +41,28 @@ def mark_stale(pid: str, stage: str) -> None:
     store.update(pid, mark)
 
 
-def _run(pid: str, stage: str, kw: dict) -> None:
-    store.update(pid, lambda p: (p["stages"][stage].update(status="running", started=time.time(), progress=None), p.update(status="running")))
-    store.log(pid, f"▶ {stage}")
+def _run(pid: str, job: str, kw: dict) -> None:
+    stage = SUB.get(job, job)
+    if job in SUB:  # مهمة صغيرة اختيارية: لو فشلت، المشروع يرجع زي ما كان مع رسالة (مش "فشل")
+        snap = store.load(pid)
+        prev = (snap["status"], {k: dict(v) for k, v in snap["stages"].items()})
+    store.update(pid, lambda p: (p["stages"][stage].update(status="running", started=time.time(), progress=None, job=job), p.update(status="running", notice=None)))
+    store.log(pid, f"▶ {job}")
     try:
-        if stage == "script":
+        if job == "script":
             script.run(pid, kw.get("instruction"))
-        elif stage == "scenes":
+        elif job == "scenes":
             scenes.run(pid, kw.get("instruction"))
-        elif stage == "tts":
+        elif job == "tts":
             tts_prep.run(pid, kw.get("instruction"))
-        elif stage == "audio":
+        elif job == "audio":
             audio.run(pid, kw.get("approved_credits", False))
-        elif stage == "render":
+        elif job == "render":
             render.run(pid, PORT)
+        elif job == "audio_sentence":
+            audio.regen_sentence(pid, kw["sid"])
+        elif job == "audio_review":
+            audio.review(pid)
     except LimitReached as e:
         store.update(pid, lambda p: (p["stages"][stage].update(status="waiting_limit", error=str(e)), p.update(status="waiting_limit", resets_at=e.resets_at)))
         store.log(pid, f"⏸ {stage}: {e}")
@@ -56,10 +72,20 @@ def _run(pid: str, stage: str, kw: dict) -> None:
         store.log(pid, f"⏸ {stage}: {e}")
         return
     except Exception as e:  # noqa: BLE001
+        if job in SUB:
+            msg = str(e)
+            if "speech_to_text" in msg:
+                msg = "مفتاح ElevenLabs مش معاه صلاحية Speech to Text. فعّلها من elevenlabs.io ← Developers ← API Keys، وجرّب تاني."
+            store.update(pid, lambda p: (p.update(status=prev[0], stages=prev[1], notice=msg[:400])))
+            store.log(pid, f"✗ {job}: {e}")
+            return
         store.update(pid, lambda p: (p["stages"][stage].update(status="failed", error=str(e)[:500]), p.update(status="failed")))
         store.log(pid, f"✗ {stage}: {e}\n{traceback.format_exc()[-800:]}")
         return
-    store.log(pid, f"✓ {stage}")
+    store.log(pid, f"✓ {job}")
+    if job == "audio_review":  # المراجعة ما بتغيّرش الصوت: نرجّع الحالة زي ما كانت
+        store.update(pid, lambda p: p.update(status=prev[0], stages=prev[1]))
+        return
     mark_stale(pid, stage)
     if stage in REVIEW:
         store.update(pid, lambda p: (p["stages"][stage].update(status="review"), p.update(status="awaiting_review")))
@@ -80,7 +106,12 @@ def _loop() -> None:
     while True:
         pid, stage, kw = _q.get()
         try:
-            if store.load(pid):
+            if stage == "learn":
+                try:
+                    prefs.learn(kw["text"], kw["source"])
+                except Exception as e:  # noqa: BLE001  (ملف الذوق مش أهم من الفيديو)
+                    print("learn failed:", e)
+            elif store.load(pid):
                 _run(pid, stage, kw)
         finally:
             _q.task_done()

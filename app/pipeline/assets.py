@@ -37,14 +37,43 @@ def _load() -> dict:
             for name, tags in cat.get("icons", {}).get("tabler", {}).get("items", {}).items():
                 items.append({"kind": "icon", "file": f"icons/tabler-outline/{name}.svg", "name": name,
                               "words": _words(name.replace("-", " ") + " " + " ".join(map(str, tags))), "license": "MIT (Tabler)", "rank": -0.5})
-            for it in cat.get("emoji", {}).get("items", []):
-                items.append({"kind": "emoji", "file": it["file"], "name": " ".join(it.get("tags", [])),
-                              "words": _words(" ".join(it.get("tags", []))), "license": "CC BY 4.0 (Google Noto Animated Emoji)",
-                              "credit": "Animated emoji by Google"})
+            # الإيموجي: Fluent Emoji High Contrast (MIT، لون واحد بياخد لون الفيديو). الإيموجي الأصفر المتحرك (Noto) اتشال من البحث
+            for it in _emoji_index():
+                items.append({"kind": "emoji", "file": f"fetched/emoji-hc/{it['name']}.svg", "name": it["name"].replace("-", " "),
+                              "words": _words(it["name"].replace("-", " ") + " " + it["category"]), "license": "MIT (Fluent Emoji High Contrast)",
+                              "remote": f"https://api.iconify.design/fluent-emoji-high-contrast/{it['name']}.svg"})
             for it in read_json(FETCHED / "catalog.json", []):
                 items.append({**it, "words": _words(it["name"] + " " + " ".join(it.get("tags", [])))})
             _cache["items"] = items
         return _cache
+
+
+UA = {"User-Agent": "Mozilla/5.0 tiktok-motion"}
+
+
+def _emoji_index() -> list[dict]:
+    """أسماء كل إيموجي Fluent High Contrast (بتتنزل مرة واحدة وتتحفظ محلي)."""
+    path = FETCHED / "emoji-hc-index.json"
+    idx = read_json(path)
+    if idx is None:
+        try:
+            d = requests.get("https://api.iconify.design/collection", params={"prefix": "fluent-emoji-high-contrast"}, headers=UA, timeout=30).json()
+            idx = [{"name": n, "category": c} for c, names in (d.get("categories") or {}).items() for n in names]
+            write_json(path, idx)
+        except requests.RequestException:
+            idx = []
+    return idx
+
+
+def ensure_local(hit: dict) -> dict:
+    """العنصر جاي من مصدر أونلاين ولسه مش على الجهاز: ننزّله دلوقتي (ويفضل محلي بعد كده)."""
+    path = ASSETS / hit["file"]
+    if hit.get("remote") and not path.exists():
+        r = requests.get(hit["remote"], headers=UA, timeout=30)
+        r.raise_for_status()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(r.text, encoding="utf-8")
+    return hit
 
 
 def _score(item: dict, query: list[str]) -> float:
@@ -77,7 +106,7 @@ def search(kind: str, terms: list[str], exclude: set | None = None) -> dict | No
         if s > best_s:
             best, best_s = it, s
     if best and best_s >= 2:
-        return {k: v for k, v in best.items() if k != "words"} | {"score": best_s}
+        return ensure_local({k: v for k, v in best.items() if k != "words"} | {"score": best_s})
     if kind == "icon":
         return fetch_icon(terms, exclude)
     return None
@@ -87,7 +116,7 @@ def fetch_icon(terms: list[str], exclude: set | None = None) -> dict | None:
     """مفيش أيقونة مناسبة محلي: ندوّر في Iconify (مجموعات رخصتها مفتوحة)، وننزّلها ونسجّلها."""
     for q in [" ".join(terms[:2]), *terms]:
         try:
-            r = requests.get("https://api.iconify.design/search", params={"query": q, "limit": 32}, timeout=20)
+            r = requests.get("https://api.iconify.design/search", params={"query": q, "limit": 32}, headers=UA, timeout=20)
             icons = r.json().get("icons", []) if r.ok else []
         except requests.RequestException:
             return None
@@ -99,8 +128,8 @@ def fetch_icon(terms: list[str], exclude: set | None = None) -> dict | None:
             if exclude and file in exclude:
                 continue
             try:
-                svg = requests.get(f"https://api.iconify.design/{prefix}/{name}.svg", timeout=20)
-                lic = requests.get("https://api.iconify.design/collections", params={"prefixes": prefix}, timeout=20).json()
+                svg = requests.get(f"https://api.iconify.design/{prefix}/{name}.svg", headers=UA, timeout=20)
+                lic = requests.get("https://api.iconify.design/collections", params={"prefixes": prefix}, headers=UA, timeout=20).json()
             except requests.RequestException:
                 return None
             if not svg.ok or "<svg" not in svg.text:
@@ -121,9 +150,21 @@ def fetch_icon(terms: list[str], exclude: set | None = None) -> dict | None:
     return None
 
 
-def emoji_by_name(name: str, exclude: set | None = None) -> dict | None:
-    hit = search("emoji", [name, *name.split()], exclude)
-    return hit
+# كلمات بيستخدمها Claude للإيموجي ← أسماء مجموعة Fluent
+EMOJI_SYNONYMS = {
+    "muscle": "flexed biceps", "strong": "flexed biceps", "flex": "flexed biceps", "scared": "fearful face", "fear": "fearful face",
+    "afraid": "fearful face", "worried": "worried face", "anxious": "anxious face sweat", "happy": "grinning face", "smile": "smiling face",
+    "sad": "crying face", "cry": "crying face", "laugh": "face tears joy", "lol": "face tears joy", "angry": "angry face", "love": "red heart",
+    "idea": "light bulb", "money": "money bag", "cool": "smiling face sunglasses", "wow": "astonished face", "shock": "astonished face",
+    "think": "thinking face", "tired": "tired face", "sleep": "sleeping face", "celebrate": "party popper", "win": "trophy",
+    "time": "alarm clock", "success": "trophy", "target": "direct hit", "goal": "direct hit", "brain": "brain", "eyes": "eyes",
+    "ok": "ok hand", "clap": "clapping hands", "pray": "folded hands", "facepalm": "person facepalming", "shrug": "person shrugging",
+}
+
+
+def emoji_terms(name: str) -> list[str]:
+    words = name.lower().replace("_", " ").replace("-", " ").split()
+    return [EMOJI_SYNONYMS.get(w, w) for w in words] + words
 
 
 def credits_for(files: list[str]) -> list[str]:

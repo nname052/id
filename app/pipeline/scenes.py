@@ -1,6 +1,6 @@
 """المرحلة 2: خطة المشاهد. Claude بيختار نوع العنصر وكلمات البحث والحركة، والبحث في المكتبات بيحصل هنا من غير AI."""
 
-from .. import store
+from .. import prefs, store
 from . import assets
 from .common import ask, prompt
 
@@ -45,7 +45,7 @@ def resolve(sc: dict, used: set) -> dict:
     order = {"illustration": ["illustration", "icon", "emoji"], "icon": ["icon", "illustration"],
              "emoji": ["emoji", "icon"]}.get(sc["kind"], [])
     for kind in order:
-        q = [sc["emoji_name"]] if kind == "emoji" and sc.get("emoji_name") else terms
+        q = assets.emoji_terms(sc.get("emoji_name") or " ".join(terms)) if kind == "emoji" else terms
         hit = assets.search(kind, q, used)
         if hit:
             used.add(hit["file"])
@@ -63,7 +63,7 @@ def run(pid: str, instruction: str | None = None) -> None:
     n = len(script["sentences"])
     sentences = "\n".join(f"{s['id']}: {s['text']}" for s in script["sentences"])
     system = prompt("scene_plan", sentences=sentences, min_scenes=max(2, n // 2), max_scenes=n)
-    user = "اعمل خطة المشاهد."
+    user = "اعمل خطة المشاهد.\n\n" + prefs.context_block(store.load(pid)["prompt"])
     old = store.read_json(d / "scenes" / "plan.json")
     if instruction and old:
         user += f"\n\nالخطة الحالية:\n{old['raw']}\n\nالمطلوب تعديله: {instruction}"

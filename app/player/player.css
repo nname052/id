@@ -20,6 +20,7 @@ body.render #stage { transform: none !important; }
 .hero.icon svg { width: 540px; height: 540px; }
 .hero.icon svg * { stroke-width: 1.4px; }
 .hero.emoji .lottie { width: 560px; height: 560px; }
+.hero.emoji svg { width: 500px; height: 500px; }
 .hero.number { font: 800 300px/1 "Alexandria"; color: var(--accent); direction: ltr; }
 .hero.text .big { font: 800 190px/1.15 "Alexandria"; color: var(--ink); text-align: center; max-width: 860px; }
 .hero.text .hl { color: var(--accent); }

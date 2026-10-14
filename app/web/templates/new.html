@@ -25,13 +25,14 @@
     <div class="vpanel" id="vpanel" hidden>
       <div class="row">
         <input type="text" id="vq" class="grow" placeholder="دوّر بالاسم…">
-        <select id="vaccent" style="width:auto"><option value="eg">مصري</option><option value="">كل اللهجات</option></select>
+        <select id="vaccent" style="width:auto"><option value="eg">مصري</option><option value="msa">فصحى</option><option value="">كل اللهجات</option></select>
         <select id="vgender" style="width:auto"><option value="">ذكر وأنثى</option><option value="male">ذكر</option><option value="female">أنثى</option></select>
       </div>
       <div class="list" id="vlist"></div>
     </div>
   </div>
   <div class="muted" style="margin-top:6px">▶ بيشغّل عينة الصوت مجانًا. اسمع قبل ما تختار.</div>
+  <div id="vwarn"></div>
 
   <label class="row" style="margin-top:14px"><input type="checkbox" id="subs" checked> ترجمة على الشاشة (الكلمة اللي بتتقال بتنوّر)</label>
 
@@ -53,6 +54,16 @@
 <script>
   const chips = (id) => { $$(`#${id} .chip`).forEach((c) => (c.onclick = () => { $$(`#${id} .chip`).forEach((x) => x.classList.remove("on")); c.classList.add("on"); })); return () => $(`#${id} .chip.on`).dataset.v; };
   const dialect = chips("dialect"), mood = chips("mood"), stability = chips("stability");
+  // الصوت لازم يبقى من نفس اللهجة: الصوت المصري بينطق الجيم "g" والقاف همزة حتى في الفصحى
+  function checkVoice() {
+    const d = dialect(), eg = voice && voice.egyptian;
+    let msg = "";
+    if (d === "msa" && eg) msg = "الصوت ده مصري، فهينطق الفصحى بلهجة مصرية (زي الجيم في «ضجيج»). اختار صوت من فلتر «فصحى».";
+    if (d === "egyptian" && voice && voice.accent && !eg) msg = "الصوت ده مش مصري، فالعامية ممكن تطلع بلهجة تانية. اختار صوت من فلتر «مصري».";
+    $("#vwarn").innerHTML = msg ? `<div class="note warn">⚠️ ${esc(msg)}</div>` : "";
+    $("#vaccent").value = d === "msa" ? "msa" : "eg";
+  }
+  $$("#dialect .chip").forEach((c) => c.addEventListener("click", checkVoice));
   let voices = [], voice = { voice_id: "{{ defaults.voice_id }}", name: "{{ defaults.voice_name }}" }, audio = new Audio(), playing = null;
 
   function updateCost() {
@@ -63,7 +74,8 @@
 
   function renderVoices() {
     const q = $("#vq").value.trim().toLowerCase(), acc = $("#vaccent").value, g = $("#vgender").value;
-    const list = voices.filter((v) => (!acc || v.egyptian) && (!g || v.gender === g) && (!q || (v.name || "").toLowerCase().includes(q))).slice(0, 120);
+    const isMsa = (v) => /modern standard|standard/i.test(v.accent || "") && !v.egyptian;
+    const list = voices.filter((v) => (!acc || (acc === "eg" ? v.egyptian : isMsa(v))) && (!g || v.gender === g) && (!q || (v.name || "").toLowerCase().includes(q))).slice(0, 120);
     $("#vlist").innerHTML = list.map((v) => `<div class="vrow ${v.voice_id === voice.voice_id ? "sel" : ""}" data-id="${esc(v.voice_id)}">
       <button class="play" data-url="${esc(v.preview_url)}" title="اسمع">▶</button>
       <span class="nm">${esc(v.name)}</span>
@@ -80,13 +92,13 @@
       audio.onended = () => { play.textContent = "▶"; playing = null; };
       return;
     }
-    if (row) { voice = voices.find((v) => v.voice_id === row.dataset.id); $("#vname").textContent = `${voice.name}`; $("#vpanel").hidden = true; audio.pause(); }
+    if (row) { voice = voices.find((v) => v.voice_id === row.dataset.id); $("#vname").textContent = `${voice.name}`; $("#vpanel").hidden = true; audio.pause(); checkVoice(); }
   };
   $("#vbtn").onclick = () => { $("#vpanel").hidden = !$("#vpanel").hidden; renderVoices(); };
   ["vq", "vaccent", "vgender"].forEach((id) => ($("#" + id).oninput = renderVoices));
   document.addEventListener("click", (e) => { if (!e.target.closest("#vpick")) $("#vpanel").hidden = true; });
 
-  api("/api/voices").then((v) => { voices = v; const cur = voices.find((x) => x.voice_id === voice.voice_id); if (cur) voice = cur; $("#vname").textContent = voice.name; })
+  api("/api/voices").then((v) => { voices = v; const cur = voices.find((x) => x.voice_id === voice.voice_id); if (cur) voice = cur; $("#vname").textContent = voice.name; checkVoice(); })
     .catch((e) => ($("#vname").textContent = "مقدرتش أحمّل الأصوات: " + e.message));
   api("/api/usage").then((u) => { if (u.elevenlabs && u.elevenlabs.limit) $("#cost").textContent += ` (المتبقي ${(u.elevenlabs.limit - u.elevenlabs.used).toLocaleString("ar-EG")})`; });
 

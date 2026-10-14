@@ -53,13 +53,14 @@
       el.innerHTML = `<div class="hero ${sc.kind}"></div>` + (sc.kind === "text" ? "" : `<div class="headline">${headlineHTML(sc.headline)}</div>`);
       root.appendChild(el);
       const hero = $(".hero", el);
-      if (sc.kind === "illustration" || sc.kind === "icon") {
+      const svgEmoji = sc.kind === "emoji" && String(sc.asset).endsWith(".svg"); // إيموجي Fluent (لون واحد) بدل الـ Lottie الأصفر
+      if (sc.kind === "illustration" || sc.kind === "icon" || svgEmoji) {
         hero.innerHTML = await (await fetch(`/assets/${sc.asset}`)).text();
         if (sc.kind === "icon") {
           sc.paths = [...hero.querySelectorAll("path, circle, line, polyline, polygon, rect, ellipse")];
           sc.paths.forEach((p) => { const L = p.getTotalLength ? p.getTotalLength() : 100; p.dataset.len = L; p.style.strokeDasharray = L; });
         }
-      } else if (sc.kind === "emoji") {
+      } else if (sc.kind === "emoji") { // مشاريع قديمة: إيموجي Lottie
         const box = document.createElement("div"); box.className = "lottie"; hero.appendChild(box);
         const data = await (await fetch(`/assets/${sc.asset}`)).json();
         sc.anim = await new Promise((res) => { const a = lottie.loadAnimation({ container: box, renderer: "svg", loop: false, autoplay: false, animationData: data }); a.addEventListener("DOMLoaded", () => res(a)); });

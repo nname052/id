@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
-from . import store, worker
+from . import prefs, store, worker
 from .config import APP, ASSETS, DEFAULT_SETTINGS, ELEVEN_KEY, FONTS, MOODS
 from .llm import claude_code
 from .pipeline import audio as audio_stage
@@ -45,6 +45,28 @@ def page_project(request: Request, pid: str):
     if not store.load(pid):
         raise HTTPException(404)
     return pages.TemplateResponse(request, "project.html", {"pid": pid})
+
+
+@app.get("/style")
+def page_style(request: Request):
+    return pages.TemplateResponse(request, "style.html", {})
+
+
+class StyleBody(BaseModel):
+    profile: str
+    pronunciations: dict[str, str]
+
+
+@app.get("/api/style")
+def get_style():
+    return {"profile": prefs.style(), "pronunciations": prefs.pronunciations()}
+
+
+@app.put("/api/style")
+def put_style(body: StyleBody):
+    prefs.save_style(body.profile)
+    prefs.save_pronunciations(body.pronunciations)
+    return {"ok": True}
 
 
 @app.get("/library")
@@ -98,6 +120,7 @@ def create(body: NewProject):
     allowed["duration"] = max(10, min(60, int(allowed.get("duration", 30))))
     p = store.create(body.prompt, allowed)
     worker.enqueue(p["id"], "script")
+    worker.learn(body.prompt, "فكرة فيديو جديد")
     return {"id": p["id"]}
 
 
@@ -131,6 +154,8 @@ def get_project(pid: str):
         "has_video": (d / "output" / "video.mp4").exists(),
         "credits_text": (d / "output" / "credits.txt").read_text(encoding="utf-8") if (d / "output" / "credits.txt").exists() else "",
         "audio_cost": audio_stage.estimate_cost(pid) if (d / "tts.json").exists() else None,
+        "words": (store.read_json(d / "words.json") or {}).get("words") if (d / "audio" / "voice.mp3").exists() else None,
+        "review": store.read_json(d / "audio" / "review.json"),
     }
 
 
@@ -187,7 +212,32 @@ def regenerate(pid: str, stage: str, body: Instruction):
     p = _get(pid)
     if stage not in p["stages"]:
         raise HTTPException(400)
-    worker.enqueue(pid, stage, instruction=(body.instruction or "").strip() or None)
+    instruction = (body.instruction or "").strip() or None
+    worker.enqueue(pid, stage, instruction=instruction)
+    if instruction:
+        worker.learn(instruction, f"تعديل طلبه في مرحلة {stage}")
+    return {"ok": True}
+
+
+@app.post("/api/projects/{pid}/stages/audio/reopen")
+def reopen_audio(pid: str):
+    """من الفيديو الجاهز ترجع لمرحلة الصوت (تسمع الجمل، تصلّح، وتصدّر تاني)."""
+    _get(pid)
+    store.update(pid, lambda p: (p["stages"]["audio"].update(status="review"), p.update(status="awaiting_review", notice=None)))
+    return {"ok": True}
+
+
+@app.post("/api/projects/{pid}/audio/sentence/{sid}")
+def audio_sentence(pid: str, sid: int):
+    _get(pid)
+    worker.enqueue(pid, "audio_sentence", sid=sid)
+    return {"ok": True}
+
+
+@app.post("/api/projects/{pid}/audio/review")
+def audio_review(pid: str):
+    _get(pid)
+    worker.enqueue(pid, "audio_review")
     return {"ok": True}
 
 

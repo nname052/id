@@ -1,6 +1,6 @@
 """المرحلة 1: السكريبت (جمل قصيرة بالمصري + عنوان)."""
 
-from .. import store
+from .. import prefs, store
 from ..config import MOODS, WORDS_PER_SECOND
 from .common import ask, prompt
 
@@ -24,6 +24,8 @@ def run(pid: str, instruction: str | None = None) -> None:
     system = prompt("script", dialect_rule=dialect, mood=MOODS.get(st["mood"], st["mood"]), words=words,
                     max_words=int(words * 1.15), duration=st["duration"])
     user = f"فكرة الفيديو: {proj['prompt']}"
+    if prefs.style():
+        user += f"\n\nذوق صاحب القناة الثابت (طبّقه):\n{prefs.style()}"
     old = store.read_json(store.project_dir(pid) / "script.json")
     if instruction and old:
         user += "\n\nالسكريبت الحالي:\n" + "\n".join(s["text"] for s in old["sentences"]) + f"\n\nالمطلوب تعديله: {instruction}"
