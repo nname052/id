@@ -186,7 +186,10 @@ export class Multiplayer {
       const [x, z, yaw, , , , , v] = R.cur;
       if (Math.abs(x - box.cx) > 8 || Math.abs(z - box.cz) > 8) continue;
       const [hx, hz] = SIZES[R.kind];
-      out.push({ cx: x, cz: z, hx, hz, angle: yaw, mass: R.kind === 'tuktuk' ? 450 : R.kind === 'taxi' ? 1200 : 2300, restitution: 0.2, vx: -Math.sin(yaw) * v, vz: -Math.cos(yaw) * v, kind: 'car' });
+      // صندوق ثابت لكل لاعب بيتحدّث مكانه (مفيش objects جديدة كل خطوة فيزيا)
+      const col = (R.col ||= { hx, hz, mass: R.kind === 'tuktuk' ? 450 : R.kind === 'taxi' ? 1200 : 2300, restitution: 0.2, kind: 'car' });
+      col.cx = x; col.cz = z; col.angle = yaw; col.vx = -Math.sin(yaw) * v; col.vz = -Math.cos(yaw) * v;
+      out.push(col);
     }
   }
 

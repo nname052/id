@@ -1,4 +1,4 @@
-import { DieselEngine } from './DieselEngine.js';
+import { DieselEngine, engineReady, prepareEngine } from './DieselEngine.js';
 // الصوت: كله متولّد بالكود (Web Audio API) كـ Placeholder قانوني 100%:
 // موتور ديزل (Idle + RPM)، كاوتش بيصرخ، فرامل، كلاكس، دوشة شارع، عربيات حواليك (3D Spatial Audio).
 // لو حطيت ملفات صوت حقيقية في assets/audio هتتستخدم بدلها (شوف ASSETS.md).
@@ -97,8 +97,14 @@ export class AudioSystem {
     this.engineKind = kind;
     const e = this.engine;
     if (!this.started || !e?.diesel) return;
-    e.diesel.dispose();
-    e.diesel = new DieselEngine(this.ctx, e.out, kind);
+    const swap = () => {
+      if (this.engineKind !== kind || e.diesel.kind === kind) return;
+      e.diesel.dispose();
+      e.diesel = new DieselEngine(this.ctx, e.out, kind);
+      e.diesel.kind = kind;
+    };
+    // الصوت متجهز؟ تبديل فوري. لسه؟ بيتجهز في الخلفية ونبدّل أول ما يخلص (مفيش تهنيج)
+    if (engineReady(kind)) swap(); else prepareEngine(this.ctx, kind).then(swap);
   }
 
   /** فكة بتتحط في الصينية */
@@ -186,6 +192,9 @@ export class AudioSystem {
     }
     // موتور ديزل حقيقي من نبضات احتراق (DieselEngine)
     e.diesel = new DieselEngine(ctx, e.out, this.engineKind || 'microbus');
+    e.diesel.kind = this.engineKind || 'microbus';
+    // باقي أنواع الموتور تتجهز في الخلفية عشان التبديل يبقى لحظي
+    setTimeout(() => { for (const k of ['microbus', 'taxi', 'tuktuk']) prepareEngine(ctx, k); }, 1500);
     return;
     // eslint-disable-next-line no-unreachable
     const shaper = ctx.createWaveShaper();

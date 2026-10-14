@@ -64,8 +64,54 @@ export const ENGINE_TYPES = {
   tuktuk: { cyl: 1, rpms: [1450, 3000, 4600, 6200, 7800], thump: 95, thumpRpm: 0.03, knock: 0.55, tone: 2.2, turbo: 0, rattle: 0.7, rough: 0.6 },
 };
 
+// ===== كاش الأصوات المتولدة =====
+// توليد لفات الموتور تقيل (~10 buffers): بيحصل مرة واحدة لكل نوع، وفي الخلفية حتة حتة،
+// فتبديل العربية مابقاش بيعيد توليد الصوت (ده كان سبب أغلب التهنيج وقت التبديل)
+const CACHE = new Map(), PENDING = new Map();
+
+function makeRattle(ctx) {
+  const n = ctx.sampleRate * 2, b = ctx.createBuffer(1, n, ctx.sampleRate), d = b.getChannelData(0);
+  let k = 0;
+  for (let i = 0; i < n; i++) { // تكّات قصيرة متفرقة (مش نويز ناعم)
+    if (Math.random() < 0.0016) k = 0.6 + Math.random() * 0.4;
+    d[i] = (Math.random() * 2 - 1) * k; k *= 0.985;
+  }
+  return b;
+}
+
+function* buildSteps(ctx, kind) {
+  const P = ENGINE_TYPES[kind] || ENGINE_TYPES.microbus;
+  const loops = [];
+  for (let i = 0; i < P.rpms.length; i++) for (const load of [0, 1]) {
+    loops.push({ rpm: P.rpms[i], load, buf: renderLoop(ctx, P.rpms[i], load, 1000 + i * 17 + load * 7, P).buf });
+    yield;
+  }
+  CACHE.set(kind, { loops, rattle: P.rattle ? makeRattle(ctx) : null });
+}
+
+export function engineReady(kind) { return CACHE.has(kind); }
+
+/** تجهيز أصوات نوع موتور في الخلفية (لفة واحدة كل مرة عشان مفيش تقطيع) */
+export function prepareEngine(ctx, kind) {
+  if (CACHE.has(kind)) return Promise.resolve(CACHE.get(kind));
+  if (PENDING.has(kind)) return PENDING.get(kind);
+  const it = buildSteps(ctx, kind);
+  const job = new Promise((resolve) => {
+    const tick = () => { if (it.next().done) { PENDING.delete(kind); resolve(CACHE.get(kind)); } else setTimeout(tick, 16); };
+    setTimeout(tick, 0);
+  });
+  PENDING.set(kind, job);
+  return job;
+}
+
+function prepareNow(ctx, kind) {
+  if (!CACHE.has(kind)) { const it = buildSteps(ctx, kind); while (!it.next().done) { /* */ } }
+  return CACHE.get(kind);
+}
+
 export class DieselEngine {
   constructor(ctx, out, kind = 'microbus') {
+    const data = prepareNow(ctx, kind);
     const P = (this.P = ENGINE_TYPES[kind] || ENGINE_TYPES.microbus);
     this.ctx = ctx;
     this.out = ctx.createGain();
@@ -77,13 +123,7 @@ export class DieselEngine {
     this.lowShelf = lowShelf;
     // ميكروباص مصري قديم: الصاج والباب الجرار والشبابيك بيتكتكوا مع رجّة الموتور (أعلى حاجة وهو واقف)
     if (P.rattle) {
-      const n = ctx.sampleRate * 2, b = ctx.createBuffer(1, n, ctx.sampleRate), d = b.getChannelData(0);
-      let k = 0;
-      for (let i = 0; i < n; i++) { // تكّات قصيرة متفرقة (مش نويز ناعم)
-        if (Math.random() < 0.0016) k = 0.6 + Math.random() * 0.4;
-        d[i] = (Math.random() * 2 - 1) * k; k *= 0.985;
-      }
-      this.rattleSrc = ctx.createBufferSource(); this.rattleSrc.buffer = b; this.rattleSrc.loop = true;
+      this.rattleSrc = ctx.createBufferSource(); this.rattleSrc.buffer = data.rattle; this.rattleSrc.loop = true;
       const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1900; bp.Q.value = 1.4;
       const bp2 = ctx.createBiquadFilter(); bp2.type = 'peaking'; bp2.frequency.value = 3400; bp2.gain.value = 6;
       this.rattleMod = ctx.createGain(); this.rattleMod.gain.value = 0.5;
@@ -95,19 +135,15 @@ export class DieselEngine {
       this.rattleSrc.connect(bp).connect(bp2).connect(this.rattleMod).connect(this.rattleG).connect(out);
       this.rattleSrc.start(); this.rattleLfo.start();
     }
-    const RPMS = P.rpms;
     this.layers = [];
-    RPMS.forEach((rpm, i) => {
-      for (const load of [0, 1]) {
-        const { buf } = renderLoop(ctx, rpm, load, 1000 + i * 17 + load * 7, P);
-        const src = ctx.createBufferSource();
-        src.buffer = buf; src.loop = true;
-        const g = ctx.createGain(); g.gain.value = 0;
-        src.connect(g).connect(this.out);
-        src.start(0, Math.random() * buf.duration);
-        this.layers.push({ rpm, load, src, g });
-      }
-    });
+    for (const { rpm, load, buf } of data.loops) {
+      const src = ctx.createBufferSource();
+      src.buffer = buf; src.loop = true;
+      const g = ctx.createGain(); g.gain.value = 0;
+      src.connect(g).connect(this.out);
+      src.start(0, Math.random() * buf.duration);
+      this.layers.push({ rpm, load, src, g });
+    }
     // صفير التيربو + شفط الهوا (بيعلوا مع الحِمل)
     this.turbo = ctx.createOscillator(); this.turbo.type = 'sine'; this.turbo.frequency.value = 2200;
     this.turboG = ctx.createGain(); this.turboG.gain.value = 0;

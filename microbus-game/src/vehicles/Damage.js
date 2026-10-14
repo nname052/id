@@ -61,6 +61,7 @@ export class Damage {
     this.broken = { headL: false, headR: false, tailL: false, tailR: false };
     this.crack = 0;
     this.decals = [];
+    this._jobs = [];
     this.mats = {
       scratch: new THREE.MeshStandardMaterial({ map: scratchTex(), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4, roughness: 0.6 }),
       shards: new THREE.MeshStandardMaterial({ map: shardsTex(), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6, roughness: 0.2 }),
@@ -150,7 +151,19 @@ export class Damage {
     if (zone === 'front' && speed >= 8.5 && kind === 'hit') { if (!this.crack) this.onBreak?.(); this.crack = Math.min(2, this.crack + (speed > 14 ? 2 : 1)); this._updateCrack(); }
   }
 
-  _decal(p, n, size, mat) {
+  // الشغل التقيل (إسقاط خدش/بعجة/شرخ) بيتحط في طابور ويتنفذ واحد بس كل فريم (مفيش تقطيع وقت الخبطة)
+  _decal(p, n, size, mat) { this._jobs.push(() => this._decalNow(p.clone(), n.clone(), size, mat)); }
+  _dent(p, n, depth, radius) { this._jobs.push(() => this._dentNow(p.clone(), n.clone(), depth, radius)); }
+  _updateCrack() { this._jobs.push(() => this._updateCrackNow()); }
+
+  /** بيتنادى كل فريم من اللعبة */
+  step() {
+    const job = this._jobs.shift();
+    if (job) job();
+    if (this._jobs.length > 12) this._jobs.splice(0, this._jobs.length - 12); // خبطات كتير ورا بعض: الأقدم بيتلغي
+  }
+
+  _decalNow(p, n, size, mat) {
     const targets = this.paint.length ? this.paint : this.meshes.map((m) => m.mesh);
     const world = this.shell.localToWorld(p.clone());
     const wn = n.clone().applyQuaternion(this.shell.getWorldQuaternion(new THREE.Quaternion()));
@@ -175,7 +188,7 @@ export class Damage {
     }
   }
 
-  _dent(p, n, depth, radius) {
+  _dentNow(p, n, depth, radius) {
     const r2 = radius * radius, d = new THREE.Vector3();
     for (const m of this.meshes) {
       const S = m.shellPos, P = m.mesh.geometry.attributes.position;
@@ -236,7 +249,7 @@ export class Damage {
     g.matrixWorldNeedsUpdate = true;
   }
 
-  _updateCrack() {
+  _updateCrackNow() {
     if (!this.windshield || !this.crack) return;
     const D = this.rig.dims;
     if (!D) return;
@@ -265,6 +278,7 @@ export class Damage {
   get any() { return Object.values(this.level).some((v) => v > 0) || this.crack > 0; }
 
   repair() {
+    this._jobs.length = 0;
     for (const m of this.meshes) {
       if (!m.dented) continue;
       const P = m.mesh.geometry.attributes.position;

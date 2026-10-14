@@ -117,6 +117,9 @@ export class Game {
       document.body.appendChild(f);
     }
     this.player.lowPower = this.mobile;
+    // كل العربيات بتتعمل مرة واحدة وبتتحفظ (تبديل العربية = تبديل جاهز، مش بناء من الأول)
+    this.vehicles = { [this.player.kind]: this.player };
+    this.insets = {};
     this._wirePhysics();
 
     S('المرور والمشاة...', 0.82);
@@ -128,8 +131,9 @@ export class Game {
     this.statics = staticColliders();
     // أعمدة النور والشجر والأكشاك في المدينة
     for (const p of PROP_COLLIDERS) this.statics.push({ cx: p.x, cz: p.z, hx: p.hx ?? p.r * 0.85, hz: p.hz ?? p.r * 0.85, angle: 0, restitution: 0.1, kind: p.kind || 'prop' });
+    const colOut = [];
     this._colliders = (box) => {
-      const out = [];
+      const out = colOut; out.length = 0; // نفس المصفوفة كل مرة (مفيش garbage كل خطوة فيزيا)
       for (const s of this.statics) if (Math.abs(s.cx - box.cx) < s.hx + 8 && Math.abs(s.cz - box.cz) < s.hz + 8) out.push(s);
       this.route.queryColliders(box.cx, box.cz, out);
       this.traffic.colliders(box, out);
@@ -144,7 +148,7 @@ export class Game {
     this.cams = new CameraSystem(this.camera, this.player, renderer.domElement);
     this.cams.settings = this.settings;
     this.cams.colliders = this._colliders;
-    this.mirrorInsets = new MirrorInsets(this.player, this.touch);
+    this.mirrorInsets = this.insets[this.player.kind] = new MirrorInsets(this.player, this.touch);
     this.passengers = new Passengers(this.scene, this.player, { hud: this.hud, audio: this.audio, settings: this.settings });
     this.passengers._updateHud();
     this.hud.setMoney(this.passengers.earnings);
@@ -173,11 +177,49 @@ export class Game {
     }
     this.env.listeners.push((p) => this._onTimeChange(p));
 
+    // الإعدادات المحفوظة (قبل تجهيز الشيدرز: الضل والجودة بيغيروا نوع الشيدر المطلوب)
+    for (const [k, v] of Object.entries(this.settings.values)) this._applySetting(k, v);
+    // العربيات التانية بتتجهز دلوقتي (وقت التحميل) عشان التبديل في نص اللعب يبقى لحظي:
+    // بنبنيهم مرة واحدة، ونجهز الشيدرز بتاعتهم بنفس عدد الأنوار (عربية واحدة في المشهد كل مرة)
+    for (const kind of ['microbus', 'taxi', 'tuktuk']) {
+      if (this.vehicles[kind]) continue;
+      S('تجهيز العربيات...', 0.88);
+      await nextFrame();
+      const v = new PlayerVehicle(this.scene, this.assets, { lowPower: this.mobile, kind });
+      v.lowPower = this.mobile;
+      v.rig.root.removeFromParent();
+      this.vehicles[kind] = v;
+      this._applyLivery(v, this.settings.get('livery'));
+    }
+    this._applyLivery(this.player, this.settings.get('livery'));
     S('تجهيز الشيدرز...', 0.92);
     await nextFrame();
-    this.player.syncVisuals(0);
+    // كل عربية: نسخة الشاشة + نسخة المرايات (الرسم جوه render target بيحتاج شيدر مختلف)
+    const warmRT = new THREE.WebGLRenderTarget(64, 64), warmCam = new THREE.PerspectiveCamera(60, 1, 0.1, 100);
+    const warm = async (v) => {
+      v.syncVisuals(0);
+      // رسمة صغيرة مخفية للعربية من برا ومن جوه: بترفع الأشكال والصور على كارت الشاشة من دلوقتي
+      const r = v.rig.root.position;
+      for (const [dx, dy, dz] of [[6, 2.5, 6], [-6, 2, -6], [0, 1.4, 0]]) {
+        warmCam.position.set(r.x + dx, r.y + dy, r.z + dz); warmCam.lookAt(r.x, r.y + 1, r.z); warmCam.updateMatrixWorld();
+        renderer.setRenderTarget(warmRT); renderer.render(this.scene, warmCam);
+      }
+      renderer.setRenderTarget(null);
+      try {
+        await renderer.compileAsync(this.scene, this.camera);
+        const rt = v.mirrorCams?.[0]?.rt;
+        if (rt) { renderer.setRenderTarget(rt); await renderer.compileAsync(this.scene, this.camera); renderer.setRenderTarget(null); }
+      } catch { renderer.setRenderTarget(null); }
+    };
+    for (const v of Object.values(this.vehicles)) {
+      if (v === this.player) continue;
+      this.player.rig.root.removeFromParent(); this.scene.add(v.rig.root);
+      await warm(v);
+      v.rig.root.removeFromParent(); this.scene.add(this.player.rig.root);
+    }
     this.cams.update(0.016);
-    try { await renderer.compileAsync(this.scene, this.camera); } catch { /* مش مدعوم في كل المتصفحات */ }
+    await warm(this.player);
+    warmRT.dispose();
     // تسخين: نلف الكاميرا على كل المناطق مرة (بالضلال) عشان مفيش تقطيع أول ما تشوف حاجة جديدة
     {
       const spots = [100, 300, 600, 900, 1150, 1400, 1700, 1950, 2200, 2400, 2700, 3000];
@@ -198,8 +240,6 @@ export class Game {
     this.clock = new THREE.Clock();
     this.acc = 0;
     this.lampTimer = 0;
-    // الإعدادات المحفوظة
-    for (const [k, v] of Object.entries(this.settings.values)) this._applySetting(k, v);
     renderer.setAnimationLoop(() => this._frame());
     S('جاهز!', 1);
   }
@@ -221,6 +261,10 @@ export class Game {
       }
     };
     ph.onRollHit = (hit, corner) => {
+      // الانقلاب بيطلع خبطات كتير ورا بعض: صوت/ضرر مرة كل ربع ثانية بس
+      const now = performance.now();
+      if (now - (this._rollT || 0) < 250) return;
+      this._rollT = now;
       this.audio.impact(hit * 3); if (this.cams) this.cams.shake = Math.min(1.5, hit * 0.6);
       this.player.damage?.rollHit(hit, corner);
     };
@@ -307,9 +351,12 @@ export class Game {
     const pr = level < 0 ? Math.min(window.devicePixelRatio, 2) : Math.max(floor, [base, base, base * 0.9, base * 0.8, base * 0.72][level]);
     this.renderer.setPixelRatio(pr);
     this._resize();
-    const sh = level < 0 ? (this.mobile ? 2048 : 4096) : level >= 2 ? 1024 : this.mobile ? 1024 : 2048;
+    const sh = level < 0 ? (this.mobile ? 2048 : 4096) : level >= 4 ? 512 : level >= 2 ? 1024 : this.mobile ? 1024 : 2048;
     if (this.env.sun.shadow.mapSize.x !== sh) { this.env.sun.shadow.mapSize.set(sh, sh); this.env.sun.shadow.map?.dispose(); this.env.sun.shadow.map = null; }
-    this.env.sun.castShadow = level < 4 && this.settings?.get('shadows') !== 'off';
+    // الضل بيتقفل/يتفتح من الإعدادات بس (تغييره بيعيد بناء كل الشيدرز = تهنيج).
+    // الجودة الواطية بتقلل الدقة وبتحدّث الضل كل كام فريم بدل كل فريم
+    this.env.sun.castShadow = this.settings?.get('shadows') !== 'off';
+    this.shadowEvery = level >= 4 ? 3 : level >= 3 ? 2 : 1;
     const L = Math.max(0, level), far = level < 0 ? 1.25 : [1, 0.95, 0.85, 0.75, 0.65][L];
     this.player.mirrorSkip = [0, 1, 2, 3, 5][L];
     this._qCrowd = [1, 0.9, 0.75, 0.6, 0.5][L];
@@ -367,23 +414,36 @@ export class Game {
     if (!this.player || this.player.kind === kind) return;
     const o = this.player.physics, at = { x: o.x, z: o.z, yaw: o.yaw };
     const moved = this.started;
-    this.player.dispose();
-    this.player = new PlayerVehicle(this.scene, this.assets, { lowPower: this.mobile, kind });
-    this.player.lowPower = this.mobile;
-    if (moved) { this.player.physics.reset(at.x, at.z, at.yaw); this.player._savePrev(); }
+    // العربية الحالية بتتشال من المشهد بس (بتفضل محفوظة)، والجديدة جاهزة من وقت التحميل
+    this.player.rig.root.removeFromParent();
+    let next = this.vehicles[kind];
+    if (!next) {
+      next = this.vehicles[kind] = new PlayerVehicle(this.scene, this.assets, { lowPower: this.mobile, kind });
+      next.lowPower = this.mobile;
+      this._applyLivery(next, this.settings.get('livery'));
+    } else this.scene.add(next.rig.root);
+    this.player = next;
+    if (moved) next.physics.reset(at.x, at.z, at.yaw); else next.reset(true);
+    next._savePrev();
     this._wirePhysics();
-    this.cams.player = this.player; this.cams.snap = true;
-    this.mirrorInsets = new MirrorInsets(this.player, this.touch);
+    this.cams.player = next; this.cams.snap = true;
+    this.mirrorInsets = this.insets[kind] ||= new MirrorInsets(next, this.touch);
     this.mirrorInsets.mode = this.settings.get('mirrorInsets');
-    this.passengers.setPlayer(this.player);
-    if (this.touch) this.touch.maxWheel = this.player.physics.maxWheelAngle;
-    for (const k of ['keySteer', 'mirrorQuality', 'seat', 'headlights', 'livery']) this._applySetting(k, this.settings.get(k));
-    this.player.setNight(!!this._night);
+    this.passengers.setPlayer(next);
+    if (this.touch) this.touch.maxWheel = next.physics.maxWheelAngle;
+    for (const k of ['keySteer', 'mirrorQuality', 'seat', 'headlights']) this._applySetting(k, this.settings.get(k));
+    next.setNight(!!this._night);
     if (this.settings.get('headlights') !== 'auto') this._applySetting('headlights', this.settings.get('headlights'));
     this.audio.setEngineKind(kind);
-    this.diag.set('hiace', kind === 'microbus' ? (this.player.glbIntegrated ? 'HIACE: LOADED' : 'HIACE: FAILED') : `VEHICLE: ${kind.toUpperCase()}`, 'ok');
-    this.player.syncVisuals(0.016, 1);
-    if (this.player.damage) this.player.damage.onBreak = () => this.audio.glass();
+    this.diag.set('hiace', kind === 'microbus' ? (next.glbIntegrated ? 'HIACE: LOADED' : 'HIACE: FAILED') : `VEHICLE: ${kind.toUpperCase()}`, 'ok');
+    next.syncVisuals(0.016, 1);
+    if (next.damage) next.damage.onBreak = () => this.audio.glass();
+    this.onVehicleChange?.(kind);
+  }
+
+  _applyLivery(P, v) {
+    if (P.kind !== 'microbus' || !P.rig.dims || !P.rig.shell) return;
+    if (!P._liv) P._liv = applyLivery(P.rig, v); else P._liv(v);
   }
 
   /** تطبيق إعداد (عند البداية ولما يتغير من اللوحة) */
@@ -398,12 +458,7 @@ export class Game {
         break;
       }
       case 'mirrorQuality': this.player.setMirrorQuality(v); break;
-      case 'livery': {
-        const P = this.player;
-        if (P.kind !== 'microbus' || !P.rig.dims || !P.rig.shell) break;
-        if (!P._liv) P._liv = applyLivery(P.rig, v); else P._liv(v);
-        break;
-      }
+      case 'livery': for (const P of Object.values(this.vehicles || {})) this._applyLivery(P, v); break;
       case 'graphics': {
         const fixed = { low: 3, med: 2, high: 0, ultra: -1 }[v];
         const q = (this._q ||= { t: 0, frames: 0, level: 0, good: 0, cooldown: 3 });
@@ -451,6 +506,7 @@ export class Game {
       steps++;
     }
     if (this._dmgQ) { const q = this._dmgQ; this._dmgQ = null; this.player.damage?.impact(...q); }
+    this.player.damage?.step(); // شغل الضرر التقيل: حاجة واحدة بس كل فريم
     if (steps === 8) this.acc = 0;
     // صوت المطبات
     let bump = 0;
@@ -510,6 +566,11 @@ export class Game {
     this.diag.update(dt, this.player, inside);
     this.mp.update(dt);
     this.minimap.update(dt);
+    // الضل: بيتحدّث كل فريم في الجودة العالية، وكل 2-3 فريمات في الواطية (أخف بكتير ومفيش إعادة بناء شيدرز)
+    const sm = this.renderer.shadowMap;
+    this._shadowTick = ((this._shadowTick || 0) + 1) % (this.shadowEvery || 1);
+    sm.autoUpdate = false;
+    if (this._shadowTick === 0) sm.needsUpdate = true;
     this.renderer.render(this.scene, this.camera);
     if (this.mirrorInsets.update(this.camera, inside && this.started)) this.mirrorInsets.render(this.renderer);
   }

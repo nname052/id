@@ -258,18 +258,16 @@ export class TrafficSystem {
     }
   }
 
-  /** صناديق تصادم العربيات القريبة (للفيزياء) */
-  colliders(box, out) {
-    const r = Math.hypot(box.hx, box.hz) + 4;
-    for (const c of this.cars) {
-      if (c.off) continue;
-      if (Math.abs(c.x - box.cx) > r || Math.abs(c.z - box.cz) > r || Math.abs(c.y - (this._py || 0)) > 3) continue;
-      const fx = -Math.sin(c.yaw), fz = -Math.cos(c.yaw);
-      out.push({
-        cx: c.x, cz: c.z, hx: c.width / 2, hz: c.len / 2, angle: c.yaw, mass: c.mass, restitution: 0.15,
-        vx: fx * c.v + (c.kvx || 0), vz: fz * c.v + (c.kvz || 0), kind: 'car', car: c,
+  /** صناديق تصادم العربيات القريبة (للفيزياء).
+   *  كل عربية ليها صندوق واحد ثابت بنحدّثه مكانه (الفيزيا بتسأل كذا مرة كل خطوة → من غير objects/closures جديدة = مفيش GC) */
+  _collider(c) {
+    let col = c._col;
+    if (!col) {
+      col = c._col = {
+        cx: 0, cz: 0, hx: c.width / 2, hz: c.len / 2, angle: 0, mass: c.mass, restitution: 0.15, vx: 0, vz: 0, kind: 'car', car: c,
         // الخبطة بتزق العربية وتلفها على حسب قوتها ومكانها (كمية الحركة)، والسواق بيقف شوية
         onHit: (dv, jx = 0, jz = 0, px = c.x, pz = c.z) => {
+          const fx = -Math.sin(c.yaw), fz = -Math.cos(c.yaw);
           // سرعة العربية في اتجاه حارتها بتتحول لسرعة حرة عشان تكمل في نفس اتجاهها بعد الخبطة
           if (!c.knocked) { c.kvx = (c.kvx || 0) + fx * c.v; c.kvz = (c.kvz || 0) + fz * c.v; c.v = 0; }
           c.knocked = true;
@@ -280,7 +278,20 @@ export class TrafficSystem {
           c.honkCooldown = Math.min(c.honkCooldown, 0.4);
         },
         onPush: (dx, dz) => { c.kox = (c.kox || 0) + dx; c.koz = (c.koz || 0) + dz; c.knocked = true; },
-      });
+      };
+    }
+    const fx = -Math.sin(c.yaw), fz = -Math.cos(c.yaw);
+    col.cx = c.x; col.cz = c.z; col.angle = c.yaw;
+    col.vx = fx * c.v + (c.kvx || 0); col.vz = fz * c.v + (c.kvz || 0);
+    return col;
+  }
+
+  colliders(box, out) {
+    const r = Math.hypot(box.hx, box.hz) + 4;
+    for (const c of this.cars) {
+      if (c.off) continue;
+      if (Math.abs(c.x - box.cx) > r || Math.abs(c.z - box.cz) > r || Math.abs(c.y - (this._py || 0)) > 3) continue;
+      out.push(this._collider(c));
     }
     for (const p of this.parked) {
       if (Math.abs(p.cx - box.cx) > r || Math.abs(p.cz - box.cz) > r) continue;
