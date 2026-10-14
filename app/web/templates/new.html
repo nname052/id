@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}فيديو جديد{% endblock %}
+{% block body %}
+<h1>فيديو جديد</h1>
+<div class="card" style="max-width: 760px">
+  <label class="field" for="prompt">فكرة الفيديو</label>
+  <textarea id="prompt" rows="3" placeholder="مثلًا: فيديو عن الخوف من الفشل، وإزاي التأجيل بيضيّع الفرص"></textarea>
+
+  <label class="field">المدة: <span id="durv">{{ defaults.duration }}</span> ثانية</label>
+  <input id="duration" type="range" min="10" max="60" step="5" value="{{ defaults.duration }}" style="width:100%">
+
+  <label class="field">اللهجة</label>
+  <div class="chips" id="dialect">
+    <span class="chip on" data-v="egyptian">مصري</span><span class="chip" data-v="msa">فصحى بسيطة</span>
+  </div>
+
+  <label class="field">الإحساس</label>
+  <div class="chips" id="mood">
+    {% for k, v in moods.items() %}<span class="chip {{ 'on' if k == defaults.mood }}" data-v="{{ k }}">{{ v }}</span>{% endfor %}
+  </div>
+
+  <label class="field">الصوت</label>
+  <div class="vpick" id="vpick">
+    <button type="button" id="vbtn"><span id="vname">جاري تحميل الأصوات…</span><span>▾</span></button>
+    <div class="vpanel" id="vpanel" hidden>
+      <div class="row">
+        <input type="text" id="vq" class="grow" placeholder="دوّر بالاسم…">
+        <select id="vaccent" style="width:auto"><option value="eg">مصري</option><option value="msa">فصحى</option><option value="">كل اللهجات</option></select>
+        <select id="vgender" style="width:auto"><option value="">ذكر وأنثى</option><option value="male">ذكر</option><option value="female">أنثى</option></select>
+      </div>
+      <div class="list" id="vlist"></div>
+    </div>
+  </div>
+  <div class="muted" style="margin-top:6px">▶ بيشغّل عينة الصوت مجانًا. اسمع قبل ما تختار.</div>
+  <div id="vwarn"></div>
+
+  <label class="row" style="margin-top:14px"><input type="checkbox" id="subs" checked> ترجمة على الشاشة (الكلمة اللي بتتقال بتنوّر)</label>
+
+  <details style="margin-top:12px"><summary class="muted">إعدادات متقدمة</summary>
+    <label class="field">ثبات الصوت</label>
+    <div class="chips" id="stability">
+      <span class="chip" data-v="0">إبداعي (للهمس والتمثيل)</span><span class="chip on" data-v="0.5">طبيعي (الأفضل للكلام)</span><span class="chip" data-v="1">ثابت</span>
+    </div>
+  </details>
+
+  <div id="stylebox"></div>
+  <div class="row" style="margin-top:20px">
+    <span class="muted grow" id="cost"></span>
+    <button class="primary" id="go">ابدأ ▶</button>
+  </div>
+  <div id="msg"></div>
+</div>
+{% endblock %}
+{% block script %}
+<script>
+  const chips = (id) => { $$(`#${id} .chip`).forEach((c) => (c.onclick = () => { $$(`#${id} .chip`).forEach((x) => x.classList.remove("on")); c.classList.add("on"); })); return () => $(`#${id} .chip.on`).dataset.v; };
+  const dialect = chips("dialect"), mood = chips("mood"), stability = chips("stability");
+  // الصوت لازم يبقى من نفس اللهجة: الصوت المصري بينطق الجيم "g" والقاف همزة حتى في الفصحى
+  function checkVoice() {
+    const d = dialect(), eg = voice && voice.egyptian;
+    let msg = "";
+    if (d === "msa" && eg) msg = "الصوت ده مصري، فهينطق الفصحى بلهجة مصرية (زي الجيم في «ضجيج»). اختار صوت من فلتر «فصحى».";
+    if (d === "egyptian" && voice && voice.accent && !eg) msg = "الصوت ده مش مصري، فالعامية ممكن تطلع بلهجة تانية. اختار صوت من فلتر «مصري».";
+    $("#vwarn").innerHTML = msg ? `<div class="note warn">⚠️ ${esc(msg)}</div>` : "";
+    $("#vaccent").value = d === "msa" ? "msa" : "eg";
+  }
+  $$("#dialect .chip").forEach((c) => c.addEventListener("click", checkVoice));
+  let voices = [], voice = { voice_id: "{{ defaults.voice_id }}", name: "{{ defaults.voice_name }}" }, audio = new Audio(), playing = null;
+
+  function updateCost() {
+    const d = +$("#duration").value; $("#durv").textContent = d;
+    $("#cost").textContent = `الصوت هيستهلك حوالي ${Math.round(d * 2.2 * 6.5)} credit من ElevenLabs`;
+  }
+  $("#duration").oninput = updateCost; updateCost();
+
+  function renderVoices() {
+    const q = $("#vq").value.trim().toLowerCase(), acc = $("#vaccent").value, g = $("#vgender").value;
+    const isMsa = (v) => /modern standard|standard/i.test(v.accent || "") && !v.egyptian;
+    const list = voices.filter((v) => (!acc || (acc === "eg" ? v.egyptian : isMsa(v))) && (!g || v.gender === g) && (!q || (v.name || "").toLowerCase().includes(q))).slice(0, 120);
+    $("#vlist").innerHTML = list.map((v) => `<div class="vrow ${v.voice_id === voice.voice_id ? "sel" : ""}" data-id="${esc(v.voice_id)}">
+      <button class="play" data-url="${esc(v.preview_url)}" title="اسمع">▶</button>
+      <span class="nm">${esc(v.name)}</span>
+      <span class="badge">${v.egyptian ? "مصري" : esc(v.accent || "")}</span>
+      <span class="badge">${v.gender === "female" ? "أنثى" : v.gender === "male" ? "ذكر" : ""}</span></div>`).join("") || `<div class="muted">مفيش أصوات بالفلتر ده</div>`;
+  }
+  $("#vlist").onclick = (e) => {
+    const play = e.target.closest(".play"), row = e.target.closest(".vrow");
+    if (play) {                                            // تشغيل العينة من غير ما القائمة تتقفل
+      e.stopPropagation();
+      if (playing === play) { audio.pause(); play.textContent = "▶"; playing = null; return; }
+      if (playing) playing.textContent = "▶";
+      audio.src = play.dataset.url; audio.play(); play.textContent = "■"; playing = play;
+      audio.onended = () => { play.textContent = "▶"; playing = null; };
+      return;
+    }
+    if (row) { voice = voices.find((v) => v.voice_id === row.dataset.id); $("#vname").textContent = `${voice.name}`; $("#vpanel").hidden = true; audio.pause(); checkVoice(); }
+  };
+  $("#vbtn").onclick = () => { $("#vpanel").hidden = !$("#vpanel").hidden; renderVoices(); };
+  ["vq", "vaccent", "vgender"].forEach((id) => ($("#" + id).oninput = renderVoices));
+  document.addEventListener("click", (e) => { if (!e.target.closest("#vpick")) $("#vpanel").hidden = true; });
+
+  api("/api/voices").then((v) => { voices = v; const cur = voices.find((x) => x.voice_id === voice.voice_id); if (cur) voice = cur; $("#vname").textContent = voice.name; checkVoice(); })
+    .catch((e) => ($("#vname").textContent = "مقدرتش أحمّل الأصوات: " + e.message));
+  api("/api/style").then((d) => {
+    if (!d.profile) return;
+    const pts = d.profile.split("\n").filter((l) => l.trim()).length;
+    $("#stylebox").innerHTML = `<div class="note ok" style="margin-top:14px">✓ ذوقك هيتطبق على الفيديو ده (${pts} تفضيل): السكريبت، والمشاهد، والإيقاع، وحجم الكلام، والنطق. <a href="/style">شوفه أو عدّله</a></div>`;
+  });
+  api("/api/usage").then((u) => { if (u.elevenlabs && u.elevenlabs.limit) $("#cost").textContent += ` (المتبقي ${(u.elevenlabs.limit - u.elevenlabs.used).toLocaleString("ar-EG")})`; });
+
+  $("#go").onclick = async () => {
+    const prompt = $("#prompt").value.trim();
+    if (prompt.length < 3) { $("#msg").innerHTML = `<div class="note err">اكتب فكرة الفيديو الأول</div>`; return; }
+    $("#go").disabled = true;
+    try {
+      const r = await api("/api/projects", { method: "POST", body: { prompt, settings: {
+        duration: +$("#duration").value, dialect: dialect(), mood: mood(), voice_id: voice.voice_id, voice_name: voice.name,
+        subtitles: $("#subs").checked, stability: +stability() } } });
+      location.href = `/p/${r.id}`;
+    } catch (e) { $("#msg").innerHTML = `<div class="note err">${esc(e.message)}</div>`; $("#go").disabled = false; }
+  };
+</script>
+{% endblock %}

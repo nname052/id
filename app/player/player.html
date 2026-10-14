@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>المشغّل</title>
+<link rel="stylesheet" href="/fonts/fonts.css">
+<link rel="stylesheet" href="/player/player.css?v=4">
+</head>
+<body>
+<div id="frame"><div id="stage">
+  <div id="bg"><div class="blob b1"></div><div class="blob b2"></div><canvas id="grain" width="270" height="480"></canvas></div>
+  <div id="scenes"></div>
+  <div id="subs"></div>
+</div></div>
+<div id="controls" hidden>
+  <button id="play">▶</button>
+  <input id="scrub" type="range" min="0" max="1000" value="0">
+  <span id="clock">0:00</span>
+</div>
+<audio id="audio" preload="auto"></audio>
+<script src="/assets/vendor/lottie_svg.min.js"></script>
+<script src="/player/player.js?v=4"></script>
+</body>
+</html>
