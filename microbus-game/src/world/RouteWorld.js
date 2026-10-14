@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { Buckets, GeoBuilder } from '../render/GeoBuilder.js';
 import { rng, canvas, tex, tileNoise } from '../render/textures.js';
-import { ROUTE, sampleAt, terrainHeight, nearestRoute, RIVER, CANAL_OFFSET, ROUTE_BUMPS, UTURNS, inUturn, fbm } from './Route.js';
+import { ROUTE, sampleAt, terrainHeight, nearestRoute, RIVER, CANAL_OFFSET, ROUTE_BUMPS, UTURNS, inUturn, fbm, nearJunction, terrainRaw } from './Route.js';
+import { ROADS } from './RoadNetwork.js';
 import { buildOne } from './Buildings.js';
 import { LAMP_POSITIONS } from './Props.js';
 
@@ -13,6 +14,8 @@ import { LAMP_POSITIONS } from './Props.js';
 
 const CHUNK = 120;
 const HALF = 10;           // نص عرض الأسفلت
+const STEP_SIDE = 2;
+const terrainHeightRawSafe = (x, z) => terrainRaw(x, z);
 const Y = (s) => sampleAt(s).y;
 
 function P(s, d, yo = 0) { const q = sampleAt(s); return [q.x + q.rx * d, q.y + yo, q.z + q.rz * d]; }
@@ -35,6 +38,7 @@ export class RouteWorld {
     this._buildRoadside();
     this._buildTunnel();
     this._buildSigns();
+    this._buildSideRoads();
     this._buildColliders();
   }
 
@@ -125,6 +129,7 @@ export class RouteWorld {
       if (urban) {
         const top = B.get('sidewalkTop'), curb = B.get('curb');
         for (const sx of [-1, 1]) {
+          if (nearJunction(s + ds / 2, sx)) continue; // مدخل طريق فرعي: الرصيف مقطوع
           const d0 = sx > 0 ? HALF : -15, d1 = sx > 0 ? 15 : -HALF;
           top.setColor([0.95 + R() * 0.08, 0.95, 0.95]);
           const A = P(s, d0, 0.18), Bp = P(s, d1, 0.18), C = P(s1, d1, 0.18), D = P(s1, d0, 0.18);
@@ -326,7 +331,7 @@ export class RouteWorld {
       while (s < range[1] - 8) {
         const w = opts.wMin + R() * (opts.wMax - opts.wMin);
         const sc = s + w / 2;
-        if (opts.skip && opts.skip(sc)) { s += w; continue; }
+        if ((opts.skip && opts.skip(sc)) || nearJunction(sc, side, w / 2 + 2)) { s += w; continue; }
         const q = sampleAt(sc);
         const off = side * opts.offset;
         const x = q.x + q.rx * off, zz = q.z + q.rz * off;
@@ -363,7 +368,7 @@ export class RouteWorld {
       if (z === 'agri' && R() < 0.25) put(trees, CANAL_OFFSET + 6.5, 1.3);
       if (z === 'village' && R() < 0.35) put(palms, (R() < 0.5 ? -1 : 1) * (22 + R() * 20));
       if (z === 'bridge' && Y(s) < 1 && R() < 0.4) put(palms, (R() < 0.5 ? -1 : 1) * (14 + R() * 18));
-      if (URBAN.has(z) && s % 24 < 6) { put(trees, 11.2, 0.95); put(trees, -11.2, 0.95); }
+      if (URBAN.has(z) && s % 24 < 6) { if (!nearJunction(s, 1, 3)) put(trees, 11.2, 0.95); if (!nearJunction(s, -1, 3)) put(trees, -11.2, 0.95); }
       if (URBAN.has(z) && s % 30 < 6 && !inUturn(s)) palms.push([q.x, q.y + 0.24, q.z, 0.9 + R() * 0.2]);
       if (z === 'highway' && R() < 0.12) put(palms, (R() < 0.5 ? -1 : 1) * (16 + R() * 30));
       if (z === 'desert' && R() < 0.05) put(palms, (R() < 0.5 ? -1 : 1) * (25 + R() * 60), 0.8);
@@ -384,6 +389,7 @@ export class RouteWorld {
       const q = sampleAt(s);
       if (URBAN.has(z) || z === 'highway' || (z === 'bridge' && Y(s) > 1)) {
         for (const sx of [-1, 1]) {
+          if (nearJunction(s, sx, 2)) continue;
           const d = sx * (z === 'bridge' ? HALF + 0.3 : HALF + 0.6);
           lamps.push({ x: q.x + q.rx * d, y: q.y + (URBAN.has(z) ? 0.18 : 0), z: q.z + q.rz * d, rot: Math.atan2(sx * q.rz, -sx * q.rx) });
         }
@@ -432,6 +438,7 @@ export class RouteWorld {
       const B = this._chunk(s), s1 = s + 2;
       const rl = B.get('rail');
       for (const sx of [-1, 1]) {
+        if (nearJunction(s + 1, sx)) continue; // فتحة المخرج/المدخل
         const d = sx * (HALF + 0.55);
         rl.setColor([0.85, 0.87, 0.88]);
         rl.quad(P(s, d, 0.45), P(s1, d, 0.45), P(s1, d, 0.75), P(s, d, 0.75), [[0, 0], [1, 0], [1, 1], [0, 1]]);
@@ -443,7 +450,7 @@ export class RouteWorld {
       const q = sampleAt(s), z = q.zone;
       if (Math.abs(q.curv) > 1 / 140 && (z === 'agri' || z === 'mountain' || z === 'village' || z === 'desert')) {
         const side = q.curv > 0 ? 1 : -1; // جوه/بره اللفة: الإشارة على الحافة الخارجية
-        this._chevron(this._chunk(s), s, side * (HALF + 1.4), side);
+        if (!nearJunction(s, side, 4)) this._chevron(this._chunk(s), s, side * (HALF + 1.4), side);
       }
     }
     this._flushChunks();
@@ -734,6 +741,87 @@ export class RouteWorld {
     add(z.highway[1] - 260, [['وسط البلد', 'Downtown', '↑'], ['مخرج', 'EXIT', '↗'], ['دوران للخلف', 'U-Turn', '↶']]);
   }
 
+  // ===================== الطرق الفرعية =====================
+  _buildSideRoads() {
+    const R = rng(2468);
+    this._sideCols = [];
+    const palms = [];
+    for (const road of ROADS) {
+      const S = road.samples;
+      const dirt = road.surface === 'dirt';
+      let B = null, cx = 0, cz = 0, cnt = 0, start = 0;
+      const flush = () => {
+        if (!B) return;
+        const g = new THREE.Group();
+        B.toMeshes(this.M, g, { castShadow: false });
+        this._addChunk(g, cx / cnt, cz / cnt, 70);
+        B = null; cx = cz = cnt = 0;
+      };
+      const P = (p, d, h) => [p.x + p.rx * d, p.y + h, p.z + p.rz * d];
+      for (let i = 0; i < S.length - 1; i++) {
+        if (!B || S[i].s - start > 60) { flush(); B = new Buckets(); start = S[i].s; }
+        const a = S[i], b = S[i + 1];
+        cx += a.x; cz += a.z; cnt++;
+        const t = 0.92 + R() * 0.08;
+        if (dirt) {
+          const m = B.get('dirt'); m.setColor([t * 0.95, t * 0.85, t * 0.7]);
+          m.quad(P(a, -a.half, 0.03), P(a, a.half, 0.03), P(b, b.half, 0.03), P(b, -b.half, 0.03), [[0, a.s / 3], [1, a.s / 3], [1, b.s / 3], [0, b.s / 3]]);
+        } else {
+          const m = B.get('asphalt'); m.setColor([t * 0.97, t * 0.97, t * 0.97]);
+          m.quad(P(a, -a.half, 0.03), P(a, a.half, 0.03), P(b, b.half, 0.03), P(b, -b.half, 0.03), [[-a.half / 7, a.s / 7], [a.half / 7, a.s / 7], [b.half / 7, b.s / 7], [-b.half / 7, b.s / 7]]);
+          const paint = B.get('paint');
+          const strip = (d, w, h = 0.036) => paint.quad(P(a, d - w, h), P(a, d + w, h), P(b, d + w, h), P(b, d - w, h), [[0, a.s * 0.05], [0.3, a.s * 0.05], [0.3, b.s * 0.05], [0, b.s * 0.05]]);
+          if (a.half < road.half + 0.3) { strip(-(road.half - 0.25), 0.05); strip(road.half - 0.25, 0.05); }
+          if ((a.s % 9) < 3.5 && a.half < road.half + 0.3) strip(0, 0.06);
+        }
+        // سور واطي لو الطريق عالي عن الأرض (فوق الترعة)
+        const ground = Math.min(terrainHeightRawSafe(a.x + a.rx * (a.half + 3), a.z + a.rz * (a.half + 3)), terrainHeightRawSafe(a.x - a.rx * (a.half + 3), a.z - a.rz * (a.half + 3)));
+        if (a.y - ground > 0.8) {
+          const j = B.get('jersey'); j.setColor([0.9, 0.88, 0.84]);
+          for (const sx of [-1, 1]) {
+            const d = sx * (a.half + 0.2);
+            j.quad(P(a, d, 0.03), P(b, d, 0.03), P(b, d, 0.75), P(a, d, 0.75));
+            j.quad(P(b, d, 0.03), P(a, d, 0.03), P(a, d, 0.75), P(b, d, 0.75));
+            this._sideCols.push({ cx: (a.x + b.x) / 2 + a.rx * d, cz: (a.z + b.z) / 2 + a.rz * d, hx: 0.15, hz: STEP_SIDE / 2 + 0.1, angle: Math.atan2(-a.dx, -a.dz), restitution: 0.15, kind: 'wall' });
+          }
+        }
+        // شوية نخل على الجناب
+        if (road.style === 'agri' && R() < 0.06) { const sd = (R() < 0.5 ? -1 : 1) * (a.half + 3 + R() * 6); palms.push([a.x + a.rx * sd, terrainHeight(a.x + a.rx * sd, a.z + a.rz * sd), a.z + a.rz * sd, 0.9 + R() * 0.3]); }
+      }
+      flush();
+      // يافطة عند كل مدخل من الطريق الرئيسي/وسط البلد
+      for (const e of road.ends) {
+        const p = e.first ? S[Math.min(S.length - 1, 9)] : S[Math.max(0, S.length - 10)];
+        this._sideSign(p, road, e.first ? 1 : -1);
+      }
+    }
+    if (palms.length) {
+      this._instancedPalms(palms);
+      for (const p of palms) this._sideCols.push({ cx: p[0], cz: p[2], hx: 0.26, hz: 0.26, angle: 0, restitution: 0.1, kind: 'pole' });
+    }
+  }
+
+  _sideSign(p, road, dir) {
+    const c = canvas(512, 160), ctx = c.getContext('2d');
+    ctx.fillStyle = road.style === 'highway' ? '#11663a' : '#1b4f9c'; ctx.fillRect(0, 0, 512, 160);
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 6; ctx.strokeRect(8, 8, 496, 144);
+    ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.direction = 'rtl';
+    ctx.font = 'bold 54px Cairo, sans-serif'; ctx.fillText(road.name, 256, 62);
+    ctx.font = 'bold 34px Cairo, sans-serif'; ctx.fillText(`← ${road.sign}`, 256, 122);
+    const mat = new THREE.MeshStandardMaterial({ map: tex(c, { repeat: false }), roughness: 0.5, side: THREE.DoubleSide });
+    const g = new THREE.Group();
+    const side = road.half + 1.2;
+    const x = p.x + p.rx * side, z = p.z + p.rz * side, y = terrainHeight(x, z);
+    const plate = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 0.6), mat);
+    plate.position.set(x, y + 2.5, z);
+    plate.rotation.y = Math.atan2(p.dx * dir, p.dz * dir) + Math.PI;
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 2.6, 6), this.M.paintedMetal);
+    pole.position.set(x, y + 1.3, z);
+    g.add(plate, pole);
+    this._addChunk(g, x, z, 30);
+    this._sideCols.push({ cx: x, cz: z, hx: 0.12, hz: 0.12, angle: 0, restitution: 0.1, kind: 'pole' });
+  }
+
   // ===================== صناديق التصادم =====================
   _buildColliders() {
     const L = ROUTE.length;
@@ -742,16 +830,21 @@ export class RouteWorld {
       const q = sampleAt(s + seg / 2);
       this.colliders.push({ cx: q.x + q.rx * d, cz: q.z + q.rz * d, hx: hw, hz: seg / 2 + 0.2, angle: Math.atan2(-q.dx, -q.dz), restitution: 0.15, kind });
     };
+    // مفيش حيطان خفية: الحواجز بس في الأماكن اللي فيها حاجة باينة (عمارات، جاردريل، سور الكوبري، النفق)
     for (let s = 0; s < L - seg; s += seg) {
-      const z = zoneAt(s + seg / 2);
-      // الحواف
-      // في المناطق السكنية الرصيف بيتطلع عليه (ارتفاع في الأرض) والحيطة عند واجهات العمارات بس
-      const edge = URBAN.has(z) ? 15 : z === 'agri' || z === 'village' ? HALF + 1.6 : HALF + 0.9;
-      add(s, edge + 0.5, 0.5, URBAN.has(z) ? 'building' : 'edge');
-      add(s, -edge - 0.5, 0.5, URBAN.has(z) ? 'building' : 'edge');
+      const sm = s + seg / 2;
+      const z = zoneAt(sm);
+      const y = sampleAt(sm).y;
+      for (const sx of [-1, 1]) {
+        if (URBAN.has(z)) { if (!nearJunction(sm, sx, 2)) add(s, sx * 15.5, 0.5, 'building'); }
+        else if (z === 'tunnel') add(s, sx * (HALF + 1.4), 0.5, 'wall');
+        else if (z === 'bridge' && y > 1.2) add(s, sx * (HALF + 0.25), 0.25, 'wall');
+        else if ((z === 'desert' || z === 'mountain' || z === 'highway') && !nearJunction(sm, sx)) add(s, sx * (HALF + 0.6), 0.1, 'rail');
+      }
       // الحاجز الخرساني في الطرق السريعة (الجزيرة بالزرع في السكني ليها ارتفاع بس)
-      if (!inUturn(s + seg / 2) && z !== 'tunnel' && !URBAN.has(z)) add(s, 0, 0.35, 'median');
+      if (!inUturn(sm) && z !== 'tunnel' && !URBAN.has(z)) add(s, 0, 0.35, 'median');
     }
+    for (const c of this._sideCols || []) this.colliders.push(c);
     // أعمدة وشجر
     for (const [x, z, r] of this._poles || []) this.colliders.push({ cx: x, cz: z, hx: r, hz: r, angle: 0, restitution: 0.1, kind: 'pole' });
     // شبكة بحث

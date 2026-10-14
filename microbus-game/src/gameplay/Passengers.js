@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { person, seatedFigure } from '../world/Pedestrians.js';
 import { loopAt, LOOP } from '../traffic/TrafficSystem.js';
 import { groundHeight } from '../world/ground.js';
+import { roadPointAt } from '../world/RoadNetwork.js';
 import { GeoBuilder } from '../render/GeoBuilder.js';
 import { canvas, tex, rng } from '../render/textures.js';
 
@@ -18,6 +19,11 @@ const STOP_DEFS = [
   { s: CITY_LEN + 1205, name: 'القرية', kind: 'village' },
   { s: CITY_LEN + 1460, name: 'استراحة الصحراوي', kind: 'desert' },
   { s: CITY_LEN + 2480, name: 'طرف الطريق السريع', kind: 'highway' },
+];
+// مواقف على الطرق الفرعية
+const SIDE_STOPS = [
+  { road: 'R1', frac: 0.45, name: 'موقف الترعة', kind: 'agri' },
+  { road: 'R5', frac: 0.5, name: 'شارع الميدان', kind: 'side' },
 ];
 const URBAN = new Set(['city', 'market', 'residential']);
 const MAX_WALKERS = 12;
@@ -70,11 +76,12 @@ export class Passengers {
     const q = {};
     const poles = new GeoBuilder();
     const plates = new GeoBuilder();
-    for (const def of STOP_DEFS) {
-      loopAt(def.s, q);
+    const defs = [...STOP_DEFS, ...SIDE_STOPS];
+    for (const def of defs) {
+      let edge;
+      if (def.road) { Object.assign(q, roadPointAt(def.road, def.frac)); edge = q.half + 1.4; } else { loopAt(def.s, q); edge = URBAN.has(def.kind) ? 11.3 : 10.8; }
       for (const side of [1, -1]) {
-        const urban = URBAN.has(def.kind);
-        const d = side * (urban ? 11.3 : 10.8);
+        const d = side * edge;
         const x = q.x + q.rx * d, z = q.z + q.rz * d;
         // اتجاه السير اللي الموقف ده ليه: اليمين (+r) لما بنمشي في اتجاه المسار
         const dir = side;

@@ -206,8 +206,21 @@ function baseTerrain(x, z, zone, roadY = 0) {
   }
 }
 
-/** ارتفاع الأرض (التضاريس) — نفس الدالة للرسم والفيزياء */
-export function terrainHeight(x, z) {
+// ===== تقاطعات الطرق الفرعية (بتتملى من RoadNetwork) =====
+export const JUNCTIONS = [];
+/** فيه تقاطع طريق فرعي هنا؟ (عشان نسيب فتحة في الأرصفة/الجاردريل/العمارات) */
+export function nearJunction(s, side, margin = 0) {
+  for (const j of JUNCTIONS) if ((side === 0 || j.side === side) && Math.abs(j.s - s) < j.half + margin) return true;
+  return false;
+}
+let hooks = { blend: (x, z, h) => h };
+export function setSideRoadHooks(h) { hooks = h; }
+
+/** ارتفاع الأرض (التضاريس) — نفس الدالة للرسم والفيزياء (ومعاها الطرق الفرعية) */
+export function terrainHeight(x, z) { return hooks.blend(x, z, terrainRaw(x, z)); }
+
+/** التضاريس من غير الطرق الفرعية */
+export function terrainRaw(x, z) {
   const r = nearestRoute(x, z);
   if (!r) return -0.5;
   const ad = r.dist;
@@ -253,10 +266,10 @@ export const SIDEWALK_H = 0.18, MEDIAN_H = 0.24;
 
 export function routeSurface(x, z) {
   const r = nearestRoute(x, z);
-  if (!r) return { h: 0, onRoad: false, rough: 0 };
+  if (!r) return { h: terrainHeight(x, z), onRoad: false, rough: 1 };
   const urban = URBAN_ZONES.has(r.zone);
-  // المناطق السكنية: رصيف مرفوع (10م → 15م) — بيتطلع عليه بالعجل، مش حيطة
-  if (urban && r.dist >= 10 && r.dist <= 15.4) return { h: r.y + SIDEWALK_H, onRoad: false, rough: 0, zone: r.zone, curb: true };
+  // المناطق السكنية: رصيف مرفوع (10م → 15م) — بيتطلع عليه بالعجل، مش حيطة (ماعدا مدخل طريق فرعي)
+  if (urban && r.dist >= 10 && r.dist <= 15.4 && !nearJunction(r.s, Math.sign(r.d))) return { h: r.y + SIDEWALK_H, onRoad: false, rough: 0, zone: r.zone, curb: true };
   if (r.dist > 11.5) return { h: terrainHeight(x, z), onRoad: false, rough: 1 };
   let h = r.y;
   // الجزيرة الوسطى بالزرع (ماعدا فتحات الدوران)

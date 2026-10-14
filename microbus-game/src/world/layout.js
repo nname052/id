@@ -59,7 +59,7 @@ function curbHeight(x, z) {
   if (cross) {
     // رصيف الشارع العرضي (بعد واجهات الشارع الرئيسي)
     const inStreet = Math.abs(z - cross.z) < cross.half;
-    if (ax > ROAD.sidewalkOuter + 0.4 && !inStreet) return ROAD.sidewalkHeight;
+    if (ax > ROAD.sidewalkOuter + 0.4 && !inStreet) return ax < (x > 0 ? cross.xMax : -cross.xMin) + 4 ? ROAD.sidewalkHeight : 0;
     if (ax >= ROAD.curb && Math.abs(z - cross.z) >= cross.half && ax <= ROAD.sidewalkOuter + 0.4) {
       // ركن الرصيف عند التقاطع
       return ROAD.sidewalkHeight;
@@ -131,8 +131,7 @@ export function staticColliders() {
     for (const s of [-1, 1]) box(s * face, s * (face + 30), zEnd, zStart);
   }
   for (const c of CROSSINGS) {
-    box(c.xMax + 4, c.xMax + 8, c.z - c.half - c.sidewalk, c.z + c.half + c.sidewalk, 'wall');
-    box(c.xMin - 8, c.xMin - 4, c.z - c.half - c.sidewalk, c.z + c.half + c.sidewalk, 'wall');
+    // نهايات الشوارع الجانبية مفتوحة على الطرق الفرعية
     // عمارات على جانبي الشارع العرضي (بعد الرصيف بتاعه)
     for (const s of [-1, 1]) {
       const z0 = c.z + s * (c.half + c.sidewalk), z1 = c.z + s * (c.half + c.sidewalk + 30);

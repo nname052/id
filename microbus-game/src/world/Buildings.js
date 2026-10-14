@@ -288,10 +288,7 @@ export function buildBuildings(M, { low = false } = {}) {
       }
       // عمارة قافلة نهاية الشارع الجانبي
     }
-    for (const sx of [-1, 1]) {
-      const xe = sx > 0 ? c.xMax + 4 : c.xMin - 4;
-      place({ x: xe, z: c.z, rotY: sx > 0 ? -Math.PI / 2 : Math.PI / 2, width: 2 * (c.half + c.sidewalk) + 2, depth: 14 });
-    }
+    // نهاية الشارع الجانبي مفتوحة: بيكمّل طريق فرعي (RoadNetwork)
   }
 
   B.toMeshes({ ...M, winGlass: M.glass }, group);

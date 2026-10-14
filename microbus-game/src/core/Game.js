@@ -13,6 +13,7 @@ import { TrafficSystem, loopProject, loopAt } from '../traffic/TrafficSystem.js'
 import { RouteWorld } from '../world/RouteWorld.js';
 import { ZONE_LABEL } from '../world/Route.js';
 import { surfaceAt } from '../world/ground.js';
+import { sideRoadAt } from '../world/RoadNetwork.js';
 import { CameraSystem, CAMERA_MODES } from '../camera/CameraSystem.js';
 import { AudioSystem } from '../audio/AudioSystem.js';
 import { AssetManager, applyTextureOverrides } from '../assets/AssetManager.js';
@@ -323,9 +324,13 @@ export class Game {
       this.route.updateVisibility(this.camera.position, this.viewDist || (this.mobile ? 380 : 560));
       this.player.surface = surfaceAt(ph.x, ph.z);
       // اسم المنطقة لما تدخلها
-      const pr = loopProject(ph.x, ph.z);
-      const zone = pr ? (pr.s < 450 ? 'city' : sampleZoneName(pr.s)) : null;
-      if (zone && zone !== this._zone && this.started) { if (this._zone) this.hud.toast(ZONE_LABEL[zone] || zone, 2.5); this._zone = zone; }
+      // على طريق فرعي: اسمه، غير كده اسم المنطقة على الطريق الرئيسي
+      const side = sideRoadAt(ph.x, ph.z);
+      const onMain = surfaceAt(ph.x, ph.z) !== 'dirt' && !side;
+      const pr = onMain || !side ? loopProject(ph.x, ph.z) : null;
+      const zone = side ? `road:${side.id}` : pr && pr.d !== undefined && Math.abs(pr.d) > 25 ? this._zone : pr ? (pr.s < 450 ? 'city' : sampleZoneName(pr.s)) : null;
+      const label = side ? side.name : ZONE_LABEL[zone] || zone;
+      if (zone && zone !== this._zone && this.started) { if (this._zone) this.hud.toast(label, 2.5); this._zone = zone; }
     }
     this.player.syncVisuals(dt, this.acc / FIXED_DT);
     this.cams.update(dt, input);
