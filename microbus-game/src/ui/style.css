@@ -91,3 +91,4 @@ body.touch #toast { top: 54px; }
 @media (pointer: coarse) { .keys { display: none; } }
 .mobile-hint { display: none; }
 @media (pointer: coarse) { .mobile-hint { display: block; color: var(--accent); opacity: 0.95; } }
+.credit { font-size: 11px; opacity: 0.45; direction: ltr; }

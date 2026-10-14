@@ -12,7 +12,7 @@ export const CAMERA_MODES = [
   { id: 'cinematic', label: 'سينمائية' },
 ];
 
-const _bus = new THREE.Vector3(), _q3 = new THREE.Quaternion();
+const _bus = new THREE.Vector3(), _q3 = new THREE.Quaternion(), _v2 = new THREE.Vector3();
 const _v = new THREE.Vector3(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _m = new THREE.Matrix4();
 
 export class CameraSystem {
@@ -32,7 +32,7 @@ export class CameraSystem {
     this.snap = true;
   }
 
-  get modeId() { return CAMERA_MODES[this.mode].id; }
+  get modeId() { return CAMERA_MODES[this.mode]?.id || 'free'; }
 
   next() {
     this.mode = (this.mode + 1) % CAMERA_MODES.length;
@@ -79,6 +79,7 @@ export class CameraSystem {
 
   /** look: دخل الجيم باد (العصاية اليمين) */
   update(dt, input) {
+    if (this.mode === 99) return; // كاميرا حرة للتجربة
     const p = this.player;
     const ph = p.physics;
     const cam = this.camera;
@@ -117,12 +118,16 @@ export class CameraSystem {
       this.headOffset.addScaledVector(this.headVel, dt);
       const eye = p.rig.eye;
       eye.updateWorldMatrix(true, false);
-      const pos = _v.copy(this.headOffset).applyMatrix4(eye.matrixWorld);
+      // لما تبص ورا: الراس بتلف وتميل ناحية نص الكابينة (زي السواق الحقيقي وهو بيرجع)
+      const ay = Math.abs(this.look.yaw);
+      const turn = Math.min(1, Math.max(0, (ay - 1.0) / 1.6));
+      const lean = _v2.set(0.34 * turn, 0.1 * turn, 0.18 * turn);
+      const pos = _v.copy(this.headOffset).add(lean).applyMatrix4(eye.matrixWorld);
       cam.position.copy(pos);
       p.rig.body.getWorldQuaternion(_q);
       // بص شوية في اتجاه اللفة (زي السواق الحقيقي)
       const steerLook = ph.steerSmooth * 0.16 * Math.min(1, Math.abs(ph.forwardSpeed) / 3 + 0.3);
-      _e.set(-0.2 + this.look.pitch, this.look.yaw + steerLook, 0, 'YXZ');
+      _e.set((p.rig.eyePitch ?? -0.2) + this.look.pitch, this.look.yaw + steerLook, 0, 'YXZ');
       cam.quaternion.copy(_q).multiply(_q3.setFromEuler(_e));
     } else if (id === 'chase') {
       cam.fov = 60; cam.near = 0.1;

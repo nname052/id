@@ -9,8 +9,10 @@ export const MODEL_ASSETS = {
   // الميكروباص بتاعك  →  assets/models/microbus.glb
   microbus: {
     file: 'microbus.glb',
-    targetLength: 4.95,        // طول الموديل بالمتر بعد التحجيم التلقائي
-    rotationY: 180,            // لو الموديل طالع بضهره، غيّرها لـ 0 أو 90 أو -90
+    targetLength: 4.69,        // طول الموديل بالمتر بعد التحجيم التلقائي (تويوتا هاي إس 2005 ≈ 4.7م)
+    rotationY: 90,             // لو الموديل طالع بضهره، غيّرها لـ 0 أو 180 أو -90
+    autoWheels: true,          // يكتشف العجل لوحده من اسم الخامة (wheel/tire)
+    autoFit: true,             // يظبط أبعاد الفيزياء (المحاور والعجل) على مقاس الموديل
     offset: [0, 0, 0],         // إزاحة يدوية (متر) لو محتاج تظبط مكانه
     hasInterior: false,        // true لو الموديل فيه صالون داخلي كامل (هنخفي الصالون الإجرائي)
     proceduralMirrors: true,   // false لو الموديل فيه مرايات جانبية خاصة بيه

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { VehiclePhysics, MICROBUS_SPEC } from '../physics/VehiclePhysics.js';
 import { buildMicrobus } from './MicrobusModel.js';
+import { analyzeVehicle, specFromModel, integrateHiace } from './HiaceIntegration.js';
 import { PLAYER_START, ROAD, CROSSINGS } from '../world/layout.js';
 import { groundHeight } from '../world/ground.js';
 import { loopProject, loopAt } from '../traffic/TrafficSystem.js';
@@ -31,6 +32,20 @@ export class PlayerVehicle {
   _applyGLB(asset) {
     if (!asset) return;
     const cfg = asset.cfg;
+    // موديل حقيقي (زي الهاي إس): نقيسه ونظبط الفيزياء على مقاسه ونبني صالون على مقاس كابينته
+    if (cfg.autoWheels) {
+      const A = analyzeVehicle(asset.holder);
+      if (A.ok) {
+        const spec = specFromModel(MICROBUS_SPEC, A);
+        this.physics = new VehiclePhysics(spec, groundHeight);
+        this.rig.shell.position.y = -spec.cgHeight;
+        integrateHiace(this.rig, asset, spec, A);
+        this.glbIntegrated = true;
+        console.info('[HiAce] wheelBase', A.wheelBase.toFixed(2), 'track', A.track.toFixed(2), 'R', A.radius.toFixed(3), 'body', (spec.halfLength * 2).toFixed(2), 'x', (spec.halfWidth * 2).toFixed(2));
+        return;
+      }
+      console.warn('[HiAce] مقدرتش ألاقي 4 عجلات في الموديل → هستخدم العجل الإجرائي');
+    }
     const model = asset.holder;
     model.position.z = 0.15; // مركز الموديل → مركز جسم الميكروباص
     this.rig.shell.add(model);
@@ -67,7 +82,8 @@ export class PlayerVehicle {
       // نوجّه المراية بحيث السواق يشوف اللي وراه
       const pos = m.holder.position.clone();
       const toEye = eyeLocal.clone().sub(pos).normalize();
-      const rear = new THREE.Vector3(m.side * 0.06, 0.0, 1).normalize();
+      // المرايات الجانبية متظبطة لبره شوية (جنب العربية يبان شريط رفيع بس، زي السواق الحقيقي)
+      const rear = new THREE.Vector3(m.side * (this.glbIntegrated ? 0.11 : 0.06), m.side ? -0.06 : -0.02, 1).normalize();
       const n = toEye.add(rear).normalize();
       m.holder.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), n);
       const cam = new THREE.PerspectiveCamera(m.fov || 22, aspect, m.side === 0 ? 0.6 : 0.3, 160);
@@ -101,8 +117,9 @@ export class PlayerVehicle {
     this.headlights = [];
     for (const sx of [-0.72, 0.72]) {
       const l = new THREE.SpotLight(0xfff2d8, 0, 70, 0.5, 0.55, 1.6);
-      l.position.set(sx, 0.98 - MICROBUS_SPEC.cgHeight, -2.55);
-      l.target.position.set(sx * 1.5, -MICROBUS_SPEC.cgHeight, -22);
+      const sp = this.physics.spec, front = this.rig.dims ? this.rig.dims.frontF : 2.55;
+      l.position.set(sx * (this.rig.dims ? 0.85 : 1), 0.8 - sp.cgHeight, -front + 0.05);
+      l.target.position.set(sx * 1.5, -sp.cgHeight, -22);
       l.visible = false;
       this.rig.body.add(l, l.target);
       this.headlights.push(l);
