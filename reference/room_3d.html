@@ -133,7 +133,7 @@
   const furniture = [
     ["couch_pillows", [-0.6, 0, -2.35], 0, FURN],
     ["table_low", [-0.6, 0, -1.25], 0, FURN],
-    ["rug_oval_A", [0.1, 0, 0.1], 0, 1.0],
+    ["rug_oval_A", [0.1, 0, 0.1], 0, [1.0, 0.25, 1.0]], // أرفع علشان الرجلين ما تغطسش فيها
     ["lamp_standing", [LAMP_POS.x, 0, LAMP_POS.z], 0, FURN],
     ["shelf_B_large_decorated", [-2.7, 0, -1.6], Math.PI / 2, FURN],
     ["pictureframe_large_A", [-0.6, 1.45, -2.93], 0, FURN],
@@ -152,7 +152,7 @@
       const [, pos, rot, s] = furniture[i];
       g.scene.position.set(...pos);
       g.scene.rotation.y = rot;
-      g.scene.scale.setScalar(s);
+      if (Array.isArray(s)) g.scene.scale.set(...s); else g.scene.scale.setScalar(s);
       // الأباجورة ما بترميش ضل: اللمبة جواها، فكانت بتعمل مربع ضلمة على الحيطة
       const isLamp = furniture[i][0] === "lamp_standing";
       g.scene.traverse((o) => { if (o.isMesh) { o.castShadow = !isLamp; o.receiveShadow = true; } });
