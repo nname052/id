@@ -149,5 +149,11 @@ body.touch #minimap.big { bottom: auto; top: 50%; transform: translate(-50%, -50
 .seats button.on { border-color: var(--accent); background: rgba(242, 179, 48, 0.2); }
 .seats button.taken { opacity: 0.45; cursor: not-allowed; }
 .lobby-status { margin: 0; font-size: 12px; opacity: 0.7; }
-#start { overflow-y: auto; }
+/* شاشة البداية: بتتعمل سكرول (الموبايل بالعرض + الكيبورد مفتوح) وزرار البداية دايمًا ظاهر تحت */
+#start { overflow-y: auto; display: flex; flex-direction: column; align-items: center; touch-action: pan-y; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; height: 100dvh; box-sizing: border-box; }
+#start .card { margin-block: auto; }
+#start #go { position: sticky; bottom: 8px; z-index: 2; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6); }
 @media (max-height: 420px) { .lobby { gap: 5px; margin-top: 6px; } .seats button { padding: 3px 2px; font-size: 15px; } #start .card { padding-block: 8px; } }
+/* وإنت بتكتب الاسم: الزرار يرجع مكانه عشان مايغطيش الخانة (Enter بيوديك عليه) */
+#start:has(input:focus) #go { position: static; box-shadow: none; }
+@media (max-height: 420px) { #go { font-size: 17px; padding: 7px 26px; margin: 8px 0 10px; } }

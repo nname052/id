@@ -5,7 +5,7 @@ import { buildStreet } from '../world/Street.js';
 import { buildBuildings } from '../world/Buildings.js';
 import { buildProps, LAMP_POSITIONS, PROP_COLLIDERS } from '../world/Props.js';
 import { TrafficLights } from '../world/TrafficLights.js';
-import { Pedestrians } from '../world/Pedestrians.js';
+import { Crowd } from '../world/Crowd.js';
 import { staticColliders } from '../world/layout.js';
 import { PlayerVehicle } from '../vehicles/PlayerVehicle.js';
 import { buildCar } from '../vehicles/CarModels.js';
@@ -118,9 +118,10 @@ export class Game {
 
     S('المرور والمشاة...', 0.82);
     await nextFrame();
-    this.traffic = new TrafficSystem(this.scene, this.lights, (type, color) => this._makeCar(type, color), this.audio, { perLane: this.mobile ? 9 : 13 });
+    this.traffic = new TrafficSystem(this.scene, this.lights, (type, color) => this._makeCar(type, color), this.audio, { perLane: this.mobile ? 11 : 16, sideMul: this.mobile ? 1.5 : 1 });
     this.traffic.viewDist = this.mobile ? 260 : 360;
-    this.peds = new Pedestrians(this.scene, this.assets, this.mobile ? 12 : 24);
+    this.crowdBase = this.mobile ? 80 : 160;
+    this.crowd = new Crowd(this.scene, { count: this.crowdBase });
     this.statics = staticColliders();
     // أعمدة النور والشجر والأكشاك في المدينة
     for (const p of PROP_COLLIDERS) this.statics.push({ cx: p.x, cz: p.z, hx: p.hx ?? p.r * 0.85, hz: p.hz ?? p.r * 0.85, angle: 0, restitution: 0.1, kind: p.kind || 'prop' });
@@ -382,7 +383,8 @@ export class Game {
         this.touch?.setLights(this.player.headOn);
         break;
       case 'masterVol': case 'engineVol': this.audio.setVolumes(this.settings.get('masterVol') / 100, this.settings.get('engineVol') / 100); break;
-      case 'traffic': this.traffic.setDensity({ off: 0, low: 0.35, normal: 0.65, high: 1 }[v] ?? 0.65); break;
+      case 'traffic': this.traffic.setDensity({ off: 0, low: 0.35, normal: 0.7, high: 1 }[v] ?? 0.7); break;
+      case 'crowd': this.crowd.setCount(this.crowdBase * ({ low: 0.45, normal: 1, high: 1.6 }[v] ?? 1)); break;
       default: break;
     }
   }
@@ -447,7 +449,7 @@ export class Game {
     }
     this.player.syncVisuals(dt, this.acc / FIXED_DT);
     this.cams.update(dt, input);
-    this.peds.update(dt, this.camera.position, this.player.physics);
+    this.crowd.update(dt, this.camera.position, this.player.physics, this.camera.getWorldDirection(this._camDir || (this._camDir = new THREE.Vector3())));
     this.passengers.camPos = this.camera.position;
     if (this.started) this.passengers.update(dt, ph);
     this.env.update(this.player.rig.root.position);
@@ -463,7 +465,7 @@ export class Game {
 
     this._adaptQuality(dt);
     const inside = this.cams.modeId === 'cockpit';
-    this.audio.update(dt, { player: this.player, camera: this.camera, traffic: this.traffic, inside, horn: input.horn, passengers: this.passengers?.count });
+    this.audio.update(dt, { player: this.player, camera: this.camera, traffic: this.traffic, inside, horn: input.horn, passengers: this.passengers?.count, crowd: this.crowd });
     this.hud.update(dt, ph, this.lights);
     if (this.touch) this.touch.update(ph.steeringWheelAngle);
 

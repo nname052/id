@@ -31,7 +31,7 @@ game.init().then(() => {
   game.mp.connect().then(() => { if (me.seat || me.name) game.mp.setMe({ seat: me.seat, name: me.name, kind: picked }); });
   renderSeats();
   go.disabled = false;
-  go.focus();
+  go.focus({ preventScroll: true }); // من غير ما الصفحة تنزل لتحت وتخبي الاسم والأرقام
 }).catch((e) => {
   console.error(e);
   game.diag?.set('hiace', `INIT FAILED — ${e.message}`, 'bad');
@@ -40,6 +40,8 @@ game.init().then(() => {
 
 // ===== اللوبي: رقم من 1 لـ 7 + اسم (اللعب الجماعي) =====
 const seatsEl = document.getElementById('seats'), nameEl = document.getElementById('pname'), lobbyStatus = document.getElementById('lobby-status');
+// Enter / "تم" في كيبورد الموبايل: يقفل الكيبورد (واللعبة بتبدأ من مستمع Enter العام تحت)
+nameEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') nameEl.blur(); });
 const LS = 'egy-microbus-player';
 let me = (() => { try { return JSON.parse(localStorage.getItem(LS) || '{}'); } catch { return {}; } })();
 me.seat = me.seat || 0; me.name = me.name || '';
@@ -96,7 +98,8 @@ try {
 } catch { /* مش متاح */ }
 
 // منع سكرول/زووم/تحديد النص أثناء القيادة (موبايل)
-const stop = (e) => { if (e.cancelable && !e.target.closest?.('#settings')) e.preventDefault(); };
+// (شاشة البداية والإعدادات مستثنيين: لازم يتعمل فيهم سكرول على الموبايل وهو مقلوب بالعرض)
+const stop = (e) => { if (e.cancelable && !e.target.closest?.('#settings, #start')) e.preventDefault(); };
 document.addEventListener('touchmove', stop, { passive: false });
 document.addEventListener('gesturestart', stop, { passive: false });
 document.addEventListener('gesturechange', stop, { passive: false });

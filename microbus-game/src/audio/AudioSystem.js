@@ -259,12 +259,58 @@ export class AudioSystem {
       n2.connect(this._filter('bandpass', 1400, 0.4)).connect(this._gain(0.025)).connect(a.g);
     }
     this.nextDistantHonk = 2;
+    // همهمة الناس في الشارع (بتعلى لما يبقى حواليك ناس كتير)
+    a.crowd = this._gain(0);
+    const cn = this._loop(this.brownBuf), cm = this._gain(0.6);
+    a.crowdLfo = this._osc('sine', 1.7);
+    a.crowdLfo.connect(this._gain(0.4)).connect(cm.gain);
+    cn.connect(this._filter('bandpass', 450, 1.6)).connect(cm);
+    cn.connect(this._filter('bandpass', 1050, 2.4)).connect(this._gain(0.7)).connect(cm);
+    cn.connect(this._filter('bandpass', 2300, 3)).connect(this._gain(0.25)).connect(cm);
+    cm.connect(a.crowd).connect(this.outside);
+    this.nextVoice = 1.5;
+  }
+
+  /** نداء/كلام حد في الشارع (بياع، تبّاع، ناس بتنادي على بعض): صوت بشري متركّب، Spatial */
+  voice(x, y, z, loud = 1) {
+    if (!this.started || this.muted) return;
+    const ctx = this.ctx, t0 = ctx.currentTime + 0.02;
+    const p = ctx.createPanner();
+    p.panningModel = 'HRTF'; p.distanceModel = 'inverse'; p.refDistance = 5; p.rolloffFactor = 1.3;
+    p.positionX.value = x; p.positionY.value = y; p.positionZ.value = z;
+    const male = Math.random() < 0.72;
+    const f0 = (male ? 120 : 210) * (0.9 + Math.random() * 0.3);
+    const src = this._osc('sawtooth', f0);
+    const g = this._gain(0);
+    // فورمنتات الحروف المتحركة (آ، إي، أو، إيه)
+    const V = [[730, 1090, 2440], [300, 2250, 2900], [330, 870, 2240], [530, 1840, 2480]];
+    const fs = [this._filter('bandpass', 700, 9), this._filter('bandpass', 1200, 11), this._filter('bandpass', 2500, 13)];
+    const mix = this._gain(1);
+    fs.forEach((f, i) => { src.connect(f); f.connect(i ? this._gain(i === 1 ? 0.6 : 0.25) : mix).connect(mix); });
+    mix.connect(g).connect(p).connect(this.outside);
+    const syl = 2 + Math.floor(Math.random() * 4);
+    const call = Math.random() < 0.45; // نداء طويل (يا جماعة / بياع)
+    let t = t0;
+    const vol = 0.32 * loud;
+    for (let i = 0; i < syl; i++) {
+      const v = V[Math.floor(Math.random() * V.length)];
+      const len = call && i === syl - 1 ? 0.45 + Math.random() * 0.4 : 0.09 + Math.random() * 0.12;
+      fs.forEach((f, k) => f.frequency.setTargetAtTime(v[k] * (male ? 1 : 1.17), t, 0.02));
+      const pitch = f0 * (1 + (call ? 0.25 : 0.08) * Math.sin(i * 1.7) + (call && i === syl - 1 ? 0.15 : 0));
+      src.frequency.setTargetAtTime(pitch, t, 0.03);
+      g.gain.setTargetAtTime(vol, t, 0.015);
+      g.gain.setTargetAtTime(vol * 0.15, t + len, 0.02);
+      t += len + 0.03 + Math.random() * 0.05;
+    }
+    g.gain.setTargetAtTime(0, t, 0.04);
+    src.stop(t + 0.3);
+    src.onended = () => p.disconnect();
   }
 
   _buildTraffic() {
     // 3 أصوات موتور لأقرب 3 عربيات (Spatial)
     this.voices = [];
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 5; i++) {
       const p = this.ctx.createPanner();
       p.panningModel = 'HRTF'; p.distanceModel = 'inverse'; p.refDistance = 4; p.rolloffFactor = 1.4;
       const g = this._gain(0);
@@ -399,7 +445,7 @@ export class AudioSystem {
     return this.muted;
   }
 
-  update(dt, { player, camera, traffic, inside, horn, passengers }) {
+  update(dt, { player, camera, traffic, inside, horn, passengers, crowd }) {
     if (!this.started) return;
     const ctx = this.ctx, t = ctx.currentTime;
     const ph = player.physics;
@@ -484,7 +530,7 @@ export class AudioSystem {
 
     // صوت المرور
     if (traffic) {
-      const near = traffic.nearest(camera.position.x, camera.position.z, 3);
+      const near = traffic.nearest(camera.position.x, camera.position.z, 5);
       this.voices.forEach((v, i) => {
         const c = near[i];
         if (!c) { set(v.g.gain, 0); return; }
@@ -494,10 +540,20 @@ export class AudioSystem {
         set(v.g.gain, 0.12 + Math.max(0, c.acc) * 0.05);
       });
     }
-    // كلاكسات بعيدة (روح الشارع المصري)
+    // الناس: همهمة على قد الزحمة + نداءات متفرقة من حد قريب
+    const busy = crowd ? Math.min(1, crowd.nearby(camera.position.x, camera.position.z, 45) / 22) : 0;
+    set(this.amb.crowd.gain, busy * 0.16, 0.6);
+    set(this.amb.crowdLfo.frequency, 1.3 + Math.sin(t * 0.21) * 0.6, 0.4);
+    this.nextVoice -= dt;
+    if (crowd && this.nextVoice <= 0) {
+      this.nextVoice = busy > 0.1 ? (0.7 + Math.random() * 2.6) / (0.4 + busy) : 3;
+      const who = crowd.randomNear(camera.position.x, camera.position.z, 40);
+      if (who) this.voice(who.x, who.y + 1.6, who.z, 0.6 + Math.random() * 0.6);
+    }
+    // كلاكسات بعيدة (روح الشارع المصري) — أكتر في الزحمة
     this.nextDistantHonk -= dt;
     if (this.nextDistantHonk <= 0) {
-      this.nextDistantHonk = 2.5 + Math.random() * 7;
+      this.nextDistantHonk = (2.5 + Math.random() * 7) * (1 - busy * 0.6);
       const a = Math.random() * Math.PI * 2, r = 40 + Math.random() * 80;
       this.honk(camera.position.x + Math.cos(a) * r, 2, camera.position.z + Math.sin(a) * r, 0.8 + Math.random() * 0.5, true);
     }

@@ -25,6 +25,7 @@ export const SCHEMA = [
   { key: 'engineVol', type: 'range', label: 'صوت الموتور', min: 0, max: 100, step: 5, fmt: (v) => `${v}%`, def: 80 },
   { group: 'المرور والركاب' },
   { key: 'traffic', type: 'seg', label: 'زحمة المرور', options: [['off', 'فاضي'], ['low', 'خفيفة'], ['normal', 'عادية'], ['high', 'زحمة']], def: 'normal' },
+  { key: 'crowd', type: 'seg', label: 'الناس في الشوارع', options: [['low', 'قليل'], ['normal', 'كتير'], ['high', 'زحمة جدًا']], def: 'normal' },
   { key: 'paxDensity', type: 'seg', label: 'الركاب المستنيين', options: [['0.4', 'قليل'], ['1', 'عادي'], ['1.6', 'كتير']], def: '1' },
 ];
 

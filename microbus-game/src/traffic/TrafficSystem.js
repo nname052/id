@@ -3,6 +3,7 @@ import { Buckets } from '../render/GeoBuilder.js';
 import { ROAD, CROSSINGS, mainSegments } from '../world/layout.js';
 import { ROUTE, nearestRoute } from '../world/Route.js';
 import { inCity } from '../world/ground.js';
+import { ROADS, nearestSide } from '../world/RoadNetwork.js';
 import { rng } from '../render/textures.js';
 import { CAR_COLORS } from '../vehicles/CarModels.js';
 
@@ -68,13 +69,13 @@ export class TrafficSystem {
     this.R = rng(99);
     this.cars = [];
     this.perLane = opts.perLane || 8;
-    this.lanes = this._buildLanes();
+    this.lanes = this._buildLanes(opts);
     this._spawn();
     this._spawnParked();
     this._finishBake();
   }
 
-  _buildLanes() {
+  _buildLanes(opts = {}) {
     const L = LOOP.length;
     const sig = CROSSINGS.find((c) => c.signal);
     const lanes = [];
@@ -102,6 +103,38 @@ export class TrafficSystem {
           kind: 'line', length: Lc, loop: false, group: 'cross', cars: [], stop,
           pos: (p, out) => { out.x = ox + dx * p; out.z = oz; out.y = 0; out.yaw = Math.atan2(-dx, 0); out.pitch = 0; out.curv = 0; out.zone = 'city'; return out; },
           ox, oz, dx, dz: 0,
+        });
+      }
+    }
+    // الطرق الفرعية وشوارع شبين الكوم: حارة رايحة وحارة جاية على كل طريق
+    for (const road of ROADS) {
+      if (road.surface === 'dirt' || road.length < 120) continue;
+      const S = road.samples, L = road.length, off = road.half * 0.48;
+      const zone = road.style === 'urban' || road.style === 'city' ? 'city' : road.style === 'highway' ? 'highway' : 'agri';
+      const at = (s, out) => {
+        let lo = 0, hi = S.length - 1;
+        while (hi - lo > 1) { const m = (lo + hi) >> 1; if (S[m].s <= s) lo = m; else hi = m; }
+        const a = S[lo], b = S[hi], t = Math.min(1, Math.max(0, (s - a.s) / ((b.s - a.s) || 1)));
+        out.x = a.x + (b.x - a.x) * t; out.z = a.z + (b.z - a.z) * t; out.y = a.y + (b.y - a.y) * t;
+        out.dx = a.dx; out.dz = a.dz; out.rx = a.rx; out.rz = a.rz;
+        return out;
+      };
+      for (const dir of [1, -1]) {
+        const o = off * dir;
+        lanes.push({
+          kind: 'road', road, dir, off: o, length: L, loop: false, group: 'side', cars: [], stop: null, zone,
+          density: (road.style === 'urban' ? 38 : road.style === 'city' ? 55 : 95) * (opts.sideMul || 1), // متر لكل عربية
+          pos: (p, out) => {
+            const q = at(dir > 0 ? p : L - p, _la);
+            out.x = q.x + q.rx * o; out.z = q.z + q.rz * o; out.y = q.y + 0.03;
+            out.yaw = dir > 0 ? Math.atan2(-q.dx, -q.dz) : Math.atan2(q.dx, q.dz);
+            out.pitch = 0; out.curv = 0; out.zone = zone;
+            return out;
+          },
+          endsFar: (px, pz) => {
+            const a = S[0], b = S[S.length - 1];
+            return Math.hypot(px - a.x, pz - a.z) > 70 && Math.hypot(px - b.x, pz - b.z) > 70;
+          },
         });
       }
     }
@@ -135,6 +168,9 @@ export class TrafficSystem {
       if (lane.kind === 'loop') {
         const n = this.perLane;
         for (let i = 0; i < n; i++) this._newCar(lane, ((i + R() * 0.6) / n) * lane.length);
+      } else if (lane.kind === 'road') {
+        const n = Math.max(1, Math.floor(lane.length / lane.density));
+        for (let i = 0; i < n; i++) this._newCar(lane, ((i + 0.15 + R() * 0.5) / n) * (lane.length - 20));
       } else {
         let p = 10 + R() * 20;
         for (let i = 0; i < 3 && p < lane.length - 10; i++) { this._newCar(lane, p); p += 30 + R() * 40; }
@@ -238,6 +274,13 @@ export class TrafficSystem {
         playerP = lane.pFromS(proj.s);
         const q = loopAt(proj.s, _lb);
         playerV = (pv.x * q.dx + pv.z * q.dz) * lane.dir;
+      } else if (lane.kind === 'road') {
+        const ns = nearestSide(pBox.cx, pBox.cz);
+        if (ns && ns.road === lane.road && Math.abs(ns.d - lane.off) < 2.4) {
+          playerP = lane.dir > 0 ? ns.s : lane.length - ns.s;
+          const q = ns.road.samples[ns.i];
+          playerV = (pv.x * q.dx + pv.z * q.dz) * lane.dir;
+        }
       } else if (lane.kind === 'line') {
         const relX = pBox.cx - lane.ox, relZ = pBox.cz - lane.oz;
         if (Math.abs(relZ) < 2.6 && Math.abs(pBox.cx) > ROAD.curb - 2) { playerP = relX * lane.dx; playerV = pv.x * lane.dx; }
@@ -308,7 +351,8 @@ export class TrafficSystem {
           // الشارع الجانبي: نرجّعها للبداية لو محدش شايف
           const far = (x) => Math.hypot(pl.x - (lane.ox + lane.dx * x), pl.z - lane.oz) > 45;
           const last = lane.cars[lane.cars.length - 1];
-          if (far(0) && far(L) && (!last || last === car || last.p > 14)) { car.p = 0; car.v = 6; }
+          const ok = lane.endsFar ? lane.endsFar(pl.x, pl.z) : far(0) && far(L);
+          if (ok && (!last || last === car || last.p > 14)) { car.p = 0; car.v = 6; }
           else { car.p = L; car.v = 0; }
         }
         this._place(car);
@@ -320,7 +364,8 @@ export class TrafficSystem {
     for (const car of this.cars) {
       if (car.off) continue;
       const r = car.rig;
-      const vis = (car.x - cx) ** 2 + (car.z - cz) ** 2 < far2;
+      // شوارع شبين محاطة بعمارات: العربيات اللي فيها بتختفي بدري (أداء)
+      const vis = (car.x - cx) ** 2 + (car.z - cz) ** 2 < (car.lane.kind === 'road' ? Math.min(far2, 180 * 180) : far2);
       car.visible = vis;
       r.root.visible = vis;
       if (!vis) continue;
