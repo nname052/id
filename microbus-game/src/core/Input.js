@@ -8,6 +8,7 @@ export class Input {
     this.prevButtons = [];
     this.usingGamepad = false;
     window.addEventListener('keydown', (e) => {
+      if (e.target?.tagName === 'INPUT') return; // بيكتب اسمه
       if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.code)) e.preventDefault();
       if (!this.keys.has(e.code)) this.pressed.add(e.code);
       this.keys.add(e.code);

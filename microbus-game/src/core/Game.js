@@ -26,6 +26,8 @@ import { Diagnostics } from '../ui/Diagnostics.js';
 import { Settings } from '../ui/Settings.js';
 import { MirrorInsets } from '../ui/MirrorInsets.js';
 import { Passengers } from '../gameplay/Passengers.js';
+import { Multiplayer } from '../net/Multiplayer.js';
+import { MiniMap } from '../ui/MiniMap.js';
 import { TouchControls, isTouchDevice } from '../ui/TouchControls.js';
 
 const FIXED_DT = 1 / 120;
@@ -127,6 +129,7 @@ export class Game {
       for (const s of this.statics) if (Math.abs(s.cx - box.cx) < s.hx + 8 && Math.abs(s.cz - box.cz) < s.hz + 8) out.push(s);
       this.route.queryColliders(box.cx, box.cz, out);
       this.traffic.colliders(box, out);
+      this.mp?.colliders(box, out);
       return out;
     };
 
@@ -140,6 +143,9 @@ export class Game {
     this.mirrorInsets = new MirrorInsets(this.player, this.touch);
     this.passengers = new Passengers(this.scene, this.player, { hud: this.hud, audio: this.audio, settings: this.settings });
     this.passengers._updateHud();
+    this.hud.setMoney(this.passengers.earnings);
+    this.mp = new Multiplayer(this);
+    this.minimap = new MiniMap(this);
     // ميكروباصات راكنة في موقف شبين الكوم
     {
       const a = this.assets.get('microbus_traffic');
@@ -234,6 +240,7 @@ export class Game {
     this.cams.mode = 0;
     this.cams.snap = true;
     this.hud.show();
+    this.minimap.show();
     if (this.touch) { this.touch.show(); document.getElementById('help').classList.add('hidden'); this.hud.helpTimer = 0; }
     if (this.mobile) document.documentElement.requestFullscreen?.().catch(() => {});
     this.hud.toast(this.mobile ? 'امسك الدركسيون ولفّه، ودوس بنزين' : 'إنت دلوقتي في كرسي السواق — دوس W', 3);
@@ -462,6 +469,8 @@ export class Game {
 
     if (inside) this.player.renderMirrors(this.renderer, this.scene, this.camera.position);
     this.diag.update(dt, this.player, inside);
+    this.mp.update(dt);
+    this.minimap.update(dt);
     this.renderer.render(this.scene, this.camera);
     if (this.mirrorInsets.update(this.camera, inside && this.started)) this.mirrorInsets.render(this.renderer);
   }

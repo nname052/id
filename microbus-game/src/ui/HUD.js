@@ -18,6 +18,11 @@ export class HUD {
     this.helpTimer = 14;
   }
 
+  setMoney(v) {
+    const el = (this.moneyEl ||= document.getElementById('hud-money'));
+    if (el) el.textContent = `${Math.round(v * 10) / 10}`;
+  }
+
   setPassengers(n, cap) {
     const el = (this.paxEl ||= document.getElementById('hud-pax'));
     if (el) el.textContent = `${n}/${cap}`;

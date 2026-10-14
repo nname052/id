@@ -101,6 +101,25 @@ export class AudioSystem {
     e.diesel = new DieselEngine(this.ctx, e.out, kind);
   }
 
+  /** فكة بتتحط في الصينية */
+  coins() {
+    if (!this.started || this.muted) return;
+    const t = this.ctx.currentTime;
+    for (let i = 0; i < 4; i++) {
+      const tt = t + i * 0.07 + Math.random() * 0.03;
+      const o = this._osc('triangle', 2200 + Math.random() * 1600);
+      const g = this._gain(0); g.gain.setValueAtTime(0.0001, tt); g.gain.linearRampToValueAtTime(0.08, tt + 0.004); g.gain.exponentialRampToValueAtTime(0.001, tt + 0.18);
+      o.connect(g).connect(this.master); o.stop(tt + 0.2);
+    }
+  }
+
+  /** الركاب بيتكلموا بصوت أعلى (اعتراض) */
+  chatterBurst() {
+    if (!this.started || !this.extra) return;
+    const t = this.ctx.currentTime, g = this.extra.chatter.gain;
+    g.cancelScheduledValues(t); g.setValueAtTime(g.value, t); g.linearRampToValueAtTime(0.16, t + 0.1); g.linearRampToValueAtTime(0.04, t + 1.6);
+  }
+
   /** صرير المساعدين لما العربية تقف فجأة وتتهز */
   _creak() {
     if (!this.started || this.muted) return;

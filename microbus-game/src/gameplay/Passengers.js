@@ -62,6 +62,10 @@ export class Passengers {
     this.group.name = 'passengers';
     scene.add(this.group);
     this._buildStops();
+    this._buildMarkers();
+    try { this.total = +(localStorage.getItem('egy-microbus-money') || 0) || 0; } catch { this.total = 0; }
+    this.earnings = this.total;
+    this._complainCd = 0;
     // الركاب القاعدين: Mesh واحد جوه العربية بيتبني من جديد لما حد يركب/ينزل
     this.seatedMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 });
     this.seatedMesh = null;
@@ -94,8 +98,8 @@ export class Passengers {
     const plates = new GeoBuilder();
     const defs = [...STOP_DEFS, ...SIDE_STOPS];
     for (const def of defs) {
-      let edge;
-      if (def.road) { Object.assign(q, roadPointAt(def.road, def.frac)); edge = def.off ?? q.half + 1.4; } else { loopAt(def.s, q); edge = URBAN.has(def.kind) ? 11.3 : 10.8; }
+      let edge, laneD;
+      if (def.road) { Object.assign(q, roadPointAt(def.road, def.frac)); edge = def.off ?? q.half + 1.4; laneD = q.half - 1.15; } else { loopAt(def.s, q); edge = URBAN.has(def.kind) ? 11.3 : 10.8; laneD = 8.6; }
       for (const side of [1, -1]) {
         const d = side * edge;
         const x = q.x + q.rx * d, z = q.z + q.rz * d;
@@ -107,7 +111,10 @@ export class Passengers {
           nx: -q.rx * side, nz: -q.rz * side,        // من الرصيف ناحية الطريق
           ax: q.dx * dir, az: q.dz * dir,            // اتجاه السير
           waiting: [], cooldown: 0,
+          // "ضل" مكان الوقوف: على الأسفلت جنب الرصيف، في اتجاه السير
+          mx: q.x + q.rx * side * laneD, mz: q.z + q.rz * side * laneD,
         };
+        stop.my = groundHeight(stop.mx, stop.mz);
         this.stops.push(stop);
         // عمود + لافتة "موقف"
         const px = x - stop.ax * 1.6 - stop.nx * 0.4, pz = z - stop.az * 1.6 - stop.nz * 0.4, py = groundHeight(px, pz);
@@ -125,6 +132,85 @@ export class Passengers {
     pm.castShadow = true;
     this.group.add(pm, sm);
   }
+
+  // ===== علامة مكان الوقوف (مستطيل منوّر على الأرض) =====
+  _buildMarkers() {
+    const c = canvas(128, 256), x = c.getContext('2d');
+    const g = x.createLinearGradient(0, 0, 128, 0);
+    g.addColorStop(0, 'rgba(255,255,255,0.15)'); g.addColorStop(0.5, 'rgba(255,255,255,0.45)'); g.addColorStop(1, 'rgba(255,255,255,0.15)');
+    x.fillStyle = g; x.fillRect(0, 0, 128, 256);
+    x.strokeStyle = '#fff'; x.lineWidth = 10; x.setLineDash([26, 14]); x.strokeRect(6, 6, 116, 244);
+    x.setLineDash([]); x.fillStyle = 'rgba(255,255,255,0.9)';
+    x.beginPath(); x.moveTo(64, 70); x.lineTo(94, 120); x.lineTo(34, 120); x.closePath(); x.fill(); // سهم اتجاه السير
+    const t = tex(c, { repeat: false });
+    this.markers = [];
+    for (let i = 0; i < 6; i++) {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 5.6).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: t, color: 0xf2c230, transparent: true, depthWrite: false, opacity: 0.8, polygonOffset: true, polygonOffsetFactor: -4 }));
+      m.renderOrder = 2; m.visible = false;
+      this.group.add(m);
+      this.markers.push(m);
+    }
+  }
+
+  /** العربية واقفة جوه علامة الموقف؟ */
+  _inMarker(st, ph) {
+    const dx = ph.x - st.mx, dz = ph.z - st.mz;
+    const along = dx * st.ax + dz * st.az, lat = dx * st.nx + dz * st.nz;
+    return Math.abs(along) < 3.6 && Math.abs(lat) < 1.7;
+  }
+
+  _updateMarkers(ph, t) {
+    const want = [];
+    const dests = new Set(this.onboard.map((o) => o.dest?.name));
+    for (const st of this.stops) {
+      const has = st.waiting.some((w) => w.state === 'wait' || w.state === 'toDoor');
+      const dest = dests.has(st.name) && ph.forward[0] * st.ax + ph.forward[1] * st.az > 0;
+      if (!has && !dest) continue;
+      const d2 = (st.mx - ph.x) ** 2 + (st.mz - ph.z) ** 2;
+      if (d2 < 160 * 160) want.push([d2, st, dest]);
+    }
+    want.sort((a, b) => a[0] - b[0]);
+    this.markers.forEach((m, i) => {
+      const w = want[i];
+      m.visible = !!w;
+      if (!w) return;
+      const [, st, dest] = w;
+      m.position.set(st.mx, st.my + 0.035, st.mz);
+      m.rotation.y = Math.atan2(st.ax, st.az);
+      const inside = this._inMarker(st, ph);
+      m.material.color.set(inside ? 0x3ee07a : dest ? 0x4fc3ff : 0xf2c230);
+      m.material.opacity = 0.55 + 0.3 * Math.sin(t * 4);
+    });
+  }
+
+  /** الموقف على أنهي ناحية بالنسبة لاتجاه العربية دلوقتي */
+  _sideOf(st, ph) {
+    const [fx, fz] = ph.forward;
+    return fx * st.ax + fz * st.az >= 0 ? st.side : -st.side;
+  }
+
+  // ===== الأجرة والاعتراضات =====
+  _complain(text, hit = 0.12) {
+    for (const p of this.onboard) p.mood = Math.max(0.2, (p.mood ?? 1) - hit);
+    if (this._complainCd > 0) return;
+    this._complainCd = 5;
+    this.hud?.toast(`🗣️ ${text}`, 2.6);
+    this.audio?.chatterBurst?.();
+  }
+
+  _watchDriving(dt, ph) {
+    this._complainCd = Math.max(0, this._complainCd - dt);
+    if (!this.onboard.length) return;
+    const kmh = ph.speed * 3.6;
+    const pick = (a) => a[Math.floor(this.R() * a.length)];
+    if (ph.lastImpact > 2.5) this._complain(pick(['حاسب يا أسطى! هتموتنا!', 'إيه يا عم الخبطة دي؟!', 'العربية اتخبطت يا جدع!']), 0.25);
+    else if (ph.accelLong < -6.5 && kmh > 15) this._complain(pick(['براحة على الفرامل يا أسطى!', 'إيه الفرملة دي؟ راسي اتخبطت!', 'هدّي يا عم!']), 0.1);
+    else if (Math.abs(ph.accelLat) > 5.2) this._complain(pick(['براحة في اللف يا أسطى!', 'إنت سايق ولا طاير؟', 'هنتقلب كده!']), 0.1);
+    else if (kmh > 95) this._complain(pick(['هدّي السرعة شوية يا أسطى!', 'إحنا مش في سباق!']), 0.06);
+    if (ph.flip?.mode) this._complain('يا نهار أسود! العربية اتقلبت!', 0.5);
+  }
+
+  _saveMoney() { try { localStorage.setItem('egy-microbus-money', String(Math.round(this.earnings * 10) / 10)); } catch { /* */ } }
 
   // ===== أدوات =====
   _take() { const p = this.pool.pop(); if (p) { p.root.visible = true; this.walkers.push(p); } return p; }
@@ -212,9 +298,12 @@ export class Passengers {
       for (const st of this.stops) {
         const free = this.capacity - this.onboard.length - this.walkers.filter((p) => p.state === 'toDoor').length;
         if (!st.waiting.length) continue;
-        const dd = Math.hypot(st.x - doorP.x, st.z - doorP.z);
         const sideOk = (st.x - vx) * rx + (st.z - vz) * rz > 0.5;
-        if (dd > 7.5 || !sideOk) continue;
+        if (!sideOk || !this._inMarker(st, ph)) {
+          // واقف قريب بس مش في المكان المظبوط
+          if (sideOk && Math.hypot(st.mx - vx, st.mz - vz) < 14 && !this._nearNote) { this._nearNote = 1; this.hud?.toast('قرّب على العلامة اللي على الأرض عشان الناس تركب', 2.5); }
+          continue;
+        }
         let k = 0;
         for (const p of st.waiting) {
           if (p.state !== 'wait') continue;
@@ -224,14 +313,23 @@ export class Passengers {
       }
       // --- نزول: حد نازل في الموقف ده ---
       for (const st of this.stops) {
-        const dd = Math.hypot(st.x - doorP.x, st.z - doorP.z);
         const sideOk = (st.x - vx) * rx + (st.z - vz) * rz > 0.5;
-        if (dd > 9 || !sideOk) continue;
-        const out = this.onboard.filter((p) => p.dest && p.dest.name === st.name && !p.leaving);
+        if (!sideOk || !this._inMarker(st, ph)) continue;
+        // اللي نازل هنا + اللي عدّينا محطته (بينزل في أي موقف بعدها)
+        const out = this.onboard.filter((p) => !p.leaving && ((p.dest && p.dest.name === st.name) || p.missed));
         out.forEach((p, i) => { p.leaving = true; p.leaveDelay = 0.4 + i * 0.9; p.leaveStop = st; });
       }
     }
-    if (!still) this._fullNote = 0;
+    if (!still) { this._fullNote = 0; this._nearNote = 0; }
+    this._watchDriving(dt, ph);
+    this._updateMarkers(ph, performance.now() / 1000);
+    // عدّيت محطة حد؟
+    for (const p of this.onboard) {
+      if (!p.dest || p.missed || p.leaving) continue;
+      const d = Math.hypot(p.dest.mx - vx, p.dest.mz - vz);
+      if (d < 18) p.near = true;
+      else if (p.near && d > 45) { p.missed = true; p.mood = Math.max(0.2, (p.mood ?? 1) - 0.3); this._complainCd = 0; this._complain(`يا أسطى عدّيت ${p.dest.name}! نزّلني في أي موقف`, 0); }
+    }
 
     // --- الناس اللي بتنزل ---
     let busy = false;
@@ -243,18 +341,25 @@ export class Passengers {
       if (door.open < 0.9) continue;
       p.leaveDelay -= dt;
       if (p.leaveDelay > 0) continue;
-      const w = this._take();
-      if (!w) continue;
+      const w = this._take(); // لو مفيش ماشي فاضي في الـ pool: بينزل ويدفع برضو (من غير أنيميشن)
       this.onboard.splice(this.onboard.indexOf(p), 1);
       p.seat.pax = null;
       this._rebuildSeated();
-      w.state = 'alight'; w.x = doorP.x; w.z = doorP.z;
-      const st = p.leaveStop;
-      w.target = [st.x + st.ax * (this.R() - 0.5) * 2, st.z + st.az * (this.R() - 0.5) * 2];
-      w.timer = 0;
-      const fare = p.fare;
+      if (w) {
+        w.state = 'alight'; w.x = doorP.x; w.z = doorP.z;
+        const st = p.leaveStop;
+        w.target = [st.x + st.ax * (this.R() - 0.5) * 2, st.z + st.az * (this.R() - 0.5) * 2];
+        w.timer = 0;
+      }
+      // الأجرة على حسب السواقة: لو زعلان بيدفع أقل (وبيقولك)
+      const mood = p.mood ?? 1;
+      const fare = Math.round(p.fare * (mood > 0.85 ? 1 : mood > 0.55 ? 0.75 : 0.5) * 2) / 2;
       this.earnings += fare;
-      this.hud?.toast(`نزل راكب · +${fare} ج`, 2);
+      this._saveMoney();
+      this.hud?.setMoney?.(this.earnings);
+      this.audio?.coins?.();
+      const msg = mood > 0.85 ? `نزل راكب ودفع ${fare} ج 👍` : mood > 0.55 ? `دفع ${fare} ج بس — "سواقتك مش ولابد"` : `دفع ${fare} ج بالعافية — "مش دافع غير نص الأجرة!"`;
+      this.hud?.toast(msg, 2.6);
       this._updateHud();
     }
 
@@ -320,7 +425,8 @@ export class Passengers {
     const free = this.seats.filter((s) => !s.pax);
     if (!free.length) { p.state = 'return'; return; }
     const seat = free[Math.floor(this.R() * free.length)];
-    const pax = { seed: Math.floor(this.R() * 1e6), dest: p.dest, fare: 5 + Math.floor(this.R() * 4) * 2.5, seat };
+    const kindFare = { microbus: 1, taxi: 3, tuktuk: 1.4 }[this.player.kind] || 1;
+    const pax = { seed: Math.floor(this.R() * 1e6), dest: p.dest, fare: Math.round((5 + Math.floor(this.R() * 4) * 2.5) * kindFare * 2) / 2, seat, mood: 1 };
     seat.pax = pax;
     this.onboard.push(pax);
     p.stop.waiting.splice(p.stop.waiting.indexOf(p), 1);

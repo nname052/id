@@ -19,6 +19,11 @@
       <p class="sub">نسخة تجريبية · وسط البلد، الطريق الدائري، وشبين الكوم</p>
       <div id="progress"><div id="bar"></div></div>
       <p id="status">بيتحمّل...</p>
+      <div class="lobby" id="lobby">
+        <div class="lobby-row"><label for="pname">اسمك</label><input id="pname" maxlength="16" placeholder="مثلًا: أسطى محمد" autocomplete="off" /></div>
+        <div class="seats" id="seats"></div>
+        <p class="lobby-status" id="lobby-status">بندوّر على اللاعبين...</p>
+      </div>
       <div class="pick" id="pick">
         <button data-v="microbus"><b>🚐</b><span>ميكروباص</span><small>14 راكب · هاي إس</small></button>
         <button data-v="taxi"><b>🚕</b><span>تاكسي</span><small>4 ركاب · سريع</small></button>
@@ -50,6 +55,7 @@
       <div class="steer-icon"><svg id="hud-steer" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="currentColor" stroke-width="3"/><circle cx="20" cy="20" r="4" fill="currentColor"/><path d="M20 4v12M6 26l10-4M34 26l-10-4" stroke="currentColor" stroke-width="3"/></svg></div>
       <div id="hud-signal" class="sig"><i></i></div>
       <div class="pax" title="الركاب"><svg viewBox="0 0 24 24"><circle cx="12" cy="7" r="3.2" fill="currentColor"/><path d="M5.5 20c.6-4.2 3.1-6.6 6.5-6.6s5.9 2.4 6.5 6.6z" fill="currentColor"/></svg><span id="hud-pax">0/0</span></div>
+      <div class="money" title="الفلوس"><b>ج</b><span id="hud-money">0</span></div>
     </div>
   </div>
   <div id="toast"></div>

@@ -21,11 +21,15 @@ pick.addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (!b) return;
   picked = b.dataset.v; syncPick();
   if (game.settings) game.settings.set('vehicle', picked);
+  game.mp?.setMe({ kind: picked });
 });
 
 game.init().then(() => {
   game.settings.set('vehicle', picked);
   if (game.player.kind !== picked) game.setVehicle(picked);
+  game.mp.onLobby(renderSeats);
+  game.mp.connect().then(() => { if (me.seat || me.name) game.mp.setMe({ seat: me.seat, name: me.name, kind: picked }); });
+  renderSeats();
   go.disabled = false;
   go.focus();
 }).catch((e) => {
@@ -34,8 +38,51 @@ game.init().then(() => {
   statusEl.textContent = 'حصلت مشكلة: ' + e.message + ' — جرّب Chrome أو Edge محدّث.';
 });
 
+// ===== اللوبي: رقم من 1 لـ 7 + اسم (اللعب الجماعي) =====
+const seatsEl = document.getElementById('seats'), nameEl = document.getElementById('pname'), lobbyStatus = document.getElementById('lobby-status');
+const LS = 'egy-microbus-player';
+let me = (() => { try { return JSON.parse(localStorage.getItem(LS) || '{}'); } catch { return {}; } })();
+me.seat = me.seat || 0; me.name = me.name || '';
+nameEl.value = me.name;
+const saveMe = () => { try { localStorage.setItem(LS, JSON.stringify({ seat: me.seat, name: me.name })); } catch { /* */ } };
+const renderSeats = () => {
+  const mp = game.mp;
+  seatsEl.innerHTML = '';
+  for (let i = 1; i <= 7; i++) {
+    const owner = mp?.seatOwner(i);
+    const b = document.createElement('button');
+    b.dataset.seat = i;
+    b.className = (owner ? 'taken' : '') + (me.seat === i && !owner ? ' on' : '');
+    b.innerHTML = `${i}<small></small>`;
+    b.querySelector('small').textContent = owner ? (owner.presence.name || 'محجوز') : me.seat === i ? (me.name || 'إنت') : 'فاضي';
+    seatsEl.appendChild(b);
+  }
+  if (!mp) lobbyStatus.textContent = 'بيتحمّل...';
+  else if (!mp.available) lobbyStatus.textContent = 'اللعب الجماعي مش متاح هنا (لازم تكون داخل بحساب Claude ومعزوم على اللعبة). تقدر تلعب لوحدك.';
+  else {
+    const n = mp.others().length;
+    lobbyStatus.textContent = (mp.connected ? `أونلاين · ${n ? `${n} لاعب تاني موجود` : 'مفيش حد تاني لسه'}` : 'بيتصل...') + (me.seat ? '' : ' — اختار رقمك');
+  }
+};
+seatsEl.addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  const seat = +b.dataset.seat;
+  if (game.mp?.seatOwner(seat)) return;
+  me.seat = seat; saveMe();
+  game.mp?.setMe({ seat: me.seat, name: me.name });
+  renderSeats();
+});
+nameEl.addEventListener('input', () => { me.name = nameEl.value.trim().slice(0, 16); saveMe(); game.mp?.setMe({ name: me.name }); renderSeats(); });
+renderSeats();
+
 const begin = async () => {
   if (go.disabled) return;
+  // لو الرقم اتحجز من حد تاني في الآخر: نختار أول رقم فاضي
+  if (game.mp?.available && (!me.seat || game.mp.seatOwner(me.seat))) {
+    for (let i = 1; i <= 7; i++) if (!game.mp.seatOwner(i)) { me.seat = i; break; }
+    saveMe();
+  }
+  game.mp?.setMe({ seat: me.seat, name: me.name, kind: picked });
   start.classList.add('hidden');
   await game.start();
 };

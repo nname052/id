@@ -128,3 +128,26 @@ body.touch #toast { top: 8px; }
 .pick button small { font-size: 11px; opacity: 0.65; font-weight: 400; }
 .pick button.on { border-color: var(--accent); background: rgba(242, 179, 48, 0.16); }
 @media (max-height: 420px) { .pick button { padding: 5px 4px; } .pick button b { font-size: 20px; } #start h1 { font-size: 34px; } #start .sub { margin-bottom: 8px; } }
+
+.money { display: flex; align-items: center; gap: 3px; font: 700 15px 'Cairo', sans-serif; font-variant-numeric: tabular-nums; color: #9ff0b5; }
+.money b { color: #1a1408; background: #f2c230; border-radius: 50%; width: 18px; height: 18px; display: grid; place-items: center; font-size: 11px; }
+#minimap { position: fixed; z-index: 6; left: calc(10px + env(safe-area-inset-left, 0px)); bottom: 12px; width: 150px; height: 150px; border-radius: 50%; overflow: hidden; border: 3px solid rgba(255, 255, 255, 0.25); box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5); cursor: pointer; touch-action: none; }
+#minimap canvas { width: 100%; height: 100%; display: block; }
+#minimap .mm-hint { position: absolute; bottom: 6px; left: 0; right: 0; text-align: center; font: 600 10px 'Cairo', sans-serif; color: #fff; text-shadow: 0 1px 2px #000; pointer-events: none; }
+#minimap.big { left: 50%; top: 50%; bottom: auto; transform: translate(-50%, -50%); width: min(92vw, 92vh * 0.85); height: 88vh; border-radius: 14px; z-index: 35; }
+#minimap.big .mm-hint { display: none; }
+body.touch #minimap { left: 50%; transform: translateX(-50%); bottom: calc(66px + env(safe-area-inset-bottom, 0px)); width: 96px; height: 96px; }
+body.touch #minimap.big { bottom: auto; top: 50%; transform: translate(-50%, -50%); width: 92vw; height: 86vh; }
+
+.lobby { display: grid; gap: 8px; margin: 10px 0 0; text-align: right; }
+.lobby-row { display: flex; gap: 8px; align-items: center; }
+.lobby-row label { font-weight: 700; white-space: nowrap; }
+.lobby-row input { flex: 1; min-width: 0; font: 600 15px 'Cairo', sans-serif; padding: 7px 10px; border-radius: 10px; border: 1.5px solid rgba(255, 255, 255, 0.18); background: rgba(255, 255, 255, 0.06); color: var(--fg); user-select: text; -webkit-user-select: text; }
+.seats { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+.seats button { display: grid; justify-items: center; gap: 0; padding: 5px 2px; border-radius: 10px; border: 1.5px solid rgba(255, 255, 255, 0.15); background: rgba(255, 255, 255, 0.05); color: var(--fg); font: 800 18px 'Cairo', sans-serif; cursor: pointer; min-width: 0; }
+.seats button small { font: 500 9.5px 'Cairo', sans-serif; opacity: 0.75; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.seats button.on { border-color: var(--accent); background: rgba(242, 179, 48, 0.2); }
+.seats button.taken { opacity: 0.45; cursor: not-allowed; }
+.lobby-status { margin: 0; font-size: 12px; opacity: 0.7; }
+#start { overflow-y: auto; }
+@media (max-height: 420px) { .lobby { gap: 5px; margin-top: 6px; } .seats button { padding: 3px 2px; font-size: 15px; } #start .card { padding-block: 8px; } }
