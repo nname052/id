@@ -484,6 +484,8 @@ export class Game {
     const input = this.started ? this.input.read() : { throttle: 0, brake: 0, steer: 0, handbrake: 1, actions: {} };
     const a = input.actions;
     if (a.camera) this.hud.toast(`الكاميرا: ${this.cams.next()}`);
+    if (a.zoomIn) this.cams.zoomBy(1 / 1.15);
+    if (a.zoomOut) this.cams.zoomBy(1.15);
     if (a.reset) {
       const r = this.player.reset();
       this.hud.toast(r === 'recover' ? 'العربية اتعدلت' : 'رجعت للطريق واتصلّحت');

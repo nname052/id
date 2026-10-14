@@ -13,6 +13,12 @@ export const CAMERA_MODES = [
 ];
 
 const _bus = new THREE.Vector3(), _q3 = new THREE.Quaternion(), _v2 = new THREE.Vector3();
+
+// زووم كل كاميرا (بيتحفظ): كرسي السواق = زاوية الرؤية من الإعدادات (fov)،
+// والكاميرات اللي برا = مضاعف للمسافة/الزاوية. الحدود بتمنع الكاميرا تدخل جوه العربية أو تبعد أوي
+const ZOOM_KEY = 'egy-microbus-zoom-v1';
+const ZOOM_LIMITS = { chase: [0.62, 1.75], close: [0.7, 1.6], cinematic: [0.55, 1.6] };
+const FOV_LIMITS = [45, 95];
 const _v = new THREE.Vector3(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _m = new THREE.Matrix4();
 
 export class CameraSystem {
@@ -28,8 +34,55 @@ export class CameraSystem {
     this.cine = { pos: new THREE.Vector3(), target: new THREE.Vector3(), timer: 0 };
     this.cinePoints = this._cinePoints();
     this.shake = 0;
+    this.zoom = { chase: 1, close: 1, cinematic: 1 };
+    try { Object.assign(this.zoom, JSON.parse(localStorage.getItem(ZOOM_KEY) || '{}')); } catch { /* مفيش تخزين */ }
     this._initMouse(dom);
+    this._initZoom(dom);
     this.snap = true;
+  }
+
+  /** f > 1 = بعّد، f < 1 = قرّب (للكاميرا الحالية) */
+  zoomBy(f) {
+    const id = this.modeId;
+    if (id === 'cockpit') {
+      if (!this.settings) return;
+      const fov = THREE.MathUtils.clamp(this.settings.get('fov') * f, FOV_LIMITS[0], FOV_LIMITS[1]);
+      this.settings.set('fov', Math.round(fov));
+      return;
+    }
+    const lim = ZOOM_LIMITS[id];
+    if (!lim) return;
+    this.zoom[id] = THREE.MathUtils.clamp(this.zoom[id] * f, lim[0], lim[1]);
+    clearTimeout(this._zoomSave);
+    this._zoomSave = setTimeout(() => { try { localStorage.setItem(ZOOM_KEY, JSON.stringify(this.zoom)); } catch { /* */ } }, 400);
+  }
+
+  _initZoom(dom) {
+    // عجلة الماوس
+    dom.addEventListener('wheel', (e) => { e.preventDefault(); this.zoomBy(e.deltaY > 0 ? 1.07 : 1 / 1.07); }, { passive: false });
+    // + / - من الكيبورد
+    window.addEventListener('keydown', (e) => {
+      if (e.target?.tagName === 'INPUT') return;
+      if (e.code === 'Equal' || e.code === 'NumpadAdd') this.zoomBy(1 / 1.1);
+      if (e.code === 'Minus' || e.code === 'NumpadSubtract') this.zoomBy(1.1);
+    });
+    // صباعين على الشاشة (Pinch): قرّب/بعّد. صباع واحد بيفضل للبص حواليك
+    const pts = new Map();
+    let lastD = 0;
+    const dist = () => { const [a, b] = [...pts.values()]; return Math.hypot(a.x - b.x, a.y - b.y); };
+    dom.addEventListener('pointerdown', (e) => {
+      if (e.pointerType !== 'touch') return;
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pts.size === 2) { lastD = dist(); this.look.dragging = false; this.pinching = true; }
+    });
+    window.addEventListener('pointermove', (e) => {
+      if (!pts.has(e.pointerId)) return;
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pts.size === 2 && lastD > 0) { const d = dist(); if (d > 0) { this.zoomBy(lastD / d); lastD = d; } }
+    });
+    const up = (e) => { pts.delete(e.pointerId); if (pts.size < 2) { lastD = 0; this.pinching = pts.size > 0; } };
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
   }
 
   _sens() { return this.settings ? this.settings.get('lookSens') : 1; }
@@ -49,7 +102,7 @@ export class CameraSystem {
     window.addEventListener('pointercancel', () => { this.look.dragging = false; });
     window.addEventListener('blur', () => { this.look.dragging = false; });
     window.addEventListener('pointermove', (e) => {
-      if (!this.look.dragging) return;
+      if (!this.look.dragging || this.pinching) return;
       // الزرار اتساب برا الشاشة (بيحصل كتير على الماك) → وقف السحب بدل ما الكاميرا تفضل تلف لوحدها
       if (e.pointerType === 'mouse' && !e.buttons) { this.look.dragging = false; return; }
       const dx = e.clientX - this.look.lastX, dy = e.clientY - this.look.lastY;
@@ -161,10 +214,13 @@ export class CameraSystem {
       let diff = yaw - this.chaseYaw;
       diff = Math.atan2(Math.sin(diff), Math.cos(diff));
       this.chaseYaw += diff * Math.min(1, dt * 3.2);
-      const dist = 8.2 + Math.min(ph.speed, 20) * 0.08;
+      // المسافة على قد العربية (التوكتوك أقرب من الميكروباص) × زووم اللاعب
+      const z = this.zoom.chase, size = ph.spec.halfLength * 2;
+      const dist = (size + 3.4) * z + Math.min(ph.speed, 20) * 0.08;
+      const height = (ph.spec.roofHeight ?? 2) * 0.65 + 1.9 * (0.55 + 0.45 * z);
       const camYaw = this.chaseYaw + this.look.yaw;
       const baseY = ph.heave - ph.spec.cgHeight;
-      const target = _v.set(root.position.x + Math.sin(camYaw) * dist, baseY + 3.3 + this.look.pitch * 3, root.position.z + Math.cos(camYaw) * dist);
+      const target = _v.set(root.position.x + Math.sin(camYaw) * dist, baseY + height + this.look.pitch * 3, root.position.z + Math.cos(camYaw) * dist);
       this._avoidWalls(root.position.x, root.position.z, target);
       if (this.snap) this.chasePos.copy(target); else this.chasePos.lerp(target, Math.min(1, dt * 9));
       cam.position.copy(this.chasePos);
@@ -173,7 +229,8 @@ export class CameraSystem {
     } else if (id === 'close') {
       cam.fov = 55; cam.near = 0.1;
       _m.makeRotationY(ph.yaw + this.look.yaw * 1.4);
-      const off = _v.set(2.5, 1.15 + this.look.pitch * 2, -3.7).applyMatrix4(_m);
+      const z = this.zoom.close, sz = ph.spec.halfLength / 2.64;
+      const off = _v.set(2.5 * z * (0.6 + 0.4 * sz), (1.15 + this.look.pitch * 2) * (0.7 + 0.3 * z), -3.7 * z * (0.55 + 0.45 * sz)).applyMatrix4(_m);
       const baseY = ph.heave - ph.spec.cgHeight;
       cam.position.set(root.position.x + off.x, baseY + off.y, root.position.z + off.z);
       cam.lookAt(root.position.x, baseY + 0.75, root.position.z);
@@ -200,7 +257,7 @@ export class CameraSystem {
       c.target.lerp(_v.set(bus.x, bus.y + 1.2, bus.z), Math.min(1, dt * 4));
       cam.position.copy(c.pos);
       cam.lookAt(c.target);
-      cam.fov = THREE.MathUtils.clamp(THREE.MathUtils.radToDeg(2 * Math.atan(5.5 / Math.max(5, d))), 14, 60);
+      cam.fov = THREE.MathUtils.clamp(THREE.MathUtils.radToDeg(2 * Math.atan(5.5 / Math.max(5, d))) * this.zoom.cinematic, 10, 75);
       cam.near = 0.1;
     }
     if (this.shake > 0) {

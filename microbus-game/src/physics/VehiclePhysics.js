@@ -12,10 +12,10 @@ export const TAXI_SPEC_BASE = {
   wheelBase: 2.64, cgToFront: 1.25, track: 1.44, wheelRadius: 0.31,
   springK: 27000, damperBump: 2100, damperRebound: 2800, maxCompression: 0.12,
   tireMu: 1.0, tireB: 8.5, tireC: 1.45, rearLatGrip: 1.0, slideMu: 0.75, rollingResistance: 0.013,
-  dragCoef: 0.42, brakeForce: 11500, brakeBiasFront: 0.65, handbrakeForce: 4200,
+  dragCoef: 0.53, brakeForce: 11500, brakeBiasFront: 0.65, handbrakeForce: 4200, // شيال السقف + سيدان قديمة
   maxSteer: 0.6, steeringRatio: 15,
   gears: [3.45, 1.95, 1.35, 1.0, 0.82], reverseRatio: 3.4, finalDrive: 4.1, drivetrainEff: 0.88,
-  idleRpm: 800, maxRpm: 6300, shiftTime: 0.35,
+  idleRpm: 800, maxRpm: 6300, shiftTime: 0.3, shift: [2600, 5800, 1500],
   torqueCurve: [[700, 95], [2000, 128], [3500, 148], [4500, 152], [5500, 140], [6400, 115]],
   halfWidth: 0.88, halfLength: 2.22, boxOffset: 0.07, roofHeight: 1.43,
   antiRollK: 19000, antiRollC: 1900,
@@ -27,11 +27,11 @@ export const TUKTUK_SPEC_BASE = {
   wheelBase: 2.0, cgToFront: 1.32, track: 1.0, trackFront: 0.06, wheelRadius: 0.22, // نفس مقاس موديل التوكتوك الحقيقي
   springK: 9500, damperBump: 750, damperRebound: 1000, maxCompression: 0.09,
   tireMu: 0.92, tireB: 7, tireC: 1.4, rearLatGrip: 1.0, slideMu: 0.7, rollingResistance: 0.02,
-  dragCoef: 0.5, brakeForce: 3400, brakeBiasFront: 0.45, handbrakeForce: 1500,
+  dragCoef: 0.5, brakeForce: 2900, brakeBiasFront: 0.45, handbrakeForce: 1500,
   maxSteer: 0.72, steeringRatio: 1.35, // جادون (handlebar) مش دركسيون: ±56 درجة
   gears: [3.1, 1.95, 1.35, 0.98], reverseRatio: 3.2, finalDrive: 10.5, drivetrainEff: 0.85,
-  idleRpm: 1450, maxRpm: 7800, shiftTime: 0.3,
-  torqueCurve: [[1300, 10], [3000, 14.5], [5000, 16.5], [6500, 15.5], [7800, 11.5]],
+  idleRpm: 1450, maxRpm: 7800, shiftTime: 0.25, shift: [3600, 7100, 2600],
+  torqueCurve: [[1300, 11], [3000, 16.5], [5000, 19.5], [6500, 18.5], [7800, 13]],
   halfWidth: 0.68, halfLength: 1.35, boxOffset: -0.12, roofHeight: 1.72,
   antiRollK: 2600, antiRollC: 260,
 };
@@ -69,8 +69,10 @@ export const MICROBUS_SPEC = {
   drivetrainEff: 0.85,
   idleRpm: 780,
   maxRpm: 4300,
-  shiftTime: 0.45,
-  torqueCurve: [[600, 130], [1000, 175], [1600, 222], [2200, 235], [3000, 225], [3800, 190], [4400, 130]],
+  shiftTime: 0.42,
+  shift: [2100, 3700, 1200],
+  // 2.5 ديزل تيربو (D-4D): عزم عالي بدري → تقيل بس بيشد كويس من تحت
+  torqueCurve: [[600, 140], [1000, 200], [1600, 262], [2400, 268], [3200, 245], [3900, 200], [4400, 140]],
   // صندوق التصادم (نصف العرض، نصف الطول، إزاحة المركز للأمام)
   halfWidth: 0.95,
   halfLength: 2.64,
@@ -187,24 +189,27 @@ export class VehiclePhysics {
       this.wheelAngle += (target - this.wheelAngle) * Math.min(1, dt * 9);
       this.wheelVel = (this.wheelAngle - prev) / dt;
     } else if (Math.abs(input.steer || 0) > 0.01) {
-      // كيبورد (أسهم/A-D): السهم مش بيلف الدركسيون لآخره. أقصى لفة بتقل مع السرعة
-      // (زي السواق الحقيقي اللي بيلف حتة صغيرة على السريع)، واللفة نفسها بالراحة
-      // (رجعت زي الأول بناءً على طلب اللاعب: لفة كاملة وسريعة؛ الحساسية من الإعدادات بتضرب في السرعة بس)
+      // كيبورد/أزرار: لفة سريعة وناعمة. أقصى لفة بتقل شوية مع السرعة (استقرار على السريع)
+      // بس بتفضل كفاية للمناورة في السرعات البطيئة. العكس (من يمين لشمال) أسرع
       const ks = this.keySens ?? 1;
-      const target = clamp(input.steer, -1, 1) * maxWheel;
-      const rate = (maxWheel * 1.15 * ks) / (1 + u * 0.03);
+      const limit = 1 / (1 + u * 0.045);
+      const target = clamp(input.steer, -1, 1) * maxWheel * limit;
+      const rate = (maxWheel * 1.7 * ks) / (1 + u * 0.02);
       const diff = target - this.wheelAngle;
-      const r = Math.sign(diff) !== Math.sign(this.wheelAngle) && Math.abs(this.wheelAngle) > 0.3 ? rate * 1.7 : rate;
+      const r = Math.sign(diff) !== Math.sign(this.wheelAngle) && Math.abs(this.wheelAngle) > 0.3 ? rate * 1.6 : rate;
       const prev = this.wheelAngle;
       this.wheelAngle += clamp(diff, -r * dt, r * dt);
       this.wheelVel = (this.wheelAngle - prev) / dt;
     } else {
-      // رجوع ذاتي: واقف = ضعيف وبطيء، سرعة عالية = أسرع وأثبت. damping حرج عشان ميهتزش حوالين النص
-      const k = 0.25 + u * 0.55 + u * u * 0.012;
-      const c = 2 * Math.sqrt(k) * 1.05 + 0.6;
-      this.wheelVel += (-k * this.wheelAngle - c * this.wheelVel) * dt;
+      // رجوع ذاتي للنص لما تسيب: زنبرك حرج (من غير اهتزاز) سريع (~0.6 ثانية من لفة كاملة)،
+      // مع حد أقصى لسرعة اللفة عشان مايبقاش "snap". أسرع شوية مع السرعة زي العربية الحقيقية
+      const w = 7.5 + Math.min(u, 25) * 0.14;
+      const acc = -w * w * this.wheelAngle - 2 * w * this.wheelVel;
+      this.wheelVel += acc * dt;
+      const vMax = maxWheel * 1.9; // أقصى سرعة رجوع (≈1000°/ث للميكروباص)
+      this.wheelVel = clamp(this.wheelVel, -vMax, vMax);
       this.wheelAngle += this.wheelVel * dt;
-      if (Math.abs(this.wheelAngle) < 0.002 && Math.abs(this.wheelVel) < 0.01) { this.wheelAngle = 0; this.wheelVel = 0; }
+      if (Math.abs(this.wheelAngle) < 0.002 && Math.abs(this.wheelVel) < 0.02) { this.wheelAngle = 0; this.wheelVel = 0; }
     }
     this.wheelAngle = clamp(this.wheelAngle, -maxWheel, maxWheel);
     // حساسية التوجيه بتقل مع السرعة (Variable ratio) لمنع الحركات العصبية
@@ -252,9 +257,11 @@ export class VehiclePhysics {
 
     // تغيير السرعات أوتوماتيك
     if (this.gear > 0 && this.shiftTimer <= 0) {
-      const up = 2300 + 1500 * throttleIn;
+      // نقط التغيير حسب نوع الموتور (ديزل الميكروباص بيغيّر بدري، البنزين والتوكتوك بيوصلوا لفات أعلى)
+      const [upLo, upHi, down] = s.shift || [2300, 3800, 1250];
+      const up = upLo + (upHi - upLo) * throttleIn;
       if (this.rpm > up && this.gear < s.gears.length) { this.gear++; this.shiftTimer = s.shiftTime; }
-      else if (this.rpm < 1250 && this.gear > 1) { this.gear--; this.shiftTimer = s.shiftTime * 0.7; }
+      else if (this.rpm < down && this.gear > 1) { this.gear--; this.shiftTimer = s.shiftTime * 0.7; }
     }
 
     let engineTorque = 0;

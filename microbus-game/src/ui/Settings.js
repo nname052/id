@@ -9,7 +9,7 @@ export const SCHEMA = [
   { key: 'vehicle', type: 'seg', label: 'بتسوق إيه؟', options: [['microbus', 'ميكروباص'], ['taxi', 'تاكسي'], ['tuktuk', 'توكتوك']], def: 'microbus' },
   { key: 'livery', type: 'seg', label: 'شكل الميكروباص', options: [['shibin', 'شبين (تركواز)'], ['blue', 'أبيض/أزرق'], ['green', 'أبيض/أخضر'], ['plain', 'أبيض']], def: 'shibin' },
   { group: 'الكاميرا' },
-  { key: 'fov', type: 'range', label: 'زاوية الرؤية من كرسي السواق', min: 55, max: 90, step: 1, fmt: (v) => `${v}°`, def: 62 },
+  { key: 'fov', type: 'range', label: 'زاوية الرؤية من كرسي السواق (زووم)', min: 45, max: 95, step: 1, fmt: (v) => `${v}°`, def: 62 },
   { key: 'seat', type: 'seg', label: 'مكان الكرسي (كاميرا السواق)', options: [['near', 'قريب'], ['normal', 'عادي'], ['back', 'لورا']], def: 'normal' },
   { key: 'keySteer', type: 'seg', label: 'حساسية الدركسيون بالكيبورد', options: [['0.6', 'هادية'], ['1', 'عادية'], ['1.4', 'سريعة']], def: '1' },
   { key: 'lookSens', type: 'range', label: 'حساسية لف الكاميرا', min: 0.4, max: 2, step: 0.1, fmt: (v) => `${(+v).toFixed(1)}×`, def: 1 },

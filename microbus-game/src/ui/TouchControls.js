@@ -42,6 +42,8 @@ export class TouchControls {
         <div class="t-angle" id="t-angle">0°</div>
       </div>
       <div class="t-top">
+        <button data-act="zoomOut" class="t-zoom" aria-label="بعّد الكاميرا"><svg viewBox="0 0 24 24"><circle cx="10" cy="10" r="6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M7 10h6M15 15l5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+        <button data-act="zoomIn" class="t-zoom" aria-label="قرّب الكاميرا"><svg viewBox="0 0 24 24"><circle cx="10" cy="10" r="6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M7 10h6M10 7v6M15 15l5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
         <button data-act="camera" aria-label="الكاميرا"><svg viewBox="0 0 24 24"><path d="M3 7h11v10H3zM14 10l6-3v10l-6-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></button>
         <button data-act="lights" id="t-lights" aria-label="الكشافات"><svg viewBox="0 0 24 24"><path d="M10 6c-4 0-6 3-6 6s2 6 6 6h2V6zM15 8l6-1M15 12h6M15 16l6 1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
         <button data-act="time" aria-label="الوقت"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
