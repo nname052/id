@@ -9,6 +9,7 @@ import { Pedestrians } from '../world/Pedestrians.js';
 import { staticColliders } from '../world/layout.js';
 import { PlayerVehicle } from '../vehicles/PlayerVehicle.js';
 import { buildCar } from '../vehicles/CarModels.js';
+import { buildTrafficHiace } from '../vehicles/TrafficHiace.js';
 import { TrafficSystem, loopProject, loopAt } from '../traffic/TrafficSystem.js';
 import { RouteWorld } from '../world/RouteWorld.js';
 import { ZONE_LABEL } from '../world/Route.js';
@@ -202,6 +203,7 @@ export class Game {
   _makeCar(type, color) {
     const map = { sedan: 'car_sedan', boxy: 'car_old', taxi: 'car_taxi', microbus: 'microbus_traffic' };
     const a = this.assets.get(map[type]);
+    if (a && a.cfg.trafficHiace) return buildTrafficHiace(a);
     if (a) {
       const { root } = a.instantiate();
       const wrap = new THREE.Group();
@@ -308,6 +310,11 @@ export class Game {
   _applySetting(k, v) {
     switch (k) {
       case 'mirrorInsets': this.mirrorInsets.mode = v; break;
+      case 'seat': {
+        const rig = this.player.rig;
+        if (rig.eyeBase) { const o = { near: [-0.16, -0.03], normal: [0, 0], back: [0.14, 0.04] }[v] || [0, 0]; rig.eye.position.set(rig.eyeBase.x, rig.eyeBase.y + o[1], rig.eyeBase.z + o[0]); }
+        break;
+      }
       case 'mirrorQuality': this.player.setMirrorQuality(v); break;
       case 'graphics': {
         const fixed = { low: 3, med: 2, high: 0 }[v];

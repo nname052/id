@@ -28,7 +28,7 @@ export function buildOne(B, opts) {
   const dirt = 0.86 + R() * 0.14;
   const col = tint.map((c) => c * dirt);
   const m = new THREE.Matrix4().compose(
-    new THREE.Vector3(opts.x, 0, opts.z),
+    new THREE.Vector3(opts.x, opts.y || 0, opts.z),
     new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), opts.rotY),
     new THREE.Vector3(1, 1, 1),
   );

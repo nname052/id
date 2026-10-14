@@ -3,6 +3,7 @@ import { Buckets, GeoBuilder } from '../render/GeoBuilder.js';
 import { rng, canvas, tex, tileNoise } from '../render/textures.js';
 import { ROUTE, sampleAt, terrainHeight, nearestRoute, RIVER, CANAL_OFFSET, ROUTE_BUMPS, UTURNS, inUturn, fbm, nearJunction, terrainRaw } from './Route.js';
 import { ROADS } from './RoadNetwork.js';
+import { buildShibin } from './Shibin.js';
 import { buildOne } from './Buildings.js';
 import { LAMP_POSITIONS } from './Props.js';
 
@@ -795,6 +796,7 @@ export class RouteWorld {
         this._sideSign(p, road, e.first ? 1 : -1);
       }
     }
+    buildShibin(this);
     if (palms.length) {
       this._instancedPalms(palms);
       for (const p of palms) this._sideCols.push({ cx: p[0], cz: p[2], hx: 0.26, hz: 0.26, angle: 0, restitution: 0.1, kind: 'pole' });

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { GeoBuilder } from '../render/GeoBuilder.js';
 import { addCabAccessories } from './CabAccessories.js';
-import { canvas, tex, makeSeatFabric, makeGauge2, makeShiftGate } from '../render/textures.js';
+import { canvas, tex, makeSeatFabric, makeGauge2, makeShiftGate, tileNoise, heightToNormal, rng } from '../render/textures.js';
 
 // =====================================================================
 //  دمج موديل GLB حقيقي (Toyota HiAce 2005) كعربية اللاعب:
@@ -137,13 +137,16 @@ export function integrateHiace(rig, asset, spec, A) {
     }
     if (n === 'glass2') {
       // الزجاج الأمامي: شفاف جدًا عشان السواق يشوف كويس
-      o.material = new THREE.MeshPhysicalMaterial({ color: 0x9fb4b8, transparent: true, opacity: 0.12, roughness: 0.02, metalness: 0, envMapIntensity: 1.2, depthWrite: false, side: THREE.DoubleSide });
-      o.castShadow = false; o.renderOrder = 2; o.userData.role = 'windshield';
+      // ده في الحقيقة إطار الزجاج (جلدة سودا)
+      o.material = new THREE.MeshStandardMaterial({ color: 0x0c0c0d, roughness: 0.6, side: THREE.DoubleSide });
+      o.userData.role = 'trim';
     } else if (n === 'glass') {
-      o.material = new THREE.MeshPhysicalMaterial({ color: 0x1a2328, transparent: true, opacity: 0.5, roughness: 0.03, metalness: 0, envMapIntensity: 1.8, depthWrite: false, side: THREE.DoubleSide });
+      o.material = new THREE.MeshPhysicalMaterial({ color: 0x1c2a2e, transparent: true, opacity: 0.42, roughness: 0.02, metalness: 0, envMapIntensity: 2.2, depthWrite: false, side: THREE.DoubleSide, specularIntensity: 1 });
       o.castShadow = false; o.renderOrder = 2; o.userData.role = 'glass';
     } else if (n === 'paint') {
-      mat.roughness = 0.22; mat.envMapIntensity = 1.1; o.userData.role = 'paint';
+      // دهان أبيض بطبقة ورنيش (clearcoat) زي العربيات الحقيقية
+      const pm = new THREE.MeshPhysicalMaterial({ map: mat.map, color: 0xf3f1ec, roughness: 0.38, metalness: 0.0, clearcoat: 1, clearcoatRoughness: 0.07, envMapIntensity: 1.25, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
+      o.material = pm; o.userData.role = 'paint';
     } else if (n === 'lights') {
       mat.emissive = new THREE.Color(0xffffff); mat.emissiveMap = mat.map; mat.emissiveIntensity = 0; lightsMats.push(mat);
     } else if (n.includes('chrome')) {
@@ -181,6 +184,14 @@ export function integrateHiace(rig, asset, spec, A) {
     wsHalf: ws ? (ws.max.x - ws.min.x) / 2 : HW - 0.1,
   };
 
+  // ===== الزجاج الأمامي: في الموديل هو نفس خامة الشبابيك الغامقة → بنفصله ونخليه شفاف جدًا =====
+  {
+    const ws = extractRegion(rig, holder, (p, n) => p.z < -(frontF - 1.15) && p.y > 1.0 && Math.abs(n.z) > 0.35, 'windshield', /^glass$/);
+    const wsMat = new THREE.MeshPhysicalMaterial({ color: 0xd9ece6, transparent: true, opacity: 0.07, roughness: 0.03, metalness: 0, envMapIntensity: 0.9, depthWrite: false, side: THREE.DoubleSide, specularIntensity: 1 });
+    ws.group.traverse((o) => { if (o.isMesh) { o.material = wsMat; o.userData.role = 'windshield'; o.renderOrder = 2; o.castShadow = false; } });
+    rig.windshieldGroup = ws.group;
+  }
+
   // ===== الباب الجرار (يمين): بنفصل مثلثاته من الموديل عشان يتفتح ويتقفل بجد =====
   rig.slidingDoor = extractSlidingDoor(rig, holder, HW);
   // الإكصدامات منفصلة عشان تتدلدل لما تتخبط جامد
@@ -211,7 +222,7 @@ export function integrateHiace(rig, asset, spec, A) {
     face.userData.role = 'mirrorDark';
     holderM.add(face);
     rig.shell.add(holderM);
-    rig.mirrors.push({ holder: holderM, face, side: sx, aspect: w / h, fov: 26 });
+    rig.mirrors.push({ holder: holderM, face, side: sx, aspect: w / h, fov: 31 }); // مراية مسطحة بزاوية أوسع شوية زي مرايات الميكروباص الحقيقية
   }
 
   // ===== الشاسيه من تحت (الموديل مفتوح من تحت: بيبان لما العربية تتقلب) =====
@@ -242,7 +253,40 @@ export function integrateHiace(rig, asset, spec, A) {
   rig.lights.head.emissiveIntensity = 0;
 
   // ضل ناعم تحت العربية على المقاس
-  if (rig.contactShadow) { rig.contactShadow.scale.set((HW * 2 + 0.3) / 2.2, 1, (frontF - rearF + 0.3) / 5.7); }
+  // ضل تلامس (AO) واقعي: مستطيل ناعم على مقاس الأرضية بالظبط + بقعة غامقة تحت كل كاوتش.
+  // الضل الحقيقي من الشمس بيجي من shadow map؛ ده بس الضلمة اللي تحت العربية.
+  if (rig.contactShadow) {
+    const c = canvas(128, 256), x = c.getContext('2d');
+    const img = x.createImageData(128, 256);
+    for (let j = 0; j < 256; j++) for (let i = 0; i < 128; i++) {
+      const u = Math.abs(i / 127 - 0.5) * 2, v = Math.abs(j / 255 - 0.5) * 2;
+      const d = Math.max(0, Math.hypot(Math.max(0, u - 0.55) / 0.45, Math.max(0, v - 0.72) / 0.28));
+      const a = Math.max(0, 1 - d) ** 1.6;
+      img.data.set([255, 255, 255, Math.round(a * 255)], (j * 128 + i) * 4);
+    }
+    x.putImageData(img, 0, 0);
+    const t = tex(c, { srgb: false, repeat: false });
+    const m = rig.contactShadow;
+    m.geometry.dispose();
+    m.geometry = new THREE.PlaneGeometry(HW * 2 - 0.02, frontF - rearF - 0.1).rotateX(-Math.PI / 2);
+    m.geometry.translate(0, 0, -(frontF + rearF) / 2 + (-spec._cgZ ? 0 : 0));
+    m.material = new THREE.MeshBasicMaterial({ color: 0x000000, alphaMap: t, transparent: true, opacity: 0.5, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4 });
+    m.scale.set(1, 1, 1);
+    // تحت الكاوتش
+    const blobT = (() => {
+      const cc = canvas(64, 64), xx = cc.getContext('2d'), g = xx.createRadialGradient(32, 32, 2, 32, 32, 32);
+      g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.5, 'rgba(255,255,255,0.55)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+      xx.fillStyle = g; xx.fillRect(0, 0, 64, 64); return tex(cc, { srgb: false, repeat: false });
+    })();
+    const bm = new THREE.MeshBasicMaterial({ color: 0x000000, alphaMap: blobT, transparent: true, opacity: 0.75, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -5 });
+    rig.wheelShadows = rig.wheels.map((w) => {
+      const b = new THREE.Mesh(new THREE.PlaneGeometry(spec.wheelRadius * 0.9 + 0.12, spec.wheelRadius * 1.6).rotateX(-Math.PI / 2), bm.clone());
+      b.position.set(w.group.position.x, 0.02, w.group.position.z);
+      b.renderOrder = 2;
+      rig.root.add(b);
+      return b;
+    });
+  }
   rig.dims = D;
   return D;
 }
@@ -267,6 +311,16 @@ function buildHiaceInterior(group, rig, D) {
   // الأرضية والسقف من جوه
   box('floor', -IW, floorY - 0.1, z(D.frontF - 0.2), IW, floorY, z(D.rearF + 0.05));
   K('beige').box(-IW, D.roofY - 0.08, z(wtF - 0.05), IW, D.roofY - 0.05, z(D.rearF + 0.08), { skip: 'py' });
+
+  // خامة التابلوه: بلاستيك محبب (normal map) بدل اللون السادة
+  if (!mats.dashGrain) {
+    const N = 128, h = tileNoise(N, [16, 32, 64], rng(77), [0.3, 0.4, 0.3]);
+    mats.dashGrain = tex(heightToNormal(h, N, N, 1.6), { srgb: false });
+    mats.dashGrain.repeat.set(6, 6);
+    mats.dash = new THREE.MeshStandardMaterial({ color: 0x2c2d30, roughness: 0.82, vertexColors: true, normalMap: mats.dashGrain, normalScale: new THREE.Vector2(0.45, 0.45) });
+    mats.pillarTrim = new THREE.MeshStandardMaterial({ color: 0x4b4945, roughness: 0.9, normalMap: mats.dashGrain, normalScale: new THREE.Vector2(0.3, 0.3) });
+    mats.doorCard = new THREE.MeshStandardMaterial({ color: 0x5d5b57, roughness: 0.88, normalMap: mats.dashGrain, normalScale: new THREE.Vector2(0.35, 0.35), vertexColors: true });
+  }
 
   // ===== التابلوه =====
   const sh = new THREE.Shape();
@@ -430,14 +484,74 @@ function buildHiaceInterior(group, rig, D) {
   rig.hangers = [{ obj: sebha, L: 0.2 }, ...acc.hangers];
   rig.phoneScreen = acc.phoneScreen;
   // شماسات
-  for (const sx of [-1, 1]) K('beige').addGeometry(new RoundedBoxGeometry(0.42, 0.018, 0.16, 2, 0.008), M4(sx * IW * 0.5, wtY - 0.04, z(wtF - 0.1), 0.4));
+  // الشماسات مرفوعة لفوق ناحية السقف (زي ما السواق بيسيبها) عشان متغطيش الرؤية
+  for (const sx of [-1, 1]) K('beige').addGeometry(new RoundedBoxGeometry(0.42, 0.016, 0.16, 2, 0.007), M4(sx * IW * 0.5, D.roofY - 0.1, z(wtF - 0.16), 0.05));
+
+  // ===== تلبيس العواميد (A-pillar) من جوه + تجاليد الأبواب + المساحات =====
+  {
+    const beam = (p0, p1, w, t, mat, inward) => {
+      const a = new THREE.Vector3(...p0), b = new THREE.Vector3(...p1);
+      const len = a.distanceTo(b), mid = a.clone().add(b).multiplyScalar(0.5).add(inward);
+      const m = new THREE.Mesh(new RoundedBoxGeometry(w, len, t, 2, Math.min(w, t) * 0.45), mat);
+      m.position.copy(mid);
+      m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize());
+      m.receiveShadow = true;
+      group.add(m);
+      return m;
+    };
+    for (const sx of [-1, 1]) {
+      const bot = [sx * (D.wsHalf + 0.03), wbY - 0.02, z(wbF + 0.02)], top = [sx * (D.wsHalf - 0.03), wtY - 0.02, z(wtF - 0.02)];
+      beam(bot, top, 0.11, 0.06, mats.pillarTrim, new THREE.Vector3(-sx * 0.03, 0, 0.03));
+    }
+    // تجاليد الأبواب الأمامية (شمال = السواق، يمين = الراكب)
+    const sill = wbY - 0.12, dz0 = z(dashBackF + 0.02), dz1 = z(seatF - 0.38);
+    const dc = new GeoBuilder();
+    for (const sx of [-1, 1]) {
+      const xin = sx * (IW + 0.01), xo = sx * (IW + 0.06);
+      dc.setColor([1, 1, 1]);
+      dc.box(Math.min(xin, xo), floorY + 0.02, Math.min(dz0, dz1), Math.max(xin, xo), sill, Math.max(dz0, dz1));
+      // مسند الإيد + جيب الباب
+      dc.setColor([0.7, 0.68, 0.64]);
+      dc.box(Math.min(xin, xin - sx * 0.09), sill - 0.36, z(seatF + 0.25), Math.max(xin, xin - sx * 0.09), sill - 0.31, z(seatF - 0.25));
+      dc.setColor([0.35, 0.34, 0.33]);
+      dc.box(Math.min(xin, xin - sx * 0.05), floorY + 0.12, z(dashBackF - 0.05), Math.max(xin, xin - sx * 0.05), floorY + 0.3, z(seatF + 0.15));
+      // حرف الشباك
+      dc.setColor([0.25, 0.25, 0.26]);
+      dc.box(Math.min(xin, xin - sx * 0.06), sill - 0.03, Math.min(dz0, dz1), Math.max(xin, xin - sx * 0.06), sill + 0.01, Math.max(dz0, dz1));
+    }
+    const doors = new THREE.Mesh(dc.build(), mats.doorCard);
+    doors.receiveShadow = true;
+    group.add(doors);
+    // سماعة + أوكرة الباب
+    for (const sx of [-1, 1]) {
+      const spk = new THREE.Mesh(new THREE.CircleGeometry(0.075, 18), new THREE.MeshStandardMaterial({ color: 0x18181a, roughness: 0.7 }));
+      spk.position.set(sx * (IW - 0.002), floorY + 0.42, z(dashBackF + 0.12)); spk.rotation.y = -sx * Math.PI / 2;
+      group.add(spk);
+      const h = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.03, 0.12), mats.chrome);
+      h.position.set(sx * (IW - 0.015), sill - 0.18, z(seatF + 0.05));
+      group.add(h);
+    }
+    // المساحات (برا على قاعدة الزجاج) — بتبان من كرسي السواق زي الحقيقة
+    const wiperMat = new THREE.MeshStandardMaterial({ color: 0x0d0d0e, roughness: 0.55, metalness: 0.4 });
+    const wsDir = new THREE.Vector3(0, wtY - wbY, -(wtF - wbF)).normalize();
+    for (const [x0, ang] of [[-0.42, 0.18], [0.18, 0.2]]) {
+      const arm = new THREE.Group();
+      arm.position.set(x0, wbY + 0.03, z(wbF + 0.06));
+      arm.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, -1), wsDir.clone().multiplyScalar(0.12).add(new THREE.Vector3(0, 0, -0.01)).normalize());
+      const blade = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.018, 0.02), wiperMat);
+      blade.position.set(0.31, 0, 0); blade.rotation.z = ang;
+      arm.add(blade);
+      group.add(arm);
+    }
+  }
 
   // ===== عين السواق: ورا الدركسيون وناحية الشمال =====
   const eye = new THREE.Object3D();
-  eye.position.set(DX, Math.min(D.roofY - 0.3, floorY + 1.04), z(seatF + 0.04));
+  eye.position.set(DX, Math.min(D.roofY - 0.25, floorY + 1.09), z(seatF + 0.04) + 0.18);
   group.add(eye);
   rig.eye = eye;
-  rig.eyePitch = -0.24;
+  rig.eyePitch = -0.22;
+  rig.eyeBase = eye.position.clone();
 
   if (!mats.beige) mats.beige = new THREE.MeshStandardMaterial({ color: 0xcfc6b2, roughness: 0.9, vertexColors: true });
   for (const [k, gb] of kit) {
@@ -489,7 +603,7 @@ function orientOutward(mesh, holder, c, h) {
 const DOOR = { z0: -0.52, z1: 0.77, y0: 0.27, y1: 1.64, inset: 0.16 };
 
 /** بيفصل مثلثات منطقة من الموديل في group لوحدها (الباب الجرار، الإكصدامات) */
-function extractRegion(rig, holder, inRegion, name) {
+function extractRegion(rig, holder, inRegion, name, only = null) {
   rig.shell.updateMatrixWorld(true);
   const toShell = new THREE.Matrix4().copy(rig.shell.matrixWorld).invert();
   const group = new THREE.Group();
@@ -499,7 +613,7 @@ function extractRegion(rig, holder, inRegion, name) {
   holder.traverse((o) => {
     if (!o.isMesh || !o.visible || !o.geometry.index) return;
     const name = (o.userData.matName || '').toLowerCase();
-    if (/wheel|lights|glass2|logo/.test(name)) return;
+    if (only ? !only.test(name) : /wheel|lights|glass2|logo/.test(name)) return;
     o.updateWorldMatrix(true, false);
     const rel = new THREE.Matrix4().multiplyMatrices(toShell, o.matrixWorld);
     const nm = new THREE.Matrix3().getNormalMatrix(rel);
@@ -508,7 +622,8 @@ function extractRegion(rig, holder, inRegion, name) {
     for (let i = 0; i < idx.length; i += 3) {
       a.fromBufferAttribute(P, idx[i]).applyMatrix4(rel); b.fromBufferAttribute(P, idx[i + 1]).applyMatrix4(rel); c.fromBufferAttribute(P, idx[i + 2]).applyMatrix4(rel);
       const m = new THREE.Vector3().add(a).add(b).add(c).multiplyScalar(1 / 3);
-      if (!inRegion(m)) { keep.push(idx[i], idx[i + 1], idx[i + 2]); continue; }
+      const fn = new THREE.Vector3().subVectors(b, a).cross(new THREE.Vector3().subVectors(c, a)).normalize();
+      if (!inRegion(m, fn)) { keep.push(idx[i], idx[i + 1], idx[i + 2]); continue; }
       for (const [k, v] of [[idx[i], a], [idx[i + 1], b], [idx[i + 2], c]]) {
         pos.push(v.x, v.y, v.z);
         if (N) { n.fromBufferAttribute(N, k).applyMatrix3(nm).normalize(); nor.push(n.x, n.y, n.z); }

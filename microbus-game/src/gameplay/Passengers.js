@@ -24,6 +24,9 @@ const STOP_DEFS = [
 const SIDE_STOPS = [
   { road: 'R1', frac: 0.45, name: 'موقف الترعة', kind: 'agri' },
   { road: 'R5', frac: 0.5, name: 'شارع الميدان', kind: 'side' },
+  { road: 'S1', frac: 0.45, name: 'شارع باريس', kind: 'shibin', off: 4.4 + 3.2 - 1 },
+  { road: 'S2', frac: 0.06, name: 'جامعة المنوفية', kind: 'shibin', off: 5.2 + 3.2 - 1 },
+  { road: 'S4', frac: 0.15, name: 'محطة القطر', kind: 'shibin', off: 3.8 + 3.2 - 1 },
 ];
 const URBAN = new Set(['city', 'market', 'residential']);
 const MAX_WALKERS = 12;
@@ -79,7 +82,7 @@ export class Passengers {
     const defs = [...STOP_DEFS, ...SIDE_STOPS];
     for (const def of defs) {
       let edge;
-      if (def.road) { Object.assign(q, roadPointAt(def.road, def.frac)); edge = q.half + 1.4; } else { loopAt(def.s, q); edge = URBAN.has(def.kind) ? 11.3 : 10.8; }
+      if (def.road) { Object.assign(q, roadPointAt(def.road, def.frac)); edge = def.off ?? q.half + 1.4; } else { loopAt(def.s, q); edge = URBAN.has(def.kind) ? 11.3 : 10.8; }
       for (const side of [1, -1]) {
         const d = side * edge;
         const x = q.x + q.rx * d, z = q.z + q.rz * d;

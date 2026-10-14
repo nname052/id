@@ -68,7 +68,7 @@ export class PlayerVehicle {
       const pos = m.holder.position.clone();
       const toEye = eyeLocal.clone().sub(pos).normalize();
       // المرايات الجانبية متظبطة لبره شوية (جنب العربية يبان شريط رفيع بس، زي السواق الحقيقي)
-      const rear = new THREE.Vector3(m.side * (this.glbIntegrated ? 0.11 : 0.06), m.side ? -0.06 : -0.02, 1).normalize();
+      const rear = new THREE.Vector3(m.side * (this.glbIntegrated ? 0.17 : 0.06), m.side ? -0.04 : -0.02, 1).normalize();
       const n = toEye.add(rear).normalize();
       m.holder.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), n);
       const cam = new THREE.PerspectiveCamera(m.fov || 22, aspect, m.side === 0 ? 0.6 : 0.3, m.side === 0 ? 70 : 130);
@@ -78,10 +78,16 @@ export class PlayerVehicle {
   }
 
   renderMirrors(renderer, scene, cameraPos) {
+    for (let k = 0; k < (this.mirrorsPerFrame || 1); k++) this._renderOneMirror(renderer, scene, cameraPos, k);
+  }
+
+  _renderOneMirror(renderer, scene, cameraPos, k) {
     if (!this.mirrorCams.length) return;
     // على الموبايل/الجودة الأقل: المرايات بتتحدّث كل كام فريم
     const skip = (this.mirrorSkip || 0) + (this.mirrorQualitySkip ?? (this.lowPower ? 1 : 0));
-    if (skip && (this._skipN = ((this._skipN || 0) + 1) % (skip + 1)) !== 0) return;
+    if (k === 0 && skip && (this._skipN = ((this._skipN || 0) + 1) % (skip + 1)) !== 0) { this._skipFrame = true; return; }
+    if (k > 0 && this._skipFrame) return;
+    this._skipFrame = false;
     // الجانبية ليها الأولوية: شمال، يمين، شمال، يمين، الداخلية
     if (!this._order) {
       const L = this.mirrorCams.findIndex((c) => c.m.side === -1), R = this.mirrorCams.findIndex((c) => c.m.side === 1), I = this.mirrorCams.findIndex((c) => c.m.side === 0);
@@ -125,7 +131,9 @@ export class PlayerVehicle {
   /** جودة المرايات: low | med | high (دقة الصورة + كل كام فريم بتتحدّث) */
   setMirrorQuality(q) {
     const scale = { low: 0.55, med: 0.78, high: 1 }[q] || 1;
-    this.mirrorQualitySkip = { low: 2, med: 1, high: 0 }[q] ?? 0;
+    // كل ما الجودة أعلى المرايات بتتحدّث أكتر (العربيات اللي ورا بتتحرك أنعم)
+    this.mirrorQualitySkip = { low: 1, med: 0, high: 0 }[q] ?? 0;
+    this.mirrorsPerFrame = q === 'high' ? 2 : 1;
     for (const mc of this.mirrorCams || []) {
       mc.base ||= [mc.rt.width, mc.rt.height];
       mc.rt.setSize(Math.round(mc.base[0] * scale), Math.round(mc.base[1] * scale));
@@ -253,7 +261,29 @@ export class PlayerVehicle {
       w._tipped = tipped;
       w.spin.rotation.x = -pw.spin;
     }
-    if (rig.contactShadow) { rig.contactShadow.visible = !tipped; rig.contactShadow.position.y = 0.012 + groundHeight(rig.root.position.x, rig.root.position.z); }
+    if (rig.contactShadow) {
+      // الضل بيمشي مع ميل الأرض (من ارتفاع الأرض تحت العجل) وبيخف لما العربية تعلى عن الأرض
+      const W = ph.wheels;
+      const gF = (W[0].ground + W[1].ground) / 2, gR = (W[2].ground + W[3].ground) / 2;
+      const gL = (W[0].ground + W[2].ground) / 2, gRt = (W[1].ground + W[3].ground) / 2;
+      const cs = rig.contactShadow;
+      cs.visible = !tipped && W[0].ground !== undefined;
+      if (cs.visible) {
+        const gc = (gF + gR) / 2;
+        cs.position.y = gc + 0.015;
+        cs.rotation.set(Math.atan2(gF - gR, ph.spec.wheelBase), 0, Math.atan2(gRt - gL, ph.spec.track), 'YXZ');
+        const lift = rig.body.position.y - ph.spec.cgHeight - gc;
+        cs.material.opacity = 0.5 * Math.max(0, 1 - Math.max(0, lift) * 2.5);
+      }
+      if (rig.wheelShadows) rig.wheelShadows.forEach((b, i) => {
+        const pw = W[i];
+        b.visible = cs.visible && pw.ground !== undefined;
+        if (!b.visible) return;
+        b.position.y = pw.ground + 0.02;
+        b.material.opacity = Math.max(0, 0.75 - Math.max(0, pw.centerY - pw.ground - ph.spec.wheelRadius) * 6);
+        if (rig.wheels[i].front) b.rotation.y = ph.steerAngle;
+      });
+    }
 
     // الدركسيون
     const swa = ph.steeringWheelAngle;

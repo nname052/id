@@ -22,7 +22,23 @@ export const ROAD_DEFS = [
     pts: [{ city: [74, -165] }, [110, -175], [130, -280], [120, -400], [100, -490], { J: 335, side: 1 }] },
   { id: 'R6', name: 'حارة المقابر', sign: 'وسط البلد', half: 3.0, surface: 'asphalt', style: 'city',
     pts: [{ city: [-74, -165] }, [-115, -175], [-140, -270], [-110, -350], { J: 140, side: -1 }] },
+  // ===== شبين الكوم (حي بين الطريق السريع ومخرجه) =====
+  { id: 'S1', name: 'شارع باريس', sign: 'شبين الكوم', half: 4.4, surface: 'asphalt', style: 'urban', district: 'shibin',
+    pts: [{ J: 2721, side: 1 }, [60, 298], [130, 300], [200, 300], [262, 300], [300, 302], { snap: 'R3' }] },
+  { id: 'S2', name: 'شارع الجامعة', sign: 'جامعة المنوفية', half: 5.2, surface: 'asphalt', style: 'urban', district: 'shibin', boulevard: true,
+    pts: [[200, 476], [200, 400], [200, 300], [200, 212], [200, 120], [205, 40], { snap: 'R1' }] },
+  { id: 'S3', name: 'شارع البحر (الكورنيش)', sign: 'بحر شبين', half: 3.8, surface: 'asphalt', style: 'urban', district: 'shibin', corniche: true,
+    pts: [[146, 462], [146, 400], [146, 300], [146, 228], [158, 196], [180, 188], { snap: 'S2' }] },
+  { id: 'S4', name: 'شارع المحطة', sign: 'محطة القطر', half: 3.8, surface: 'asphalt', style: 'urban', district: 'shibin',
+    pts: [[252, 238], [252, 262], [252, 285], { snap: 'S1' }] },
 ];
+
+// خط السكة الحديد وبحر شبين (للتضاريس والرسم والمزلقانات)
+export const SHIBIN = {
+  rail: { z: 212, x0: 96, x1: 330 },
+  canal: { x: 128, half: 7, z0: 175, z1: 485 },
+  box: { x0: 96, x1: 300, z0: 178, z1: 545 },
+};
 
 function catmull(p0, p1, p2, p3, t) {
   const t2 = t * t, t3 = t2 * t;
@@ -169,12 +185,44 @@ export function nearestSide(x, z, out = _r) {
   return out;
 }
 
-/** سطح الطريق الفرعي للفيزياء (أو null لو برا الطريق) */
+export const SIDEWALK_W = 3.2, SIDEWALK_H = 0.15;
+const _o = { road: null, i: 0, d: 0, dist: 0, y: 0, half: 0, s: 0 };
+/** المسافة لأقرب نقطة على طريق معين (للتقاطعات) */
+function distTo(road, x, z, near) {
+  let bd = Infinity, bi = 0;
+  const S = road.samples, i0 = Math.max(0, near - 40), i1 = Math.min(S.length, near + 40);
+  for (let i = i0; i < i1; i++) { const p = S[i]; const d = (p.x - x) ** 2 + (p.z - z) ** 2; if (d < bd) { bd = d; bi = i; } }
+  return { d: Math.sqrt(bd), i: bi };
+}
+/** نقطة (x,z) على أسفلت أي طريق فرعي تاني غير road؟ (عشان الرصيف يتقطع عند التقاطعات) */
+export function onOtherCarriageway(x, z, road, margin = 0.6) {
+  const arr = grid.get(key(Math.floor(x / CELL), Math.floor(z / CELL)));
+  if (!arr) return false;
+  const seen = new Set();
+  for (let k = 0; k < arr.length; k += 2) {
+    const r = arr[k];
+    if (r === road || seen.has(r)) continue;
+    seen.add(r);
+    const t = distTo(r, x, z, arr[k + 1]);
+    if (t.d < r.samples[t.i].half + margin) return true;
+  }
+  return false;
+}
+
+/** سطح الطريق الفرعي للفيزياء (أو null لو برا الطريق). الشوارع اللي جوه المدينة ليها رصيف */
 export function sideSurface(x, z) {
   const n = nearestSide(x, z);
-  if (!n || n.dist > n.half + 0.35) return null;
-  const rough = n.road.surface === 'dirt' ? 0.02 : 0.004;
-  return n.y + 0.03 + rough * Math.sin(x * 1.3 + z * 0.7) * Math.sin(z * 1.9 - x * 0.5);
+  if (!n) return null;
+  if (n.dist <= n.half + 0.35) {
+    const rough = n.road.surface === 'dirt' ? 0.02 : 0.004;
+    return n.y + 0.03 + rough * Math.sin(x * 1.3 + z * 0.7) * Math.sin(z * 1.9 - x * 0.5);
+  }
+  if (n.road.style === 'urban' && n.dist <= n.half + SIDEWALK_W) {
+    const road = n.road, y = n.y;
+    if (onOtherCarriageway(x, z, road)) return y + 0.03;
+    return y + 0.03 + SIDEWALK_H;
+  }
+  return null;
 }
 
 /** اسم الطريق الفرعي اللي إنت عليه */
@@ -193,6 +241,16 @@ export function roadPointAt(id, frac) {
 // الأرض جنب الطرق الفرعية بتنزل لمستوى الطريق (للرسم والفيزياء)
 setSideRoadHooks({
   blend(x, z, h) {
+    // بحر شبين: مجرى محفور، والسكة الحديد على جسر ترابي فوقه
+    const C = SHIBIN.canal, RL = SHIBIN.rail;
+    if (z > C.z0 && z < C.z1) {
+      const dx = Math.abs(x - C.x);
+      if (dx < C.half + 2.5) {
+        const t = Math.max(0, Math.min(1, (dx - (C.half - 2)) / 4.5)), k = t * t * (3 - 2 * t);
+        h = Math.min(h, -2.5 + k * 2.0);
+      }
+    }
+    if (Math.abs(z - RL.z) < 3.2 && x > RL.x0 - 2 && x < RL.x1 + 2) h = Math.max(h, -0.46);
     const n = nearestSide(x, z);
     if (!n) return h;
     const inner = n.half + 0.6, outer = n.half + 7;

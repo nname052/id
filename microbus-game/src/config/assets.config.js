@@ -24,7 +24,8 @@ export const MODEL_ASSETS = {
   car_sedan: { file: 'car_sedan.glb', targetLength: 4.45, rotationY: 180 },
   car_old: { file: 'car_old.glb', targetLength: 4.0, rotationY: 180 },
   car_taxi: { file: 'car_taxi.glb', targetLength: 4.4, rotationY: 180 },
-  microbus_traffic: { file: 'microbus_traffic.glb', targetLength: 4.95, rotationY: 180 },
+  // ميكروباصات المرور: نفس موديل الهاي إس (نسخة منفصلة)
+  microbus_traffic: { file: 'microbus.glb', targetLength: 4.69, rotationY: 90, trafficHiace: true },
   // المشاة (يفضّل يكون فيه أنيميشن اسمه فيه "walk")  →  assets/models/pedestrian.glb
   pedestrian: { file: 'pedestrian.glb', targetHeight: 1.72, rotationY: 0 },
 };

@@ -7,6 +7,7 @@ const KEY = 'egy-microbus-settings-v1';
 export const SCHEMA = [
   { group: 'الكاميرا' },
   { key: 'fov', type: 'range', label: 'زاوية الرؤية من كرسي السواق', min: 55, max: 90, step: 1, fmt: (v) => `${v}°`, def: 62 },
+  { key: 'seat', type: 'seg', label: 'مكان الكرسي (كاميرا السواق)', options: [['near', 'قريب'], ['normal', 'عادي'], ['back', 'لورا']], def: 'normal' },
   { key: 'lookSens', type: 'range', label: 'حساسية لف الكاميرا', min: 0.4, max: 2, step: 0.1, fmt: (v) => `${(+v).toFixed(1)}×`, def: 1 },
   { key: 'mirrorInsets', type: 'seg', label: 'المرايات الجانبية على حرف الشاشة', options: [['auto', 'تلقائي'], ['on', 'دايمًا'], ['off', 'مقفولة']], def: 'auto' },
   { group: 'الجرافيكس' },
@@ -30,9 +31,11 @@ const GEAR_SVG = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M19.14 1
 
 export class Settings {
   constructor({ mobile = false } = {}) {
-    this.values = { ...DEFAULTS, mirrorQuality: mobile ? 'med' : 'high' };
+    // زاوية رؤية أضيق شوية على الموبايل (الشاشة عريضة جدًا → الأطراف بتتمط)
+    this.values = { ...DEFAULTS, mirrorQuality: mobile ? 'med' : 'high', fov: mobile ? 52 : 58 };
     try {
       const saved = JSON.parse(localStorage.getItem(KEY) || '{}');
+      if (saved.fovV !== 2) delete saved.fov; // الافتراضي اتغير في التحديث ده
       for (const s of SCHEMA) {
         if (!s.key || saved[s.key] === undefined) continue;
         const v = saved[s.key];
@@ -49,7 +52,7 @@ export class Settings {
   set(k, v) {
     if (this.values[k] === v) return;
     this.values[k] = v;
-    try { localStorage.setItem(KEY, JSON.stringify(this.values)); } catch { /* مفيش تخزين */ }
+    try { localStorage.setItem(KEY, JSON.stringify({ ...this.values, fovV: 2 })); } catch { /* مفيش تخزين */ }
     for (const fn of this.listeners) fn(k, v);
     this._sync?.();
   }
