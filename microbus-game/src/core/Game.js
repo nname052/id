@@ -96,7 +96,7 @@ export class Game {
     S('تجهيز الميكروباص...', 0.72);
     await nextFrame();
     this.audio = new AudioSystem(this.assets);
-    this.player = new PlayerVehicle(this.scene, this.assets);
+    this.player = new PlayerVehicle(this.scene, this.assets, { lowPower: this.mobile });
     if (this.player.glbIntegrated) this.diag.set('hiace', 'HIACE: LOADED', 'ok');
     else {
       this.diag.set('hiace', `HIACE: FAILED — ${this.player.hiaceError}`, 'bad');
@@ -110,7 +110,7 @@ export class Game {
 
     S('المرور والمشاة...', 0.82);
     await nextFrame();
-    this.traffic = new TrafficSystem(this.scene, this.lights, (type, color) => this._makeCar(type, color), this.audio, { perLane: this.mobile ? 6 : 9 });
+    this.traffic = new TrafficSystem(this.scene, this.lights, (type, color) => this._makeCar(type, color), this.audio, { perLane: this.mobile ? 9 : 13 });
     this.traffic.viewDist = this.mobile ? 260 : 360;
     this.peds = new Pedestrians(this.scene, this.assets, this.mobile ? 12 : 24);
     this.statics = staticColliders();
@@ -127,22 +127,21 @@ export class Game {
     this.input = new Input();
     if (this.mobile) { document.body.classList.add('touch'); this.touch = new TouchControls(); this.input.touch = this.touch; }
     this.hud = new HUD();
-    this.settings = new Settings();
+    this.settings = new Settings({ mobile: this.mobile });
     this.settings.mount(this.touch ? this.touch.root.querySelector('.t-top') : null);
     this.cams = new CameraSystem(this.camera, this.player, renderer.domElement);
     this.cams.settings = this.settings;
     this.mirrorInsets = new MirrorInsets(this.player, this.touch);
     this.passengers = new Passengers(this.scene, this.player, { hud: this.hud, audio: this.audio, settings: this.settings });
     this.passengers._updateHud();
-    this.mirrorInsets.mode = this.settings.get('mirrorInsets');
-    this.settings.onChange((k, v) => { if (k === 'mirrorInsets') this.mirrorInsets.mode = v; });
+    this.settings.onChange((k, v) => this._applySetting(k, v));
+    if (this.player.damage) this.player.damage.onBreak = () => this.audio.glass();
     this.cams.mode = 3; // سينمائية ورا شاشة البداية
 
     // أنوار الشارع بالليل: عدد صغير من الأنوار بنحركها لأقرب أعمدة (أداء)
     this.lampLights = [];
     for (let i = 0; i < 6; i++) {
       const l = new THREE.PointLight(0xffd8a0, 0, 26, 1.6);
-      l.visible = false;
       this.scene.add(l);
       this.lampLights.push(l);
     }
@@ -173,6 +172,8 @@ export class Game {
     this.clock = new THREE.Clock();
     this.acc = 0;
     this.lampTimer = 0;
+    // الإعدادات المحفوظة
+    for (const [k, v] of Object.entries(this.settings.values)) this._applySetting(k, v);
     renderer.setAnimationLoop(() => this._frame());
     S('جاهز!', 1);
   }
@@ -224,6 +225,7 @@ export class Game {
   /** جودة ديناميكية: لو الـ FPS نزل نقلل الدقة/الضلال/المرايات/مسافة الرؤية، ولو علي نرجّعها */
   _adaptQuality(dt) {
     if (!this.started) return;
+    if (this.settings && this.settings.get('graphics') !== 'auto') { this.fps = this._fpsMeasure(dt) ?? this.fps; return; }
     const q = (this._q ||= { t: 0, frames: 0, level: 0, good: 0, cooldown: 3 });
     q.t += dt; q.frames++; q.cooldown -= dt;
     if (q.t < 1.5) return;
@@ -239,6 +241,13 @@ export class Game {
     } else q.good = 0;
   }
 
+  _fpsMeasure(dt) {
+    const m = (this._fm ||= { t: 0, n: 0 });
+    m.t += dt; m.n++;
+    if (m.t < 1.5) return undefined;
+    const f = m.n / m.t; m.t = 0; m.n = 0; return f;
+  }
+
   _applyQuality(level, fps) {
     const base = this.basePR;
     const pr = [base, base * 0.85, base * 0.72, base * 0.62, base * 0.55][level];
@@ -246,7 +255,7 @@ export class Game {
     this._resize();
     const sh = level >= 2 ? 1024 : this.mobile ? 1024 : 2048;
     if (this.env.sun.shadow.mapSize.x !== sh) { this.env.sun.shadow.mapSize.set(sh, sh); this.env.sun.shadow.map?.dispose(); this.env.sun.shadow.map = null; }
-    this.env.sun.castShadow = level < 4;
+    this.env.sun.castShadow = level < 4 && this.settings?.get('shadows') !== 'off';
     this.player.mirrorSkip = [0, 1, 2, 3, 5][level];
     this.traffic.viewDist = (this.mobile ? 260 : 360) * [1, 0.95, 0.85, 0.75, 0.65][level];
     this.viewDist = (this.mobile ? 380 : 560) * [1, 0.95, 0.85, 0.75, 0.65][level];
@@ -289,7 +298,34 @@ export class Game {
     this.player.setNight(night || p.elevation < 8);
     this.traffic?.setNight(night || p.elevation < 8);
     this.touch?.setLights(this.player.headOn);
-    for (const l of this.lampLights) { l.visible = p.lampsOn; l.intensity = p.night ? 90 : 25; }
+    // الأنوار دايمًا visible (الشدة بس بتتغير) عشان مفيش إعادة بناء شيدرز
+    for (const l of this.lampLights) l.intensity = !p.lampsOn ? 0 : p.night ? 90 : 25;
+    const hm = this.settings?.get('headlights');
+    if (hm && hm !== 'auto') { this.player.setHeadlights(hm === 'on'); this.touch?.setLights(this.player.headOn); }
+  }
+
+  /** تطبيق إعداد (عند البداية ولما يتغير من اللوحة) */
+  _applySetting(k, v) {
+    switch (k) {
+      case 'mirrorInsets': this.mirrorInsets.mode = v; break;
+      case 'mirrorQuality': this.player.setMirrorQuality(v); break;
+      case 'graphics': {
+        const fixed = { low: 3, med: 2, high: 0 }[v];
+        const q = (this._q ||= { t: 0, frames: 0, level: 0, good: 0, cooldown: 3 });
+        if (fixed !== undefined) { q.level = fixed; this._applyQuality(fixed, this.fps || 0); }
+        else q.cooldown = 2;
+        break;
+      }
+      case 'shadows': this._applyQuality(this._q?.level || 0, this.fps || 0); break;
+      case 'timeOfDay': if (this.env.presetName !== v) this.env.setPreset(v); break;
+      case 'headlights':
+        if (v === 'auto') this.player.setHeadlights(!!this.player._night); else this.player.setHeadlights(v === 'on');
+        this.touch?.setLights(this.player.headOn);
+        break;
+      case 'masterVol': case 'engineVol': this.audio.setVolumes(this.settings.get('masterVol') / 100, this.settings.get('engineVol') / 100); break;
+      case 'traffic': this.traffic.setDensity({ off: 0, low: 0.35, normal: 0.65, high: 1 }[v] ?? 0.65); break;
+      default: break;
+    }
   }
 
   _frame() {
@@ -302,8 +338,8 @@ export class Game {
       this.hud.toast(r === 'recover' ? 'العربية اتعدلت' : 'رجعت للطريق واتصلّحت');
       this._flipNote = false; this.touch?.root.querySelector('[data-act="reset"]')?.classList.remove('lit');
     }
-    if (a.time) this.hud.toast(`الوقت: ${this.env.cycle()}`);
-    if (a.lights) { const on = this.player.toggleHeadlights(); this.touch?.setLights(on); this.hud.toast(on ? 'الكشافات شغالة' : 'الكشافات مطفية'); }
+    if (a.time) { this.hud.toast(`الوقت: ${this.env.cycle()}`); this.settings.set('timeOfDay', this.env.presetName); }
+    if (a.lights) { const on = !this.player.headOn; this.settings.set('headlights', on ? 'on' : 'off'); this.hud.toast(on ? 'الكشافات شغالة' : 'الكشافات مطفية'); }
     if (a.help) this.hud.toggleHelp();
     if (a.fps) this.hud.toggleFps();
     if (a.mute) this.hud.toast(this.audio.toggleMute() ? 'الصوت مقفول' : 'الصوت شغال');
@@ -367,7 +403,7 @@ export class Game {
 
     this._adaptQuality(dt);
     const inside = this.cams.modeId === 'cockpit';
-    this.audio.update(dt, { player: this.player, camera: this.camera, traffic: this.traffic, inside, horn: input.horn });
+    this.audio.update(dt, { player: this.player, camera: this.camera, traffic: this.traffic, inside, horn: input.horn, passengers: this.passengers?.count });
     this.hud.update(dt, ph, this.lights);
     if (this.touch) this.touch.update(ph.steeringWheelAngle);
 

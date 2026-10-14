@@ -194,6 +194,7 @@ export class TrafficSystem {
   colliders(box, out) {
     const r = Math.hypot(box.hx, box.hz) + 4;
     for (const c of this.cars) {
+      if (c.off) continue;
       if (Math.abs(c.x - box.cx) > r || Math.abs(c.z - box.cz) > r || Math.abs(c.y - (this._py || 0)) > 3) continue;
       const fx = -Math.sin(c.yaw), fz = -Math.cos(c.yaw);
       out.push({
@@ -304,6 +305,7 @@ export class TrafficSystem {
     const cx = camPos ? camPos.x : pl.x, cz = camPos ? camPos.z : pl.z;
     const far2 = (this.viewDist || 320) ** 2;
     for (const car of this.cars) {
+      if (car.off) continue;
       const r = car.rig;
       const vis = (car.x - cx) ** 2 + (car.z - cz) ** 2 < far2;
       car.visible = vis;
@@ -321,6 +323,19 @@ export class TrafficSystem {
       if (r.body) r.body.rotation.x = car.acc * 0.006 + Math.atan(car.pitch || 0);
       const braking = car.acc < -0.6 || car.v < 0.3;
       if (r.brake) r.brake.emissiveIntensity = braking ? 3.5 : this.night ? 1.0 : 0.15;
+    }
+  }
+
+  /** زحمة المرور: k من 0 (فاضي) لـ 1 (كل العربيات). العربيات الزيادة بتتشال من الحارة */
+  setDensity(k) {
+    for (const lane of this.lanes) {
+      const all = (lane.all ||= [...lane.cars]);
+      // بنختار عربيات متوزعة على طول الحارة (مش كلهم في حتة واحدة)
+      lane.cars = all.filter((c, i) => Math.floor((i + 1) * k + 1e-6) > Math.floor(i * k + 1e-6));
+      for (const c of all) {
+        c.off = !lane.cars.includes(c);
+        if (c.off) { c.visible = false; c.rig.root.visible = false; }
+      }
     }
   }
 

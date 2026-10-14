@@ -32,6 +32,8 @@ export class CameraSystem {
     this.snap = true;
   }
 
+  _sens() { return this.settings ? this.settings.get('lookSens') : 1; }
+
   get modeId() { return CAMERA_MODES[this.mode]?.id || 'free'; }
 
   next() {
@@ -48,8 +50,8 @@ export class CameraSystem {
       if (!this.look.dragging) return;
       const dx = e.clientX - this.look.lastX, dy = e.clientY - this.look.lastY;
       this.look.lastX = e.clientX; this.look.lastY = e.clientY;
-      this.look.yaw = THREE.MathUtils.clamp(this.look.yaw - dx * 0.004, -2.2, 2.2);
-      this.look.pitch = THREE.MathUtils.clamp(this.look.pitch - dy * 0.003, -0.7, 0.6);
+      this.look.yaw = THREE.MathUtils.clamp(this.look.yaw - dx * 0.004 * this._sens(), -2.2, 2.2);
+      this.look.pitch = THREE.MathUtils.clamp(this.look.pitch - dy * 0.003 * this._sens(), -0.7, 0.6);
       this.look.idle = 0;
     });
   }
@@ -87,8 +89,8 @@ export class CameraSystem {
     const id = this.modeId;
 
     if (input && (Math.abs(input.lookX) > 0.1 || Math.abs(input.lookY) > 0.1)) {
-      this.look.yaw = THREE.MathUtils.clamp(this.look.yaw - input.lookX * dt * 2.5, -2.2, 2.2);
-      this.look.pitch = THREE.MathUtils.clamp(this.look.pitch - input.lookY * dt * 1.5, -0.7, 0.6);
+      this.look.yaw = THREE.MathUtils.clamp(this.look.yaw - input.lookX * dt * 2.5 * this._sens(), -2.2, 2.2);
+      this.look.pitch = THREE.MathUtils.clamp(this.look.pitch - input.lookY * dt * 1.5 * this._sens(), -0.7, 0.6);
       this.look.idle = 0;
     }
     if (input && input.lookBack) { this.look.yaw = Math.PI * 0.95; this.look.idle = 0; }

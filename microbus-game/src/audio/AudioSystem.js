@@ -19,7 +19,7 @@ export class AudioSystem {
     this.started = true;
 
     this.master = ctx.createGain();
-    this.master.gain.value = 0.62;
+    this.master.gain.value = 0.62 * (this.vol?.master ?? 0.8) / 0.8;
     const comp = ctx.createDynamicsCompressor();
     comp.threshold.value = -14; comp.ratio.value = 4;
     this.master.connect(comp).connect(ctx.destination);
@@ -48,6 +48,62 @@ export class AudioSystem {
     const gn = this._loop(this.noiseBuf);
     this.gravelG = this._gain(0);
     gn.connect(this._filter('bandpass', 2400, 0.8)).connect(this.gravelG).connect(this.master);
+    this._buildExtras();
+    this.engineStart();
+  }
+
+  // ===== أصوات إضافية: ونس الركاب، صفير الريوس، احتكاك الصاج في الانقلاب =====
+  _buildExtras() {
+    const x = (this.extra = {});
+    // كلام الركاب: نويز في نطاق الصوت البشري بيتعدّل ببطء (همهمة)
+    const n = this._loop(this.brownBuf);
+    const f1 = this._filter('bandpass', 520, 2.2), f2 = this._filter('bandpass', 1300, 3);
+    x.chatter = this._gain(0);
+    const mod = this._gain(0.5);
+    x.chatLfo = this._osc('sine', 2.3);
+    const lfoAmt = this._gain(0.5);
+    x.chatLfo.connect(lfoAmt).connect(mod.gain);
+    n.connect(f1).connect(mod); n.connect(f2).connect(mod);
+    mod.connect(x.chatter).connect(this.master);
+    // صفير جير الريوس
+    x.rev = this._osc('sine', 600);
+    x.revG = this._gain(0);
+    x.rev.connect(x.revG).connect(this.master);
+    // صاج بيتزحلق على الأسفلت
+    const n2 = this._loop(this.noiseBuf);
+    x.scrapeG = this._gain(0);
+    n2.connect(this._filter('bandpass', 3200, 1.5)).connect(x.scrapeG).connect(this.master);
+    x.scrapeTone = this._osc('sawtooth', 180);
+    const st = this._gain(0.08);
+    x.scrapeTone.connect(this._filter('bandpass', 900, 6)).connect(st).connect(x.scrapeG);
+  }
+
+  /** مارش + دوران الموتور أول ما تبدأ */
+  engineStart() {
+    if (!this.started) return;
+    const ctx = this.ctx, t = ctx.currentTime;
+    const o = this._osc('sawtooth', 9);
+    o.frequency.setValueAtTime(9, t); o.frequency.linearRampToValueAtTime(14, t + 0.9);
+    const lp = this._filter('lowpass', 500, 2);
+    const g = this._gain(0); g.gain.linearRampToValueAtTime(0.3, t + 0.05); g.gain.setValueAtTime(0.3, t + 0.85); g.gain.exponentialRampToValueAtTime(0.001, t + 1.1);
+    o.connect(lp).connect(g).connect(this.master); o.stop(t + 1.2);
+    // الموتور بيعلى بالراحة بعد المارش
+    if (this.engine?.out) { this.engine.out.gain.cancelScheduledValues(t); this.engine.out.gain.setValueAtTime(0, t); this._engineHold = t + 0.85; }
+  }
+
+  /** زجاج/فانوس بيتكسر */
+  glass() {
+    if (!this.started || this.muted) return;
+    const ctx = this.ctx, t = ctx.currentTime;
+    for (let i = 0; i < 6; i++) {
+      const tt = t + i * 0.03 + Math.random() * 0.03;
+      const o = this._osc('sine', 2500 + Math.random() * 3500);
+      const g = this._gain(0); g.gain.setValueAtTime(0.0001, tt); g.gain.linearRampToValueAtTime(0.12, tt + 0.005); g.gain.exponentialRampToValueAtTime(0.001, tt + 0.12 + Math.random() * 0.15);
+      o.connect(g).connect(this.master); o.stop(tt + 0.35);
+    }
+    const n = ctx.createBufferSource(); n.buffer = this.noiseBuf; n.start(t, Math.random());
+    const ng = this._gain(0.25); ng.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+    n.connect(this._filter('highpass', 3500, 0.7)).connect(ng).connect(this.master); n.stop(t + 0.35);
   }
 
   async _loadFiles() {
@@ -282,13 +338,19 @@ export class AudioSystem {
     o.connect(og).connect(this.master); o.stop(t + dur + 0.25);
   }
 
+  /** مستوى الصوت العام وصوت الموتور (0..1). 0.8 = المستوى الأصلي */
+  setVolumes(master, engine) {
+    this.vol = { master, engine };
+    if (this.master && !this.muted) this.master.gain.setTargetAtTime(0.62 * master / 0.8, this.ctx.currentTime, 0.05);
+  }
+
   toggleMute() {
     this.muted = !this.muted;
-    if (this.master) this.master.gain.setTargetAtTime(this.muted ? 0 : 0.62, this.ctx.currentTime, 0.05);
+    if (this.master) this.master.gain.setTargetAtTime(this.muted ? 0 : 0.62 * (this.vol?.master ?? 0.8) / 0.8, this.ctx.currentTime, 0.05);
     return this.muted;
   }
 
-  update(dt, { player, camera, traffic, inside, horn }) {
+  update(dt, { player, camera, traffic, inside, horn, passengers }) {
     if (!this.started) return;
     const ctx = this.ctx, t = ctx.currentTime;
     const ph = player.physics;
@@ -311,7 +373,7 @@ export class AudioSystem {
     const rpm = ph.rpm, thr = ph.throttle;
     const camDist = camera.position.distanceTo(player.rig.root.position);
     const distAtt = inside ? 1 : Math.min(1, 6 / Math.max(3, camDist));
-    set(e.out.gain, (inside ? 0.5 : 0.42) * distAtt * (0.75 + thr * 0.35));
+    if (!(this._engineHold && t < this._engineHold)) set(e.out.gain, (inside ? 0.5 : 0.42) * distAtt * (0.75 + thr * 0.35) * (this.vol?.engine ?? 0.8) / 0.8);
     if (e.file) {
       set(e.file.playbackRate, 0.6 + rpm / 2200);
     } else {
@@ -342,6 +404,20 @@ export class AudioSystem {
     set(tr.windG.gain, Math.min(0.12, (ph.speed * ph.speed) / 4000) * (inside ? 0.6 : 1));
     const squeal = ph.brake > 0.3 && ph.speed > 0.5 && ph.speed < 4 ? 0.025 : 0;
     set(tr.brakeG.gain, squeal * distAtt, 0.08);
+
+    // ونس الركاب / ريوس / احتكاك صاج
+    const x = this.extra;
+    if (x) {
+      const pax = passengers || 0;
+      set(x.chatter.gain, Math.min(0.09, pax * 0.008) * (inside ? 1 : 0.25), 0.4);
+      set(x.chatLfo.frequency, 1.6 + Math.sin(t * 0.37) * 0.8 + Math.sin(t * 1.3) * 0.4, 0.3);
+      const rv = ph.gearMode === 'R' ? Math.min(1, Math.abs(ph.forwardSpeed) / 4) : 0;
+      set(x.revG.gain, rv * 0.03 * distAtt, 0.08);
+      set(x.rev.frequency, 380 + Math.abs(ph.forwardSpeed) * 260, 0.05);
+      const scrape = ph.flip?.mode && Math.abs(Math.atan2(Math.sin(ph.flip.theta), Math.cos(ph.flip.theta))) > 0.9 ? Math.min(1, ph.speed / 6) : 0;
+      set(x.scrapeG.gain, scrape * 0.22 * distAtt, 0.05);
+      set(x.scrapeTone.frequency, 140 + ph.speed * 25, 0.05);
+    }
 
     // جوه/بره
     set(this.outside.frequency, inside ? 2200 : 18000, 0.1);

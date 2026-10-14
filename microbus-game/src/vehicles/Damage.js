@@ -140,7 +140,7 @@ export class Damage {
     // 4) إكصدام متدلدل
     if (speed >= 9.5 && (zone === 'front' || zone === 'rear')) this._hangBumper(zone, p.x);
     // 5) شرخ في الزجاج الأمامي
-    if (zone === 'front' && speed >= 8.5 && kind === 'hit') { this.crack = Math.min(2, this.crack + (speed > 14 ? 2 : 1)); this._updateCrack(); }
+    if (zone === 'front' && speed >= 8.5 && kind === 'hit') { if (!this.crack) this.onBreak?.(); this.crack = Math.min(2, this.crack + (speed > 14 ? 2 : 1)); this._updateCrack(); }
   }
 
   _decal(p, n, size, mat) {
@@ -192,6 +192,7 @@ export class Damage {
   _breakLight(key, p) {
     if (this.broken[key]) return;
     this.broken[key] = true;
+    this.onBreak?.();
     if (key.startsWith('head')) {
       const i = key === 'headL' ? 0 : 1;
       const l = this.player.headlights?.[i];

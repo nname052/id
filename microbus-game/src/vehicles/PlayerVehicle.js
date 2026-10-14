@@ -14,8 +14,9 @@ const _v1 = new THREE.Vector3(), _v2 = new THREE.Vector3(), _v3 = new THREE.Vect
 const GEAR_POS = { '-1': [0.05, -0.06], 0: [0, 0], 1: [-0.05, 0.06], 2: [-0.05, -0.06], 3: [0, 0.06], 4: [0, -0.06], 5: [0.05, 0.06] };
 
 export class PlayerVehicle {
-  constructor(scene, assets) {
+  constructor(scene, assets, opts = {}) {
     this.scene = scene;
+    this.lowPower = !!opts.lowPower;
     this.physics = new VehiclePhysics(MICROBUS_SPEC, groundHeight);
     this.rig = buildMicrobus({ interior: true });
     scene.add(this.rig.root);
@@ -79,7 +80,7 @@ export class PlayerVehicle {
   renderMirrors(renderer, scene, cameraPos) {
     if (!this.mirrorCams.length) return;
     // على الموبايل/الجودة الأقل: المرايات بتتحدّث كل كام فريم
-    const skip = (this.mirrorSkip || 0) + (this.lowPower ? 1 : 0);
+    const skip = (this.mirrorSkip || 0) + (this.mirrorQualitySkip ?? (this.lowPower ? 1 : 0));
     if (skip && (this._skipN = ((this._skipN || 0) + 1) % (skip + 1)) !== 0) return;
     // الجانبية ليها الأولوية: شمال، يمين، شمال، يمين، الداخلية
     if (!this._order) {
@@ -116,16 +117,41 @@ export class PlayerVehicle {
     }
   }
 
+  /** جودة المرايات: low | med | high (دقة الصورة + كل كام فريم بتتحدّث) */
+  setMirrorQuality(q) {
+    const scale = { low: 0.55, med: 0.78, high: 1 }[q] || 1;
+    this.mirrorQualitySkip = { low: 2, med: 1, high: 0 }[q] ?? 0;
+    for (const mc of this.mirrorCams || []) {
+      mc.base ||= [mc.rt.width, mc.rt.height];
+      mc.rt.setSize(Math.round(mc.base[0] * scale), Math.round(mc.base[1] * scale));
+    }
+  }
+
   _setupHeadlights() {
+    // الكشافات دايمًا "visible" وبنغير الشدة بس → مفيش إعادة بناء شيدرز (تقطيع) لما تولّعها
     this.headlights = [];
+    const sp = this.physics.spec, D = this.rig.dims, front = D ? D.frontF : 2.55, rear = D ? -D.rearF : 2.4;
     for (const sx of [-0.72, 0.72]) {
-      const l = new THREE.SpotLight(0xfff2d8, 0, 70, 0.5, 0.55, 1.6);
-      const sp = this.physics.spec, front = this.rig.dims ? this.rig.dims.frontF : 2.55;
-      l.position.set(sx * (this.rig.dims ? 0.85 : 1), 0.8 - sp.cgHeight, -front + 0.05);
-      l.target.position.set(sx * 1.5, -sp.cgHeight, -22);
-      l.visible = false;
+      const l = new THREE.SpotLight(0xfff0d6, 0, 95, 0.46, 0.65, 1.25);
+      l.position.set(sx * (D ? 0.85 : 1), 0.8 - sp.cgHeight, -front + 0.05);
+      l.target.position.set(sx * 1.2, -sp.cgHeight, -32);
       this.rig.body.add(l, l.target);
       this.headlights.push(l);
+    }
+    // نور الريوس: لمبتين بيض ورا (+ إضاءة خفيفة على الأرض على الكمبيوتر)
+    const rmat = new THREE.MeshStandardMaterial({ color: 0x777777, emissive: 0xffffff, emissiveIntensity: 0, transparent: true, opacity: 0.9, depthWrite: false });
+    this.reverseMat = rmat;
+    if (D) for (const sx of [-1, 1]) {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(0.1, 0.07), rmat);
+      m.position.set(sx * (D.HW - 0.07), 0.6, rear + 0.014);
+      this.rig.shell.add(m);
+    }
+    if (!this.lowPower) {
+      const rl = new THREE.SpotLight(0xffffff, 0, 18, 0.9, 0.8, 1.5);
+      rl.position.set(0, 0.6 - sp.cgHeight, rear);
+      rl.target.position.set(0, -sp.cgHeight, rear + 8);
+      this.rig.body.add(rl, rl.target);
+      this.reverseLight = rl;
     }
   }
 
@@ -139,8 +165,8 @@ export class PlayerVehicle {
 
   setHeadlights(on) {
     this.headOn = on;
-    for (const l of this.headlights) { const ok = on && !l.userData.broken; l.visible = ok; l.intensity = ok ? 220 : 0; }
-    this.rig.lights.head.emissiveIntensity = on ? 2.2 : 0.0;
+    for (const l of this.headlights) { const ok = on && !l.userData.broken; l.intensity = ok ? 380 : 0; }
+    this.rig.lights.head.emissiveIntensity = on ? 3.2 : 0.0;
     if (this.rig.lights.fog) this.rig.lights.fog.emissiveIntensity = on ? 1.5 : 0;
   }
 
@@ -270,6 +296,10 @@ export class PlayerVehicle {
       h.obj.rotation.set(s.ax, 0, s.az);
     }
     // فوانيس الفرامل
-    rig.lights.tail.emissiveIntensity = ph.brake > 0.05 || ph.handbrake > 0.1 ? 4 : this._night ? 1.2 : 0.15;
+    rig.lights.tail.emissiveIntensity = ph.brake > 0.05 || ph.handbrake > 0.1 ? 4 : this._night || this.headOn ? 1.2 : 0.15;
+    // نور الريوس
+    const rev = ph.gearMode === 'R' ? 1 : 0;
+    if (this.reverseMat) this.reverseMat.emissiveIntensity = rev * 2.5;
+    if (this.reverseLight) this.reverseLight.intensity = rev * (this._night ? 60 : 15);
   }
 }
