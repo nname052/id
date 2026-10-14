@@ -7,6 +7,8 @@
 """
 
 import argparse
+import re
+import time
 import json
 import shutil
 import subprocess
@@ -14,6 +16,7 @@ import sys
 import tarfile
 import tempfile
 import urllib.request
+import zipfile
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -27,7 +30,27 @@ NPM = {
     "undraw-svg": "2.0.0",
     "lucide-static": "1.56.0",
     "@tabler/icons": "3.49.0",
+    "gsap": "3.15.0",
+    "pixi.js": "8.22.0",
+    "pixi-filters": "6.1.5",
+    "three": "0.186.1",
+    "@rive-app/canvas-advanced": "2.44.2",
 }
+# حزم Kenney (CC0): رابط التنزيل بيتجاب من صفحة الحزمة نفسها، علشان الرابط فيه رقم بيتغيّر مع كل تحديث
+KENNEY_2D = ["toon-characters", "modular-characters", "shape-characters", "animal-pack"]
+KENNEY_3D = ["furniture-kit", "mini-characters"]
+# شخصيات 3D بنسب طبيعية وحركات جاهزة (كلها CC0)
+MODELS_3D = {
+    # مانيكان بنسب جسم طبيعية + 45 حركة (Quaternius Universal Animation Library)
+    "ual1": "https://opengameart.org/sites/default/files/universal_animation_librarystandard.zip",
+    # الجزء التاني: باركور، وقتال، وزراعة، وصيد، ومشية زومبي
+    "ual2": "https://opengameart.org/sites/default/files/universal_animation_library_2standard.zip",
+    # KayKit: فارس، وبربري، وساحر، ولص، فيهم 75 حركة
+    "kaykit-adventurers": "https://codeload.github.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0/zip/refs/heads/main",
+    # KayKit: أثاث أوض بنفس الستايل
+    "kaykit-furniture": "https://codeload.github.com/KayKit-Game-Assets/KayKit-Furniture-Bits-1.0/zip/refs/heads/main",
+}
+ROBOT_URL = "https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/models/gltf/RobotExpressive/RobotExpressive.glb"
 EMOJI_API = "https://googlefonts.github.io/noto-emoji-animation/data/api.json"
 EMOJI_URL = "https://fonts.gstatic.com/s/e/notoemoji/latest/{cp}/lottie.json"
 
@@ -49,6 +72,30 @@ def npm_unpack(name: str, version: str, dest: Path) -> Path:
                 m.name = m.name[len("package/"):]
                 tar.extract(m, target, filter="data")
     return target
+
+
+def download(url: str, dest: Path, tries: int = 4) -> Path:
+    """تنزيل بإعادة محاولة: المواقع ساعات بتقطع الاتصال في النص."""
+    for attempt in range(1, tries + 1):
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "tiktok-motion-assets"})
+            with urllib.request.urlopen(req, timeout=120) as r, open(dest, "wb") as f:
+                shutil.copyfileobj(r, f)
+            return dest
+        except Exception as e:
+            if attempt == tries:
+                raise
+            say(f"   ⚠️ {Path(url).name}: {e}، محاولة {attempt + 1}…")
+            time.sleep(3 * attempt)
+    return dest
+
+
+def kenney_zip(slug: str, dest: Path) -> Path:
+    page = urllib.request.urlopen(f"https://kenney.nl/assets/{slug}", timeout=60).read().decode("utf-8", "replace")
+    m = re.search(r"https://kenney\.nl/media/[^\"']+\.zip", page)
+    if not m:
+        raise RuntimeError(f"مش لاقي رابط تنزيل {slug}")
+    return download(m.group(0), dest)
 
 
 def fresh(path: Path) -> Path:
@@ -85,6 +132,85 @@ def main() -> None:
         vendor = fresh(ASSETS / "vendor")
         shutil.copy2(pkgs["lottie-web"] / "build/player/lottie_svg.min.js", vendor / "lottie_svg.min.js")
         shutil.copy2(pkgs["lottie-web"] / "LICENSE.md", vendor / "LICENSE-lottie-web.md")
+
+        # 1ب. مكتبات الحركة المتقدمة (كلها بتشتغل من غير build)
+        gsap = vendor / "gsap"
+        gsap.mkdir()
+        for f in ("gsap", "MotionPathPlugin", "MorphSVGPlugin", "DrawSVGPlugin", "CustomEase", "SplitText"):
+            shutil.copy2(pkgs["gsap"] / f"dist/{f}.min.js", gsap / f"{f}.min.js")
+        shutil.copy2(pkgs["pixi.js"] / "dist/pixi.min.js", vendor / "pixi.min.js")
+        shutil.copy2(pkgs["pixi-filters"] / "dist/pixi-filters.js", vendor / "pixi-filters.js")
+        three = vendor / "three"
+        three.mkdir()
+        for f in ("three.module.js", "three.core.js"):
+            shutil.copy2(pkgs["three"] / "build" / f, three / f)
+        shutil.copytree(pkgs["three"] / "examples/jsm", three / "addons")
+        rive = vendor / "rive"
+        rive.mkdir()
+        for f in ("canvas_advanced.mjs", "rive.wasm", "rive_fallback.wasm"):
+            shutil.copy2(pkgs["@rive-app/canvas-advanced"] / f, rive / f)
+        catalog["engines"] = {
+            "gsap": {"dir": "vendor/gsap/", "usage": "timeline({paused:true}) + seek(t). فيه MotionPath و MorphSVG و DrawSVG", "license": "GSAP Standard no-charge license"},
+            "pixi": {"files": ["vendor/pixi.min.js", "vendor/pixi-filters.js"], "usage": "إضاءة ومؤثرات (Godray, Glow, Bloom). الريندر يدوي في renderAt من غير ticker", "license": "MIT"},
+            "three": {"dir": "vendor/three/", "usage": "importmap: three → vendor/three/three.module.js، three/addons/ → vendor/three/addons/. AnimationMixer.setTime(t)", "license": "MIT"},
+            "rive": {"dir": "vendor/rive/", "usage": "canvas_advanced.mjs + rive.wasm. animation.advance لوقت محدد من 0", "license": "MIT (الملفات .riv كل واحد ليه رخصته)"},
+        }
+
+        # 1ج. موديلات 3D: أثاث، وشخصيات صغيرة، وشخصيات بنسب طبيعية فيها هيكل عظمي وحركات
+        models = fresh(ASSETS / "3d")
+        for slug in KENNEY_3D:
+            say(f"⏳ Kenney {slug}")
+            with zipfile.ZipFile(kenney_zip(slug, tmp / f"{slug}.zip")) as z:
+                for m in z.namelist():
+                    if m.lower().endswith(".glb") or ("/Textures/" in m and m.endswith(".png")):
+                        out = models / slug / ("Textures" if "/Textures/" in m else "") / Path(m).name
+                        out.parent.mkdir(parents=True, exist_ok=True)
+                        out.write_bytes(z.read(m))
+        for name, url in MODELS_3D.items():
+            say(f"⏳ {name}")
+            with zipfile.ZipFile(download(url, tmp / f"{name}.zip")) as z:
+                for m in z.namelist():
+                    keep = (m.endswith(".glb") and ("/Godot/" in m or "/Unreal-Godot/" in m)) if name.startswith("ual") else \
+                           ("/Characters/gltf/" in m and m.endswith((".glb", ".png"))) if name == "kaykit-adventurers" else \
+                           ("/gltf/" in m.lower() and m.lower().endswith((".gltf", ".glb", ".bin", ".png")))
+                    if keep or m.endswith("License.txt") or m.endswith("LICENSE.txt"):
+                        out = models / name / Path(m).name
+                        out.parent.mkdir(parents=True, exist_ok=True)
+                        out.write_bytes(z.read(m))
+        download(ROBOT_URL, models / "RobotExpressive.glb")
+        catalog["models3d"] = {
+            "license": "CC0 (Kenney، KayKit، Quaternius). حزم Quaternius: ممنوع إعادة توزيع الملفات نفسها، والفيديوهات مسموحة",
+            "furniture": {"kenney": sorted(p.name for p in (models / "furniture-kit").glob("*.glb")),
+                          "kaykit": sorted(p.name for p in (models / "kaykit-furniture").glob("*.gltf"))},
+            "characters": {
+                "mannequin (ual1/ual2)": "نسب طبيعية، 45 + حركات الجزء التاني في نفس الملف (AnimationLibrary_Godot_Standard.glb)",
+                "kaykit-adventurers": sorted(p.name for p in (models / "kaykit-adventurers").glob("*.glb")),
+                "kenney mini": sorted(p.name for p in (models / "mini-characters").glob("character-*.glb")),
+                "robot": "RobotExpressive.glb (Idle, Walking, Running, Dance, ThumbsUp, Wave, Yes, No…)",
+            },
+        }
+        say("✅ 3D: " + ", ".join(f"{d.name} ({sum(1 for _ in d.iterdir())})" for d in sorted(models.iterdir()) if d.is_dir()))
+
+        # 1د. شخصيات وأشكال 2D من Kenney (متقسمة أجزاء + وضعيات جاهزة)
+        art2d = fresh(ASSETS / "2d")
+        for slug in KENNEY_2D:
+            say(f"⏳ Kenney {slug}")
+            with zipfile.ZipFile(kenney_zip(slug, tmp / f"{slug}.zip")) as z:
+                for m in z.namelist():
+                    if m.endswith("/") or m.lower().endswith((".url", ".swf")) or "Spritesheet" in m or Path(m).name in ("Preview.png", "Sample.png"):
+                        continue
+                    out = art2d / slug / m
+                    out.parent.mkdir(parents=True, exist_ok=True)
+                    out.write_bytes(z.read(m))
+        toon = art2d / "toon-characters"
+        catalog["characters2d"] = {
+            "license": "CC0 (Kenney)",
+            "toon": {c.name: {"parts": sorted(p.stem for p in (c / "PNG/Parts").glob("*.png")),
+                              "poses": sorted(p.stem.split("_")[-1] for p in (c / "PNG/Poses").glob("*.png"))}
+                     for c in sorted(toon.iterdir()) if (c / "PNG/Parts").exists()},
+            "dirs": {slug: f"2d/{slug}/" for slug in KENNEY_2D},
+        }
+        say(f"✅ 2D: {len(catalog['characters2d']['toon'])} شخصية toon + modular + shape + animals")
 
         # 2. Open Peeps ← peeps.js
         peeps = fresh(ASSETS / "peeps")
