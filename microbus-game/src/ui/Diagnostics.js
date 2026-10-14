@@ -5,6 +5,9 @@ export class Diagnostics {
   constructor() {
     const el = (this.el = document.createElement('div'));
     el.id = 'diag';
+    // للناس اللي بتجرب: مخفية. بتظهر لو اللينك آخره #debug أو لو فيه مشكلة في تحميل العربية
+    this.visible = /debug/.test(location.hash);
+    el.hidden = !this.visible;
     document.body.appendChild(el);
     this.rows = { build: `BUILD: ${BUILD_ID}`, hiace: 'HIACE: LOADING…', left: 'LEFT MIRROR: —', right: 'RIGHT MIRROR: —' };
     this.state = {};
@@ -13,6 +16,7 @@ export class Diagnostics {
   }
 
   set(key, text, state) {
+    if (state === 'bad' && key === 'hiace') this.el.hidden = false;
     if (this.rows[key] === text && this.state[key] === state) return;
     this.rows[key] = text;
     this.state[key] = state;
