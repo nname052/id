@@ -1,3 +1,4 @@
+import { DieselEngine } from './DieselEngine.js';
 // الصوت: كله متولّد بالكود (Web Audio API) كـ Placeholder قانوني 100%:
 // موتور ديزل (Idle + RPM)، كاوتش بيصرخ، فرامل، كلاكس، دوشة شارع، عربيات حواليك (3D Spatial Audio).
 // لو حطيت ملفات صوت حقيقية في assets/audio هتتستخدم بدلها (شوف ASSETS.md).
@@ -91,6 +92,16 @@ export class AudioSystem {
     if (this.engine?.out) { this.engine.out.gain.cancelScheduledValues(t); this.engine.out.gain.setValueAtTime(0, t); this._engineHold = t + 0.85; }
   }
 
+  /** صرير المساعدين لما العربية تقف فجأة وتتهز */
+  _creak() {
+    if (!this.started || this.muted) return;
+    const ctx = this.ctx, t = ctx.currentTime;
+    const o = this._osc('sawtooth', 210);
+    o.frequency.setValueAtTime(230, t); o.frequency.linearRampToValueAtTime(170, t + 0.25);
+    const g = this._gain(0); g.gain.linearRampToValueAtTime(0.035, t + 0.05); g.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+    o.connect(this._filter('bandpass', 900, 4)).connect(g).connect(this.master); o.stop(t + 0.35);
+  }
+
   /** زجاج/فانوس بيتكسر */
   glass() {
     if (!this.started || this.muted) return;
@@ -145,7 +156,10 @@ export class AudioSystem {
       e.file.connect(e.out);
       return;
     }
-    // تشويه خفيف للخشونة
+    // موتور ديزل حقيقي من نبضات احتراق (DieselEngine)
+    e.diesel = new DieselEngine(ctx, e.out);
+    return;
+    // eslint-disable-next-line no-unreachable
     const shaper = ctx.createWaveShaper();
     const curve = new Float32Array(1024);
     for (let i = 0; i < 1024; i++) { const x = (i / 1023) * 2 - 1; curve[i] = Math.tanh(x * 2.2); }
@@ -191,6 +205,13 @@ export class AudioSystem {
     const n3 = this._loop(this.noiseBuf);
     t.windG = this._gain(0);
     n3.connect(this._filter('bandpass', 700, 0.5)).connect(t.windG).connect(this.master);
+    // احتكاك تيل الفرامل (خشخشة واطية بتعلى مع الضغط والسرعة)
+    const n4 = this._loop(this.brownBuf);
+    t.rubG = this._gain(0);
+    n4.connect(this._filter('bandpass', 420, 1.4)).connect(t.rubG).connect(this.master);
+    const n5 = this._loop(this.noiseBuf);
+    t.hissG = this._gain(0);
+    n5.connect(this._filter('bandpass', 2600, 2.5)).connect(t.hissG).connect(this.master);
     // صفارة فرامل
     t.brake = this._osc('sine', 2700);
     t.brakeG = this._gain(0);
@@ -376,6 +397,9 @@ export class AudioSystem {
     if (!(this._engineHold && t < this._engineHold)) set(e.out.gain, (inside ? 0.5 : 0.42) * distAtt * (0.75 + thr * 0.35) * (this.vol?.engine ?? 0.8) / 0.8);
     if (e.file) {
       set(e.file.playbackRate, 0.6 + rpm / 2200);
+    } else if (e.diesel) {
+      // الحِمل: البنزين + شوية لما العربية بتطلع مطلع أو بتشد
+      e.diesel.update(rpm, Math.min(1, thr * 1.1 + Math.max(0, ph.accelLong) * 0.03), 1, t, inside);
     } else {
       const fire = (rpm / 60) * 2;
       set(e.saw.frequency, fire); set(e.pulse.frequency, fire);
@@ -402,8 +426,15 @@ export class AudioSystem {
     set(this.echoFb.gain, tunnel ? 0.42 : 0, 0.2);
     set(this.echoWet.gain, tunnel ? 0.5 : 0, 0.2);
     set(tr.windG.gain, Math.min(0.12, (ph.speed * ph.speed) / 4000) * (inside ? 0.6 : 1));
-    const squeal = ph.brake > 0.3 && ph.speed > 0.5 && ph.speed < 4 ? 0.025 : 0;
+    // الفرامل: احتكاك + صفارة خفيفة قبل الوقوف + "طقة" العربية لما تقف ودايس فرامل
+    const bk = ph.brake * Math.min(1, ph.speed / 8);
+    set(tr.rubG.gain, bk * 0.22 * distAtt, 0.06);
+    set(tr.hissG.gain, bk * Math.min(1, ph.speed / 15) * 0.03 * distAtt, 0.06);
+    const squeal = ph.brake > 0.25 && ph.speed > 0.3 && ph.speed < 3.5 ? 0.02 + ph.brake * 0.02 : 0;
     set(tr.brakeG.gain, squeal * distAtt, 0.08);
+    set(tr.brake.frequency, 2500 + Math.sin(t * 7) * 120 + ph.speed * 60, 0.05);
+    if (ph.speed > 2) this._armStop = true;
+    if (this._armStop && ph.speed < 0.2 && ph.brake > 0.3) { this._armStop = false; this.thump(0.55); this._creak(); }
 
     // ونس الركاب / ريوس / احتكاك صاج
     const x = this.extra;

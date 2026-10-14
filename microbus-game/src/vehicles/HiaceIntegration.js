@@ -234,7 +234,7 @@ export function integrateHiace(rig, asset, spec, A) {
     face.userData.role = 'mirrorDark';
     holderM.add(face);
     rig.shell.add(holderM);
-    rig.mirrors.push({ holder: holderM, face, side: sx, aspect: w / h, fov: 31 }); // مراية مسطحة بزاوية أوسع شوية زي مرايات الميكروباص الحقيقية
+    rig.mirrors.push({ holder: holderM, face, side: sx, aspect: w / h, fov: 27 }); // مراية مسطحة بزاوية أوسع شوية زي مرايات الميكروباص الحقيقية
   }
 
   // ===== الشاسيه من تحت (الموديل مفتوح من تحت: بيبان لما العربية تتقلب) =====

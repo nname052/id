@@ -42,11 +42,12 @@ export class MirrorInsets {
     this.cam.right = W; this.cam.top = H; this.cam.updateProjectionMatrix();
     const touch = !!this.touch;
     // المقاس: على الموبايل بالعرض ~ ربع ارتفاع الشاشة ونص
-    const h = Math.round(Math.min(H * (touch ? 0.31 : 0.26), 170));
+    // مقاس المراية على الشاشة: أصغر (كانت بتاخد حتة كبيرة من الرؤية)
+    const h = Math.round(Math.min(H * (touch ? 0.23 : 0.2), 125));
     for (const it of this.items) {
-      const w = Math.round(h * Math.min(1.6, Math.max(0.55, it.aspect)));
+      const w = Math.round(h * Math.min(1.2, Math.max(0.55, it.aspect)));
       const left = it.mc.m.side < 0;
-      const top = touch ? 58 : Math.round(H * 0.3);
+      const top = touch ? 56 : Math.round(H * 0.32);
       const x = left ? 8 + w / 2 : W - 8 - w / 2;
       const y = H - top - h / 2;
       it.face.position.set(x, y, 0); it.face.scale.set(w, h, 1);

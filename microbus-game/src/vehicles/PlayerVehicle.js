@@ -4,7 +4,10 @@ import { buildMicrobus } from './MicrobusModel.js';
 import { analyzeVehicle, specFromModel, integrateHiace } from './HiaceIntegration.js';
 import { Damage } from './Damage.js';
 import { nearestSide } from '../world/RoadNetwork.js';
-import { PLAYER_START, ROAD, CROSSINGS } from '../world/layout.js';
+import { ROAD, CROSSINGS } from '../world/layout.js';
+import { TERMINAL } from '../world/Shibin.js';
+// البداية: راكن جوه موقف ميكروباص شبين الكوم ووشك ناحية شارع المحطة
+const PLAYER_START = { x: TERMINAL.x0 + 22.5, z: TERMINAL.z1 - 4.5, yaw: Math.PI / 2 }; // صف فاضي قدامه طريق الخروج
 import { groundHeight } from '../world/ground.js';
 import { loopProject, loopAt } from '../traffic/TrafficSystem.js';
 
@@ -68,7 +71,7 @@ export class PlayerVehicle {
       const pos = m.holder.position.clone();
       const toEye = eyeLocal.clone().sub(pos).normalize();
       // المرايات الجانبية متظبطة لبره شوية (جنب العربية يبان شريط رفيع بس، زي السواق الحقيقي)
-      const rear = new THREE.Vector3(m.side * (this.glbIntegrated ? 0.17 : 0.06), m.side ? -0.04 : -0.02, 1).normalize();
+      const rear = new THREE.Vector3(m.side * (this.glbIntegrated ? 0.2 : 0.06), m.side ? -0.07 : -0.02, 1).normalize();
       const n = toEye.add(rear).normalize();
       m.holder.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), n);
       const cam = new THREE.PerspectiveCamera(m.fov || 22, aspect, m.side === 0 ? 0.6 : 0.3, m.side === 0 ? 70 : 130);
