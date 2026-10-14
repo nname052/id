@@ -70,7 +70,7 @@ function taxiSign() {
   return taxiSignTex;
 }
 
-export function buildCar(type = 'sedan', color = 0xe8e8e4, { plate } = {}) {
+export function buildCar(type = 'sedan', color = 0xe8e8e4, { plate, profile } = {}) {
   if (type === 'microbus') {
     const rig = buildMicrobus({ interior: false, color, stripe: [0x2a6fb8, 0xb02a2a, 0x2a8a4a][Math.floor(Math.random() * 3)] });
     rig.length = 4.95; rig.width = 1.9; rig.brake = rig.mats.taillight; rig.wheelRadius = 0.33;
@@ -78,7 +78,7 @@ export function buildCar(type = 'sedan', color = 0xe8e8e4, { plate } = {}) {
     return rig;
   }
   const isTaxi = type === 'taxi';
-  const P = PROFILES[isTaxi ? (Math.random() < 0.5 ? 'sedan' : 'boxy') : type];
+  const P = PROFILES[profile || (isTaxi ? (Math.random() < 0.5 ? 'sedan' : 'boxy') : type)];
   const mats = vehicleMaterials(isTaxi ? 0xf2f2ee : color);
   mats.paint.roughness = 0.35 + Math.random() * 0.25; // تراب
   mats.taillight = mats.taillight.clone();
@@ -152,7 +152,7 @@ export function buildCar(type = 'sedan', color = 0xe8e8e4, { plate } = {}) {
   }
   // ضل ناعم تحت العربية (Fake AO)
   root.add(contactShadow(P.width + 0.3, P.length + 0.3));
-  return { root, body, wheels, mats, length: P.length, width: P.width, brake: mats.taillight, wheelRadius: P.R };
+  return { root, body, wheels, mats, length: P.length, width: P.width, brake: mats.taillight, wheelRadius: P.R, profile: P };
 }
 
 function randomPlate(taxi) {

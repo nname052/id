@@ -6,6 +6,36 @@ import { obbOverlap } from './Collision.js';
 
 const TIRE_K = 230000, TIRE_C = 900, WHEEL_M = 55; // كاوتش + كتلة العجلة والمحور (لكل عجلة)
 
+// تاكسي سيدان (1.6 بنزين)
+export const TAXI_SPEC_BASE = {
+  mass: 1180, inertiaYaw: 1850, inertiaPitch: 1750, inertiaRoll: 470, cgHeight: 0.52,
+  wheelBase: 2.64, cgToFront: 1.25, track: 1.44, wheelRadius: 0.3,
+  springK: 27000, damperBump: 2100, damperRebound: 2800, maxCompression: 0.12,
+  tireMu: 1.0, tireB: 8.5, tireC: 1.45, rearLatGrip: 1.0, slideMu: 0.75, rollingResistance: 0.013,
+  dragCoef: 0.42, brakeForce: 11500, brakeBiasFront: 0.65, handbrakeForce: 4200,
+  maxSteer: 0.6, steeringRatio: 15,
+  gears: [3.45, 1.95, 1.35, 1.0, 0.82], reverseRatio: 3.4, finalDrive: 4.1, drivetrainEff: 0.88,
+  idleRpm: 800, maxRpm: 6300, shiftTime: 0.35,
+  torqueCurve: [[700, 95], [2000, 128], [3500, 148], [4500, 152], [5500, 140], [6400, 115]],
+  halfWidth: 0.88, halfLength: 2.22, boxOffset: 0.07, roofHeight: 1.43,
+  antiRollK: 19000, antiRollC: 1900,
+};
+
+// توكتوك (باجاج 200 سي سي، 3 عجلات)
+export const TUKTUK_SPEC_BASE = {
+  mass: 430, inertiaYaw: 280, inertiaPitch: 300, inertiaRoll: 95, cgHeight: 0.62,
+  wheelBase: 2.0, cgToFront: 1.32, track: 1.16, trackFront: 0.06, wheelRadius: 0.2,
+  springK: 9500, damperBump: 750, damperRebound: 1000, maxCompression: 0.09,
+  tireMu: 0.92, tireB: 7, tireC: 1.4, rearLatGrip: 1.0, slideMu: 0.7, rollingResistance: 0.02,
+  dragCoef: 0.5, brakeForce: 3400, brakeBiasFront: 0.45, handbrakeForce: 1500,
+  maxSteer: 0.72, steeringRatio: 1.35, // جادون (handlebar) مش دركسيون: ±56 درجة
+  gears: [3.1, 1.95, 1.35, 0.98], reverseRatio: 3.2, finalDrive: 10.5, drivetrainEff: 0.85,
+  idleRpm: 1450, maxRpm: 7800, shiftTime: 0.3,
+  torqueCurve: [[1300, 10], [3000, 14.5], [5000, 16.5], [6500, 15.5], [7800, 11.5]],
+  halfWidth: 0.68, halfLength: 1.35, boxOffset: -0.12, roofHeight: 1.72,
+  antiRollK: 2600, antiRollC: 260,
+};
+
 export const MICROBUS_SPEC = {
   mass: 2500,              // كجم (ميكروباص هاي روف محمّل جزئيًا)
   inertiaYaw: 6600,
@@ -68,11 +98,11 @@ export class VehiclePhysics {
     this.spec = spec;
     this.groundHeight = groundHeight;
     const s = spec;
-    const a = s.cgToFront, b = s.wheelBase - s.cgToFront, t = s.track / 2;
-    // rx = يمين، rf = أمام (بالنسبة لمركز الثقل)
+    const a = s.cgToFront, b = s.wheelBase - s.cgToFront, t = s.track / 2, tf = (s.trackFront ?? s.track) / 2;
+    // rx = يمين، rf = أمام (بالنسبة لمركز الثقل). التوكتوك: عجلة واحدة قدام = trackFront صغير جدًا
     this.wheels = [
-      { id: 'FL', rx: -t, rf: a, front: true },
-      { id: 'FR', rx: t, rf: a, front: true },
+      { id: 'FL', rx: -tf, rf: a, front: true },
+      { id: 'FR', rx: tf, rf: a, front: true },
       { id: 'RL', rx: -t, rf: -b, front: false },
       { id: 'RR', rx: t, rf: -b, front: false },
     ].map((w) => ({
@@ -401,7 +431,7 @@ export class VehiclePhysics {
     // بداية انقلاب: العجلتين اللي فوق سابوا الأرض والميل كبير → فيزياء دوران حوالين الحرف
     if (Math.abs(this.roll) > 0.3) {
       const up = this.roll > 0 ? 1 : -1; // الجنب اللي طالع لفوق (+ = اليمين)
-      const lifted = this.wheels.filter((w) => Math.sign(w.rx) === up).every((w) => w.load < 40);
+      const lifted = this.wheels.filter((w) => Math.sign(w.rx) === up && Math.abs(w.rx) > 0.2).every((w) => w.load < 40 * (this.spec.mass / 2250));
       if (lifted && this.rollVel * up > -0.2) this._enterFlip();
     }
     // أمان: لو الجسم نزل تحت الأرض

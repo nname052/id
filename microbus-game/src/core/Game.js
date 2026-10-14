@@ -99,8 +99,11 @@ export class Game {
     S('تجهيز الميكروباص...', 0.72);
     await nextFrame();
     this.audio = new AudioSystem(this.assets);
-    this.player = new PlayerVehicle(this.scene, this.assets, { lowPower: this.mobile });
-    if (this.player.glbIntegrated) this.diag.set('hiace', 'HIACE: LOADED', 'ok');
+    this.settings = new Settings({ mobile: this.mobile });
+    this.audio.engineKind = this.settings.get('vehicle');
+    this.player = new PlayerVehicle(this.scene, this.assets, { lowPower: this.mobile, kind: this.settings.get('vehicle') });
+    if (this.player.kind !== 'microbus') this.diag.set('hiace', `VEHICLE: ${this.player.kind.toUpperCase()}`, 'ok');
+    else if (this.player.glbIntegrated) this.diag.set('hiace', 'HIACE: LOADED', 'ok');
     else {
       this.diag.set('hiace', `HIACE: FAILED — ${this.player.hiaceError}`, 'bad');
       const f = document.createElement('div');
@@ -128,9 +131,8 @@ export class Game {
     };
 
     this.input = new Input();
-    if (this.mobile) { document.body.classList.add('touch'); this.touch = new TouchControls(); this.input.touch = this.touch; }
+    if (this.mobile) { document.body.classList.add('touch'); this.touch = new TouchControls(); this.input.touch = this.touch; this.touch.maxWheel = this.player.physics.maxWheelAngle; }
     this.hud = new HUD();
-    this.settings = new Settings({ mobile: this.mobile });
     this.settings.mount(this.touch ? this.touch.root.querySelector('.t-top') : null);
     this.cams = new CameraSystem(this.camera, this.player, renderer.domElement);
     this.cams.settings = this.settings;
@@ -313,6 +315,7 @@ export class Game {
 
   _onTimeChange(p) {
     const night = !!p.night;
+    this._night = night || p.elevation < 8;
     this.player.setNight(night || p.elevation < 8);
     this.traffic?.setNight(night || p.elevation < 8);
     this.touch?.setLights(this.player.headOn);
@@ -322,9 +325,34 @@ export class Game {
     if (hm && hm !== 'auto') { this.player.setHeadlights(hm === 'on'); this.touch?.setLights(this.player.headOn); }
   }
 
+  /** تغيير نوع العربية (ميكروباص / تاكسي / توكتوك) في نفس المكان */
+  setVehicle(kind) {
+    if (!this.player || this.player.kind === kind) return;
+    const o = this.player.physics, at = { x: o.x, z: o.z, yaw: o.yaw };
+    const moved = this.started;
+    this.player.dispose();
+    this.player = new PlayerVehicle(this.scene, this.assets, { lowPower: this.mobile, kind });
+    this.player.lowPower = this.mobile;
+    if (moved) { this.player.physics.reset(at.x, at.z, at.yaw); this.player._savePrev(); }
+    this._wirePhysics();
+    this.cams.player = this.player; this.cams.snap = true;
+    this.mirrorInsets = new MirrorInsets(this.player, this.touch);
+    this.mirrorInsets.mode = this.settings.get('mirrorInsets');
+    this.passengers.setPlayer(this.player);
+    if (this.touch) this.touch.maxWheel = this.player.physics.maxWheelAngle;
+    for (const k of ['keySteer', 'mirrorQuality', 'seat', 'headlights']) this._applySetting(k, this.settings.get(k));
+    this.player.setNight(!!this._night);
+    if (this.settings.get('headlights') !== 'auto') this._applySetting('headlights', this.settings.get('headlights'));
+    this.audio.setEngineKind(kind);
+    this.diag.set('hiace', kind === 'microbus' ? (this.player.glbIntegrated ? 'HIACE: LOADED' : 'HIACE: FAILED') : `VEHICLE: ${kind.toUpperCase()}`, 'ok');
+    this.player.syncVisuals(0.016, 1);
+    if (this.player.damage) this.player.damage.onBreak = () => this.audio.glass();
+  }
+
   /** تطبيق إعداد (عند البداية ولما يتغير من اللوحة) */
   _applySetting(k, v) {
     switch (k) {
+      case 'vehicle': this.setVehicle(v); break;
       case 'mirrorInsets': this.mirrorInsets.mode = v; break;
       case 'keySteer': this.player.physics.keySens = +v; break;
       case 'seat': {

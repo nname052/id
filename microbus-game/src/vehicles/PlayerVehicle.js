@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { VehiclePhysics, MICROBUS_SPEC } from '../physics/VehiclePhysics.js';
+import { VehiclePhysics, MICROBUS_SPEC, TAXI_SPEC_BASE, TUKTUK_SPEC_BASE } from '../physics/VehiclePhysics.js';
+import { buildTaxiRig, buildTuktukRig } from './PlayerRigs.js';
 import { buildMicrobus } from './MicrobusModel.js';
 import { analyzeVehicle, specFromModel, integrateHiace } from './HiaceIntegration.js';
 import { Damage } from './Damage.js';
@@ -20,14 +21,22 @@ export class PlayerVehicle {
   constructor(scene, assets, opts = {}) {
     this.scene = scene;
     this.lowPower = !!opts.lowPower;
-    this.physics = new VehiclePhysics(MICROBUS_SPEC, groundHeight);
-    this.rig = buildMicrobus({ interior: true });
-    scene.add(this.rig.root);
+    this.kind = opts.kind || 'microbus';
     this.prev = { x: 0, z: 0, yaw: 0, heave: 0, pitch: 0, roll: 0 };
     this.gearVis = new THREE.Vector2();
     this.hbVis = 0;
     this.glbSteering = null;
-    this._applyGLB(assets?.get('microbus'), assets?.status?.microbus);
+    if (this.kind === 'taxi' || this.kind === 'tuktuk') {
+      const spec = { ...MICROBUS_SPEC, ...(this.kind === 'taxi' ? TAXI_SPEC_BASE : TUKTUK_SPEC_BASE) };
+      this.physics = new VehiclePhysics(spec, groundHeight);
+      this.rig = this.kind === 'taxi' ? buildTaxiRig(spec) : buildTuktukRig(spec);
+      scene.add(this.rig.root);
+    } else {
+      this.physics = new VehiclePhysics(MICROBUS_SPEC, groundHeight);
+      this.rig = buildMicrobus({ interior: true });
+      scene.add(this.rig.root);
+      this._applyGLB(assets?.get('microbus'), assets?.status?.microbus);
+    }
     this._setupMirrors();
     this._setupHeadlights();
     if (this.glbIntegrated) this.damage = new Damage(this);
@@ -296,6 +305,11 @@ export class PlayerVehicle {
       g.node.quaternion.copy(g.q0).multiply(_q2.setFromAxisAngle(g.axis, swa));
     }
 
+    // فوانيس الفرامل + الريوس (لكل العربيات)
+    rig.lights.tail.emissiveIntensity = ph.brake > 0.05 || ph.handbrake > 0.1 ? 4 : this._night || this.headOn ? 1.2 : 0.15;
+    const rev = ph.gearMode === 'R' ? 1 : 0;
+    if (this.reverseMat) this.reverseMat.emissiveIntensity = rev * 2.5;
+    if (this.reverseLight) this.reverseLight.intensity = rev * (this._night ? 60 : 15);
     if (!rig.gauges) return;
     // العدادات
     const a0 = Math.PI * 0.75, a1 = Math.PI * 2.25;
@@ -305,7 +319,7 @@ export class PlayerVehicle {
     if (rig.gauges.fuel) rig.gauges.fuel.pivot.rotation.z = needle(0.68);
     // الدواسات
     const k = Math.min(1, dt * 14);
-    const P = rig.pedals;
+    const P = rig.pedals || { gas: { rotation: {} }, brake: { rotation: {} } };
     P.gas.rotation.x += (-0.4 + ph.throttle * 0.32 - P.gas.rotation.x) * k;
     P.brake.rotation.x += (-0.4 + ph.brake * 0.3 - P.brake.rotation.x) * k;
     if (P.clutch) P.clutch.rotation.x += (-0.4 + (ph.shiftTimer > 0 ? 0.32 : 0) - P.clutch.rotation.x) * k;
@@ -315,7 +329,7 @@ export class PlayerVehicle {
       const idx = { R: 1, N: 2, D: 3 }[mode];
       const ty = rig.gearGate.top - idx * rig.gearGate.step;
       rig.gearGate.base.position.y += (ty - rig.gearGate.base.position.y) * Math.min(1, dt * 12);
-    } else {
+    } else if (rig.gearLever) {
       const gp = GEAR_POS[ph.shiftTimer > 0.15 ? 0 : ph.gear] || [0, 0];
       this.gearVis.x += (gp[0] - this.gearVis.x) * Math.min(1, dt * 10);
       this.gearVis.y += (gp[1] - this.gearVis.y) * Math.min(1, dt * 10);
@@ -324,7 +338,7 @@ export class PlayerVehicle {
     if (rig.gearDisplay && mode !== this._mode) { this._mode = mode; rig.gearDisplay.set(mode); }
     // فرامل اليد
     this.hbVis += (ph.handbrake - this.hbVis) * Math.min(1, dt * 12);
-    rig.handbrake.rotation.x = 0.15 + this.hbVis * 0.5;
+    if (rig.handbrake) rig.handbrake.rotation.x = 0.15 + this.hbVis * 0.5;
     // الحاجات المتعلقة (سبحة، عين زرقا): بندول بيتأثر بالتسارع والميل، كل واحدة بطولها
     const g = 9.81, hdt = Math.min(dt, 0.04);
     for (const h of rig.hangers || [{ obj: rig.sebha, L: 0.2 }]) {
@@ -333,11 +347,11 @@ export class PlayerVehicle {
       s.vz += (-(g / Lp) * Math.sin(s.az) - (ph.accelLat / Lp) * Math.cos(s.az) * 0.8 + ph.rollVel * 4) * hdt; s.vz *= 1 - 1.2 * hdt; s.az += s.vz * hdt;
       h.obj.rotation.set(s.ax, 0, s.az);
     }
-    // فوانيس الفرامل
-    rig.lights.tail.emissiveIntensity = ph.brake > 0.05 || ph.handbrake > 0.1 ? 4 : this._night || this.headOn ? 1.2 : 0.15;
-    // نور الريوس
-    const rev = ph.gearMode === 'R' ? 1 : 0;
-    if (this.reverseMat) this.reverseMat.emissiveIntensity = rev * 2.5;
-    if (this.reverseLight) this.reverseLight.intensity = rev * (this._night ? 60 : 15);
+  }
+
+  /** يشيل العربية من المشهد (لما تغيّر نوع العربية) */
+  dispose() {
+    this.rig.root.removeFromParent();
+    for (const mc of this.mirrorCams || []) mc.rt.dispose();
   }
 }

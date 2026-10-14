@@ -12,7 +12,20 @@ const game = new Game(document.getElementById('app'), (text, p) => {
 });
 window.game = game; // للتجربة من الـ Console
 
+// اختيار العربية من شاشة البداية (بيتحفظ في الإعدادات)
+const pick = document.getElementById('pick');
+let picked = (() => { try { return JSON.parse(localStorage.getItem('egy-microbus-settings-v1') || '{}').vehicle; } catch { return null; } })() || 'microbus';
+const syncPick = () => { for (const b of pick.children) b.classList.toggle('on', b.dataset.v === picked); };
+syncPick();
+pick.addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  picked = b.dataset.v; syncPick();
+  if (game.settings) game.settings.set('vehicle', picked);
+});
+
 game.init().then(() => {
+  game.settings.set('vehicle', picked);
+  if (game.player.kind !== picked) game.setVehicle(picked);
   go.disabled = false;
   go.focus();
 }).catch((e) => {

@@ -75,6 +75,17 @@ export class Passengers {
 
   get count() { return this.onboard.length; }
 
+  /** العربية اتغيرت: كراسي جديدة، والركاب اللي كانوا راكبين بينزلوا */
+  setPlayer(player) {
+    if (this.seatedMesh) { this.seatedMesh.removeFromParent(); this.seatedMesh = null; }
+    this.player = player;
+    this.seats = (player.rig.paxSeats || []).map((p) => ({ ...p, pax: null }));
+    this.capacity = this.seats.length;
+    this.onboard = [];
+    for (const w of this.walkers) if (w.state === 'toDoor') w.state = 'return';
+    this._updateHud();
+  }
+
   // ===== المواقف =====
   _buildStops() {
     this.stops = [];

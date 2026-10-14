@@ -121,3 +121,10 @@ body.touch #toast { top: 8px; }
 .set-card { touch-action: pan-y; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
 .set-group { margin: 6px 0 0; font: 700 13px 'Cairo', sans-serif; color: var(--accent); opacity: 0.9; border-top: 1px solid rgba(255, 255, 255, 0.1); padding-top: 8px; }
 .set-group:first-of-type { border-top: 0; padding-top: 0; }
+
+.pick { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 14px 0 0; }
+.pick button { display: grid; gap: 2px; justify-items: center; padding: 10px 6px; border-radius: 12px; border: 1.5px solid rgba(255, 255, 255, 0.15); background: rgba(255, 255, 255, 0.05); color: var(--fg); font: 600 14px 'Cairo', sans-serif; cursor: pointer; }
+.pick button b { font-size: 28px; line-height: 1.1; }
+.pick button small { font-size: 11px; opacity: 0.65; font-weight: 400; }
+.pick button.on { border-color: var(--accent); background: rgba(242, 179, 48, 0.16); }
+@media (max-height: 420px) { .pick button { padding: 5px 4px; } .pick button b { font-size: 20px; } #start h1 { font-size: 34px; } #start .sub { margin-bottom: 8px; } }

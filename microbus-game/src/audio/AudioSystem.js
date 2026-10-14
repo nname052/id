@@ -92,6 +92,15 @@ export class AudioSystem {
     if (this.engine?.out) { this.engine.out.gain.cancelScheduledValues(t); this.engine.out.gain.setValueAtTime(0, t); this._engineHold = t + 0.85; }
   }
 
+  /** نوع الموتور (ميكروباص/تاكسي/توكتوك) — بيتغير مع العربية */
+  setEngineKind(kind) {
+    this.engineKind = kind;
+    const e = this.engine;
+    if (!this.started || !e?.diesel) return;
+    e.diesel.dispose();
+    e.diesel = new DieselEngine(this.ctx, e.out, kind);
+  }
+
   /** صرير المساعدين لما العربية تقف فجأة وتتهز */
   _creak() {
     if (!this.started || this.muted) return;
@@ -157,7 +166,7 @@ export class AudioSystem {
       return;
     }
     // موتور ديزل حقيقي من نبضات احتراق (DieselEngine)
-    e.diesel = new DieselEngine(ctx, e.out);
+    e.diesel = new DieselEngine(ctx, e.out, this.engineKind || 'microbus');
     return;
     // eslint-disable-next-line no-unreachable
     const shaper = ctx.createWaveShaper();

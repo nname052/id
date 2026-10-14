@@ -5,6 +5,8 @@ const KEY = 'egy-microbus-settings-v1';
 
 // كل إعداد: نوعه (range/seg) وقيمه وقيمته الافتراضية. المجموعات للعرض بس.
 export const SCHEMA = [
+  { group: 'العربية' },
+  { key: 'vehicle', type: 'seg', label: 'بتسوق إيه؟', options: [['microbus', 'ميكروباص'], ['taxi', 'تاكسي'], ['tuktuk', 'توكتوك']], def: 'microbus' },
   { group: 'الكاميرا' },
   { key: 'fov', type: 'range', label: 'زاوية الرؤية من كرسي السواق', min: 55, max: 90, step: 1, fmt: (v) => `${v}°`, def: 62 },
   { key: 'seat', type: 'seg', label: 'مكان الكرسي (كاميرا السواق)', options: [['near', 'قريب'], ['normal', 'عادي'], ['back', 'لورا']], def: 'normal' },

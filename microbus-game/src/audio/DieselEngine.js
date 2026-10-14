@@ -3,15 +3,15 @@
 // خبطة واطية (العادم) + طقطقة ديزل (نويز مفلتر) + اختلافات صغيرة عشوائية بين السلندرات زي الموتور الحقيقي.
 // وقت التشغيل: بنشغل اللفات مع بعض وبنعمل crossfade + تغيير pitch حسب الـ RPM، وطبقة "حِمل" بتعلى مع البنزين.
 
-const CYL = 4;
 
 function rand(seed) { let s = seed >>> 0; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); }
 
 /** يرسم لفة صوت لموتور شغال على rpm معين. load: 0 = فاضي، 1 = بنزين على الآخر */
-function renderLoop(ctx, rpm, load, seed) {
+function renderLoop(ctx, rpm, load, seed, P) {
+  const CYL = P.cyl;
   const sr = ctx.sampleRate;
   const fireHz = (rpm / 60) * (CYL / 2);         // نبضات احتراق في الثانية
-  const cycles = 24;                              // عدد دورات الموتور (كل دورة = 4 نبضات)
+  const cycles = P.cyl === 1 ? 64 : 24;                              // عدد دورات الموتور (كل دورة = 4 نبضات)
   const pulses = cycles * CYL;
   const len = Math.round((pulses / fireHz) * sr);
   const buf = ctx.createBuffer(1, len, sr);
@@ -20,6 +20,7 @@ function renderLoop(ctx, rpm, load, seed) {
   // اختلاف ثابت لكل سلندر (موتور حقيقي مش متساوي)
   const cylAmp = [1, 0.86, 0.95, 0.8].map((a) => a * (0.93 + R() * 0.14));
   const cylTone = [1, 1.06, 0.97, 1.1];
+  if (P.cyl === 1) { cylAmp[0] = 1; cylTone[0] = 1; }
   const period = sr / fireHz;
   // 1) نبضات العادم (low thump) + طقطقة الحقن
   for (let p = 0; p < pulses; p++) {
@@ -27,7 +28,7 @@ function renderLoop(ctx, rpm, load, seed) {
     const jitter = (R() - 0.5) * period * 0.035;
     const t0 = Math.round(p * period + jitter);
     const amp = cylAmp[c] * (0.85 + R() * 0.3);
-    const f = (55 + rpm * 0.018) * cylTone[c];      // رنين أنبوبة العادم
+    const f = (P.thump + rpm * P.thumpRpm) * cylTone[c];      // رنين أنبوبة العادم
     const decay = 0.012 + 0.02 * (1 - Math.min(1, rpm / 3800));
     const nThump = Math.min(len, Math.round(period * 1.6));
     for (let i = 0; i < nThump; i++) {
@@ -37,7 +38,7 @@ function renderLoop(ctx, rpm, load, seed) {
       d[k] += amp * env * (Math.sin(2 * Math.PI * f * t) + 0.45 * Math.sin(2 * Math.PI * f * 2.03 * t + 0.6));
     }
     // طقطقة الديزل: نويز قصير عالي (أوضح على idle وتحت الحِمل)
-    const knock = (0.32 + 0.4 * load) * (rpm < 1200 ? 1.3 : 1) * amp;
+    const knock = P.knock * (0.32 + 0.4 * load) * (rpm < 1200 ? 1.3 : 1) * amp;
     const nK = Math.round(sr * 0.006);
     let lp = 0;
     for (let i = 0; i < nK; i++) {
@@ -56,8 +57,16 @@ function renderLoop(ctx, rpm, load, seed) {
   return { buf, rpm };
 }
 
+// أنواع الموتور: ديزل الهاي إس، بنزين التاكسي (من غير طقطقة)، والتوكتوك (سلندر واحد بيزن)
+export const ENGINE_TYPES = {
+  microbus: { cyl: 4, rpms: [780, 1400, 2200, 3200, 4200], thump: 55, thumpRpm: 0.018, knock: 1, tone: 1, turbo: 1 },
+  taxi: { cyl: 4, rpms: [800, 1800, 3000, 4500, 6200], thump: 70, thumpRpm: 0.022, knock: 0.12, tone: 1.5, turbo: 0 },
+  tuktuk: { cyl: 1, rpms: [1450, 3000, 4600, 6200, 7800], thump: 95, thumpRpm: 0.03, knock: 0.55, tone: 2.2, turbo: 0 },
+};
+
 export class DieselEngine {
-  constructor(ctx, out) {
+  constructor(ctx, out, kind = 'microbus') {
+    const P = (this.P = ENGINE_TYPES[kind] || ENGINE_TYPES.microbus);
     this.ctx = ctx;
     this.out = ctx.createGain();
     this.out.gain.value = 0;
@@ -65,11 +74,11 @@ export class DieselEngine {
     const lowShelf = ctx.createBiquadFilter(); lowShelf.type = 'lowshelf'; lowShelf.frequency.value = 160; lowShelf.gain.value = 5;
     this.tone = ctx.createBiquadFilter(); this.tone.type = 'lowpass'; this.tone.frequency.value = 2400; this.tone.Q.value = 0.5;
     this.out.connect(lowShelf).connect(this.tone).connect(out);
-    const RPMS = [780, 1400, 2200, 3200, 4200];
+    const RPMS = P.rpms;
     this.layers = [];
     RPMS.forEach((rpm, i) => {
       for (const load of [0, 1]) {
-        const { buf } = renderLoop(ctx, rpm, load, 1000 + i * 17 + load * 7);
+        const { buf } = renderLoop(ctx, rpm, load, 1000 + i * 17 + load * 7, P);
         const src = ctx.createBufferSource();
         src.buffer = buf; src.loop = true;
         const g = ctx.createGain(); g.gain.value = 0;
@@ -88,7 +97,7 @@ export class DieselEngine {
     const set = (p, v, tc = 0.04) => p.setTargetAtTime(v, t, tc);
     set(this.out.gain, gain, 0.06);
     // crossfade بين أقرب لفتين في الـ RPM، وبين فاضي/حِمل
-    const rpms = [780, 1400, 2200, 3200, 4200];
+    const rpms = this.P.rpms;
     let i = 0; while (i < rpms.length - 2 && rpm > rpms[i + 1]) i++;
     const f = Math.max(0, Math.min(1, (rpm - rpms[i]) / (rpms[i + 1] - rpms[i])));
     const L = Math.max(0, Math.min(1, load));
@@ -100,8 +109,15 @@ export class DieselEngine {
       set(ly.src.playbackRate, rpm / ly.rpm, 0.03);
     }
     // جوه الكابينة (الموتور تحت الكرسي في الهاي إس): أوطى وأتقل. برا: أوضح وفيه طقطقة
-    set(this.tone.frequency, inside ? 700 + rpm * 0.3 + L * 500 : 1500 + rpm * 0.5 + L * 1200, 0.08);
+    const tk = this.P.tone;
+    set(this.tone.frequency, (inside ? 700 + rpm * 0.3 + L * 500 : 1500 + rpm * 0.5 + L * 1200) * tk, 0.08);
     set(this.turbo.frequency, 1400 + rpm * 0.9, 0.2);
-    set(this.turboG.gain, gain * L * Math.max(0, rpm - 1700) / 2600 * 0.035, 0.25);
+    set(this.turboG.gain, this.P.turbo * gain * L * Math.max(0, rpm - 1700) / 2600 * 0.035, 0.25);
+  }
+
+  dispose() {
+    for (const ly of this.layers) { try { ly.src.stop(); } catch { /* */ } ly.src.disconnect(); }
+    try { this.turbo.stop(); } catch { /* */ }
+    this.out.disconnect(); this.turboG.disconnect();
   }
 }
