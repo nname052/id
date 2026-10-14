@@ -47,6 +47,18 @@ export function loopProject(x, z) {
   return { s: CITY_LEN + r.s, d: r.d };
 }
 
+const _lowCache = new Map();
+function lowWheelPart(geo, role) {
+  if (_lowCache.has(geo)) return _lowCache.get(geo);
+  if (!geo.boundingBox) geo.computeBoundingBox();
+  const bb = geo.boundingBox, r = bb.max.y, w = bb.max.x - bb.min.x, cx = (bb.max.x + bb.min.x) / 2;
+  const g = role === 'tire'
+    ? new THREE.CylinderGeometry(r, r, w * 0.92, 12, 1, true).rotateZ(Math.PI / 2).translate(cx, 0, 0)
+    : new THREE.CylinderGeometry(r * 0.98, r * 0.98, w * 0.5, 10).rotateZ(Math.PI / 2).translate(cx, 0, 0);
+  _lowCache.set(geo, g);
+  return g;
+}
+
 export class TrafficSystem {
   constructor(scene, lights, makeCar, audio, opts = {}) {
     this.scene = scene;
@@ -168,7 +180,8 @@ export class TrafficSystem {
       const b = this._parkB.get(role);
       const c = role === 'paint' ? o.material.color : null;
       b.setColor(c ? [c.r, c.g, c.b] : [1, 1, 1]);
-      b.addGeometry(o.geometry, o.matrixWorld);
+      // العربيات المركونة مش بتتحرك: عجل بسيط (أخف بكتير على الموبايل)
+      b.addGeometry(role === 'tire' || role === 'rim' ? lowWheelPart(o.geometry, role) : o.geometry, o.matrixWorld);
     });
   }
 

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { ROAD, CROSSINGS } from './layout.js';
+import { GeoBuilder } from '../render/GeoBuilder.js';
 
 // إشارة مرور حقيقية: أحمر → أخضر → أصفر → أحمر، لمجموعتين (الشارع الرئيسي / الجانبي)
 // مع فترة "أحمر للكل" للأمان. عربيات الـ AI بتقرا الحالة من هنا.
@@ -60,27 +61,16 @@ export class TrafficLights {
     }
   }
 
+  // كل الأجزاء بتتجمع: هيكل واحد + أعمدة واحد + 6 لمبات (لون × مجموعة) = 8 draw calls بس
   _head(group, x, y, z, ry, scale = 1) {
-    const g = new THREE.Group();
-    g.position.set(x, y, z);
-    g.rotation.y = ry;
-    g.scale.setScalar(scale);
-    const housing = new THREE.Mesh(new THREE.BoxGeometry(0.36, 1.05, 0.26), this.housingMat);
-    housing.castShadow = true;
-    g.add(housing);
-    const back = new THREE.Mesh(new THREE.BoxGeometry(0.6, 1.3, 0.03), this.housingMat);
-    back.position.z = -0.14;
-    g.add(back);
+    const base = new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), ry), new THREE.Vector3(scale, scale, scale));
+    const at = (px, py, pz) => new THREE.Matrix4().multiplyMatrices(base, new THREE.Matrix4().makeTranslation(px, py, pz));
+    this.B.housing.addGeometry(new THREE.BoxGeometry(0.36, 1.05, 0.26), base);
+    this.B.housing.addGeometry(new THREE.BoxGeometry(0.6, 1.3, 0.03), at(0, 0, -0.14));
     ['red', 'yellow', 'green'].forEach((c, i) => {
-      const lamp = new THREE.Mesh(this.lampGeo, this.mats[group][c]);
-      lamp.position.set(0, 0.33 - i * 0.33, 0.135);
-      g.add(lamp);
-      const visor = new THREE.Mesh(this.visorGeo, this.housingMat);
-      visor.position.set(0, 0.33 - i * 0.33 + 0.1, 0.2);
-      g.add(visor);
+      this.B[`${group}-${c}`].addGeometry(this.lampGeo, at(0, 0.33 - i * 0.33, 0.135));
+      this.B.housing.addGeometry(this.visorGeo, at(0, 0.33 - i * 0.33 + 0.1, 0.2));
     });
-    this.group.add(g);
-    return g;
   }
 
   _build() {
@@ -90,20 +80,16 @@ export class TrafficLights {
     const poleMat = new THREE.MeshStandardMaterial({ color: 0x9a9e9a, roughness: 0.5, metalness: 0.6 });
     this.lampGeo = new THREE.CircleGeometry(0.12, 20);
     this.visorGeo = new THREE.CylinderGeometry(0.14, 0.14, 0.2, 16, 1, true, Math.PI / 2, Math.PI).rotateX(Math.PI / 2);
+    this.B = { housing: new GeoBuilder(), poles: new GeoBuilder() };
+    for (const g of ['main', 'cross']) for (const col of ['red', 'yellow', 'green']) this.B[`${g}-${col}`] = new GeoBuilder();
     const h = ROAD.sidewalkHeight;
     const pole = (x, z, height = 5.6) => {
-      const p = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.12, height, 10), poleMat);
-      p.position.set(x, h + height / 2, z);
-      p.castShadow = true;
-      this.group.add(p);
+      this.B.poles.addGeometry(new THREE.CylinderGeometry(0.09, 0.12, height, 10), new THREE.Matrix4().makeTranslation(x, h + height / 2, z));
     };
     const arm = (x0, z0, x1, z1, y) => {
       const len = Math.hypot(x1 - x0, z1 - z0);
-      const a = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, len, 8), poleMat);
-      a.position.set((x0 + x1) / 2, y, (z0 + z1) / 2);
-      a.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(x1 - x0, 0, z1 - z0).normalize());
-      a.castShadow = true;
-      this.group.add(a);
+      const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(x1 - x0, 0, z1 - z0).normalize());
+      this.B.poles.addGeometry(new THREE.CylinderGeometry(0.07, 0.08, len, 8), new THREE.Matrix4().compose(new THREE.Vector3((x0 + x1) / 2, y, (z0 + z1) / 2), q, new THREE.Vector3(1, 1, 1)));
     };
     const cb = ROAD.curb + 0.6;
     // الشارع الرئيسي: اللي رايح -Z (x>0) بيشوف إشارة على يمينه قبل التقاطع + واحدة فوق الحارات
@@ -125,5 +111,11 @@ export class TrafficLights {
     pole(xE, zl, 6.3); arm(xE, zl, xE, c.z - 1.5, 6.1);
     this._head('cross', xE, h + 3.6, zl, Math.PI / 2);
     this._head('cross', xE, 5.45, c.z - 2.6, Math.PI / 2);
+    // نبني الـ Meshes
+    const housing = new THREE.Mesh(this.B.housing.build(), this.housingMat); housing.castShadow = true;
+    const poles = new THREE.Mesh(this.B.poles.build(), poleMat); poles.castShadow = true;
+    this.group.add(housing, poles);
+    for (const g of ['main', 'cross']) for (const col of ['red', 'yellow', 'green']) this.group.add(new THREE.Mesh(this.B[`${g}-${col}`].build(), this.mats[g][col]));
+    this.B = null;
   }
 }

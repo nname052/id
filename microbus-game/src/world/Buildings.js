@@ -178,7 +178,7 @@ export function buildOne(B, opts) {
     const lx = -W / 2 + 1 + R() * (W - 2), lz = -D + 1 + R() * (D - 3);
     tm.addGeometry(tankGeo, new THREE.Matrix4().makeTranslation(lx, H + 0.6, lz));
   }
-  const dishGeo = new THREE.SphereGeometry(0.42, 12, 5, 0, Math.PI * 2, 0, 0.75);
+  const dishGeo = new THREE.SphereGeometry(0.42, 8, 3, 0, Math.PI * 2, 0, 0.75);
   const dm = get('dish');
   const dishes = 1 + Math.floor(R() * 5);
   for (let t = 0; t < dishes; t++) {

@@ -389,6 +389,7 @@ export class Game {
     this.player.syncVisuals(dt, this.acc / FIXED_DT);
     this.cams.update(dt, input);
     this.peds.update(dt, this.camera.position, this.player.physics);
+    this.passengers.camPos = this.camera.position;
     if (this.started) this.passengers.update(dt, ph);
     this.env.update(this.player.rig.root.position);
 

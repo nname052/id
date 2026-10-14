@@ -242,8 +242,11 @@ export class Passengers {
     }
 
     // --- حركة كل الماشيين ---
+    const cam = this.camPos;
     for (const p of [...this.walkers]) {
       p.phase = (p.phase || 0) + dt;
+      // البعيدين مش بيترسموا (أداء)
+      if (cam) p.root.visible = (p.x - cam.x) ** 2 + (p.z - cam.z) ** 2 < 95 * 95;
       if (p.state === 'wait') {
         // بيبص ناحية الطريق، ولو العربية جاية بيشاور
         const dist = Math.hypot(p.x - vx, p.z - vz);

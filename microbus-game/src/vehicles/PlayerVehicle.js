@@ -71,7 +71,7 @@ export class PlayerVehicle {
       const rear = new THREE.Vector3(m.side * (this.glbIntegrated ? 0.11 : 0.06), m.side ? -0.06 : -0.02, 1).normalize();
       const n = toEye.add(rear).normalize();
       m.holder.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), n);
-      const cam = new THREE.PerspectiveCamera(m.fov || 22, aspect, m.side === 0 ? 0.6 : 0.3, 160);
+      const cam = new THREE.PerspectiveCamera(m.fov || 22, aspect, m.side === 0 ? 0.6 : 0.3, m.side === 0 ? 70 : 130);
       this.mirrorCams.push({ m, rt, cam, renders: 0, error: null, blank: false, checked: false });
     }
     this._mirrorFrame = 0;
@@ -96,10 +96,14 @@ export class PlayerVehicle {
     cam.position.copy(facePos);
     cam.up.set(0, 1, 0);
     cam.lookAt(_v4.copy(facePos).add(r));
+    // المرايات مش محتاجة تعيد رسم خريطة الضلال (أغلى جزء) — بتستخدم بتاعة الفريم
+    const sAuto = renderer.shadowMap.autoUpdate;
+    renderer.shadowMap.autoUpdate = false;
     try {
       renderer.setRenderTarget(rt);
       renderer.render(scene, cam);
       renderer.setRenderTarget(null);
+      renderer.shadowMap.autoUpdate = sAuto;
       mc.renders++;
       mc.error = null;
       // مرة واحدة: نتأكد إن الصورة اللي في المراية مش فاضية (للتشخيص)
@@ -113,6 +117,7 @@ export class PlayerVehicle {
       }
     } catch (e) {
       renderer.setRenderTarget(null);
+      renderer.shadowMap.autoUpdate = sAuto;
       mc.error = e?.message || String(e);
     }
   }
