@@ -20,7 +20,6 @@ export class PlayerVehicle {
     this.prev = { x: 0, z: 0, yaw: 0, heave: 0, pitch: 0, roll: 0 };
     this.gearVis = new THREE.Vector2();
     this.hbVis = 0;
-    this.sebha = { ax: 0, vx: 0, az: 0, vz: 0 };
     this.glbSteering = null;
     this._applyGLB(assets?.get('microbus'), assets?.status?.microbus);
     this._setupMirrors();
@@ -78,8 +77,12 @@ export class PlayerVehicle {
     // على الموبايل/الجودة الأقل: المرايات بتتحدّث كل كام فريم
     const skip = (this.mirrorSkip || 0) + (this.lowPower ? 1 : 0);
     if (skip && (this._skipN = ((this._skipN || 0) + 1) % (skip + 1)) !== 0) return;
-    const i = this._mirrorFrame++ % this.mirrorCams.length;
-    const mc = this.mirrorCams[i];
+    // الجانبية ليها الأولوية: شمال، يمين، شمال، يمين، الداخلية
+    if (!this._order) {
+      const L = this.mirrorCams.findIndex((c) => c.m.side === -1), R = this.mirrorCams.findIndex((c) => c.m.side === 1), I = this.mirrorCams.findIndex((c) => c.m.side === 0);
+      this._order = [L, R, L, R, I].filter((k) => k >= 0);
+    }
+    const mc = this.mirrorCams[this._order[this._mirrorFrame++ % this._order.length]];
     const { m, rt, cam } = mc;
     const facePos = m.face.getWorldPosition(_v1);
     const n = _v2.set(0, 0, 1).applyQuaternion(m.face.getWorldQuaternion(_q1));
@@ -229,11 +232,14 @@ export class PlayerVehicle {
     // فرامل اليد
     this.hbVis += (ph.handbrake - this.hbVis) * Math.min(1, dt * 12);
     rig.handbrake.rotation.x = 0.15 + this.hbVis * 0.5;
-    // السبحة (بندول بيتأثر بالتسارع)
-    const s = this.sebha, Lp = 0.2, g = 9.81;
-    s.vx += (-(g / Lp) * Math.sin(s.ax) + -(ph.accelLong / Lp) * Math.cos(s.ax) * 0.8) * dt; s.vx *= 1 - 1.2 * dt; s.ax += s.vx * dt;
-    s.vz += (-(g / Lp) * Math.sin(s.az) - (ph.accelLat / Lp) * Math.cos(s.az) * 0.8 + ph.rollVel * 4) * dt; s.vz *= 1 - 1.2 * dt; s.az += s.vz * dt;
-    rig.sebha.rotation.set(s.ax, 0, s.az);
+    // الحاجات المتعلقة (سبحة، عين زرقا): بندول بيتأثر بالتسارع والميل، كل واحدة بطولها
+    const g = 9.81, hdt = Math.min(dt, 0.04);
+    for (const h of rig.hangers || [{ obj: rig.sebha, L: 0.2 }]) {
+      const s = (h.st ||= { ax: 0, vx: 0, az: 0, vz: 0 }), Lp = h.L;
+      s.vx += (-(g / Lp) * Math.sin(s.ax) + -(ph.accelLong / Lp) * Math.cos(s.ax) * 0.8) * hdt; s.vx *= 1 - 1.2 * hdt; s.ax += s.vx * hdt;
+      s.vz += (-(g / Lp) * Math.sin(s.az) - (ph.accelLat / Lp) * Math.cos(s.az) * 0.8 + ph.rollVel * 4) * hdt; s.vz *= 1 - 1.2 * hdt; s.az += s.vz * hdt;
+      h.obj.rotation.set(s.ax, 0, s.az);
+    }
     // فوانيس الفرامل
     rig.lights.tail.emissiveIntensity = ph.brake > 0.05 || ph.handbrake > 0.1 ? 4 : this._night ? 1.2 : 0.15;
   }

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { GeoBuilder } from '../render/GeoBuilder.js';
+import { addCabAccessories } from './CabAccessories.js';
 import { canvas, tex, makeSeatFabric, makeGauge2, makeShiftGate } from '../render/textures.js';
 
 // =====================================================================
@@ -392,6 +393,10 @@ function buildHiaceInterior(group, rig, D) {
     sebha.add(new THREE.Mesh(g.build(), mats.decor));
   }
   group.add(sebha); rig.sebha = sebha;
+  // حاجات التابلوه + العين الزرقا
+  const acc = addCabAccessories(group, { DX, IW, dashTop, dashBackF, wbF, wbY, wtF, wtY, floorY, z });
+  rig.hangers = [{ obj: sebha, L: 0.2 }, ...acc.hangers];
+  rig.phoneScreen = acc.phoneScreen;
   // شماسات
   for (const sx of [-1, 1]) K('beige').addGeometry(new RoundedBoxGeometry(0.42, 0.018, 0.16, 2, 0.008), M4(sx * IW * 0.5, wtY - 0.04, z(wtF - 0.1), 0.4));
 

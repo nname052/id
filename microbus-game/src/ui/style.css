@@ -25,7 +25,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #141414; col
 kbd { display: inline-block; min-width: 26px; padding: 1px 7px; margin-left: 4px; border-radius: 6px; background: #2a2a2e; border: 1px solid #444; font: 600 13px system-ui, sans-serif; text-align: center; color: #fff; direction: ltr; }
 .hint { font-size: 13px; opacity: 0.6; margin-top: 12px; }
 
-#hud { position: fixed; left: 16px; bottom: 16px; z-index: 5; pointer-events: none; direction: ltr; }
+#hud { position: fixed; right: 16px; bottom: 16px; z-index: 5; pointer-events: none; direction: ltr; }
 .dash { display: flex; align-items: center; gap: 12px; background: var(--bg); padding: 10px 16px; border-radius: 14px; backdrop-filter: blur(6px); }
 .speed span { font: 800 40px/1 'Cairo', sans-serif; font-variant-numeric: tabular-nums; min-width: 64px; display: inline-block; text-align: right; }
 .speed small, .gear-box small { display: block; font-size: 11px; opacity: 0.6; text-align: center; }
@@ -41,7 +41,7 @@ kbd { display: inline-block; min-width: 26px; padding: 1px 7px; margin-left: 4px
 
 #toast { position: fixed; top: 18px; left: 50%; transform: translateX(-50%) translateY(-20px); background: var(--bg); padding: 8px 18px; border-radius: 10px; opacity: 0; transition: all 0.25s; z-index: 6; pointer-events: none; font-size: 17px; }
 #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-#fps { position: fixed; top: 10px; left: 10px; font: 600 13px monospace; background: var(--bg); padding: 3px 8px; border-radius: 6px; z-index: 6; direction: ltr; }
+#fps { position: fixed; bottom: 8px; left: 50%; transform: translateX(-50%); font: 600 13px monospace; background: var(--bg); padding: 3px 8px; border-radius: 6px; z-index: 6; direction: ltr; }
 #help { position: fixed; top: 14px; right: 14px; max-width: min(460px, calc(100vw - 28px)); background: var(--bg); padding: 10px 14px; border-radius: 12px; font-size: 13px; line-height: 1.8; z-index: 5; pointer-events: none; }
 #help b { display: block; color: var(--accent); }
 @media (max-width: 600px) { .keys { grid-template-columns: 1fr; } .rpm-wrap { display: none; } }
@@ -78,13 +78,13 @@ body.touch, body.touch #app canvas { touch-action: none; }
 .t-pedal.on { border-color: rgba(255, 255, 255, 0.6); }
 
 /* لوحة السرعة على الموبايل: فوق في النص */
-body.touch #hud { left: 50%; top: calc(6px + env(safe-area-inset-top, 0px)); bottom: auto; transform: translateX(-50%); }
+body.touch #hud { left: 50%; right: auto; bottom: calc(4px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); }
 body.touch .dash { padding: 4px 12px; gap: 10px; background: rgba(14, 14, 16, 0.45); }
 body.touch .speed span { font-size: 26px; min-width: 42px; }
 body.touch .gear-box span { font-size: 24px; }
 body.touch .rpm-wrap { width: 60px; display: block; }
 body.touch .steer-icon { display: none; }
-body.touch #toast { top: 54px; }
+body.touch #toast { top: 8px; }
 #hud-gear.R { color: #ff6a4d; } #hud-gear.N { color: #cfcfcf; }
 #rotate { position: fixed; inset: 0; z-index: 20; display: none; place-items: center; text-align: center; background: #141414; color: #f4f1ea; font: 700 20px 'Cairo', sans-serif; padding: 24px; }
 @media (orientation: portrait) and (pointer: coarse) { body.touch #rotate { display: grid; } }
@@ -93,6 +93,24 @@ body.touch #toast { top: 54px; }
 @media (pointer: coarse) { .mobile-hint { display: block; color: var(--accent); opacity: 0.95; } }
 .credit { font-size: 11px; opacity: 0.45; direction: ltr; }
 /* تشخيص مؤقت */
-#diag { position: fixed; z-index: 30; left: calc(8px + env(safe-area-inset-left, 0px)); top: calc(46px + env(safe-area-inset-top, 0px)); font: 600 10px/1.45 ui-monospace, monospace; color: #e8e8e8; background: rgba(0, 0, 0, 0.55); padding: 4px 7px; border-radius: 6px; pointer-events: none; direction: ltr; text-align: left; max-width: 46vw; }
+#diag { position: fixed; z-index: 30; left: calc(8px + env(safe-area-inset-left, 0px)); top: calc(6px + env(safe-area-inset-top, 0px)); font: 600 9px/1.4 ui-monospace, monospace; color: #e8e8e8; background: rgba(0, 0, 0, 0.55); padding: 4px 7px; border-radius: 6px; pointer-events: none; direction: ltr; text-align: left; max-width: 46vw; }
 #diag .ok { color: #6dff95; } #diag .bad { color: #ff6b5a; }
 #hiace-fail { position: fixed; inset: 0; z-index: 25; display: grid; place-items: center; background: rgba(60, 0, 0, 0.82); color: #fff; font: 700 16px 'Cairo', sans-serif; text-align: center; padding: 24px; direction: ltr; }
+
+/* ===== الإعدادات ===== */
+.set-btn { width: 42px; height: 42px; border-radius: 12px; border: 1.5px solid rgba(255, 255, 255, 0.22); color: #fff; background: rgba(18, 18, 22, 0.38); display: grid; place-items: center; padding: 0; cursor: pointer; pointer-events: auto; touch-action: none; }
+.set-btn svg { width: 58%; height: 58%; }
+.set-btn-fixed { position: fixed; z-index: 7; top: 74px; left: 8px; }
+#settings { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; background: rgba(0, 0, 0, 0.35); padding: 16px; touch-action: auto; }
+#settings.hidden { display: none; }
+.set-card { width: min(420px, 100%); max-height: 100%; overflow-y: auto; background: rgba(20, 20, 24, 0.94); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 14px; padding: 12px 16px 14px; color: var(--fg); display: grid; gap: 8px; font-size: 14px; }
+.set-head { display: flex; justify-content: space-between; align-items: center; }
+.set-head b { font-size: 17px; color: var(--accent); }
+.set-close { background: none; border: 0; color: #fff; font-size: 18px; width: 36px; height: 36px; cursor: pointer; }
+.set-row { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+.set-row output { font-variant-numeric: tabular-nums; color: var(--accent); font-weight: 700; direction: ltr; }
+#settings input[type="range"] { width: 100%; accent-color: var(--accent); height: 28px; touch-action: none; }
+.set-seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.set-seg button { border: 1px solid rgba(255, 255, 255, 0.2); background: rgba(255, 255, 255, 0.06); color: #fff; border-radius: 9px; padding: 7px 4px; font: 600 13px 'Cairo', sans-serif; cursor: pointer; }
+.set-seg button.on { background: var(--accent); color: #1a1408; border-color: transparent; }
+.set-note { margin: 0; font-size: 12px; opacity: 0.55; }

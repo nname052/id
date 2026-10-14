@@ -36,7 +36,7 @@ try {
 } catch { /* مش متاح */ }
 
 // منع سكرول/زووم/تحديد النص أثناء القيادة (موبايل)
-const stop = (e) => { if (e.cancelable) e.preventDefault(); };
+const stop = (e) => { if (e.cancelable && !e.target.closest?.('#settings')) e.preventDefault(); };
 document.addEventListener('touchmove', stop, { passive: false });
 document.addEventListener('gesturestart', stop, { passive: false });
 document.addEventListener('gesturechange', stop, { passive: false });

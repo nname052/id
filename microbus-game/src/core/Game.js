@@ -19,6 +19,8 @@ import { AssetManager, applyTextureOverrides } from '../assets/AssetManager.js';
 import { Input } from './Input.js';
 import { HUD } from '../ui/HUD.js';
 import { Diagnostics } from '../ui/Diagnostics.js';
+import { Settings } from '../ui/Settings.js';
+import { MirrorInsets } from '../ui/MirrorInsets.js';
 import { TouchControls, isTouchDevice } from '../ui/TouchControls.js';
 
 const FIXED_DT = 1 / 120;
@@ -119,7 +121,13 @@ export class Game {
     this.input = new Input();
     if (this.mobile) { document.body.classList.add('touch'); this.touch = new TouchControls(); this.input.touch = this.touch; }
     this.hud = new HUD();
+    this.settings = new Settings();
+    this.settings.mount(this.touch ? this.touch.root.querySelector('.t-top') : null);
     this.cams = new CameraSystem(this.camera, this.player, renderer.domElement);
+    this.cams.settings = this.settings;
+    this.mirrorInsets = new MirrorInsets(this.player, this.touch);
+    this.mirrorInsets.mode = this.settings.get('mirrorInsets');
+    this.settings.onChange((k, v) => { if (k === 'mirrorInsets') this.mirrorInsets.mode = v; });
     this.cams.mode = 3; // سينمائية ورا شاشة البداية
 
     // أنوار الشارع بالليل: عدد صغير من الأنوار بنحركها لأقرب أعمدة (أداء)
@@ -244,6 +252,7 @@ export class Game {
     this.camera.aspect = window.innerWidth / window.innerHeight;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this.mirrorInsets?.resize(window.innerWidth, window.innerHeight);
   }
 
   _onTimeChange(p) {
@@ -319,6 +328,7 @@ export class Game {
     if (inside) this.player.renderMirrors(this.renderer, this.scene, this.camera.position);
     this.diag.update(dt, this.player, inside);
     this.renderer.render(this.scene, this.camera);
+    if (this.mirrorInsets.update(this.camera, inside && this.started)) this.mirrorInsets.render(this.renderer);
   }
 }
 

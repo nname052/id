@@ -103,9 +103,8 @@ export class CameraSystem {
     this.shake = Math.max(0, this.shake - dt * 3);
 
     if (id === 'cockpit') {
-      // زاوية رؤية أفقية ثابتة ~100° (مناسبة لشاشات الموبايل العريضة والكمبيوتر)
-      const hf = THREE.MathUtils.degToRad(100);
-      cam.fov = THREE.MathUtils.clamp(THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(hf / 2) / cam.aspect)), 52, 74);
+      // زاوية الرؤية من الإعدادات (55°–90°، بتتحفظ)
+      cam.fov = this.settings ? this.settings.get('fov') : 62;
       cam.near = 0.04;
       // قصور الراس (head inertia): زنبرك بسيط
       const target = _v.set(
