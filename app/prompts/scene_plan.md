@@ -15,6 +15,8 @@
 - `cue_word`: كلمة من الجملة (زي ما هي مكتوبة) العنصر يظهر معاها.
 - `enter`: rise | pop | draw | fade | slide  (draw للأيقونات بس). `idle`: float | pulse | wobble | none.
 - `palette`: اختار واحدة تناسب الإحساس: warm | cool | night | fresh | bold.
+- `pace` (إيقاع الحركة في الفيديو كله): calm (هادي وناعم) | normal (متوسط) | energetic (سريع وحماسي). اتبع ذوق صاحب الفيديو وطلبه لو قال حاجة عن السرعة.
+- `text_size`: normal | large. اختار large لو صاحب الفيديو مهتم إن الكلام يبقى واضح وكبير على الموبايل.
 
 الجمل (رقم: نص):
 {sentences}

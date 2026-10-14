@@ -9,6 +9,8 @@ SCHEMA = {
     "type": "object",
     "properties": {
         "palette": {"type": "string", "enum": ["warm", "cool", "night", "fresh", "bold"]},
+        "pace": {"type": "string", "enum": ["calm", "normal", "energetic"]},
+        "text_size": {"type": "string", "enum": ["normal", "large"]},
         "scenes": {"type": "array", "minItems": 1, "maxItems": 20, "items": {
             "type": "object",
             "properties": {
@@ -26,7 +28,7 @@ SCHEMA = {
             "additionalProperties": False,
         }},
     },
-    "required": ["palette", "scenes"],
+    "required": ["palette", "pace", "text_size", "scenes"],
     "additionalProperties": False,
 }
 
@@ -70,7 +72,7 @@ def run(pid: str, instruction: str | None = None) -> None:
     data = ask(pid, "scenes", system, user, SCHEMA)
     used: set = set()
     scenes = [resolve(sc, used) | {"id": f"s{i + 1:02d}"} for i, sc in enumerate(data["scenes"])]
-    plan = {"palette_name": data["palette"], "palette": PALETTES[data["palette"]], "scenes": scenes,
+    plan = {"palette_name": data["palette"], "palette": PALETTES[data["palette"]], "pace": data["pace"], "text_size": data["text_size"], "scenes": scenes,
             "credits": assets.credits_for([s.get("asset") for s in scenes if s.get("asset")]),
             "raw": [{k: v for k, v in sc.items() if k in ("sentence_ids", "kind", "search", "headline")} for sc in data["scenes"]]}
     store.write_json(d / "scenes" / "plan.json", plan)

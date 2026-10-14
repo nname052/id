@@ -44,3 +44,6 @@ body.render #stage { transform: none !important; }
 #controls[hidden] { display: none; }
 .headline { white-space: nowrap; }
 [hidden] { display: none !important; }
+/* حجم كلام كبير (من الخطة حسب ذوقك): العنوان والترجمة أكبر */
+.large-text .headline { font-size: 132px; top: 1030px; }
+.large-text #subs { font-size: 62px; top: 1250px; }

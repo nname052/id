@@ -43,6 +43,7 @@
     </div>
   </details>
 
+  <div id="stylebox"></div>
   <div class="row" style="margin-top:20px">
     <span class="muted grow" id="cost"></span>
     <button class="primary" id="go">ابدأ ▶</button>
@@ -100,6 +101,11 @@
 
   api("/api/voices").then((v) => { voices = v; const cur = voices.find((x) => x.voice_id === voice.voice_id); if (cur) voice = cur; $("#vname").textContent = voice.name; checkVoice(); })
     .catch((e) => ($("#vname").textContent = "مقدرتش أحمّل الأصوات: " + e.message));
+  api("/api/style").then((d) => {
+    if (!d.profile) return;
+    const pts = d.profile.split("\n").filter((l) => l.trim()).length;
+    $("#stylebox").innerHTML = `<div class="note ok" style="margin-top:14px">✓ ذوقك هيتطبق على الفيديو ده (${pts} تفضيل): السكريبت، والمشاهد، والإيقاع، وحجم الكلام، والنطق. <a href="/style">شوفه أو عدّله</a></div>`;
+  });
   api("/api/usage").then((u) => { if (u.elevenlabs && u.elevenlabs.limit) $("#cost").textContent += ` (المتبقي ${(u.elevenlabs.limit - u.elevenlabs.used).toLocaleString("ar-EG")})`; });
 
   $("#go").onclick = async () => {

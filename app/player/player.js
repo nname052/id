@@ -13,7 +13,7 @@
   // أرقام عشوائية ثابتة (للحبيبات بس)
   const rand = (seed) => () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
 
-  let D, scenes = [], words = [], DURATION = 1;
+  let D, scenes = [], words = [], DURATION = 1, PACE = 1;
 
   // ---------- تجهيز ----------
   async function setup() {
@@ -22,6 +22,9 @@
     const stage = $("#stage");
     for (const [k, v] of Object.entries(P)) stage.style.setProperty(`--${k}`, v);
     words = D.words.words;
+    // إيقاع الحركة (من الخطة، حسب ذوقك): بيضرب في كل مدد الدخول والطفو
+    PACE = { calm: 1.35, normal: 1, energetic: 0.72 }[D.plan.pace] || 1;
+    if (D.plan.text_size === "large") stage.classList.add("large-text");
     DURATION = D.words.duration + 0.8;
     if (!D.settings.subtitles) $("#subs").style.display = "none";
 
@@ -80,7 +83,7 @@
       if (!sc.head) continue;
       sc.el.style.display = "";
       const max = 940, w = sc.head.scrollWidth;
-      if (w > max) sc.head.style.fontSize = Math.max(64, 112 * max / w) + "px";
+      if (w > max) sc.head.style.fontSize = Math.max(64, parseFloat(getComputedStyle(sc.head).fontSize) * max / w) + "px";
       if (sc.head.scrollWidth > max) { sc.head.style.whiteSpace = "normal"; sc.head.style.lineHeight = "1.1"; }
     }
     // الكلمة الكبيرة (نوع text): تصغر لحد ما تدخل في مكان البطل
@@ -130,14 +133,14 @@
       const on = t >= sc.start - 0.01 && t < sc.end + 0.35;
       sc.el.style.display = on ? "" : "none";
       if (!on) continue;
-      const out = easeInOut((t - sc.end) / 0.35);                 // خروج: طلوع لفوق + اختفاء
-      const into = easeOut((t - sc.start) / 0.3);
+      const out = easeInOut((t - sc.end) / (0.35 * PACE));                 // خروج: طلوع لفوق + اختفاء
+      const into = easeOut((t - sc.start) / (0.3 * PACE));
       sc.el.style.opacity = Math.min(into, 1 - out);
       sc.el.style.transform = `translateY(${-70 * out}px)`;
 
-      const p = clamp((t - sc.cue) / (sc.enter === "draw" ? 1.0 : 0.6));
+      const p = clamp((t - sc.cue) / ((sc.enter === "draw" ? 1.0 : 0.6) * PACE));
       sc.hero.style.opacity = sc.enter === "fade" ? easeOut(p) : clamp(p * 3);
-      sc.hero.style.transform = `${enterStyle(sc.enter, p)} ${p >= 1 ? idleStyle(sc.idle, t - sc.cue) : ""}`;
+      sc.hero.style.transform = `${enterStyle(sc.enter, p)} ${p >= 1 ? idleStyle(sc.idle, (t - sc.cue) / PACE) : ""}`;
       if (sc.paths) sc.paths.forEach((el) => (el.style.strokeDashoffset = sc.enter === "draw" ? el.dataset.len * (1 - easeInOut(p)) : 0));
       if (sc.anim) { const fr = sc.anim.frameRate || 30; sc.anim.goToAndStop(((Math.max(0, t - sc.cue) * fr) % sc.anim.totalFrames), true); }
       if (sc.num) {
@@ -145,7 +148,7 @@
         sc.hero.textContent = sc.num.pre + v.toFixed(sc.num.dec) + sc.num.post;
       }
       if (sc.head) {
-        const hp = easeOut((t - sc.start - 0.15) / 0.45);
+        const hp = easeOut((t - sc.start - 0.15 * PACE) / (0.45 * PACE));
         sc.head.style.opacity = hp;
         sc.head.style.transform = `translateY(${(1 - hp) * 40}px)`;
         const hl = $(".hl", sc.head);
