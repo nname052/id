@@ -96,6 +96,7 @@ export class Multiplayer {
         }).catch(() => {});
       }
     }
+    this._myLabel();
     // عربيات اللاعبين التانيين
     const seen = new Set();
     for (const p of this.others()) {
@@ -118,6 +119,21 @@ export class Multiplayer {
       this._pose(R, c, dt, pr);
     }
     for (const [peer, R] of this.remotes) if (!seen.has(peer)) { this._drop(R); this.remotes.delete(peer); }
+  }
+
+  /** اسمك ورقمك فوق عربيتك إنت كمان (بيبان في كاميرا بره وفي اللعب لوحدك) */
+  _myLabel() {
+    const g = this.game, root = g.player?.rig?.root;
+    const name = (this.me.name || '').trim();
+    const key = root && (name || this.me.seat) ? `${this.me.seat}|${name}|${g.player.kind}` : '';
+    if (key === this._myKey && (!this._mine || this._mine.parent === root)) return;
+    this._myKey = key;
+    if (this._mine) { this._mine.removeFromParent(); this._mine.material.map.dispose(); this._mine.material.dispose(); this._mine = null; }
+    if (!key) return;
+    const l = labelSprite(this.me.seat || '•', name);
+    l.position.y = LABEL_Y[g.player.kind] ?? 2.75;
+    root.add(l);
+    this._mine = l;
   }
 
   _make(peer, kind, seat, name) {

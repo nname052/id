@@ -87,7 +87,8 @@ body.touch .steer-icon { display: none; }
 body.touch #toast { top: 8px; }
 #hud-gear.R { color: #ff6a4d; } #hud-gear.N { color: #cfcfcf; }
 #rotate { position: fixed; inset: 0; z-index: 20; display: none; place-items: center; text-align: center; background: #141414; color: #f4f1ea; font: 700 20px 'Cairo', sans-serif; padding: 24px; }
-@media (orientation: portrait) and (pointer: coarse) { body.touch #rotate { display: grid; } }
+/* شاشة "لف التليفون" بتظهر بس بعد ما تدوس ابدأ: شاشة البداية شغالة بالطول عادي */
+@media (orientation: portrait) and (pointer: coarse) { body.touch.playing #rotate { display: grid; } }
 @media (pointer: coarse) { .keys { display: none; } }
 .mobile-hint { display: none; }
 @media (pointer: coarse) { .mobile-hint { display: block; color: var(--accent); opacity: 0.95; } }

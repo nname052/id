@@ -86,6 +86,12 @@ const begin = async () => {
   }
   game.mp?.setMe({ seat: me.seat, name: me.name, kind: picked });
   start.classList.add('hidden');
+  document.body.classList.add('playing');
+  // على الموبايل: نحاول نقلب الشاشة بالعرض لوحدنا (أندرويد بيسمح من Fullscreen، الآيفون لأ → بتظهر رسالة "لف التليفون")
+  if (document.body.classList.contains('touch')) {
+    const el = document.documentElement;
+    Promise.resolve(el.requestFullscreen?.({ navigationUI: 'hide' })).then(() => screen.orientation?.lock?.('landscape')).catch(() => {});
+  }
   await game.start();
 };
 go.addEventListener('click', begin);

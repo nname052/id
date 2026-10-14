@@ -623,7 +623,7 @@ export class VehiclePhysics {
         const impactSpeed = vn;
         this.lastImpact = Math.max(this.lastImpact, impactSpeed);
         if (this.onImpact) this.onImpact(impactSpeed, px, pz, other, nx, nz);
-        if (other.onHit) other.onHit(j / s.mass);
+        if (other.onHit) other.onHit(j / s.mass, nx * j - tx * jt, nz * j - tz * jt, px, pz); // الدفعة اللي راحت للجسم التاني
       }
     }
   }

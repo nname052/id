@@ -59,9 +59,9 @@ function renderLoop(ctx, rpm, load, seed, P) {
 
 // أنواع الموتور: ديزل الهاي إس، بنزين التاكسي (من غير طقطقة)، والتوكتوك (سلندر واحد بيزن)
 export const ENGINE_TYPES = {
-  microbus: { cyl: 4, rpms: [780, 1400, 2200, 3200, 4200], thump: 55, thumpRpm: 0.018, knock: 1, tone: 1, turbo: 1 },
+  microbus: { cyl: 4, rpms: [780, 1400, 2200, 3200, 4200], thump: 52, thumpRpm: 0.018, knock: 1.35, tone: 1, turbo: 1, rattle: 1, rough: 1 },
   taxi: { cyl: 4, rpms: [800, 1800, 3000, 4500, 6200], thump: 70, thumpRpm: 0.022, knock: 0.12, tone: 1.5, turbo: 0 },
-  tuktuk: { cyl: 1, rpms: [1450, 3000, 4600, 6200, 7800], thump: 95, thumpRpm: 0.03, knock: 0.55, tone: 2.2, turbo: 0 },
+  tuktuk: { cyl: 1, rpms: [1450, 3000, 4600, 6200, 7800], thump: 95, thumpRpm: 0.03, knock: 0.55, tone: 2.2, turbo: 0, rattle: 0.7, rough: 0.6 },
 };
 
 export class DieselEngine {
@@ -74,6 +74,27 @@ export class DieselEngine {
     const lowShelf = ctx.createBiquadFilter(); lowShelf.type = 'lowshelf'; lowShelf.frequency.value = 160; lowShelf.gain.value = 5;
     this.tone = ctx.createBiquadFilter(); this.tone.type = 'lowpass'; this.tone.frequency.value = 2400; this.tone.Q.value = 0.5;
     this.out.connect(lowShelf).connect(this.tone).connect(out);
+    this.lowShelf = lowShelf;
+    // ميكروباص مصري قديم: الصاج والباب الجرار والشبابيك بيتكتكوا مع رجّة الموتور (أعلى حاجة وهو واقف)
+    if (P.rattle) {
+      const n = ctx.sampleRate * 2, b = ctx.createBuffer(1, n, ctx.sampleRate), d = b.getChannelData(0);
+      let k = 0;
+      for (let i = 0; i < n; i++) { // تكّات قصيرة متفرقة (مش نويز ناعم)
+        if (Math.random() < 0.0016) k = 0.6 + Math.random() * 0.4;
+        d[i] = (Math.random() * 2 - 1) * k; k *= 0.985;
+      }
+      this.rattleSrc = ctx.createBufferSource(); this.rattleSrc.buffer = b; this.rattleSrc.loop = true;
+      const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1900; bp.Q.value = 1.4;
+      const bp2 = ctx.createBiquadFilter(); bp2.type = 'peaking'; bp2.frequency.value = 3400; bp2.gain.value = 6;
+      this.rattleMod = ctx.createGain(); this.rattleMod.gain.value = 0.5;
+      this.rattleG = ctx.createGain(); this.rattleG.gain.value = 0;
+      // بتنبض مع الاحتراق
+      this.rattleLfo = ctx.createOscillator(); this.rattleLfo.type = 'square'; this.rattleLfo.frequency.value = 26;
+      const depth = ctx.createGain(); depth.gain.value = 0.45;
+      this.rattleLfo.connect(depth).connect(this.rattleMod.gain);
+      this.rattleSrc.connect(bp).connect(bp2).connect(this.rattleMod).connect(this.rattleG).connect(out);
+      this.rattleSrc.start(); this.rattleLfo.start();
+    }
     const RPMS = P.rpms;
     this.layers = [];
     RPMS.forEach((rpm, i) => {
@@ -93,8 +114,10 @@ export class DieselEngine {
     this.turbo.connect(this.turboG).connect(out); this.turbo.start();
   }
 
-  update(rpm, load, gain, t, inside = false) {
+  update(rpm, load, gain, t, inside = false, bump = 0) {
     const set = (p, v, tc = 0.04) => p.setTargetAtTime(v, t, tc);
+    // الـ idle مش ثابت في موتور قديم: بيتهز شوية
+    if (this.P.rough && rpm < 1200) rpm += (Math.sin(t * 2.9) * 14 + Math.sin(t * 7.7) * 8 + Math.sin(t * 0.83) * 10) * this.P.rough * (1200 - rpm) / 420;
     set(this.out.gain, gain, 0.06);
     // crossfade بين أقرب لفتين في الـ RPM، وبين فاضي/حِمل
     const rpms = this.P.rpms;
@@ -112,12 +135,20 @@ export class DieselEngine {
     const tk = this.P.tone;
     set(this.tone.frequency, (inside ? 700 + rpm * 0.3 + L * 500 : 1500 + rpm * 0.5 + L * 1200) * tk, 0.08);
     set(this.turbo.frequency, 1400 + rpm * 0.9, 0.2);
+    // العادم بيزوم أكتر لما تدوس
+    set(this.lowShelf.gain, 4 + L * 5, 0.15);
+    if (this.rattleG) {
+      const idle = Math.max(0, 1 - (rpm - 750) / 1300);
+      set(this.rattleG.gain, this.P.rattle * gain * (0.05 + idle * 0.13 + bump * 0.35) * (inside ? 1.25 : 0.55), 0.08);
+      set(this.rattleLfo.frequency, (rpm / 60) * 2, 0.05);
+    }
     set(this.turboG.gain, this.P.turbo * gain * L * Math.max(0, rpm - 1700) / 2600 * 0.035, 0.25);
   }
 
   dispose() {
     for (const ly of this.layers) { try { ly.src.stop(); } catch { /* */ } ly.src.disconnect(); }
     try { this.turbo.stop(); } catch { /* */ }
+    if (this.rattleSrc) { try { this.rattleSrc.stop(); this.rattleLfo.stop(); } catch { /* */ } this.rattleG.disconnect(); }
     this.out.disconnect(); this.turboG.disconnect();
   }
 }

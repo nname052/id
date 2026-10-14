@@ -473,7 +473,16 @@ export class AudioSystem {
       set(e.file.playbackRate, 0.6 + rpm / 2200);
     } else if (e.diesel) {
       // الحِمل: البنزين + شوية لما العربية بتطلع مطلع أو بتشد
-      e.diesel.update(rpm, Math.min(1, thr * 1.1 + Math.max(0, ph.accelLong) * 0.03), 1, t, inside);
+      const bump = Math.min(1, Math.abs(ph.heaveVel || 0) * 0.8 + Math.abs(ph.pitchVel || 0) * 0.6); // مطبات/حفر → الصاج بيتكتك
+      e.diesel.update(rpm, Math.min(1, thr * 1.1 + Math.max(0, ph.accelLong) * 0.03), 1, t, inside, bump);
+      // زنة الفتيس القديم (بتعلى مع السرعة)
+      if (!e.whineGear) {
+        e.whineGear = this._osc('triangle', 300); e.whineGearG = this._gain(0);
+        e.whineGear.connect(this._filter('bandpass', 900, 3)).connect(e.whineGearG).connect(e.out);
+      }
+      const vs = Math.abs(ph.forwardSpeed);
+      set(e.whineGear.frequency, 120 + vs * 52, 0.05);
+      set(e.whineGearG.gain, this.engineKind === 'tuktuk' ? 0 : Math.min(1, vs / 18) * (0.12 + thr * 0.1), 0.1);
     } else {
       const fire = (rpm / 60) * 2;
       set(e.saw.frequency, fire); set(e.pulse.frequency, fire);

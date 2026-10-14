@@ -237,6 +237,25 @@ export class TrafficSystem {
 
   _place(car) {
     car.lane.pos(car.p, car);
+    if (car.knocked) { car.x += car.kox || 0; car.z += car.koz || 0; car.yaw += car.kyaw || 0; }
+  }
+
+  /** العربية اللي اتخبطت: بتتزحلق وتلف لحد ما الاحتكاك يوقفها، وبعدين السواق يرجع حارته بالراحة */
+  _knock(car, dt) {
+    const sp = Math.hypot(car.kvx || 0, car.kvz || 0);
+    if (sp > 0) {
+      const dec = Math.min(sp, 7.5 * dt); // احتكاك الكاوتش وهو بيتزحلق (~0.75g)
+      car.kvx -= (car.kvx / sp) * dec; car.kvz -= (car.kvz / sp) * dec;
+      car.kox = (car.kox || 0) + car.kvx * dt; car.koz = (car.koz || 0) + car.kvz * dt;
+    }
+    if (car.kw) { car.kyaw = (car.kyaw || 0) + car.kw * dt; car.kw *= Math.exp(-dt * 3.2); if (Math.abs(car.kw) < 0.01) car.kw = 0; }
+    if (car.bumped <= 0 && sp < 0.05 && !car.kw) {
+      // رجوع للحارة وهو ماشي (مش فجأة)
+      const k = 1 - Math.exp(-dt * (0.25 + car.v * 0.12));
+      car.kox -= (car.kox || 0) * k; car.koz -= (car.koz || 0) * k;
+      let y = car.kyaw || 0; y = Math.atan2(Math.sin(y), Math.cos(y)); car.kyaw = y - y * k;
+      if (Math.abs(car.kox) + Math.abs(car.koz) < 0.05 && Math.abs(car.kyaw) < 0.01) { car.knocked = false; car.kox = car.koz = car.kyaw = car.kvx = car.kvz = 0; }
+    }
   }
 
   /** صناديق تصادم العربيات القريبة (للفيزياء) */
@@ -248,8 +267,19 @@ export class TrafficSystem {
       const fx = -Math.sin(c.yaw), fz = -Math.cos(c.yaw);
       out.push({
         cx: c.x, cz: c.z, hx: c.width / 2, hz: c.len / 2, angle: c.yaw, mass: c.mass, restitution: 0.15,
-        vx: fx * c.v, vz: fz * c.v, kind: 'car', car: c,
-        onHit: () => { c.bumped = 2.5; c.v = 0; c.honkCooldown = Math.min(c.honkCooldown, 0.4); },
+        vx: fx * c.v + (c.kvx || 0), vz: fz * c.v + (c.kvz || 0), kind: 'car', car: c,
+        // الخبطة بتزق العربية وتلفها على حسب قوتها ومكانها (كمية الحركة)، والسواق بيقف شوية
+        onHit: (dv, jx = 0, jz = 0, px = c.x, pz = c.z) => {
+          // سرعة العربية في اتجاه حارتها بتتحول لسرعة حرة عشان تكمل في نفس اتجاهها بعد الخبطة
+          if (!c.knocked) { c.kvx = (c.kvx || 0) + fx * c.v; c.kvz = (c.kvz || 0) + fz * c.v; c.v = 0; }
+          c.knocked = true;
+          c.kvx += jx / c.mass; c.kvz += jz / c.mass;
+          const I = c.mass * (c.len * c.len + c.width * c.width) / 12;
+          c.kw = (c.kw || 0) + ((px - c.x) * jz - (pz - c.z) * jx) / I * -1;
+          c.bumped = Math.max(c.bumped, 2.5 + Math.min(3, dv)); c.v = 0;
+          c.honkCooldown = Math.min(c.honkCooldown, 0.4);
+        },
+        onPush: (dx, dz) => { c.kox = (c.kox || 0) + dx; c.koz = (c.koz || 0) + dz; c.knocked = true; },
       });
     }
     for (const p of this.parked) {
@@ -335,6 +365,7 @@ export class TrafficSystem {
         car.acc += (a - car.acc) * Math.min(1, dt * 6);
         car.v = Math.max(0, car.v + a * dt);
         if (gap < 0.3 && vLead < car.v) car.v = Math.max(0, vLead);
+        if (car.knocked) { this._knock(car, dt); if (car.bumped > 0 || Math.hypot(car.kvx, car.kvz) > 0.05) { car.v = 0; a = -9; } }
         car.p += car.v * dt;
 
         // كلاكس

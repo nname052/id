@@ -14,7 +14,10 @@ const CITY_LEN = 450;
 const STOP_DEFS = [
   { s: 40, name: 'موقف وسط البلد', kind: 'city' },
   { s: 268, name: 'السوق', kind: 'market' },
+  { s: 150, name: 'الجامع الكبير', kind: 'city' },
+  { s: 390, name: 'آخر وسط البلد', kind: 'city' },
   { s: CITY_LEN + 150, name: 'الحي السكني', kind: 'residential' },
+  { s: CITY_LEN + 420, name: 'الصيدلية', kind: 'residential' },
   { s: CITY_LEN + 930, name: 'الطريق الزراعي', kind: 'agri' },
   { s: CITY_LEN + 1205, name: 'القرية', kind: 'village' },
   { s: CITY_LEN + 1460, name: 'استراحة الصحراوي', kind: 'desert' },
@@ -24,14 +27,23 @@ const STOP_DEFS = [
 const SIDE_STOPS = [
   { road: 'R1', frac: 0.45, name: 'موقف الترعة', kind: 'agri' },
   { road: 'R5', frac: 0.5, name: 'شارع الميدان', kind: 'side' },
+  { road: 'R5', frac: 0.85, name: 'المدرسة', kind: 'side' },
+  { road: 'R6', frac: 0.5, name: 'المقابر', kind: 'side' },
   { road: 'S1', frac: 0.45, name: 'شارع باريس', kind: 'shibin', off: 4.4 + 3.2 - 1 },
+  { road: 'S1', frac: 0.15, name: 'أول شارع باريس', kind: 'shibin', off: 4.4 + 3.2 - 1 },
+  { road: 'S1', frac: 0.8, name: 'آخر شارع باريس', kind: 'shibin', off: 4.4 + 3.2 - 1 },
+  { road: 'S2', frac: 0.4, name: 'الكليات', kind: 'shibin', off: 5.2 + 3.2 - 1 },
+  { road: 'S2', frac: 0.75, name: 'المستشفى الجامعي', kind: 'shibin', off: 5.2 + 3.2 - 1 },
+  { road: 'S3', frac: 0.3, name: 'الكورنيش', kind: 'shibin', off: 3.8 + 3.2 - 1 },
+  { road: 'S3', frac: 0.7, name: 'قصر الثقافة', kind: 'shibin', off: 3.8 + 3.2 - 1 },
   { road: 'S2', frac: 0.06, name: 'جامعة المنوفية', kind: 'shibin', off: 5.2 + 3.2 - 1 },
   { road: 'S4', frac: 0.15, name: 'محطة القطر', kind: 'shibin', off: 3.8 + 3.2 - 1 },
   // الموقف الكبير: ناس كتير ومستنيين على طول
   { road: 'S4', frac: 0.55, name: 'موقف شبين الكوم', kind: 'terminal', off: 3.8 + 3.2 - 0.8 },
 ];
 const URBAN = new Set(['city', 'market', 'residential']);
-const MAX_WALKERS = 18;
+// على الموبايل عدد أقل (كل واحد ماشي = كذا قطعة بتترسم)
+const MAX_WALKERS = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches ? 30 : 44;
 const WALK = 1.45, _v = new THREE.Vector3(), _w = new THREE.Vector3();
 
 function stopSign() {
@@ -135,18 +147,27 @@ export class Passengers {
 
   // ===== علامة مكان الوقوف (مستطيل منوّر على الأرض) =====
   _buildMarkers() {
+    // علامة واضحة في عز الضهر: مستطيل مليان + برواز متقطع + سهم، وعمود نور فوقه بيبان من بعيد
     const c = canvas(128, 256), x = c.getContext('2d');
-    const g = x.createLinearGradient(0, 0, 128, 0);
-    g.addColorStop(0, 'rgba(255,255,255,0.15)'); g.addColorStop(0.5, 'rgba(255,255,255,0.45)'); g.addColorStop(1, 'rgba(255,255,255,0.15)');
-    x.fillStyle = g; x.fillRect(0, 0, 128, 256);
-    x.strokeStyle = '#fff'; x.lineWidth = 10; x.setLineDash([26, 14]); x.strokeRect(6, 6, 116, 244);
-    x.setLineDash([]); x.fillStyle = 'rgba(255,255,255,0.9)';
-    x.beginPath(); x.moveTo(64, 70); x.lineTo(94, 120); x.lineTo(34, 120); x.closePath(); x.fill(); // سهم اتجاه السير
+    x.fillStyle = 'rgba(255,255,255,0.42)'; x.fillRect(0, 0, 128, 256);
+    x.strokeStyle = '#fff'; x.lineWidth = 14; x.setLineDash([30, 14]); x.strokeRect(8, 8, 112, 240);
+    x.setLineDash([]); x.fillStyle = '#fff';
+    x.beginPath(); x.moveTo(64, 60); x.lineTo(100, 118); x.lineTo(28, 118); x.closePath(); x.fill(); // سهم اتجاه السير
+    x.fillRect(52, 118, 24, 60);
     const t = tex(c, { repeat: false });
+    // عمود النور: تدرج من تحت لفوق
+    const bc = canvas(16, 128), bx = bc.getContext('2d');
+    const gr = bx.createLinearGradient(0, 128, 0, 0);
+    gr.addColorStop(0, 'rgba(255,255,255,0.75)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+    bx.fillStyle = gr; bx.fillRect(0, 0, 16, 128);
+    const bt = tex(bc, { repeat: false });
     this.markers = [];
     for (let i = 0; i < 6; i++) {
-      const m = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 5.6).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: t, color: 0xf2c230, transparent: true, depthWrite: false, opacity: 0.8, polygonOffset: true, polygonOffsetFactor: -4 }));
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 5.6).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: t, color: 0xf2c230, transparent: true, depthWrite: false, opacity: 0.95, polygonOffset: true, polygonOffsetFactor: -4, toneMapped: false }));
       m.renderOrder = 2; m.visible = false;
+      const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.3, 7, 16, 1, true).translate(0, 3.5, 0), new THREE.MeshBasicMaterial({ map: bt, color: 0xf2c230, transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, toneMapped: false }));
+      beam.renderOrder = 2;
+      m.add(beam); m.userData.beam = beam;
       this.group.add(m);
       this.markers.push(m);
     }
@@ -178,8 +199,14 @@ export class Passengers {
       m.position.set(st.mx, st.my + 0.035, st.mz);
       m.rotation.y = Math.atan2(st.ax, st.az);
       const inside = this._inMarker(st, ph);
-      m.material.color.set(inside ? 0x3ee07a : dest ? 0x4fc3ff : 0xf2c230);
-      m.material.opacity = 0.55 + 0.3 * Math.sin(t * 4);
+      const col = inside ? 0x3ee07a : dest ? 0x4fc3ff : 0xf2c230;
+      m.material.color.set(col);
+      m.material.opacity = 0.8 + 0.2 * Math.sin(t * 4);
+      const beam = m.userData.beam;
+      beam.material.color.set(col);
+      // العمود بيبان من بعيد ويخف لما تقرب عشان مايغطيش الرؤية
+      const d = Math.sqrt(w[0]);
+      beam.material.opacity = Math.min(0.9, Math.max(0.12, (d - 8) / 40)) * (0.75 + 0.25 * Math.sin(t * 3));
     });
   }
 
@@ -246,8 +273,8 @@ export class Passengers {
   _spawnWaiting(stop) {
     const density = this.settings ? +(this.settings.get('paxDensity') ?? 1) : 1;
     const terminal = stop.kind === 'terminal';
-    if (!terminal && this.R() > 0.55 + 0.4 * density) { stop.cooldown = 25; return; }
-    const n = terminal ? 5 + Math.floor(this.R() * 5 * density) : 1 + Math.floor(this.R() * (1.5 + 2 * density));
+    if (!terminal && this.R() > 0.7 + 0.3 * density) { stop.cooldown = 15; return; }
+    const n = terminal ? 8 + Math.floor(this.R() * 8 * density) : 2 + Math.floor(this.R() * (2 + 3 * density));
     for (let i = 0; i < n; i++) {
       const p = this._take();
       if (!p) break;
@@ -430,7 +457,7 @@ export class Passengers {
     seat.pax = pax;
     this.onboard.push(pax);
     p.stop.waiting.splice(p.stop.waiting.indexOf(p), 1);
-    if (!p.stop.waiting.length) p.stop.cooldown = p.stop.kind === 'terminal' ? 6 : 40;
+    if (!p.stop.waiting.length) p.stop.cooldown = p.stop.kind === 'terminal' ? 6 : 20;
     this._release(p);
     this._rebuildSeated();
     this.hud?.toast(`ركب راكب · نازل ${pax.dest ? pax.dest.name : 'قدام'}`, 2.2);

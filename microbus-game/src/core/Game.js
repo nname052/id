@@ -6,6 +6,7 @@ import { buildBuildings } from '../world/Buildings.js';
 import { buildProps, LAMP_POSITIONS, PROP_COLLIDERS } from '../world/Props.js';
 import { TrafficLights } from '../world/TrafficLights.js';
 import { Crowd } from '../world/Crowd.js';
+import { applyLivery } from '../vehicles/Livery.js';
 import { staticColliders } from '../world/layout.js';
 import { PlayerVehicle } from '../vehicles/PlayerVehicle.js';
 import { buildCar } from '../vehicles/CarModels.js';
@@ -57,7 +58,7 @@ export class Game {
     // ===== الرندر =====
     const renderer = (this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' }));
     this.mobile = isTouchDevice();
-    this.basePR = Math.min(window.devicePixelRatio, this.mobile ? 1.25 : 1.5);
+    this.basePR = Math.min(window.devicePixelRatio, this.mobile ? 1.5 : 1.5);
     renderer.setPixelRatio(this.basePR);
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -204,9 +205,18 @@ export class Game {
   // أحداث الفيزياء: خبطات (صوت + هزة كاميرا) — بتتوصل تاني لو الفيزياء اتعملت من جديد
   _wirePhysics() {
     const ph = this.player.physics;
+    // الخبطة الواحدة بتطلع عشرات الأحداث (كل خطوة فيزيا وهي لازقة): بناخد أقوى واحدة بس،
+    // والبعجة/الخدش بيتحسبوا بعد الفيزيا مرة واحدة (كانوا سبب اللاج وقت الخبط)
     ph.onImpact = (v, px, pz, other, nx, nz) => {
+      const now = performance.now();
+      const fresh = now - (this._hitT || 0) > 350;
+      if (!fresh && v < (this._hitV || 0) * 1.6) return;
+      this._hitT = now; this._hitV = v;
       this.audio.impact(v); this.cams && (this.cams.shake = Math.min(1.5, v / 4));
-      if (this.player.damage && nx !== undefined) this.player.damage.impact(px, ph.heave - ph.spec.cgHeight + 0.65, pz, nx, nz, v);
+      if (this.player.damage && nx !== undefined && v >= 2.2) {
+        const q = this._dmgQ;
+        if (!q || v > q[5]) this._dmgQ = [px, ph.heave - ph.spec.cgHeight + 0.65, pz, nx, nz, v];
+      }
     };
     ph.onRollHit = (hit, corner) => {
       this.audio.impact(hit * 3); if (this.cams) this.cams.shake = Math.min(1.5, hit * 0.6);
@@ -277,7 +287,9 @@ export class Game {
   _applyQuality(level, fps) {
     const base = this.basePR;
     // ألترا (-1): دقة الشاشة الكاملة + ضل عالي الدقة
-    const pr = level < 0 ? Math.min(window.devicePixelRatio, 2) : [base, base * 0.85, base * 0.72, base * 0.62, base * 0.55][level];
+    // الدقة آخر حاجة بتقل (وعمرها ما تنزل عن دقة الشاشة العادية): الجرافيك المبكسل أوحش من ضل أقل أو مسافة رؤية أقصر
+    const floor = Math.min(1, window.devicePixelRatio || 1);
+    const pr = level < 0 ? Math.min(window.devicePixelRatio, 2) : Math.max(floor, [base, base, base * 0.9, base * 0.8, base * 0.72][level]);
     this.renderer.setPixelRatio(pr);
     this._resize();
     const sh = level < 0 ? (this.mobile ? 2048 : 4096) : level >= 2 ? 1024 : this.mobile ? 1024 : 2048;
@@ -285,6 +297,8 @@ export class Game {
     this.env.sun.castShadow = level < 4 && this.settings?.get('shadows') !== 'off';
     const L = Math.max(0, level), far = level < 0 ? 1.25 : [1, 0.95, 0.85, 0.75, 0.65][L];
     this.player.mirrorSkip = [0, 1, 2, 3, 5][L];
+    this._qCrowd = [1, 0.9, 0.75, 0.6, 0.5][L];
+    this._applySetting('crowd', this.settings?.get('crowd') ?? 'normal');
     this.traffic.viewDist = (this.mobile ? 260 : 360) * far;
     this.viewDist = (this.mobile ? 380 : 560) * far;
     this.scene.fog.far = Math.min(this.env.preset.fogFar, this.viewDist + 60);
@@ -348,7 +362,7 @@ export class Game {
     this.mirrorInsets.mode = this.settings.get('mirrorInsets');
     this.passengers.setPlayer(this.player);
     if (this.touch) this.touch.maxWheel = this.player.physics.maxWheelAngle;
-    for (const k of ['keySteer', 'mirrorQuality', 'seat', 'headlights']) this._applySetting(k, this.settings.get(k));
+    for (const k of ['keySteer', 'mirrorQuality', 'seat', 'headlights', 'livery']) this._applySetting(k, this.settings.get(k));
     this.player.setNight(!!this._night);
     if (this.settings.get('headlights') !== 'auto') this._applySetting('headlights', this.settings.get('headlights'));
     this.audio.setEngineKind(kind);
@@ -369,6 +383,12 @@ export class Game {
         break;
       }
       case 'mirrorQuality': this.player.setMirrorQuality(v); break;
+      case 'livery': {
+        const P = this.player;
+        if (P.kind !== 'microbus' || !P.rig.dims || !P.rig.shell) break;
+        if (!P._liv) P._liv = applyLivery(P.rig, v); else P._liv(v);
+        break;
+      }
       case 'graphics': {
         const fixed = { low: 3, med: 2, high: 0, ultra: -1 }[v];
         const q = (this._q ||= { t: 0, frames: 0, level: 0, good: 0, cooldown: 3 });
@@ -384,7 +404,7 @@ export class Game {
         break;
       case 'masterVol': case 'engineVol': this.audio.setVolumes(this.settings.get('masterVol') / 100, this.settings.get('engineVol') / 100); break;
       case 'traffic': this.traffic.setDensity({ off: 0, low: 0.35, normal: 0.7, high: 1 }[v] ?? 0.7); break;
-      case 'crowd': this.crowd.setCount(this.crowdBase * ({ low: 0.45, normal: 1, high: 1.6 }[v] ?? 1)); break;
+      case 'crowd': this.crowd?.setCount(this.crowdBase * ({ low: 0.45, normal: 1, high: 1.6 }[v] ?? 1) * (this._qCrowd ?? 1)); break;
       default: break;
     }
   }
@@ -415,6 +435,7 @@ export class Game {
       this.acc -= FIXED_DT;
       steps++;
     }
+    if (this._dmgQ) { const q = this._dmgQ; this._dmgQ = null; this.player.damage?.impact(...q); }
     if (steps === 8) this.acc = 0;
     // صوت المطبات
     let bump = 0;

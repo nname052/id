@@ -150,8 +150,12 @@ export class Damage {
     const orient = new THREE.Euler().setFromRotationMatrix(new THREE.Matrix4().lookAt(new THREE.Vector3(), wn.clone().negate(), new THREE.Vector3(0, 1, 0)));
     orient.z = Math.random() * Math.PI * 2;
     const inv = new THREE.Matrix4().copy(this.shell.matrixWorld).invert();
+    const reach = new THREE.Sphere(world, size * 0.75);
     for (const t of targets) {
       t.updateMatrixWorld(true);
+      // بس القطع اللي جنب مكان الخبطة (الإسقاط على كل جسم العربية كان بيقطّع اللعبة)
+      if (!t.geometry.boundingBox) t.geometry.computeBoundingBox();
+      if (!_box.copy(t.geometry.boundingBox).applyMatrix4(t.matrixWorld).intersectsSphere(reach)) continue;
       let g;
       try { g = new DecalGeometry(t, world, orient, new THREE.Vector3(size, size, 0.7)); } catch { continue; }
       if (!g.attributes.position.count) { g.dispose(); continue; }
@@ -168,6 +172,8 @@ export class Damage {
     const r2 = radius * radius, d = new THREE.Vector3();
     for (const m of this.meshes) {
       const S = m.shellPos, P = m.mesh.geometry.attributes.position;
+      if (!m.shellBox) { m.shellBox = new THREE.Box3(); for (let i = 0; i < S.length; i += 3) m.shellBox.expandByPoint(d.set(S[i], S[i + 1], S[i + 2])); m.shellBox.expandByScalar(0.2); }
+      if (!m.shellBox.intersectsSphere(_sph.set(p, radius))) continue;
       let touched = false;
       for (let i = 0; i < P.count; i++) {
         const dx = S[i * 3] - p.x, dy = S[i * 3 + 1] - p.y, dz = S[i * 3 + 2] - p.z;
@@ -274,3 +280,5 @@ export class Damage {
 }
 
 function isInside(o, root) { for (let p = o; p; p = p.parent) if (p === root) return true; return false; }
+
+const _box = new THREE.Box3(), _sph = new THREE.Sphere();
