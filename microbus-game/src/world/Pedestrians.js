@@ -115,8 +115,32 @@ export class Pedestrians {
     }
   }
 
-  update(dt, camPos) {
+  /** المشاة بيوسعوا للميكروباص لو طلع على الرصيف (بيتنحّوا للجنب بدل ما يتداسوا) */
+  _dodge(p, dt, ph) {
+    const [fx, fz] = ph.forward;
+    const dx = p.x - ph.x, dz = p.z - ph.z;
+    const lon = dx * fx + dz * fz, lat = dx * -fz + dz * fx; // lat: يمين العربية
+    const hw = ph.spec.halfWidth + 0.9, hl = ph.spec.halfLength + 0.6;
+    const v = ph.forwardSpeed;
+    const ahead = v >= 0 ? lon > -hl && lon < hl + 1.5 + v * 1.4 : lon < hl && lon > -hl - 1.5 + v * 1.4;
+    if (!ahead || Math.abs(lat) > hw || Math.abs(v) < 0.2 && Math.abs(lon) > hl) return;
+    // يتنحّى بعيد عن نص العربية، ولو مفيش مكان (حيطة/شارع) يجري لقدام/ورا
+    const side = p.x > 0 ? 1 : -1;
+    const awayX = Math.sign(lat * -fz) || side;
+    const minX = ROAD.curb + 0.35, maxX = ROAD.sidewalkOuter - 0.3;
+    let nx = p.x + awayX * 3.2 * dt;
+    if (Math.abs(nx) < minX || Math.abs(nx) > maxX || Math.sign(nx) !== side) {
+      nx = p.x;
+      p.z += Math.sign(dz * (v >= 0 ? 1 : -1) || 1) * 3.2 * dt * (Math.abs(fz) > 0.5 ? 1 : 0.4);
+    }
+    p.x = nx;
+    p.scared = 1.2;
+  }
+
+  update(dt, camPos, ph) {
     for (const p of this.people) {
+      if (ph && Math.abs(p.z - ph.z) < 12 && Math.abs(p.x - ph.x) < 8) this._dodge(p, dt, ph);
+      p.scared = Math.max(0, (p.scared || 0) - dt);
       const far = (p.x - camPos.x) ** 2 + (p.z - camPos.z) ** 2 > 75 * 75;
       p.root.visible = !far;
       if (!p.standing) {
@@ -125,12 +149,13 @@ export class Pedestrians {
       }
       const targetYaw = p.standing ? (p.x > 0 ? -Math.PI / 2 : Math.PI / 2) : p.dir > 0 ? 0 : Math.PI;
       p.heading += Math.atan2(Math.sin(targetYaw - p.heading), Math.cos(targetYaw - p.heading)) * Math.min(1, dt * 4);
+      p.z = Math.min(p.zMax + 2, Math.max(p.zMin - 2, p.z));
       p.root.position.set(p.x, ROAD.sidewalkHeight, p.z);
       p.root.rotation.y = p.heading;
       if (far) continue;
-      p.phase += dt * (p.standing ? 1 : p.speed * 4.2);
+      p.phase += dt * (p.scared ? 12 : p.standing ? 1 : p.speed * 4.2);
       if (p.mixer) p.mixer.update(dt);
-      const swing = p.standing ? 0 : Math.sin(p.phase) * 0.45;
+      const swing = p.standing && !p.scared ? 0 : Math.sin(p.phase) * (p.scared ? 0.7 : 0.45);
       if (p.legs.length) {
         p.legs[0].rotation.x = swing; p.legs[1].rotation.x = -swing;
         p.arms[0].rotation.x = -swing * 0.8; p.arms[1].rotation.x = swing * 0.8;

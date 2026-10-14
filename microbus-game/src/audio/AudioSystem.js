@@ -252,6 +252,21 @@ export class AudioSystem {
     g.gain.exponentialRampToValueAtTime(0.001, t + 0.18); o.stop(t + 0.2);
   }
 
+  /** خبطة العجلة في حرف الرصيف: "دُب" واطي + طقة كاوتش/جنط */
+  curb(strength) {
+    if (!this.started || this.muted || strength < 0.1) return;
+    const ctx = this.ctx, t = ctx.currentTime, k = Math.min(1, strength);
+    const o = this._osc('sine', 48 + k * 20);
+    o.frequency.exponentialRampToValueAtTime(32, t + 0.2);
+    const g = this._gain(0.25 + k * 0.45);
+    o.connect(g).connect(this.master);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.26); o.stop(t + 0.3);
+    const n = ctx.createBufferSource(); n.buffer = this.noiseBuf; n.start(t, Math.random());
+    const ng = this._gain(0.12 + k * 0.35);
+    n.connect(this._filter('bandpass', 700 + k * 600, 1.2)).connect(ng).connect(this.master);
+    ng.gain.exponentialRampToValueAtTime(0.001, t + 0.09 + k * 0.08); n.stop(t + 0.25);
+  }
+
   toggleMute() {
     this.muted = !this.muted;
     if (this.master) this.master.gain.setTargetAtTime(this.muted ? 0 : 0.62, this.ctx.currentTime, 0.05);

@@ -370,6 +370,12 @@ export class RouteWorld {
     }
     this._instancedPalms(palms);
     this._instancedTrees(trees);
+    // جذوع الشجر والنخل القريبة من الطريق: صناديق تصادم صغيرة
+    this._poles = [];
+    for (const p of [...palms, ...trees]) {
+      const r = nearestRoute(p[0], p[2]);
+      if (r && r.dist < 26) this._poles.push([p[0], p[2], 0.26]);
+    }
 
     // --- أعمدة إنارة ---
     const lamps = [];
@@ -384,6 +390,7 @@ export class RouteWorld {
       }
     }
     this._instancedLamps(lamps);
+    for (const l of lamps) this._poles.push([l.x, l.z, 0.2]);
 
     // --- أعمدة كهربا خشب + سلوك (زراعي وقرية) ---
     const poles = [];
@@ -393,6 +400,7 @@ export class RouteWorld {
       const q = sampleAt(s), d = -12.5;
       const p = [q.x + q.rx * d, terrainHeight(q.x + q.rx * d, q.z + q.rz * d), q.z + q.rz * d];
       poles.push(p);
+      this._poles.push([p[0], p[2], 0.16]);
       if (prev) for (const h of [7.2, 6.8, 6.4]) {
         const a = new THREE.Vector3(prev[0], prev[1] + h, prev[2]), b = new THREE.Vector3(p[0], p[1] + h, p[2]);
         for (let i = 0; i < 8; i++) {
@@ -737,12 +745,15 @@ export class RouteWorld {
     for (let s = 0; s < L - seg; s += seg) {
       const z = zoneAt(s + seg / 2);
       // الحواف
-      const edge = URBAN.has(z) ? HALF : z === 'agri' || z === 'village' ? HALF + 1.6 : HALF + 0.9;
-      add(s, edge + 0.5, 0.5, 'edge');
-      add(s, -edge - 0.5, 0.5, 'edge');
-      // الجزيرة/الحاجز
-      if (!inUturn(s + seg / 2) && z !== 'tunnel') add(s, 0, URBAN.has(z) ? 0.7 : 0.35, 'median');
+      // في المناطق السكنية الرصيف بيتطلع عليه (ارتفاع في الأرض) والحيطة عند واجهات العمارات بس
+      const edge = URBAN.has(z) ? 15 : z === 'agri' || z === 'village' ? HALF + 1.6 : HALF + 0.9;
+      add(s, edge + 0.5, 0.5, URBAN.has(z) ? 'building' : 'edge');
+      add(s, -edge - 0.5, 0.5, URBAN.has(z) ? 'building' : 'edge');
+      // الحاجز الخرساني في الطرق السريعة (الجزيرة بالزرع في السكني ليها ارتفاع بس)
+      if (!inUturn(s + seg / 2) && z !== 'tunnel' && !URBAN.has(z)) add(s, 0, 0.35, 'median');
     }
+    // أعمدة وشجر
+    for (const [x, z, r] of this._poles || []) this.colliders.push({ cx: x, cz: z, hx: r, hz: r, angle: 0, restitution: 0.1, kind: 'pole' });
     // شبكة بحث
     this.colGrid = new Map();
     const C = 30;

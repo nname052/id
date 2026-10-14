@@ -33,6 +33,7 @@ export function buildProps(M) {
     for (const g of [pole, base, arm, head]) met.addGeometry(g, m);
     B.get('lampGlass').addGeometry(glass, m);
     LAMP_POSITIONS.push(new THREE.Vector3(2.25, 8.0, 0).applyMatrix4(m));
+    PROP_COLLIDERS.push({ x, z, r: 0.22, kind: 'pole' });
     if (double) {
       const m2 = mat4(x, h, z, ry + Math.PI);
       met.addGeometry(arm, m2); met.addGeometry(head, m2);
@@ -100,7 +101,7 @@ export function buildProps(M) {
       B.get('palm').addGeometry(frond, new THREE.Matrix4().multiplyMatrices(m, fm));
     }
   };
-  for (const [zs, ze] of mainSegments(8)) for (let z = zs - 25; z > ze + 5; z -= 40) palm(0, z);
+  for (const [zs, ze] of mainSegments(8)) for (let z = zs - 25; z > ze + 5; z -= 40) { palm(0, z); PROP_COLLIDERS.push({ x: 0, z, r: 0.25, kind: 'pole' }); }
 
   // ===== كشك =====
   const kiosk = (x, z, ry) => {
@@ -142,6 +143,8 @@ export function buildProps(M) {
       }
     }
     b.identity();
+    // الترابيزات والكراسي: صندوق تصادم واحد للمجموعة
+    PROP_COLLIDERS.push({ x: x0 + dir * 1.4, z: z0 + 2.2, hx: 1.5, hz: 3.0, kind: 'prop' });
   };
   cafe(ROAD.curb + 1.0, 118, 1);
   cafe(-ROAD.curb - 1.0, 30, -1);

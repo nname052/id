@@ -248,11 +248,19 @@ export const ROUTE_BUMPS = [];
 })();
 
 /** ارتفاع سطح الطريق (للفيزياء) + المطبات + خشونة حسب نوع الطريق */
+export const URBAN_ZONES = new Set(['residential', 'roundabout']);
+export const SIDEWALK_H = 0.18, MEDIAN_H = 0.24;
+
 export function routeSurface(x, z) {
   const r = nearestRoute(x, z);
   if (!r) return { h: 0, onRoad: false, rough: 0 };
+  const urban = URBAN_ZONES.has(r.zone);
+  // المناطق السكنية: رصيف مرفوع (10م → 15م) — بيتطلع عليه بالعجل، مش حيطة
+  if (urban && r.dist >= 10 && r.dist <= 15.4) return { h: r.y + SIDEWALK_H, onRoad: false, rough: 0, zone: r.zone, curb: true };
   if (r.dist > 11.5) return { h: terrainHeight(x, z), onRoad: false, rough: 1 };
   let h = r.y;
+  // الجزيرة الوسطى بالزرع (ماعدا فتحات الدوران)
+  if (urban && r.dist < 0.7 && !inUturn(r.s)) return { h: h + MEDIAN_H, onRoad: false, rough: 0, zone: r.zone, curb: true };
   for (const b of ROUTE_BUMPS) {
     const d = r.s - b.s;
     if (d > -b.half && d < b.half) h += b.height * 0.5 * (1 + Math.cos((Math.PI * d) / b.half));

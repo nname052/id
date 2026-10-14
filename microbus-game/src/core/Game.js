@@ -3,7 +3,7 @@ import { createMaterials } from '../render/materials.js';
 import { Environment } from '../world/Environment.js';
 import { buildStreet } from '../world/Street.js';
 import { buildBuildings } from '../world/Buildings.js';
-import { buildProps, LAMP_POSITIONS } from '../world/Props.js';
+import { buildProps, LAMP_POSITIONS, PROP_COLLIDERS } from '../world/Props.js';
 import { TrafficLights } from '../world/TrafficLights.js';
 import { Pedestrians } from '../world/Pedestrians.js';
 import { staticColliders } from '../world/layout.js';
@@ -102,7 +102,7 @@ export class Game {
       document.body.appendChild(f);
     }
     this.player.lowPower = this.mobile;
-    this.player.physics.onImpact = (v) => { this.audio.impact(v); this.cams.shake = Math.min(1.5, v / 4); };
+    this._wirePhysics();
 
     S('المرور والمشاة...', 0.82);
     await nextFrame();
@@ -110,9 +110,11 @@ export class Game {
     this.traffic.viewDist = this.mobile ? 260 : 360;
     this.peds = new Pedestrians(this.scene, this.assets, this.mobile ? 12 : 24);
     this.statics = staticColliders();
+    // أعمدة النور والشجر والأكشاك في المدينة
+    for (const p of PROP_COLLIDERS) this.statics.push({ cx: p.x, cz: p.z, hx: p.hx ?? p.r * 0.85, hz: p.hz ?? p.r * 0.85, angle: 0, restitution: 0.1, kind: p.kind || 'prop' });
     this._colliders = (box) => {
       const out = [];
-      for (const s of this.statics) out.push(s);
+      for (const s of this.statics) if (Math.abs(s.cx - box.cx) < s.hx + 8 && Math.abs(s.cz - box.cz) < s.hz + 8) out.push(s);
       this.route.queryColliders(box.cx, box.cz, out);
       this.traffic.colliders(box, out);
       return out;
@@ -167,6 +169,20 @@ export class Game {
     this.lampTimer = 0;
     renderer.setAnimationLoop(() => this._frame());
     S('جاهز!', 1);
+  }
+
+  // أحداث الفيزياء: خبطات (صوت + هزة كاميرا) — بتتوصل تاني لو الفيزياء اتعملت من جديد
+  _wirePhysics() {
+    const ph = this.player.physics;
+    ph.onImpact = (v) => { this.audio.impact(v); this.cams && (this.cams.shake = Math.min(1.5, v / 4)); };
+    ph.onCurb = (rise, v) => {
+      if (v < 1.5 || this._curbCd > 0) return;
+      const k = Math.min(1, rise * v * 0.9);
+      this._curbCd = 0.12;
+      this.audio.curb(k);
+      this._bumpCd = 0.2; // منكررش صوت المطب
+      if (this.cams) this.cams.shake = Math.max(this.cams.shake, k * 0.9);
+    };
   }
 
   _makeCar(type, color) {
@@ -291,6 +307,7 @@ export class Game {
     for (const w of ph.wheels) bump = Math.max(bump, w.compressionVel);
     if (bump > 0.35 && !this._bumpCd) { this.audio.thump(bump * 0.5); this._bumpCd = 0.15; }
     this._bumpCd = Math.max(0, (this._bumpCd || 0) - dt);
+    this._curbCd = Math.max(0, (this._curbCd || 0) - dt);
 
     this.lights.update(dt);
     this.traffic.update(dt, this.player, this.camera.position);
@@ -307,7 +324,7 @@ export class Game {
     }
     this.player.syncVisuals(dt, this.acc / FIXED_DT);
     this.cams.update(dt, input);
-    this.peds.update(dt, this.camera.position);
+    this.peds.update(dt, this.camera.position, this.player.physics);
     this.env.update(this.player.rig.root.position);
 
     // أقرب أعمدة نور بالليل

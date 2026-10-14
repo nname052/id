@@ -50,7 +50,7 @@ export function specFromModel(base, A) {
     ...base,
     mass: 2250, inertiaYaw: 4700, inertiaPitch: 4400, inertiaRoll: 1150, cgHeight: 0.82,
     wheelBase: wb, cgToFront, track: A.track, wheelRadius: A.radius,
-    springK: 47000, damperBump: 3300, damperRebound: 4400,
+    springK: 47000, damperBump: 3300, damperRebound: 4400, maxCompression: 0.21, // ~10سم مشوار للمساعد
     halfWidth: bodyW / 2 - 0.01, halfLength: bodyLen / 2, boxOffset: -(bodyMidZ - cgZ),
     _cgZ: cgZ,
   };

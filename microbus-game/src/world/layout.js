@@ -50,8 +50,32 @@ export const POTHOLES = [];
 })();
 
 /** ارتفاع سطح الطريق في نقطة (للفيزياء) */
+export const MEDIAN_HEIGHT = 0.24;
+
+/** الأرصفة والجزيرة: ارتفاعات حقيقية (العجل بيطلع عليها) بدل حيطان خفية */
+function curbHeight(x, z) {
+  const ax = Math.abs(x);
+  const cross = CROSSINGS.find((c) => z > c.z - c.half - c.sidewalk && z < c.z + c.half + c.sidewalk);
+  if (cross) {
+    // رصيف الشارع العرضي (بعد واجهات الشارع الرئيسي)
+    const inStreet = Math.abs(z - cross.z) < cross.half;
+    if (ax > ROAD.sidewalkOuter + 0.4 && !inStreet) return ROAD.sidewalkHeight;
+    if (ax >= ROAD.curb && Math.abs(z - cross.z) >= cross.half && ax <= ROAD.sidewalkOuter + 0.4) {
+      // ركن الرصيف عند التقاطع
+      return ROAD.sidewalkHeight;
+    }
+    return 0;
+  }
+  if (ax >= ROAD.curb) return ROAD.sidewalkHeight;
+  if (ax <= ROAD.medianHalf) {
+    // الجزيرة بتقف قبل التقاطعات بـ 4.5م
+    if (!CROSSINGS.some((c) => Math.abs(z - c.z) < c.half + 4.5) && z < ROAD.zMax && z > ROAD.zMin) return MEDIAN_HEIGHT;
+  }
+  return 0;
+}
+
 export function groundHeight(x, z) {
-  let h = 0;
+  let h = curbHeight(x, z);
   for (let i = 0; i < BUMPS.length; i++) {
     const b = BUMPS[i];
     const d = z - b.z;
@@ -91,23 +115,30 @@ export function mainSegments(margin = 0) {
   return segs;
 }
 
-/** صناديق التصادم الثابتة (أرصفة، جزيرة، نهايات الشوارع) */
+/** صناديق التصادم الثابتة: واجهات العمارات ونهايات الشوارع بس.
+ *  الأرصفة والجزيرة مش حيطان — ليها ارتفاع في groundHeight والعجل بيطلع عليها. */
 export function staticColliders() {
   const out = [];
-  const box = (x0, x1, z0, z1) => out.push({
-    cx: (x0 + x1) / 2, cz: (z0 + z1) / 2, hx: Math.abs(x1 - x0) / 2, hz: Math.abs(z1 - z0) / 2, angle: 0, restitution: 0.15, kind: 'curb',
+  const box = (x0, x1, z0, z1, kind = 'building') => out.push({
+    cx: (x0 + x1) / 2, cz: (z0 + z1) / 2, hx: Math.abs(x1 - x0) / 2, hz: Math.abs(z1 - z0) / 2, angle: 0, restitution: 0.12, kind,
   });
+  const face = ROAD.sidewalkOuter + 0.4;
   for (const [zs, ze] of mainSegments(0)) {
-    for (const s of [-1, 1]) box(s * ROAD.curb, s * (ROAD.sidewalkOuter + 30), ze, zs);
+    // بلوكات العمارات بين التقاطعات (بتبدأ بعد الرصيف العرضي)
+    const c1 = CROSSINGS.find((c) => Math.abs(c.z + c.half - ze) < 0.01);
+    const c0 = CROSSINGS.find((c) => Math.abs(c.z - c.half - zs) < 0.01);
+    const zEnd = c1 ? ze + c1.sidewalk : ze, zStart = c0 ? zs - c0.sidewalk : zs;
+    for (const s of [-1, 1]) box(s * face, s * (face + 30), zEnd, zStart);
   }
-  for (const [zs, ze] of mainSegments(4.5)) box(-ROAD.medianHalf, ROAD.medianHalf, ze, zs);
   for (const c of CROSSINGS) {
+    box(c.xMax + 4, c.xMax + 8, c.z - c.half - c.sidewalk, c.z + c.half + c.sidewalk, 'wall');
+    box(c.xMin - 8, c.xMin - 4, c.z - c.half - c.sidewalk, c.z + c.half + c.sidewalk, 'wall');
+    // عمارات على جانبي الشارع العرضي (بعد الرصيف بتاعه)
     for (const s of [-1, 1]) {
-      box(ROAD.curb, c.xMax + 30, c.z + s * c.half, c.z + s * (c.half + 30));
-      box(-ROAD.curb, c.xMin - 30, c.z + s * c.half, c.z + s * (c.half + 30));
+      const z0 = c.z + s * (c.half + c.sidewalk), z1 = c.z + s * (c.half + c.sidewalk + 30);
+      box(face + 30, c.xMax + 8, z0, z1);
+      box(c.xMin - 8, -face - 30, z0, z1);
     }
-    box(c.xMax, c.xMax + 4, c.z - c.half, c.z + c.half);
-    box(c.xMin - 4, c.xMin, c.z - c.half, c.z + c.half);
   }
   return out;
 }

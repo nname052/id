@@ -4,6 +4,8 @@
 
 import { obbOverlap } from './Collision.js';
 
+const TIRE_K = 230000, TIRE_C = 900, WHEEL_M = 55; // كاوتش + كتلة العجلة والمحور (لكل عجلة)
+
 export const MICROBUS_SPEC = {
   mass: 2500,              // كجم (ميكروباص هاي روف محمّل جزئيًا)
   inertiaYaw: 6600,
@@ -84,7 +86,7 @@ export class VehiclePhysics {
     }));
     for (const w of this.wheels) {
       // طول السوستة الحر بحيث يكون الميكروباص في حالة اتزان على الأرض المستوية
-      w.restLength = s.cgHeight - s.wheelRadius + w.staticLoad / s.springK;
+      w.restLength = s.cgHeight - s.wheelRadius + w.staticLoad / s.springK + w.staticLoad / TIRE_K;
     }
     this.reset(0, 0, 0);
   }
@@ -108,7 +110,7 @@ export class VehiclePhysics {
     this.accelLong = 0; this.accelLat = 0;
     this.lastImpact = 0;
     this.speed = 0; this.forwardSpeed = 0;
-    for (const w of this.wheels) { w.compression = 0; w.compressionVel = 0; w.spin = 0; w.spinVel = 0; w.load = w.staticLoad; }
+    for (const w of this.wheels) { w.compression = 0; w.compressionVel = 0; w.spin = 0; w.spinVel = 0; w.load = w.staticLoad; w.y = undefined; w.ground = undefined; w.stepFx = 0; w.stepFz = 0; }
     this._settle();
   }
 
@@ -254,20 +256,35 @@ export class VehiclePhysics {
       const wx = this.x + rx * w.rx + fx * w.rf;
       const wz = this.z + rz * w.rx + fz * w.rf;
       w.worldX = wx; w.worldZ = wz;
-      w.ground = this.groundHeight(wx, wz);
+      this._wheelContact(w, wx, wz, w.front ? this.yaw + this.steerAngle : this.yaw);
       const attachY = this.heave + w.rf * this.pitch + w.rx * this.roll;
-      const length = attachY - (w.ground + s.wheelRadius);
+      // العجلة ليها كتلة وكاوتش مرن (quarter-car): الخبطة بتتمص في الكاوتش والعجلة قبل ما توصل للجسم
+      const top = w.ground + s.wheelRadius;
+      if (w.y === undefined) { w.y = top - w.staticLoad / TIRE_K; w.vy = 0; w.compression = w.restLength - (attachY - w.y); }
+      const length = attachY - w.y;
       const c = w.restLength - length;
       const cv = (c - w.compression) / dt;
       w.compression = c; w.compressionVel = cv;
       let f = 0;
       if (c > 0) {
         f = s.springK * c + (cv > 0 ? s.damperBump : s.damperRebound) * cv;
-        if (c > s.maxCompression) f += (c - s.maxCompression) * s.springK * 12; // مصد (bump stop)
+        // مصد الكاوتش (bump stop): بيمتص الطاقة (مش بيرجعها كلها) عشان العربية متتنططش
+        if (c > s.maxCompression) {
+          const over = c - s.maxCompression;
+          f += over * s.springK * (cv > 0 ? 7 : 2.5) + (cv > 0 ? 2 : 0.6) * s.damperBump * cv * Math.min(1, over / 0.03);
+        }
         f = Math.max(0, f);
       }
-      w.load = f;
-      w.centerY = Math.max(w.ground + s.wheelRadius, attachY - w.restLength - 0.05);
+      const tc = top - w.y; // انضغاط الكاوتش
+      const ft = tc > 0 ? Math.max(0, TIRE_K * tc + TIRE_C * -w.vy) : 0;
+      w.vy += ((ft - f) / WHEEL_M - G) * dt;
+      w.y += w.vy * dt;
+      // الكاوتش ميتنضغطش أكتر من 7سم (الجنط) والعجلة متتدلاش أكتر من حدها
+      if (w.y < top - 0.07) { w.y = top - 0.07; w.vy = Math.max(w.vy, 0); }
+      const droop = attachY - w.restLength - 0.14;
+      if (w.y < droop) { w.y = droop; w.vy = Math.max(w.vy, this.heaveVel); }
+      w.load = tc > 0 ? Math.min(ft, f + w.staticLoad * 2) : 0; // قبضة الكاوتش من قوة الأرض
+      w.centerY = Math.max(w.y, top - 0.03);
       springSum += f;
       pitchT += f * w.rf;
       rollT += f * w.rx;
@@ -321,8 +338,10 @@ export class VehiclePhysics {
         !w.front ? this.handbrake * clamp(spdW / 4, 0, 1) : 0), 0, 1);
       w.slipLat = alpha;
 
-      const wx = wfx * fl + wrx * fy;
-      const wz = wfz * fl + wrz * fy;
+      // حرف رصيف قدام/ورا العجلة: رد فعل مايل بيقاوم الطلوع (وبيزق لقدام وهي نازلة)
+      const sf = Math.min(Fzw, 2 * w.staticLoad);
+      const wx = wfx * fl + wrx * fy + w.stepFx * sf;
+      const wz = wfz * fl + wrz * fy + w.stepFz * sf;
       Fx += wx; Fz += wz;
       torque += pz * wx - px * wz;
       fLong += wx * fx + wz * fz;
@@ -381,6 +400,41 @@ export class VehiclePhysics {
     this.speed = Math.hypot(this.vx, this.vz);
     this.forwardSpeed = this.vx * fx + this.vz * fz;
     this.lastImpact = Math.max(0, this.lastImpact - dt * 4);
+  }
+
+  /** تلامس العجلة (دايرة) مع الأرض على خط اتجاهها: بيخلي العجلة تطلع على حرف الرصيف تدريجيًا
+   *  ويحسب ميل نقطة التلامس (stepTan) اللي بيعمل مقاومة الطلوع أو الخبطة لو السرعة عالية. */
+  _wheelContact(w, wx, wz, ang) {
+    const R = this.spec.wheelRadius, gh = this.groundHeight;
+    const hx = -Math.sin(ang), hz = -Math.cos(ang);
+    const g0 = gh(wx, wz);
+    const gA = gh(wx + hx * R * 0.92, wz + hz * R * 0.92), gB = gh(wx - hx * R * 0.92, wz - hz * R * 0.92);
+    let need = g0 + R, bestD = 0;
+    if (Math.abs(gA - g0) > 0.02 || Math.abs(gB - g0) > 0.02) {
+      for (let k = -12; k <= 12; k++) {
+        if (!k) continue;
+        const d = (k / 12) * R * 0.92;
+        const n = gh(wx + hx * d, wz + hz * d) + Math.sqrt(R * R - d * d);
+        if (n > need) { need = n; bestD = d; }
+      }
+    }
+    const prev = w.ground ?? g0;
+    w.ground = need - R;
+    w.stepFx = 0; w.stepFz = 0;
+    if (bestD) {
+      const tan = clamp(Math.abs(bestD) / Math.sqrt(R * R - bestD * bestD), 0, 1.7);
+      // اتجاه الحرف: ميل الأرض عند نقطة التلامس (نازل من الرصيف للشارع)
+      const px = wx + hx * bestD, pz = wz + hz * bestD, e = 0.12;
+      let nx = gh(px - e, pz) - gh(px + e, pz), nz = gh(px, pz - e) - gh(px, pz + e);
+      const nl = Math.hypot(nx, nz);
+      if (nl > 1e-4) { nx /= nl; nz /= nl; } else { nx = -hx * Math.sign(bestD); nz = -hz * Math.sign(bestD); }
+      // لو داخل على الحرف بزاوية مايلة: المقاومة أقل والعربية بتتزق لبره شوية بدل ما تقف
+      const c = Math.abs(hx * nx + hz * nz);
+      w.stepFx = nx * tan * c; w.stepFz = nz * tan * c;
+    }
+    // خبطة في حرف (للصوت/الكاميرا/الضرر): ارتفاع مفاجئ والعربية ماشية
+    const rise = w.ground - prev;
+    if (rise > 0.035 && this.onCurb) this.onCurb(rise, Math.abs(this.forwardSpeed), w);
   }
 
   /** تطبيق دفعة (impulse) عند نقطة */
