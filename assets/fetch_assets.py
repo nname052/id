@@ -38,7 +38,7 @@ NPM = {
 }
 # حزم Kenney (CC0): رابط التنزيل بيتجاب من صفحة الحزمة نفسها، علشان الرابط فيه رقم بيتغيّر مع كل تحديث
 KENNEY_2D = ["toon-characters", "modular-characters", "shape-characters", "animal-pack"]
-KENNEY_3D = ["furniture-kit", "mini-characters"]
+KENNEY_3D = ["furniture-kit", "mini-characters", "city-kit-suburban", "city-kit-commercial", "city-kit-roads", "car-kit", "food-kit", "nature-kit", "holiday-kit"]
 # شخصيات 3D بنسب طبيعية وحركات جاهزة (كلها CC0)
 MODELS_3D = {
     # مانيكان بنسب جسم طبيعية + 45 حركة (Quaternius Universal Animation Library)
@@ -49,7 +49,12 @@ MODELS_3D = {
     "kaykit-adventurers": "https://codeload.github.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0/zip/refs/heads/main",
     # KayKit: أثاث أوض بنفس الستايل
     "kaykit-furniture": "https://codeload.github.com/KayKit-Game-Assets/KayKit-Furniture-Bits-1.0/zip/refs/heads/main",
+    # KayKit: مطعم ومدينة (شوارع، بيوت، عربيات) بنفس الستايل
+    "kaykit-restaurant": "https://codeload.github.com/KayKit-Game-Assets/KayKit-Restaurant-Bits-1.0/zip/refs/heads/main",
+    "kaykit-city": "https://codeload.github.com/KayKit-Game-Assets/KayKit-City-Builder-Bits-1.0/zip/refs/heads/main",
 }
+# إضاءة حقيقية (HDRI) من Poly Haven (CC0): بتتحط كـ scene.environment في Three.js
+HDRIS = ["brown_photostudio_02", "studio_small_09", "kloofendal_48d_partly_cloudy_puresky", "venice_sunset", "lebombo"]
 ROBOT_URL = "https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/models/gltf/RobotExpressive/RobotExpressive.glb"
 EMOJI_API = "https://googlefonts.github.io/noto-emoji-animation/data/api.json"
 EMOJI_URL = "https://fonts.gstatic.com/s/e/notoemoji/latest/{cp}/lottie.json"
@@ -157,7 +162,10 @@ def main() -> None:
         }
 
         # 1ج. موديلات 3D: أثاث، وشخصيات صغيرة، وشخصيات بنسب طبيعية فيها هيكل عظمي وحركات
-        models = fresh(ASSETS / "3d")
+        models = ASSETS / "3d"
+        models.mkdir(exist_ok=True)
+        for d in [*KENNEY_3D, *MODELS_3D]:
+            shutil.rmtree(models / d, ignore_errors=True)  # فولدر mixamo (اللي بيتنزل بإيدك) مش بيتمسح
         for slug in KENNEY_3D:
             say(f"⏳ Kenney {slug}")
             with zipfile.ZipFile(kenney_zip(slug, tmp / f"{slug}.zip")) as z:
@@ -178,10 +186,20 @@ def main() -> None:
                         out.parent.mkdir(parents=True, exist_ok=True)
                         out.write_bytes(z.read(m))
         download(ROBOT_URL, models / "RobotExpressive.glb")
+        hdri = models / "hdri"
+        hdri.mkdir(exist_ok=True)
+        for h in HDRIS:
+            download(f"https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/{h}_1k.hdr", hdri / f"{h}.hdr")
         catalog["models3d"] = {
             "license": "CC0 (Kenney، KayKit، Quaternius). حزم Quaternius: ممنوع إعادة توزيع الملفات نفسها، والفيديوهات مسموحة",
             "furniture": {"kenney": sorted(p.name for p in (models / "furniture-kit").glob("*.glb")),
                           "kaykit": sorted(p.name for p in (models / "kaykit-furniture").glob("*.gltf"))},
+            "environments": {d: sorted(p.name for p in (models / d).glob("*.gl*"))
+                             for d in ["city-kit-suburban", "city-kit-commercial", "city-kit-roads", "car-kit", "food-kit", "nature-kit",
+                                       "holiday-kit", "kaykit-restaurant", "kaykit-city"]},
+            "hdri": {"dir": "3d/hdri/", "files": [f"{h}.hdr" for h in HDRIS], "license": "CC0 (Poly Haven)",
+                     "usage": "RGBELoader + PMREMGenerator ← scene.environment (إضاءة واقعية من غير ما تبان كخلفية)"},
+            "mixamo": "3d/mixamo/: characters/*.fbx (T-pose بالجلد) و anims/*.fbx (حركات من غير جلد على هيكل mixamorig). شوف assets/README.md",
             "characters": {
                 "mannequin (ual1/ual2)": "نسب طبيعية، 45 + حركات الجزء التاني في نفس الملف (AnimationLibrary_Godot_Standard.glb)",
                 "kaykit-adventurers": sorted(p.name for p in (models / "kaykit-adventurers").glob("*.glb")),

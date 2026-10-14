@@ -38,9 +38,29 @@ uv run python assets/fetch_assets.py
 - **المانيكان الست** (`ual2/Mannequin_F.glb`) من غير حركات، بس هيكلها نفس هيكل المكتبة، فبتاخد أي حركة من `ual1` أو `ual2` بالاسم.
 - **حزم Quaternius (ual1, ual2):** رخصة الملفات CC0، والموقع بيمنع إعادة توزيع الملفات نفسها كحزمة. علشان كده بتتنزل بالسكريبت ومش بتترفع على git.
 
-## شخصيات Mixamo (بتتنزل بإيدك أو من Claude بعد ما تسجّل دخول)
+## شخصيات Mixamo (بتتنزل من Claude بعد ما تسجّل دخول في mixamo.com)
 - **الفولدر:** `assets/3d/mixamo/`. **مش على git**: رخصة Mixamo مجانية للاستخدام التجاري، بس ممنوع إعادة توزيع الملفات نفسها.
-- **الموجود دلوقتي:** شخصية **Aj** بأربع حركات، كل حركة في ملف FBX لوحده بالجلد (With Skin، 30 فريم):
-  `Aj_Idle.fbx` (Standing Idle)، `Aj_Walking.fbx` (Male Standard Walk، في مكانه)، `Aj_Thinking.fbx` (Thinking While Standing)، `Aj_Talking.fbx` (General Conversation).
-- **الاستخدام:** `FBXLoader`، والشخصية بالسنتيمتر (`scale 0.01`). كل الحركات على هيكل `mixamorig` فبتشتغل على أي شخصية Mixamo من غير تحويل.
-- **مثال:** `reference/room_aj.html`.
+- **`characters/`: 11 شخصية** (T-pose بالجلد): بنات: Claire, Amy, Kaya, Sporty_Granny, Megan, Kate, Jody. ولاد: Timmy, Ty, Big_Vegas, Doozy. + `Aj_*.fbx` (Aj بأربع حركات).
+  - الكرتون (زي Aj): Claire, Amy, Kaya, Sporty_Granny, Ty, Timmy, Big_Vegas, Doozy. شبه الواقعي (أتقل، 50MB+): Megan, Kate, Jody.
+  - Claire و Kaya و Sporty_Granny و Big_Vegas و Ty فيهم عضم للوش (300+ عضمة): ممكن نستخدمه بعدين لبق حقيقي.
+- **`anims/`: 40 حركة** من غير جلد (متصدّرة على Aj): walk_female (في مكانه)، happy_idle، sad_idle، waving، waving_both، clapping، cheering، victory، pointing، nod_yes، shake_no، shake_no_thoughtful، shake_no_annoyed، laughing، crying، angry_gesture، angry_point، shrug، looking_around، texting، phone_call، sitting_idle، sitting_talking، stand_to_sit، sit_to_stand، typing، drinking، dancing_silly، dancing_hiphop، excited، surprised، defeated، bored، hands_forward، happy_gesture، yelling، relieved_sigh، asking_question، sitting_laughing، sitting_floor.
+- **الاستخدام:** `reference/lib/mixamo.js`: `loadCharacter(name, {heightM})` و `play(ch, "waving")`. بيحل فرقين لوحده:
+  1. بادئة العضم بتختلف (`mixamorigHips` / `mixamorig2Hips` / `mixamorig6Hips`…).
+  2. الطول بيختلف: حركة الوسط بتتضرب في نسبة الطول، والطول نفسه بيتقاس من العضم (في شخصيات الجسم والعضم وحداتهم مختلفة).
+- **Doozy:** لازم `{ normalMaps: false }`، الـ normal map بتاعه بيسوّد الجسم.
+- **تنزيل شخصيات أو حركات زيادة:** `assets/tools/mixamo_export.js` (بيتشغّل جوه صفحة mixamo.com وإنت مسجّل دخول).
+- **أمثلة:** `reference/room_aj.html` (مشهد كامل بصوت وبق)، `reference/cast_showcase.html` (كل الشخصيات).
+
+## أماكن ومشاهد (CC0، بتتنزل بالسكريبت)
+| الفولدر | فيه إيه |
+|---|---|
+| `3d/city-kit-suburban/` و `city-kit-commercial/` و `city-kit-roads/` | بيوت، محلات، شوارع وأرصفة (Kenney) |
+| `3d/car-kit/` | عربيات (Kenney) |
+| `3d/food-kit/` | 200 أكلة ومشروب (Kenney) |
+| `3d/nature-kit/` | شجر، صخور، زرع، طرق (Kenney) |
+| `3d/holiday-kit/` | زينة ومناسبات (Kenney) |
+| `3d/kaykit-restaurant/` و `3d/kaykit-city/` | مطعم ومدينة بستايل KayKit |
+| `3d/hdri/` | 5 إضاءات واقعية (Poly Haven، CC0): استوديو، استوديو صغير، سما فيها سحاب، غروب، خارجي. `hdriEnvironment()` في `lib/mixamo.js` |
+
+## مش متاح دلوقتي
+- **Quaternius Ultimate Modular Women/Men** (10 ستات و11 راجل بوشوش وشعر، و24 حركة): على Google Drive بس، وجوجل قافل التنزيل التلقائي ("Quota exceeded"). ممكن تتنزل بإيدك من quaternius.com وتتحط في `assets/3d/quaternius-women/` و `quaternius-men/`.
