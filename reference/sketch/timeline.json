@@ -1,0 +1,41 @@
+{
+ "duration": 18.79,
+ "lines": [
+  {
+   "who": "claire",
+   "text": "إنت فين يا بني؟! بقالي نص ساعة واقفة تحت البيت!",
+   "tts": "[annoyed] إنت فين يا بني؟! بقالي نص ساعة واقفة تحت البيت!",
+   "start": 1.0,
+   "dur": 2.8,
+   "audio": "media/line1.mp3",
+   "align": "media/line1.json"
+  },
+  {
+   "who": "aj",
+   "text": "أنا نازل أهو... خمس دقايق وأكون عندك.",
+   "tts": "[yawns] أنا نازل أهو... خمس دقايق وأكون عندك.",
+   "start": 4.25,
+   "dur": 3.44,
+   "audio": "media/line2.mp3",
+   "align": "media/line2.json"
+  },
+  {
+   "who": "claire",
+   "text": "خمس دقايق؟! إنت قايلها من ساعة!",
+   "tts": "[shouting] خمس دقايق؟! إنت قايلها من ساعة!",
+   "start": 8.14,
+   "dur": 2.24,
+   "audio": "media/line3.mp3",
+   "align": "media/line3.json"
+  },
+  {
+   "who": "aj",
+   "text": "يا ستي دي خمس دقايق مصري... مش خمس دقايق عادية!",
+   "tts": "[laughs] يا ستي دي خمس دقايق مصري... مش خمس دقايق عادية!",
+   "start": 10.83,
+   "dur": 4.56,
+   "audio": "media/line4.mp3",
+   "align": "media/line4.json"
+  }
+ ]
+}
