@@ -180,7 +180,14 @@ export class Game {
   // أحداث الفيزياء: خبطات (صوت + هزة كاميرا) — بتتوصل تاني لو الفيزياء اتعملت من جديد
   _wirePhysics() {
     const ph = this.player.physics;
-    ph.onImpact = (v) => { this.audio.impact(v); this.cams && (this.cams.shake = Math.min(1.5, v / 4)); };
+    ph.onImpact = (v, px, pz, other, nx, nz) => {
+      this.audio.impact(v); this.cams && (this.cams.shake = Math.min(1.5, v / 4));
+      if (this.player.damage && nx !== undefined) this.player.damage.impact(px, ph.heave - ph.spec.cgHeight + 0.65, pz, nx, nz, v);
+    };
+    ph.onRollHit = (hit, corner) => {
+      this.audio.impact(hit * 3); if (this.cams) this.cams.shake = Math.min(1.5, hit * 0.6);
+      this.player.damage?.rollHit(hit, corner);
+    };
     ph.onCurb = (rise, v) => {
       if (v < 1.5 || this._curbCd > 0) return;
       const k = Math.min(1, rise * v * 0.9);
@@ -290,7 +297,11 @@ export class Game {
     const input = this.started ? this.input.read() : { throttle: 0, brake: 0, steer: 0, handbrake: 1, actions: {} };
     const a = input.actions;
     if (a.camera) this.hud.toast(`الكاميرا: ${this.cams.next()}`);
-    if (a.reset) { this.player.reset(); this.hud.toast('رجعت للطريق'); }
+    if (a.reset) {
+      const r = this.player.reset();
+      this.hud.toast(r === 'recover' ? 'العربية اتعدلت' : 'رجعت للطريق واتصلّحت');
+      this._flipNote = false; this.touch?.root.querySelector('[data-act="reset"]')?.classList.remove('lit');
+    }
     if (a.time) this.hud.toast(`الوقت: ${this.env.cycle()}`);
     if (a.lights) { const on = this.player.toggleHeadlights(); this.touch?.setLights(on); this.hud.toast(on ? 'الكشافات شغالة' : 'الكشافات مطفية'); }
     if (a.help) this.hud.toggleHelp();
@@ -314,6 +325,13 @@ export class Game {
     if (bump > 0.35 && !this._bumpCd) { this.audio.thump(bump * 0.5); this._bumpCd = 0.15; }
     this._bumpCd = Math.max(0, (this._bumpCd || 0) - dt);
     this._curbCd = Math.max(0, (this._curbCd || 0) - dt);
+    // اتقلبت: رسالة + زرار الرجوع منوّر
+    if (!ph.flip.mode && this._flipNote) { this._flipNote = false; this.touch?.root.querySelector('[data-act="reset"]')?.classList.remove('lit'); }
+    if (ph.flip.mode && ph.flip.rest > 0.8 && !this._flipNote) {
+      this._flipNote = true;
+      this.hud.toast(this.mobile ? 'العربية اتقلبت! دوس زرار ↺ عشان تعدلها' : 'العربية اتقلبت! دوس R عشان تعدلها', 4);
+      this.touch?.root.querySelector('[data-act="reset"]')?.classList.add('lit');
+    }
 
     this.lights.update(dt);
     this.traffic.update(dt, this.player, this.camera.position);

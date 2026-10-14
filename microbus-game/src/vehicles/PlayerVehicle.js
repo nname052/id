@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { VehiclePhysics, MICROBUS_SPEC } from '../physics/VehiclePhysics.js';
 import { buildMicrobus } from './MicrobusModel.js';
 import { analyzeVehicle, specFromModel, integrateHiace } from './HiaceIntegration.js';
+import { Damage } from './Damage.js';
+import { nearestSide } from '../world/RoadNetwork.js';
 import { PLAYER_START, ROAD, CROSSINGS } from '../world/layout.js';
 import { groundHeight } from '../world/ground.js';
 import { loopProject, loopAt } from '../traffic/TrafficSystem.js';
@@ -24,6 +26,7 @@ export class PlayerVehicle {
     this._applyGLB(assets?.get('microbus'), assets?.status?.microbus);
     this._setupMirrors();
     this._setupHeadlights();
+    if (this.glbIntegrated) this.damage = new Damage(this);
     this.reset(true);
   }
 
@@ -43,6 +46,7 @@ export class PlayerVehicle {
       this.physics = new VehiclePhysics(spec, groundHeight);
       this.rig.shell.position.y = -spec.cgHeight;
       integrateHiace(this.rig, asset, spec, A);
+      if (this.rig.dims) spec.roofHeight = this.rig.dims.roofY;
       this.glbIntegrated = true;
       console.info('[HiAce] wheelBase', A.wheelBase.toFixed(2), 'track', A.track.toFixed(2), 'R', A.radius.toFixed(3), 'body', (spec.halfLength * 2).toFixed(2), 'x', (spec.halfWidth * 2).toFixed(2));
     } catch (e) {
@@ -135,7 +139,7 @@ export class PlayerVehicle {
 
   setHeadlights(on) {
     this.headOn = on;
-    for (const l of this.headlights) { l.visible = on; l.intensity = on ? 220 : 0; }
+    for (const l of this.headlights) { const ok = on && !l.userData.broken; l.visible = ok; l.intensity = ok ? 220 : 0; }
     this.rig.lights.head.emissiveIntensity = on ? 2.2 : 0.0;
     if (this.rig.lights.fog) this.rig.lights.fog.emissiveIntensity = on ? 1.5 : 0;
   }
@@ -143,10 +147,23 @@ export class PlayerVehicle {
   toggleHeadlights() { this.setHeadlights(!this.headOn); return this.headOn; }
 
   /** R: رجّع الميكروباص للطريق */
+  /** مقلوبة؟ → نعدلها مكانها (الضرر بيفضل). غير كده → نرجع للطريق ونصلّح */
   reset(initial = false) {
     const ph = this.physics;
-    if (initial) { ph.reset(PLAYER_START.x, PLAYER_START.z, PLAYER_START.yaw); this._savePrev(); return; }
+    if (initial) { ph.reset(PLAYER_START.x, PLAYER_START.z, PLAYER_START.yaw); this._savePrev(); return 'start'; }
+    if (ph.flip.mode) { ph.recover(); this._savePrev(); return 'recover'; }
+    this.damage?.repair();
     let { x, z } = ph;
+    // على طريق فرعي: نرجع لنص حارته في نفس الاتجاه
+    const sr = nearestSide(x, z);
+    if (sr && sr.dist < 20 && !(Math.abs(x) < 100 && z > ROAD.zMin && z < ROAD.zMax)) {
+      const p = sr.road.samples[sr.i];
+      const dir = ph.forward[0] * p.dx + ph.forward[1] * p.dz >= 0 ? 1 : -1;
+      const off = dir * Math.min(1.8, sr.road.half * 0.5);
+      ph.reset(p.x + p.rx * off, p.z + p.rz * off, dir > 0 ? Math.atan2(-p.dx, -p.dz) : Math.atan2(p.dx, p.dz));
+      this._savePrev();
+      return 'road';
+    }
     const facingNorth = Math.cos(ph.yaw) < 0; // بيبص ناحية +Z
     const onCross = CROSSINGS.find((c) => Math.abs(z - c.z) < c.half && Math.abs(x) > ROAD.curb);
     if (onCross) {
@@ -165,6 +182,7 @@ export class PlayerVehicle {
     }
     void facingNorth;
     this._savePrev();
+    return 'road';
   }
 
   _savePrev() {
@@ -187,13 +205,24 @@ export class PlayerVehicle {
 
     // العجل
     const R = ph.spec.wheelRadius;
+    const tipped = ph.flip.mode === 1;
     for (let i = 0; i < 4; i++) {
       const w = rig.wheels[i], pw = ph.wheels[i];
-      w.group.position.y = pw.centerY;
-      if (w.front) w.group.rotation.y = ph.steerAngle;
+      if (tipped) {
+        // العجل متعلق في الجسم وهو بيتقلب (مدلدل لآخر المساعد)
+        _v1.set(pw.rx, R - ph.spec.cgHeight - 0.06, -pw.rf).applyEuler(rig.body.rotation).add(rig.body.position);
+        w.group.position.y = _v1.y;
+        w.group.position.x = _v1.x; w.group.position.z = _v1.z;
+        w.group.rotation.set(rig.body.rotation.x, w.front ? ph.steerAngle : 0, rig.body.rotation.z, 'YXZ');
+      } else {
+        if (w._tipped) { w.group.position.x = pw.rx; w.group.position.z = -pw.rf; w.group.rotation.set(0, 0, 0); }
+        w.group.position.y = pw.centerY;
+        if (w.front) w.group.rotation.y = ph.steerAngle;
+      }
+      w._tipped = tipped;
       w.spin.rotation.x = -pw.spin;
     }
-    if (rig.contactShadow) rig.contactShadow.position.y = 0.012 + groundHeight(rig.root.position.x, rig.root.position.z);
+    if (rig.contactShadow) { rig.contactShadow.visible = !tipped; rig.contactShadow.position.y = 0.012 + groundHeight(rig.root.position.x, rig.root.position.z); }
 
     // الدركسيون
     const swa = ph.steeringWheelAngle;

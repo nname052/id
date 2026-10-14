@@ -183,6 +183,11 @@ export function integrateHiace(rig, asset, spec, A) {
 
   // ===== الباب الجرار (يمين): بنفصل مثلثاته من الموديل عشان يتفتح ويتقفل بجد =====
   rig.slidingDoor = extractSlidingDoor(rig, holder, HW);
+  // الإكصدامات منفصلة عشان تتدلدل لما تتخبط جامد
+  rig.bumpers = {
+    front: extractRegion(rig, holder, (p) => p.z < -(frontF - 0.3) && p.y < 0.6 && p.y > 0.08, 'bumper-front'),
+    rear: extractRegion(rig, holder, (p) => p.z > -rearF - 0.26 && p.y < 0.58 && p.y > 0.08, 'bumper-rear'),
+  };
 
   // ===== الصالون الجديد =====
   const rigInt = new THREE.Group();
@@ -209,12 +214,29 @@ export function integrateHiace(rig, asset, spec, A) {
     rig.mirrors.push({ holder: holderM, face, side: sx, aspect: w / h, fov: 26 });
   }
 
+  // ===== الشاسيه من تحت (الموديل مفتوح من تحت: بيبان لما العربية تتقلب) =====
+  {
+    const u = new GeoBuilder();
+    const L0 = -frontF + 0.25, L1 = -rearF - 0.25, y = 0.3;
+    u.setColor([0.16, 0.16, 0.17]);
+    u.box(-HW + 0.06, y - 0.02, L0, HW - 0.06, y, L1);
+    u.setColor([0.08, 0.08, 0.09]);
+    for (const x of [-0.42, 0.42]) u.box(x - 0.05, y - 0.12, L0 + 0.1, x + 0.05, y - 0.02, L1 - 0.1); // شاسيه طولي
+    u.setColor([0.25, 0.24, 0.23]);
+    u.addGeometry(new THREE.CylinderGeometry(0.05, 0.05, frontF - rearF - 1.2, 8).rotateX(Math.PI / 2), new THREE.Matrix4().makeTranslation(0.1, y - 0.12, (L0 + L1) / 2)); // عمود الكردان
+    u.addGeometry(new THREE.CylinderGeometry(0.035, 0.04, frontF - rearF - 0.6, 8).rotateX(Math.PI / 2), new THREE.Matrix4().makeTranslation(-0.35, y - 0.1, (L0 + L1) / 2 + 0.2)); // الشكمان
+    const under = new THREE.Mesh(u.build(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0.2 }));
+    under.name = 'underbody';
+    rig.shell.add(under);
+  }
+
   // ===== فوانيس الفرامل (مستطيلات حمرا مضيئة فوق فوانيس الموديل) =====
   const tail = new THREE.MeshStandardMaterial({ color: 0x5a0000, emissive: 0xff1a0a, emissiveIntensity: 0.0, transparent: true, opacity: 0.85, roughness: 0.3, depthWrite: false });
   for (const sx of [-1, 1]) {
     const p = new THREE.Mesh(new THREE.PlaneGeometry(0.13, 0.36), tail);
     p.position.set(sx * (HW - 0.07), 0.82, -rearF + 0.012);
     rig.shell.add(p);
+    (rig.tailPlanes ||= {})[sx] = p;
   }
   rig.lights = { head: { set emissiveIntensity(v) { for (const m of lightsMats) m.emissiveIntensity = v * 0.35; } }, tail, indicator: null, fog: null };
   rig.lights.head.emissiveIntensity = 0;
@@ -466,13 +488,13 @@ function orientOutward(mesh, holder, c, h) {
 /** الباب الجرار في الهاي إس (ناحية الرصيف): مقاسه متقاس من الموديل (إحداثيات الـ shell، قدام = -z) */
 const DOOR = { z0: -0.52, z1: 0.77, y0: 0.27, y1: 1.64, inset: 0.16 };
 
-function extractSlidingDoor(rig, holder, HW) {
+/** بيفصل مثلثات منطقة من الموديل في group لوحدها (الباب الجرار، الإكصدامات) */
+function extractRegion(rig, holder, inRegion, name) {
   rig.shell.updateMatrixWorld(true);
   const toShell = new THREE.Matrix4().copy(rig.shell.matrixWorld).invert();
   const group = new THREE.Group();
-  group.name = 'sliding-door';
+  group.name = name;
   const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), n = new THREE.Vector3();
-  const inDoor = (p) => p.x > HW - DOOR.inset && p.z > DOOR.z0 && p.z < DOOR.z1 && p.y > DOOR.y0 && p.y < DOOR.y1;
   let moved = 0;
   holder.traverse((o) => {
     if (!o.isMesh || !o.visible || !o.geometry.index) return;
@@ -486,7 +508,7 @@ function extractSlidingDoor(rig, holder, HW) {
     for (let i = 0; i < idx.length; i += 3) {
       a.fromBufferAttribute(P, idx[i]).applyMatrix4(rel); b.fromBufferAttribute(P, idx[i + 1]).applyMatrix4(rel); c.fromBufferAttribute(P, idx[i + 2]).applyMatrix4(rel);
       const m = new THREE.Vector3().add(a).add(b).add(c).multiplyScalar(1 / 3);
-      if (!inDoor(m)) { keep.push(idx[i], idx[i + 1], idx[i + 2]); continue; }
+      if (!inRegion(m)) { keep.push(idx[i], idx[i + 1], idx[i + 2]); continue; }
       for (const [k, v] of [[idx[i], a], [idx[i + 1], b], [idx[i + 2], c]]) {
         pos.push(v.x, v.y, v.z);
         if (N) { n.fromBufferAttribute(N, k).applyMatrix3(nm).normalize(); nor.push(n.x, n.y, n.z); }
@@ -506,6 +528,11 @@ function extractSlidingDoor(rig, holder, HW) {
     group.add(mesh);
   });
   rig.shell.add(group);
+  return { group, moved };
+}
+
+function extractSlidingDoor(rig, holder, HW) {
+  const { group, moved } = extractRegion(rig, holder, (p) => p.x > HW - DOOR.inset && p.z > DOOR.z0 && p.z < DOOR.z1 && p.y > DOOR.y0 && p.y < DOOR.y1, 'sliding-door');
   console.info('[HiAce] الباب الجرار:', moved, 'مثلث');
   // open: 0 مقفول → 1 مفتوح (بيطلع لبره شوية وبعدين يتزحلق لورا)
   return {

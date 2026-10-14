@@ -110,6 +110,7 @@ export class VehiclePhysics {
     this.accelLong = 0; this.accelLat = 0;
     this.lastImpact = 0;
     this.speed = 0; this.forwardSpeed = 0;
+    this.flip = { mode: 0, theta: 0, omega: 0, corner: -1, rest: 0 };
     for (const w of this.wheels) { w.compression = 0; w.compressionVel = 0; w.spin = 0; w.spinVel = 0; w.load = w.staticLoad; w.y = undefined; w.ground = undefined; w.stepFx = 0; w.stepFz = 0; }
     this._settle();
   }
@@ -249,6 +250,7 @@ export class VehiclePhysics {
     this.forwardSpeed = this.vx * fx + this.vz * fz;
     this._updateSteering(dt, input);
     this._updateDrivetrain(dt, input);
+    if (this.flip.mode) { this._stepFlip(dt, colliders); return; }
 
     // ===== التعليق =====
     let springSum = 0, pitchT = 0, rollT = 0;
@@ -385,12 +387,20 @@ export class VehiclePhysics {
     // الحركة الرأسية (heave / pitch / roll) + انتقال الوزن
     const heaveAcc = springSum / s.mass - G;
     const pitchAcc = (pitchT + s.cgHeight * fLong * 0.85) / s.inertiaPitch;
-    const rollAcc = (rollT + s.cgHeight * fLat * 0.85) / s.inertiaRoll;
+    // عمود التوازن (anti-roll bar): بيقلل الميلان والمرجحة في اللفات
+    const arb = -(s.antiRollK ?? 52000) * this.roll - (s.antiRollC ?? 5200) * this.rollVel;
+    const rollAcc = (rollT + s.cgHeight * fLat * 0.85 + arb) / s.inertiaRoll;
     this.heaveVel += heaveAcc * dt; this.heave += this.heaveVel * dt;
     this.pitchVel += pitchAcc * dt; this.pitch += this.pitchVel * dt;
     this.rollVel += rollAcc * dt; this.roll += this.rollVel * dt;
     // تخميد بسيط للدوران الزائد
     this.pitchVel *= 1 - 0.6 * dt; this.rollVel *= 1 - 0.6 * dt;
+    // بداية انقلاب: العجلتين اللي فوق سابوا الأرض والميل كبير → فيزياء دوران حوالين الحرف
+    if (Math.abs(this.roll) > 0.3) {
+      const up = this.roll > 0 ? 1 : -1; // الجنب اللي طالع لفوق (+ = اليمين)
+      const lifted = this.wheels.filter((w) => Math.sign(w.rx) === up).every((w) => w.load < 40);
+      if (lifted && this.rollVel * up > -0.2) this._enterFlip();
+    }
     // أمان: لو الجسم نزل تحت الأرض
     const minH = this.groundHeight(this.x, this.z) + 0.35;
     if (this.heave < minH) { this.heave = minH; this.heaveVel = Math.max(0, this.heaveVel); }
@@ -437,6 +447,97 @@ export class VehiclePhysics {
     if (rise > 0.035 && this.onCurb) this.onCurb(rise, Math.abs(this.forwardSpeed), w);
   }
 
+  // ===================== الانقلاب =====================
+  // مقطع العربية (من ورا): مستطيل عرضه العجل تحت والصاج فوق، بيلف حوالين أوطى ركن لامس الأرض.
+  _corners(theta, out) {
+    const s = this.spec, a = s.track / 2, W = s.halfWidth, h = s.cgHeight, top = (s.roofHeight || 1.95) - h;
+    const c = Math.cos(theta), sn = Math.sin(theta);
+    const pts = [[-a, -h], [a, -h], [W, top], [-W, top]]; // تحت شمال، تحت يمين، فوق يمين، فوق شمال
+    for (let i = 0; i < 4; i++) { const [x, y] = pts[i]; out[i * 2] = x * c - y * sn; out[i * 2 + 1] = x * sn + y * c; }
+    return out;
+  }
+
+  _enterFlip() {
+    const f = this.flip;
+    f.mode = 1; f.theta = this.roll; f.omega = this.rollVel; f.corner = -1; f.rest = 0;
+    for (const w of this.wheels) { w.load = 0; w.skid = 0; }
+  }
+
+  get flipped() { return this.flip.mode === 1 && Math.abs(Math.atan2(Math.sin(this.flip.theta), Math.cos(this.flip.theta))) > 0.9; }
+
+  /** يعدل العربية في مكانها (بعد ما تتقلب) */
+  recover() {
+    const { x, z, yaw } = this;
+    this.reset(x, z, yaw);
+  }
+
+  _stepFlip(dt, colliders) {
+    const s = this.spec, f = this.flip, m = s.mass;
+    const [fx, fz] = this.forward, [rx, rz] = this.right;
+    const C = (this._cbuf ||= new Float32Array(8));
+    this._corners(f.theta, C);
+    // أوطى ركن = نقطة الارتكاز
+    let lo = 0;
+    for (let i = 1; i < 4; i++) if (C[i * 2 + 1] < C[lo * 2 + 1] - 1e-4 || (Math.abs(C[i * 2 + 1] - C[lo * 2 + 1]) < 1e-4 && Math.sign(C[i * 2]) === Math.sign(f.omega))) lo = i;
+    const xp = C[lo * 2], yp = C[lo * 2 + 1];
+    // ركن جديد خبط في الأرض: فقد طاقة + خبطة (صوت/ضرر)
+    if (f.corner >= 0 && lo !== f.corner) {
+      const hit = Math.abs(f.omega) * Math.hypot(xp, yp);
+      f.omega *= lo >= 2 || f.corner >= 2 ? 0.5 : 0.62;
+      if (hit > 0.8 && this.onRollHit) this.onRollHit(hit, lo, f.theta);
+      this.lastImpact = Math.max(this.lastImpact, hit);
+    }
+    f.corner = lo;
+    const thetaN = Math.atan2(Math.sin(f.theta), Math.cos(f.theta));
+    const onWheels = Math.abs(thetaN) < 0.75;
+    // قوى الأرض الجانبية (كاوتش لو لسه على العجل، صاج بيتزحلق لو على جنبه/سقفه)
+    const vLong = this.vx * fx + this.vz * fz, vLat = this.vx * rx + this.vz * rz;
+    const sp = Math.hypot(vLong, vLat);
+    let FLat, FLong;
+    if (onWheels) {
+      FLat = -clamp(vLat * 2600, -0.8 * m * G, 0.8 * m * G);
+      const drive = this.flip.corner <= 1 ? this.driveForce * 0.5 : 0;
+      FLong = drive - this.brake * s.brakeForce * 0.5 * clamp(vLong / 0.4, -1, 1) - 0.02 * m * G * clamp(vLong / 0.5, -1, 1);
+    } else {
+      const mu = 0.55 * m * G / Math.max(sp, 0.4);
+      FLat = -vLat * mu; FLong = -vLong * mu;
+    }
+    // دوران حوالين الركن: الجاذبية + القوة الجانبية عند الأرض
+    const Ip = s.inertiaRoll + m * (xp * xp + yp * yp);
+    const tau = m * G * xp - yp * FLat;
+    f.omega += (tau / Ip) * dt;
+    // لسه على عجلتين: المساعدين والكاوتش بيمتصوا جزء من الدوران
+    f.omega *= 1 - (onWheels ? 2.2 : 0.25) * dt;
+    // واقفة على وش (ركنين لامسين) ومفيش حركة تقريبًا → تستقر
+    let second = 99;
+    for (let i = 0; i < 4; i++) if (i !== lo) second = Math.min(second, C[i * 2 + 1] - yp);
+    if (second < 0.02 && Math.abs(f.omega) < 0.5) { f.omega = 0; f.rest += dt; } else f.rest = 0;
+    f.theta += f.omega * dt;
+    // رجعت على عجلها
+    if (Math.abs(thetaN) < 0.18 && Math.abs(f.omega) < 2.5 && lo <= 1) {
+      f.mode = 0; this.roll = thetaN; this.rollVel = f.omega * 0.5; f.rest = 0;
+      for (const w of this.wheels) { w.y = undefined; w.ground = undefined; }
+      return;
+    }
+    // الحركة على الأرض
+    this.vx += ((fx * FLong + rx * FLat) / m) * dt;
+    this.vz += ((fz * FLong + rz * FLat) / m) * dt;
+    this.yawRate *= 1 - (onWheels ? 1.5 : 3) * dt;
+    this.x += this.vx * dt; this.z += this.vz * dt;
+    this.yaw += this.yawRate * dt;
+    this.accelLat = FLat / m; this.accelLong = FLong / m;
+    // الارتفاع: أوطى ركن على الأرض
+    const g = this.groundHeight(this.x, this.z);
+    this.heave = g - yp; this.heaveVel = 0;
+    this.roll = f.theta; this.rollVel = f.omega;
+    this.pitch *= 1 - 3 * dt; this.pitchVel = 0;
+    for (const w of this.wheels) { w.load = 0; w.compressionVel = 0; w.skid = 0; w.spinVel *= 1 - dt; w.spin += w.spinVel * dt; }
+    if (colliders) this._collide(colliders);
+    this.speed = Math.hypot(this.vx, this.vz);
+    this.forwardSpeed = this.vx * fx + this.vz * fz;
+    this.lastImpact = Math.max(0, this.lastImpact - dt * 4);
+  }
+
   /** تطبيق دفعة (impulse) عند نقطة */
   applyImpulse(px, pz, jx, jz) {
     const rX = px - this.x, rZ = pz - this.z;
@@ -470,6 +571,14 @@ export class VehiclePhysics {
         const e = other.restitution ?? 0.18;
         const j = ((1 + e) * vn) / (1 / s.mass + invB + (k * k) / s.inertiaYaw);
         this.applyImpulse(px, pz, -nx * j, -nz * j);
+        // خبطة من الجنب (تحت مركز الثقل): بتميّل العربية وممكن تقلبها لو جامدة
+        {
+          const [rxB, rzB] = this.right;
+          const jl = -(nx * rxB + nz * rzB) * j; // + = زقة ناحية اليمين
+          const lever = Math.max(0.15, s.cgHeight - 0.45);
+          if (this.flip.mode) this.flip.omega += (jl * lever) / (s.inertiaRoll * 3);
+          else this.rollVel += (jl * lever) / (s.inertiaRoll * 1.6);
+        }
         // احتكاك تماسي
         const tx = -nz, tz = nx;
         const vt = vpx * tx + vpz * tz;
@@ -480,7 +589,7 @@ export class VehiclePhysics {
         this.applyImpulse(px, pz, tx * jt, tz * jt);
         const impactSpeed = vn;
         this.lastImpact = Math.max(this.lastImpact, impactSpeed);
-        if (this.onImpact) this.onImpact(impactSpeed, px, pz, other);
+        if (this.onImpact) this.onImpact(impactSpeed, px, pz, other, nx, nz);
         if (other.onHit) other.onHit(j / s.mass);
       }
     }
