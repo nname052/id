@@ -18,7 +18,7 @@ let clinicCounter = 0;
 
 export const BUILDING_INFO = []; // لأماكن المحلات (للمشاة والكراسي)
 
-function buildOne(B, opts) {
+export function buildOne(B, opts) {
   const R = rng(opts.seed);
   const { width: W, depth: D, floors } = opts;
   const brick = opts.style === 'brick';
@@ -72,7 +72,7 @@ function buildOne(B, opts) {
           const bd = 1.05, bx0 = u0 + 0.25, bx1 = u1 - 0.25;
           slabBox(conc, toLocal, bx0, y0 - 0.02, 0, bx1, y0 + 0.16, bd);
           const enclosed = R() < 0.18;
-          const solid = R() < 0.45 || enclosed;
+          const solid = R() < 0.45 || enclosed || opts.detail === 'low';
           if (solid) {
             slabBox(conc, toLocal, bx0, y0 + 0.16, bd - 0.1, bx1, y0 + 1.05, bd);
             slabBox(conc, toLocal, bx0, y0 + 0.16, 0, bx0 + 0.1, y0 + 1.05, bd - 0.1);
@@ -92,7 +92,7 @@ function buildOne(B, opts) {
             for (let u = bx0; u < bx1; u += (bx1 - bx0) / 3) slabBox(al, toLocal, u, y0 + 1.05, bd - 0.02, u + 0.05, y1 - 0.15, bd + 0.02);
           }
           // غسيل منشور
-          if (!enclosed && R() < 0.35) {
+          if (!enclosed && opts.detail !== 'low' && R() < 0.35) {
             const cl = get('cloth');
             for (let u = bx0 + 0.15; u < bx1 - 0.4; u += 0.45 + R() * 0.2) {
               cl.setColor(CLOTH[Math.floor(R() * CLOTH.length)]);
@@ -123,7 +123,18 @@ function buildOne(B, opts) {
   if (opts.facades.right) drawFacade(D, (u, y, z) => [W / 2 + z, y, -D / 2 - u], false);
 
   // ===== الدور الأرضي: محلات =====
-  const shopCount = Math.max(1, Math.round(W / 3.6));
+  if (opts.shops === false) {
+    // دور أرضي سكني: باب + شبابيك بحديد
+    const bays = Math.max(1, Math.round(W / 3.3)), bw = W / bays;
+    const door = Math.floor(R() * bays);
+    for (let j = 0; j < bays; j++) {
+      const u0 = -W / 2 + j * bw;
+      if (j === door) get('shop').quad([u0, 0, 0], [u0 + bw, 0, 0], [u0 + bw, 3.6, 0], [u0, 3.6, 0], atlasUV(7));
+      else facade.quad([u0, 0, 0], [u0 + bw, 0, 0], [u0 + bw, GF, 0], [u0, GF, 0], atlasUV(6));
+    }
+    if (door >= 0) facade.quad([-W / 2 + door * bw, 3.6, 0], [-W / 2 + (door + 1) * bw, 3.6, 0], [-W / 2 + (door + 1) * bw, GF, 0], [-W / 2 + door * bw, GF, 0], [[0.02, 0.98], [0.23, 0.98], [0.23, 0.99], [0.02, 0.99]]);
+  }
+  const shopCount = opts.shops === false ? 0 : Math.max(1, Math.round(W / 3.6));
   const sw = W / shopCount;
   const entrance = Math.floor(R() * shopCount);
   const shop = get('shop');
@@ -221,7 +232,7 @@ function acUnit(b, toLocal, cx, y, z) {
 }
 
 /** بناء كل عمارات الشارع */
-export function buildBuildings(M) {
+export function buildBuildings(M, { low = false } = {}) {
   const group = new THREE.Group();
   group.name = 'buildings';
   const B = new Buckets();
@@ -230,13 +241,13 @@ export function buildBuildings(M) {
   const SW = ROAD.sidewalkOuter;
   const sideMargin = Math.max(...CROSSINGS.map((c) => c.sidewalk));
 
-  const place = (opts) => buildOne(B, { seed: seed++ * 7919, floors: 4 + Math.floor(R() * 7), style: R() < 0.32 ? 'brick' : 'plaster', facades: {}, ...opts });
+  const place = (opts) => buildOne(B, { seed: seed++ * 7919, floors: 4 + Math.floor(R() * 7), style: R() < 0.32 ? 'brick' : 'plaster', facades: {}, detail: low ? 'low' : 'high', ...opts });
 
   // ===== الشارع الرئيسي =====
   for (const s of [-1, 1]) {
     for (const [zs0, ze0] of mainSegments(sideMargin)) {
-      const zs = zs0 === ROAD.zMax ? ROAD.zMax + 9 : zs0;
-      const ze = ze0 === ROAD.zMin ? ROAD.zMin - 9 : ze0;
+      const zs = zs0;
+      const ze = ze0;
       const lengths = [];
       let rest = zs - ze;
       while (rest > 0) {
@@ -282,9 +293,6 @@ export function buildBuildings(M) {
       place({ x: xe, z: c.z, rotY: sx > 0 ? -Math.PI / 2 : Math.PI / 2, width: 2 * (c.half + c.sidewalk) + 2, depth: 14 });
     }
   }
-  // عمارات قافلة نهايات الشارع الرئيسي
-  place({ x: 0, z: ROAD.zMin - 9, rotY: 0, width: 2 * SW + 0.5, depth: 16, floors: 9 });
-  place({ x: 0, z: ROAD.zMax + 9, rotY: Math.PI, width: 2 * SW + 0.5, depth: 16, floors: 8 });
 
   B.toMeshes({ ...M, winGlass: M.glass }, group);
   group.traverse((o) => { if (o.name === 'winGlass' || o.name === 'clinic') o.castShadow = false; });

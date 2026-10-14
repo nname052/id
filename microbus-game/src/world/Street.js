@@ -22,7 +22,7 @@ export function buildStreet(M) {
       asphalt.quad([x0, y, ze], [x1, y, ze], [x1, y, z], [x0, y, z], [[x0 / UV, ze / UV], [x1 / UV, ze / UV], [x1 / UV, z / UV], [x0 / UV, z / UV]]);
     }
   };
-  roadQuad(-ROAD.curb, ROAD.curb, ROAD.zMin - 4, ROAD.zMax + 4);
+  roadQuad(-ROAD.curb, ROAD.curb, ROAD.zMin, ROAD.zMax);
   for (const c of CROSSINGS) {
     for (const [a, b] of [[c.xMin - 4, -ROAD.curb], [ROAD.curb, c.xMax + 4]]) {
       asphalt.setColor([0.93, 0.93, 0.93]);
@@ -141,8 +141,6 @@ export function buildStreet(M) {
     }
   }
   // نهايات الشوارع: رصيف عرضي
-  sidewalk(-ROAD.sidewalkOuter, ROAD.sidewalkOuter, ROAD.zMax + 4, ROAD.zMax + 9, ['nz']);
-  sidewalk(-ROAD.sidewalkOuter, ROAD.sidewalkOuter, ROAD.zMin - 9, ROAD.zMin - 4, ['pz']);
 
   // ===== الجزيرة الوسطى =====
   const dirt = B.get('dirt');
@@ -160,7 +158,7 @@ export function buildStreet(M) {
   // ===== أرضية بعيدة تحت كل حاجة =====
   const ground = B.get('concrete');
   ground.setColor([0.55, 0.52, 0.48]);
-  ground.quad([-400, -0.05, 400], [400, -0.05, 400], [400, -0.05, -500], [-400, -0.05, -500], [[0, 0], [100, 0], [100, 100], [0, 100]]);
+  ground.quad([-100, -0.05, ROAD.zMax], [100, -0.05, ROAD.zMax], [100, -0.05, ROAD.zMin], [-100, -0.05, ROAD.zMin], [[0, 0], [25, 0], [25, 50], [0, 50]]);
 
   B.toMeshes(M, group, { castShadow: false });
 

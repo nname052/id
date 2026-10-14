@@ -19,7 +19,7 @@ export class AudioSystem {
     this.started = true;
 
     this.master = ctx.createGain();
-    this.master.gain.value = 0.8;
+    this.master.gain.value = 0.62;
     const comp = ctx.createDynamicsCompressor();
     comp.threshold.value = -14; comp.ratio.value = 4;
     this.master.connect(comp).connect(ctx.destination);
@@ -38,6 +38,16 @@ export class AudioSystem {
     this._buildAmbience();
     this._buildTraffic();
     this.hornGain = null;
+    // صدى النفق
+    this.echo = ctx.createDelay(1); this.echo.delayTime.value = 0.09;
+    this.echoFb = this._gain(0.0); this.echoWet = this._gain(0.0);
+    this.echo.connect(this.echoFb).connect(this.echo);
+    this.echo.connect(this.echoWet).connect(this.master);
+    this.engine.out.connect(this.echo);
+    // حصى/تراب لما تطلع على الشولدر
+    const gn = this._loop(this.noiseBuf);
+    this.gravelG = this._gain(0);
+    gn.connect(this._filter('bandpass', 2400, 0.8)).connect(this.gravelG).connect(this.master);
   }
 
   async _loadFiles() {
@@ -244,7 +254,7 @@ export class AudioSystem {
 
   toggleMute() {
     this.muted = !this.muted;
-    if (this.master) this.master.gain.setTargetAtTime(this.muted ? 0 : 0.8, this.ctx.currentTime, 0.05);
+    if (this.master) this.master.gain.setTargetAtTime(this.muted ? 0 : 0.62, this.ctx.currentTime, 0.05);
     return this.muted;
   }
 
@@ -292,7 +302,13 @@ export class AudioSystem {
     set(tr.squealG.gain, skid * 0.32 * distAtt, 0.04);
     set(tr.toneG.gain, skid * 0.3, 0.04);
     set(tr.tone.frequency, 950 + Math.sin(t * 13) * 60 + ph.speed * 8);
-    set(tr.roadG.gain, Math.min(0.5, ph.speed / 30) * 0.5 * distAtt);
+    const surf = player.surface || 'city';
+    const roughK = surf === 'agri' || surf === 'village' ? 1.5 : surf === 'dirt' ? 1.8 : surf === 'bridge' ? 1.15 : 1;
+    set(tr.roadG.gain, Math.min(0.5, ph.speed / 30) * 0.45 * roughK * distAtt);
+    set(this.gravelG.gain, surf === 'dirt' ? Math.min(0.12, ph.speed / 80) * distAtt : 0, 0.1);
+    const tunnel = surf === 'tunnel';
+    set(this.echoFb.gain, tunnel ? 0.42 : 0, 0.2);
+    set(this.echoWet.gain, tunnel ? 0.5 : 0, 0.2);
     set(tr.windG.gain, Math.min(0.12, (ph.speed * ph.speed) / 4000) * (inside ? 0.6 : 1));
     const squeal = ph.brake > 0.3 && ph.speed > 0.5 && ph.speed < 4 ? 0.025 : 0;
     set(tr.brakeG.gain, squeal * distAtt, 0.08);

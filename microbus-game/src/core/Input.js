@@ -37,14 +37,14 @@ export class Input {
       lookX: (k.has('KeyE') ? 1 : 0) - (k.has('KeyQ') ? 1 : 0),
       lookY: 0,
       analog: false,
-      actions: { camera: this.consume('KeyC'), reset: this.consume('KeyR'), time: this.consume('KeyT'), help: this.consume('KeyI') || this.consume('F1'), mute: this.consume('KeyM'), fps: this.consume('KeyF') },
+      actions: { lights: this.consume('KeyL'), camera: this.consume('KeyC'), reset: this.consume('KeyR'), time: this.consume('KeyT'), help: this.consume('KeyI') || this.consume('F1'), mute: this.consume('KeyM'), fps: this.consume('KeyF') },
     };
     this.pressed.clear();
     // تحكم اللمس (موبايل)
     const t = this.touch;
     if (t && t.active) {
       const ts = t.state;
-      if (Math.abs(ts.steer) > 0.02) { st.steer = ts.steer; st.analog = true; }
+      if (ts.wheelHeld) { st.wheelHeld = true; st.wheelAngle = ts.wheelAngle; }
       st.throttle = Math.max(st.throttle, ts.throttle);
       st.brake = Math.max(st.brake, ts.brake);
       st.handbrake = Math.max(st.handbrake, ts.handbrake);

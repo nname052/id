@@ -86,7 +86,7 @@ function person(R) {
 }
 
 export class Pedestrians {
-  constructor(scene, assets) {
+  constructor(scene, assets, count = 24) {
     this.group = new THREE.Group();
     this.group.name = 'pedestrians';
     scene.add(this.group);
@@ -94,7 +94,7 @@ export class Pedestrians {
     const R = rng(55);
     const segs = mainSegments(5);
     const glb = assets?.get('pedestrian');
-    for (let i = 0; i < 26; i++) {
+    for (let i = 0; i < count; i++) {
       const [zs, ze] = segs[Math.floor(R() * segs.length)];
       const side = R() < 0.5 ? -1 : 1;
       const standing = R() < 0.25;
@@ -117,7 +117,7 @@ export class Pedestrians {
 
   update(dt, camPos) {
     for (const p of this.people) {
-      const far = Math.abs(p.z - camPos.z) > 140;
+      const far = (p.x - camPos.x) ** 2 + (p.z - camPos.z) ** 2 > 75 * 75;
       p.root.visible = !far;
       if (!p.standing) {
         p.z += p.dir * p.speed * dt;

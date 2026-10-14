@@ -5,13 +5,13 @@
 import { obbOverlap } from './Collision.js';
 
 export const MICROBUS_SPEC = {
-  mass: 2350,              // كجم (ميكروباص محمّل جزئيًا)
-  inertiaYaw: 5600,
-  inertiaPitch: 5200,
-  inertiaRoll: 1500,
-  cgHeight: 0.92,          // ارتفاع مركز الثقل عن الأرض
-  wheelBase: 2.6,
-  cgToFront: 1.25,         // المسافة من مركز الثقل للمحور الأمامي
+  mass: 2500,              // كجم (ميكروباص هاي روف محمّل جزئيًا)
+  inertiaYaw: 6600,
+  inertiaPitch: 6200,
+  inertiaRoll: 1650,
+  cgHeight: 0.95,          // ارتفاع مركز الثقل عن الأرض
+  wheelBase: 3.0,
+  cgToFront: 1.5,          // المسافة من مركز الثقل للمحور الأمامي
   track: 1.66,
   wheelRadius: 0.33,
   springK: 52000,          // N/m لكل عجلة
@@ -29,7 +29,7 @@ export const MICROBUS_SPEC = {
   brakeBiasFront: 0.62,
   handbrakeForce: 7000,
   maxSteer: 0.62,          // rad عند العجلة (حوالي 35.5 درجة)
-  steeringRatio: 16.5,     // لفة الدركسيون / لفة العجلة → حوالي 1.6 لفة لكل ناحية
+  steeringRatio: 15.2,     // لفة الدركسيون / لفة العجلة → 540 درجة (1.5 لفة) لكل ناحية
   // ناقل الحركة
   gears: [3.9, 2.3, 1.45, 1.0, 0.82],
   reverseRatio: 3.7,
@@ -41,8 +41,8 @@ export const MICROBUS_SPEC = {
   torqueCurve: [[600, 130], [1000, 175], [1600, 222], [2200, 235], [3000, 225], [3800, 190], [4400, 130]],
   // صندوق التصادم (نصف العرض، نصف الطول، إزاحة المركز للأمام)
   halfWidth: 0.95,
-  halfLength: 2.48,
-  boxOffset: -0.13,
+  halfLength: 2.64,
+  boxOffset: -0.085,
 };
 
 const G = 9.81;
@@ -96,6 +96,9 @@ export class VehiclePhysics {
     this.pitch = 0; this.pitchVel = 0; this.roll = 0; this.rollVel = 0;
     this.steer = 0;          // -1..1 (موجب = شمال)
     this.steerSmooth = 0;
+    this.wheelAngle = 0;     // زاوية الدركسيون (rad) موجب = شمال
+    this.wheelVel = 0;
+    this.switching = false;
     this.steerAngle = 0;     // زاوية العجلة الأمامية rad
     this.gear = 1;           // -1 = R, 0 = N, 1..5
     this.shiftTimer = 0;
@@ -128,34 +131,58 @@ export class VehiclePhysics {
   }
 
   /**
-   * تحديث الدركسيون: input.steer (-1..1)، input.analog = true للجيم باد
+   * الدركسيون — الحالة الأساسية هي زاوية الدركسيون نفسه (rad) زي العربية الحقيقية.
+   * أوضاع الإدخال:
+   *  - input.wheelHeld + input.wheelAngle: دركسيون اللمس الدائري (1:1 مع صباعك)
+   *  - input.analog + input.steer: يد تحكم (-1..1)
+   *  - input.steer بدون analog: كيبورد A/D (بيلف بمعدل ثابت)
+   *  - مفيش إدخال: رجوع ذاتي للمنتصف (زنبرك + damping) قوته بتزيد مع السرعة
    */
   _updateSteering(dt, input) {
+    const s = this.spec;
     const u = Math.abs(this.forwardSpeed);
-    // كل ما السرعة تزيد، أقصى لفة مسموحة تقل (زي العربيات الحقيقية مع السواق)
-    const speedLimit = 1 / (1 + 0.0032 * u * u);
-    const target = clamp(input.steer || 0, -1, 1) * speedLimit;
-    if (input.analog) {
-      this.steer += (target - this.steer) * Math.min(1, dt * 10);
+    const maxWheel = s.maxSteer * s.steeringRatio; // ≈ 540 درجة
+    if (input.wheelHeld) {
+      const target = clamp(input.wheelAngle || 0, -maxWheel, maxWheel);
+      const prev = this.wheelAngle;
+      // متابعة شبه لحظية (ناعمة جدًا عشان مفيش رعشة)
+      this.wheelAngle += (target - this.wheelAngle) * Math.min(1, dt * 30);
+      this.wheelVel = (this.wheelAngle - prev) / dt;
+    } else if (input.analog && Math.abs(input.steer || 0) > 0.01) {
+      const target = clamp(input.steer, -1, 1) * maxWheel;
+      const prev = this.wheelAngle;
+      this.wheelAngle += (target - this.wheelAngle) * Math.min(1, dt * 9);
+      this.wheelVel = (this.wheelAngle - prev) / dt;
     } else if (Math.abs(input.steer || 0) > 0.01) {
-      // ضغط مستمر على A/D: الدركسيون بيلف بمعدل ثابت (أبطأ في السرعات العالية)
-      const rate = 1.25 / (1 + u * 0.045);
-      const diff = target - this.steer;
-      // لو بنعكس الاتجاه نرجع أسرع شوية
-      const r = Math.sign(diff) !== Math.sign(this.steer) && Math.abs(this.steer) > 0.05 ? rate * 1.8 : rate;
-      this.steer += clamp(diff, -r * dt, r * dt);
+      // كيبورد: لفة ثابتة السرعة (أسرع لو بترجع عكس الاتجاه)
+      const target = clamp(input.steer, -1, 1) * maxWheel;
+      const rate = (maxWheel * 1.15) / (1 + u * 0.03);
+      const diff = target - this.wheelAngle;
+      const r = Math.sign(diff) !== Math.sign(this.wheelAngle) && Math.abs(this.wheelAngle) > 0.3 ? rate * 1.7 : rate;
+      const prev = this.wheelAngle;
+      this.wheelAngle += clamp(diff, -r * dt, r * dt);
+      this.wheelVel = (this.wheelAngle - prev) / dt;
     } else {
-      // رجوع تلقائي للمنتصف حسب سرعة العربية (Caster / self-aligning torque)
-      const ret = 0.12 + u * 0.11;
-      this.steer -= clamp(this.steer, -ret * dt, ret * dt);
+      // رجوع ذاتي: واقف = ضعيف وبطيء، سرعة عالية = أسرع وأثبت. damping حرج عشان ميهتزش حوالين النص
+      const k = 0.25 + u * 0.55 + u * u * 0.012;
+      const c = 2 * Math.sqrt(k) * 1.05 + 0.6;
+      this.wheelVel += (-k * this.wheelAngle - c * this.wheelVel) * dt;
+      this.wheelAngle += this.wheelVel * dt;
+      if (Math.abs(this.wheelAngle) < 0.002 && Math.abs(this.wheelVel) < 0.01) { this.wheelAngle = 0; this.wheelVel = 0; }
     }
-    this.steer = clamp(this.steer, -1, 1);
-    // نعومة إضافية للحركة (critically damped) عشان الدركسيون ميقفزش
-    this.steerSmooth += (this.steer - this.steerSmooth) * Math.min(1, dt * 12);
-    this.steerAngle = this.steerSmooth * this.spec.maxSteer;
+    this.wheelAngle = clamp(this.wheelAngle, -maxWheel, maxWheel);
+    // حساسية التوجيه بتقل مع السرعة (Variable ratio) لمنع الحركات العصبية
+    const sens = Math.max(0.3, 1 / (1 + 0.0022 * u * u));
+    const target = (this.wheelAngle / s.steeringRatio) * sens;
+    this.steerAngle += (target - this.steerAngle) * Math.min(1, dt * 18);
+    this.steer = this.wheelAngle / maxWheel;
+    this.steerSmooth = this.steer;
   }
 
-  get steeringWheelAngle() { return this.steerAngle * this.spec.steeringRatio; }
+  get steeringWheelAngle() { return this.wheelAngle; }
+  get maxWheelAngle() { return this.spec.maxSteer * this.spec.steeringRatio; }
+  /** D / N / R للعرض */
+  get gearMode() { return this.gear < 0 ? 'R' : this.shiftTimer > 0.2 && this.switching ? 'N' : 'D'; }
 
   _updateDrivetrain(dt, input) {
     const s = this.spec;
@@ -164,12 +191,15 @@ export class VehiclePhysics {
     let brakeIn = clamp(input.brake || 0, 0, 1);
 
     // منطق الريوس: لو واقف ودايس فرامل → ريوس. لو في ريوس ودايس بنزين → قدام
-    if (Math.abs(u) < 0.4 && this.shiftTimer <= 0) this.stoppedTimer += dt; else this.stoppedTimer = 0;
-    if (this.gear > 0 && brakeIn > 0.1 && throttleIn < 0.1 && this.stoppedTimer > 0.35) {
-      this.gear = -1; this.shiftTimer = 0.3;
-    } else if (this.gear < 0 && throttleIn > 0.1 && brakeIn < 0.1 && this.stoppedTimer > 0.2) {
-      this.gear = 1; this.shiftTimer = 0.3;
+    // منطق ألعاب الموبايل: فرامل لحد الوقوف → استمرار الضغط شوية → ريوس. والعكس بالبنزين.
+    // Dead-zone حوالين الصفر (0.35 م/ث) + مدة ضغط عشان ميبدّلش بين D و R كل شوية
+    if (Math.abs(u) < 0.35 && this.shiftTimer <= 0) this.stoppedTimer += dt; else this.stoppedTimer = 0;
+    if (this.gear > 0 && brakeIn > 0.1 && throttleIn < 0.1 && this.stoppedTimer > 0.4) {
+      this.gear = -1; this.shiftTimer = 0.35; this.switching = true;
+    } else if (this.gear < 0 && throttleIn > 0.1 && brakeIn < 0.1 && this.stoppedTimer > 0.3) {
+      this.gear = 1; this.shiftTimer = 0.35; this.switching = true;
     }
+    if (this.shiftTimer <= 0) this.switching = false;
     if (this.gear < 0) { const t = throttleIn; throttleIn = brakeIn; brakeIn = t; }
 
     this.shiftTimer = Math.max(0, this.shiftTimer - dt);
@@ -304,6 +334,18 @@ export class VehiclePhysics {
       w.spin += w.spinVel * dt;
     }
 
+    // الجاذبية على المطالع والنزلات (كباري / جبل)
+    {
+      const W = this.wheels;
+      const gF = (W[0].ground + W[1].ground) / 2, gR = (W[2].ground + W[3].ground) / 2;
+      const gL = (W[0].ground + W[2].ground) / 2, gRt = (W[1].ground + W[3].ground) / 2;
+      const slopeF = (gF - gR) / s.wheelBase, slopeR = (gRt - gL) / s.track;
+      if (Math.abs(slopeF) < 0.4 && Math.abs(slopeR) < 0.4) {
+        const fl = -s.mass * G * slopeF / Math.sqrt(1 + slopeF * slopeF);
+        const fr = -s.mass * G * slopeR / Math.sqrt(1 + slopeR * slopeR) * 0.6;
+        Fx += fx * fl + rx * fr; Fz += fz * fl + rz * fr;
+      }
+    }
     // مقاومة الهوا
     const sp = Math.hypot(this.vx, this.vz);
     Fx -= s.dragCoef * sp * this.vx;

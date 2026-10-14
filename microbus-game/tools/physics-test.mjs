@@ -69,3 +69,32 @@ const wall = { cx: 0, cz: -20, hx: 10, hz: 0.5, angle: 0 };
 const vc = new VehiclePhysics(MICROBUS_SPEC, () => 0);
 for (let i = 0; i < 600; i++) vc.step(dt, { throttle: 0.7 }, () => [wall]);
 log('wall: z', vc.z.toFixed(2), 'v', vc.forwardSpeed.toFixed(2), 'impact', vc.lastImpact.toFixed(2));
+
+// 11) دركسيون اللمس: إمساك 540 درجة، وبعدين ساب → رجوع ذاتي حسب السرعة
+for (const spd of [0, 15, 60]) {
+  const v2 = new VehiclePhysics(MICROBUS_SPEC, () => 0);
+  for (let i = 0; i < 3000 && v2.speed < spd / 3.6; i++) v2.step(dt, { throttle: 0.7 });
+  for (let i = 0; i < 60; i++) v2.step(dt, { wheelHeld: true, wheelAngle: Math.PI, throttle: 0.2 });
+  const held = v2.steeringWheelAngle;
+  let t1 = null, overshoot = 0;
+  for (let i = 0; i < 1200; i++) {
+    v2.step(dt, { throttle: 0.2 });
+    overshoot = Math.min(overshoot, v2.steeringWheelAngle);
+    if (t1 === null && Math.abs(v2.steeringWheelAngle) < 0.2) t1 = i * dt;
+  }
+  log(`self-center @${spd}kmh: held ${(held * 57.3).toFixed(0)}° → after 10s ${(v2.steeringWheelAngle * 57.3).toFixed(1)}°, reached <11° at ${t1?.toFixed(2)}s, overshoot ${(overshoot * 57.3).toFixed(1)}°, front wheel ${(v2.steerAngle * 57.3).toFixed(1)}°`);
+}
+// 12) نسبة التوجيه: 540 درجة → زاوية العجلة
+const v3 = new VehiclePhysics(MICROBUS_SPEC, () => 0);
+for (let i = 0; i < 120; i++) v3.step(dt, { wheelHeld: true, wheelAngle: 3 * Math.PI });
+log('540° wheel → road wheel', (v3.steerAngle * 57.3).toFixed(1), '° (standstill)');
+for (let i = 0; i < 1500 && v3.speed < 80 / 3.6; i++) v3.step(dt, { throttle: 1 });
+for (let i = 0; i < 120; i++) v3.step(dt, { wheelHeld: true, wheelAngle: 3 * Math.PI, throttle: 0.5 });
+log('540° @80kmh → road wheel', (v3.steerAngle * 57.3).toFixed(1), '° latG', (v3.accelLat / 9.81).toFixed(2), 'roll', (v3.roll * 57.3).toFixed(1));
+// 13) فرامل → ريوس → بنزين → قدام
+const v4 = new VehiclePhysics(MICROBUS_SPEC, () => 0);
+for (let i = 0; i < 360; i++) v4.step(dt, { throttle: 1 });
+let seq = [];
+for (let i = 0; i < 600; i++) { v4.step(dt, { brake: 1 }); if (i % 60 === 0) seq.push(`${v4.gearMode}:${v4.forwardSpeed.toFixed(1)}`); }
+for (let i = 0; i < 480; i++) { v4.step(dt, { throttle: 1 }); if (i % 60 === 0) seq.push(`${v4.gearMode}:${v4.forwardSpeed.toFixed(1)}`); }
+log('brake→reverse→gas→forward:', seq.join(' '));

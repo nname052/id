@@ -32,3 +32,13 @@ window.addEventListener('keydown', (e) => { if (e.code === 'Enter' && !start.cla
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   navigator.serviceWorker.register('./sw.js').catch(() => {});
 }
+
+// منع سكرول/زووم/تحديد النص أثناء القيادة (موبايل)
+const stop = (e) => { if (e.cancelable) e.preventDefault(); };
+document.addEventListener('touchmove', stop, { passive: false });
+document.addEventListener('gesturestart', stop, { passive: false });
+document.addEventListener('gesturechange', stop, { passive: false });
+document.addEventListener('dblclick', stop, { passive: false });
+document.addEventListener('selectstart', stop);
+let lastTouchEnd = 0;
+document.addEventListener('touchend', (e) => { const now = Date.now(); if (now - lastTouchEnd < 300) stop(e); lastTouchEnd = now; }, { passive: false });

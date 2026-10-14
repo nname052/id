@@ -47,22 +47,45 @@ kbd { display: inline-block; min-width: 26px; padding: 1px 7px; margin-left: 4px
 @media (max-width: 600px) { .keys { grid-template-columns: 1fr; } .rpm-wrap { display: none; } }
 
 /* ===== تحكم اللمس (موبايل) ===== */
-#touch { position: fixed; inset: 0; z-index: 4; pointer-events: none; direction: ltr; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
-#touch button { pointer-events: auto; touch-action: none; border: 0; color: #fff; font: 700 15px/1.15 'Cairo', sans-serif; background: rgba(20, 20, 22, 0.55); border: 2px solid rgba(255, 255, 255, 0.25); backdrop-filter: blur(4px); -webkit-tap-highlight-color: transparent; }
-#touch button.on { background: rgba(242, 179, 48, 0.75); color: #1a1408; }
-.t-steer { position: absolute; left: 0; bottom: 0; width: 46%; height: 62%; pointer-events: auto; touch-action: none; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px)); gap: 4px; color: rgba(255, 255, 255, 0.85); }
-.t-steer svg { width: min(30vh, 150px); height: min(30vh, 150px); filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.5)); }
-.t-steer span { font-size: 12px; opacity: 0.7; text-shadow: 0 1px 3px #000; }
-.t-pedals { position: absolute; right: calc(14px + env(safe-area-inset-right, 0px)); bottom: calc(14px + env(safe-area-inset-bottom, 0px)); display: flex; align-items: flex-end; gap: 10px; }
-.t-gas { width: 78px; height: 140px; border-radius: 16px; }
-.t-brake { width: 88px; height: 100px; border-radius: 16px; }
-.t-hb { width: 62px; height: 62px; border-radius: 50%; font-size: 12px !important; }
-.t-btns { position: absolute; right: calc(14px + env(safe-area-inset-right, 0px)); top: calc(12px + env(safe-area-inset-top, 0px)); display: flex; gap: 8px; }
-.t-btns button { width: 46px; height: 46px; border-radius: 12px; font-size: 20px !important; }
-body.touch #hud { left: 50%; transform: translateX(-50%); bottom: 8px; }
-body.touch .dash { padding: 6px 12px; gap: 8px; }
-body.touch .speed span { font-size: 30px; min-width: 46px; }
-body.touch .rpm-wrap, body.touch .steer-icon { display: none; }
+html, body { overscroll-behavior: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+body.touch, body.touch #app canvas { touch-action: none; }
+#touch { position: fixed; inset: 0; z-index: 4; pointer-events: none; direction: ltr; --ui: rgba(18, 18, 22, 0.38); --ui-line: rgba(255, 255, 255, 0.22); }
+#touch button, .t-pedal, .t-wheel-zone { pointer-events: auto; touch-action: none; }
+#touch button { border: 1.5px solid var(--ui-line); color: #fff; background: var(--ui); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); display: grid; place-items: center; padding: 0; font: 700 13px/1 'Cairo', sans-serif; }
+#touch button svg { width: 58%; height: 58%; }
+#touch button.on, #touch button.lit { background: rgba(242, 179, 48, 0.8); color: #1a1408; border-color: transparent; }
+
+.t-wheel-zone { position: absolute; left: calc(10px + env(safe-area-inset-left, 0px)); bottom: calc(6px + env(safe-area-inset-bottom, 0px)); width: min(52vh, 250px); height: min(52vh, 250px); display: grid; place-items: center; }
+.t-wheel { width: 88%; height: 88%; border-radius: 50%; will-change: transform; filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.45)); opacity: 0.88; transition: opacity 0.15s; }
+.t-wheel.held { opacity: 1; }
+.t-wheel svg { width: 100%; height: 100%; display: block; }
+.t-angle { position: absolute; top: -4px; left: 50%; transform: translateX(-50%); font: 700 12px 'Cairo', sans-serif; color: rgba(255, 255, 255, 0.8); text-shadow: 0 1px 3px #000; white-space: nowrap; }
+
+.t-top { position: absolute; top: calc(8px + env(safe-area-inset-top, 0px)); right: calc(10px + env(safe-area-inset-right, 0px)); display: flex; gap: 8px; }
+.t-top button { width: 42px; height: 42px; border-radius: 12px; }
+.t-horn { position: absolute; left: calc(min(52vh, 250px) + 4px + env(safe-area-inset-left, 0px)); bottom: calc(18px + env(safe-area-inset-bottom, 0px)); width: 52px; height: 52px; border-radius: 50%; }
+
+.t-pedals { position: absolute; right: calc(12px + env(safe-area-inset-right, 0px)); bottom: calc(10px + env(safe-area-inset-bottom, 0px)); display: flex; align-items: flex-end; gap: 10px; }
+.t-hb { width: 50px; height: 50px; border-radius: 50%; margin-bottom: 4px; flex-direction: column; }
+.t-hb b { font-size: 17px; } .t-hb small { font-size: 10px; opacity: 0.8; }
+.t-pedal { --p: 0; position: relative; border-radius: 14px; border: 1.5px solid var(--ui-line); background: var(--ui); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 10px; overflow: hidden; font: 700 14px/1.1 'Cairo', sans-serif; transform: perspective(300px) rotateX(calc(var(--p) * 14deg)); transform-origin: bottom; transition: transform 0.05s; }
+.t-pedal i { position: absolute; inset: 0; background: repeating-linear-gradient(0deg, transparent 0 9px, rgba(255, 255, 255, 0.08) 9px 12px); }
+.t-pedal::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: calc(var(--p) * 100%); background: linear-gradient(0deg, var(--fill), transparent); opacity: 0.75; }
+.t-pedal span, .t-pedal small { position: relative; z-index: 1; text-shadow: 0 1px 2px #000; }
+.t-pedal small { font-size: 10px; opacity: 0.75; }
+.t-gas { width: min(15vh, 76px); height: min(44vh, 190px); --fill: #4fd27a; }
+.t-brake { width: min(21vh, 104px); height: min(30vh, 128px); --fill: #e5482f; }
+.t-pedal.on { border-color: rgba(255, 255, 255, 0.6); }
+
+/* لوحة السرعة على الموبايل: فوق في النص */
+body.touch #hud { left: 50%; top: calc(6px + env(safe-area-inset-top, 0px)); bottom: auto; transform: translateX(-50%); }
+body.touch .dash { padding: 4px 12px; gap: 10px; background: rgba(14, 14, 16, 0.45); }
+body.touch .speed span { font-size: 26px; min-width: 42px; }
+body.touch .gear-box span { font-size: 24px; }
+body.touch .rpm-wrap { width: 60px; display: block; }
+body.touch .steer-icon { display: none; }
+body.touch #toast { top: 54px; }
+#hud-gear.R { color: #ff6a4d; } #hud-gear.N { color: #cfcfcf; }
 #rotate { position: fixed; inset: 0; z-index: 20; display: none; place-items: center; text-align: center; background: #141414; color: #f4f1ea; font: 700 20px 'Cairo', sans-serif; padding: 24px; }
 @media (orientation: portrait) and (pointer: coarse) { body.touch #rotate { display: grid; } }
 @media (pointer: coarse) { .keys { display: none; } }

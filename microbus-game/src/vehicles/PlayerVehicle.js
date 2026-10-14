@@ -1,10 +1,13 @@
 import * as THREE from 'three';
 import { VehiclePhysics, MICROBUS_SPEC } from '../physics/VehiclePhysics.js';
 import { buildMicrobus } from './MicrobusModel.js';
-import { groundHeight, PLAYER_START, ROAD, CROSSINGS } from '../world/layout.js';
+import { PLAYER_START, ROAD, CROSSINGS } from '../world/layout.js';
+import { groundHeight } from '../world/ground.js';
+import { loopProject, loopAt } from '../traffic/TrafficSystem.js';
 
 // الميكروباص بتاع اللاعب: بيربط الفيزياء بالموديل (عجل، دركسيون، عدادات، دواسات، فتيس، فرامل يد، سبحة، مرايات)
 
+const _v1 = new THREE.Vector3(), _v2 = new THREE.Vector3(), _v3 = new THREE.Vector3(), _v4 = new THREE.Vector3(), _q1 = new THREE.Quaternion(), _q2 = new THREE.Quaternion();
 const GEAR_POS = { '-1': [0.05, -0.06], 0: [0, 0], 1: [-0.05, 0.06], 2: [-0.05, -0.06], 3: [0, 0.06], 4: [0, -0.06], 5: [0.05, 0.06] };
 
 export class PlayerVehicle {
@@ -67,7 +70,7 @@ export class PlayerVehicle {
       const rear = new THREE.Vector3(m.side * 0.06, 0.0, 1).normalize();
       const n = toEye.add(rear).normalize();
       m.holder.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), n);
-      const cam = new THREE.PerspectiveCamera(m.fov || 22, aspect, m.side === 0 ? 0.6 : 0.3, 250);
+      const cam = new THREE.PerspectiveCamera(m.fov || 22, aspect, m.side === 0 ? 0.6 : 0.3, 160);
       this.mirrorCams.push({ m, rt, cam });
     }
     this._mirrorFrame = 0;
@@ -75,16 +78,18 @@ export class PlayerVehicle {
 
   renderMirrors(renderer, scene, cameraPos) {
     if (!this.mirrorCams.length) return;
-    if (this.lowPower && (this._skip = !this._skip)) return;
+    // على الموبايل/الجودة الأقل: المرايات بتتحدّث كل كام فريم
+    const skip = (this.mirrorSkip || 0) + (this.lowPower ? 1 : 0);
+    if (skip && (this._skipN = ((this._skipN || 0) + 1) % (skip + 1)) !== 0) return;
     const i = this._mirrorFrame++ % this.mirrorCams.length;
     const { m, rt, cam } = this.mirrorCams[i];
-    const facePos = m.face.getWorldPosition(new THREE.Vector3());
-    const n = new THREE.Vector3(0, 0, 1).applyQuaternion(m.face.getWorldQuaternion(new THREE.Quaternion()));
-    const d = facePos.clone().sub(cameraPos).normalize();
+    const facePos = m.face.getWorldPosition(_v1);
+    const n = _v2.set(0, 0, 1).applyQuaternion(m.face.getWorldQuaternion(_q1));
+    const d = _v3.copy(facePos).sub(cameraPos).normalize();
     const r = d.sub(n.multiplyScalar(2 * d.dot(n)));
     cam.position.copy(facePos);
     cam.up.set(0, 1, 0);
-    cam.lookAt(facePos.clone().add(r));
+    cam.lookAt(_v4.copy(facePos).add(r));
     const fog = scene.fog;
     renderer.setRenderTarget(rt);
     renderer.render(scene, cam);
@@ -96,7 +101,7 @@ export class PlayerVehicle {
     this.headlights = [];
     for (const sx of [-0.72, 0.72]) {
       const l = new THREE.SpotLight(0xfff2d8, 0, 70, 0.5, 0.55, 1.6);
-      l.position.set(sx, 0.78 - MICROBUS_SPEC.cgHeight, -2.4);
+      l.position.set(sx, 0.98 - MICROBUS_SPEC.cgHeight, -2.55);
       l.target.position.set(sx * 1.5, -MICROBUS_SPEC.cgHeight, -22);
       l.visible = false;
       this.rig.body.add(l, l.target);
@@ -104,12 +109,22 @@ export class PlayerVehicle {
     }
   }
 
+  /** الليل: إضاءة التابلوه + تشغيل الكشافات تلقائيًا */
   setNight(on) {
     this._night = on;
-    for (const l of this.headlights) { l.visible = on; l.intensity = on ? 220 : 0; }
-    this.rig.lights.head.emissiveIntensity = on ? 3 : 0.05;
-    if (this.rig.gauges) for (const g of Object.values(this.rig.gauges)) g.mat.emissiveIntensity = on ? 0.6 : 0.0;
+    if (this.rig.gauges) for (const g of Object.values(this.rig.gauges)) g.mat.emissiveIntensity = on ? 0.55 : 0.0;
+    if (this.rig.screen) this.rig.screen.emissiveIntensity = on ? 0.9 : 0.35;
+    this.setHeadlights(on);
   }
+
+  setHeadlights(on) {
+    this.headOn = on;
+    for (const l of this.headlights) { l.visible = on; l.intensity = on ? 220 : 0; }
+    this.rig.lights.head.emissiveIntensity = on ? 2.2 : 0.0;
+    if (this.rig.lights.fog) this.rig.lights.fog.emissiveIntensity = on ? 1.5 : 0;
+  }
+
+  toggleHeadlights() { this.setHeadlights(!this.headOn); return this.headOn; }
 
   /** R: رجّع الميكروباص للطريق */
   reset(initial = false) {
@@ -123,9 +138,16 @@ export class PlayerVehicle {
       x = THREE.MathUtils.clamp(x, onCross.xMin + 6, onCross.xMax - 6);
       ph.reset(x, z, Math.sin(ph.yaw) < 0 ? -Math.PI / 2 : Math.PI / 2);
     } else {
-      z = THREE.MathUtils.clamp(z, ROAD.zMin + 8, ROAD.zMax - 8);
-      ph.reset(facingNorth ? -ROAD.lanes[0] : ROAD.lanes[0], z, facingNorth ? Math.PI : 0);
+      // أقرب حارة على المسار (مدينة أو طريق) في نفس اتجاهك
+      const pr = loopProject(x, z);
+      if (!pr) { ph.reset(PLAYER_START.x, PLAYER_START.z, PLAYER_START.yaw); this._savePrev(); return; }
+      const q = loopAt(pr.s);
+      const fwd = ph.forward;
+      const dir = fwd[0] * q.dx + fwd[1] * q.dz >= 0 ? 1 : -1;
+      const off = dir * ROAD.lanes[0];
+      ph.reset(q.x + q.rx * off, q.z + q.rz * off, dir > 0 ? Math.atan2(-q.dx, -q.dz) : Math.atan2(q.dx, q.dz));
     }
+    void facingNorth;
     this._savePrev();
   }
 
@@ -162,26 +184,35 @@ export class PlayerVehicle {
     if (rig.steering) rig.steering.rotation.z = swa;
     if (this.glbSteering) {
       const g = this.glbSteering;
-      g.node.quaternion.copy(g.q0).multiply(new THREE.Quaternion().setFromAxisAngle(g.axis, swa));
+      g.node.quaternion.copy(g.q0).multiply(_q2.setFromAxisAngle(g.axis, swa));
     }
 
     if (!rig.gauges) return;
     // العدادات
     const a0 = Math.PI * 0.75, a1 = Math.PI * 2.25;
     const needle = (t) => -(a0 + (a1 - a0) * THREE.MathUtils.clamp(t, 0, 1)) - Math.PI / 2;
-    rig.gauges.speed.pivot.rotation.z = needle((ph.speed * 3.6) / 160);
+    rig.gauges.speed.pivot.rotation.z = needle((ph.speed * 3.6) / (rig.gauges.fuel ? 180 : 160));
     rig.gauges.rpm.pivot.rotation.z = needle(ph.rpm / 5000);
+    if (rig.gauges.fuel) rig.gauges.fuel.pivot.rotation.z = needle(0.68);
     // الدواسات
     const k = Math.min(1, dt * 14);
     const P = rig.pedals;
     P.gas.rotation.x += (-0.4 + ph.throttle * 0.32 - P.gas.rotation.x) * k;
     P.brake.rotation.x += (-0.4 + ph.brake * 0.3 - P.brake.rotation.x) * k;
-    P.clutch.rotation.x += (-0.4 + (ph.shiftTimer > 0 ? 0.32 : 0) - P.clutch.rotation.x) * k;
-    // الفتيس (حركة H)
-    const gp = GEAR_POS[ph.shiftTimer > 0.15 ? 0 : ph.gear] || [0, 0];
-    this.gearVis.x += (gp[0] - this.gearVis.x) * Math.min(1, dt * 10);
-    this.gearVis.y += (gp[1] - this.gearVis.y) * Math.min(1, dt * 10);
-    rig.gearLever.rotation.set(0.35 - this.gearVis.y * 5, 0, -this.gearVis.x * 5);
+    if (P.clutch) P.clutch.rotation.x += (-0.4 + (ph.shiftTimer > 0 ? 0.32 : 0) - P.clutch.rotation.x) * k;
+    const mode = ph.gearMode;
+    if (rig.gearGate) {
+      // فتيس أوتوماتيك على التابلوه: P R N D
+      const idx = { R: 1, N: 2, D: 3 }[mode];
+      const ty = rig.gearGate.top - idx * rig.gearGate.step;
+      rig.gearGate.base.position.y += (ty - rig.gearGate.base.position.y) * Math.min(1, dt * 12);
+    } else {
+      const gp = GEAR_POS[ph.shiftTimer > 0.15 ? 0 : ph.gear] || [0, 0];
+      this.gearVis.x += (gp[0] - this.gearVis.x) * Math.min(1, dt * 10);
+      this.gearVis.y += (gp[1] - this.gearVis.y) * Math.min(1, dt * 10);
+      rig.gearLever.rotation.set(0.35 - this.gearVis.y * 5, 0, -this.gearVis.x * 5);
+    }
+    if (rig.gearDisplay && mode !== this._mode) { this._mode = mode; rig.gearDisplay.set(mode); }
     // فرامل اليد
     this.hbVis += (ph.handbrake - this.hbVis) * Math.min(1, dt * 12);
     rig.handbrake.rotation.x = 0.15 + this.hbVis * 0.5;

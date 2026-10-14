@@ -718,3 +718,124 @@ export function makePalmFrond() {
   }
   return tex(c, { repeat: false });
 }
+
+// ============ جنط ألومنيوم 6 أذرع (زي الصورة المرجعية) ============
+export function makeRimTexture(spokes = 6) {
+  const s = 256, c = canvas(s, s), ctx = c.getContext('2d');
+  ctx.translate(s / 2, s / 2);
+  // الشفة الخارجية
+  let g = ctx.createRadialGradient(0, 0, 90, 0, 0, 128);
+  g.addColorStop(0, '#9da2a6'); g.addColorStop(0.6, '#e6e9eb'); g.addColorStop(1, '#7d8286');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, 128, 0, Math.PI * 2); ctx.fill();
+  // الفراغات بين الأذرع (بيبان منها الديسك)
+  ctx.fillStyle = '#121314';
+  ctx.beginPath(); ctx.arc(0, 0, 108, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#3a3b3d'; ctx.beginPath(); ctx.arc(0, 0, 80, 0, Math.PI * 2); ctx.fill(); // ديسك الفرامل
+  ctx.fillStyle = '#121314'; ctx.beginPath(); ctx.arc(0, 0, 50, 0, Math.PI * 2); ctx.fill();
+  // الأذرع
+  for (let i = 0; i < spokes; i++) {
+    ctx.save(); ctx.rotate((i / spokes) * Math.PI * 2);
+    g = ctx.createLinearGradient(-14, 0, 14, 0);
+    g.addColorStop(0, '#8e9397'); g.addColorStop(0.5, '#f1f3f4'); g.addColorStop(1, '#9ca1a5');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.moveTo(-15, -30); ctx.lineTo(15, -30); ctx.lineTo(22, -110); ctx.lineTo(-22, -110); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+  // الوش والصواميل
+  g = ctx.createRadialGradient(-8, -8, 4, 0, 0, 40);
+  g.addColorStop(0, '#ffffff'); g.addColorStop(1, '#8f9498');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, 38, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#5d6165';
+  for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2 + 0.5; ctx.beginPath(); ctx.arc(Math.cos(a) * 26, Math.sin(a) * 26, 4.5, 0, Math.PI * 2); ctx.fill(); }
+  ctx.fillStyle = '#c9ccce'; ctx.beginPath(); ctx.arc(0, 0, 12, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, 108, 0, Math.PI * 2); ctx.stroke();
+  return tex(c, { repeat: false });
+}
+
+// ============ فانوس أمامي كبير شفاف بعاكسات كروم ============
+export function makeHeadlightTexture() {
+  const w = 256, h = 128, c = canvas(w, h), ctx = c.getContext('2d');
+  let g = ctx.createLinearGradient(0, 0, 0, h);
+  g.addColorStop(0, '#4c545a'); g.addColorStop(1, '#262b2f');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+  // عاكسات دائرية
+  for (const [x, r] of [[78, 44], [170, 36]]) {
+    g = ctx.createRadialGradient(x - 8, h / 2 - 8, 2, x, h / 2, r);
+    g.addColorStop(0, '#ffffff'); g.addColorStop(0.35, '#c8cfd3'); g.addColorStop(0.7, '#8e979c'); g.addColorStop(1, '#eef2f4');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, h / 2, r, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(x, h / 2, r * 0.45, 0, Math.PI * 2); ctx.stroke();
+  }
+  // شريط إشارة برتقالي على الطرف
+  ctx.fillStyle = '#f0a020'; ctx.fillRect(w - 38, 14, 30, h - 28);
+  ctx.strokeStyle = '#111'; ctx.lineWidth = 6; ctx.strokeRect(3, 3, w - 6, h - 6);
+  ctx.fillStyle = 'rgba(255,255,255,0.18)'; ctx.fillRect(8, 8, w - 16, 14);
+  return tex(c, { repeat: false });
+}
+
+// ============ فانوس خلفي رأسي ============
+export function makeTaillightTexture() {
+  const w = 64, h = 256, c = canvas(w, h), ctx = c.getContext('2d');
+  ctx.fillStyle = '#9a1010'; ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = '#d02020'; ctx.fillRect(6, 6, w - 12, h * 0.5);
+  ctx.fillStyle = '#e09020'; ctx.fillRect(6, h * 0.55, w - 12, h * 0.18);
+  ctx.fillStyle = '#e8e8e8'; ctx.fillRect(6, h * 0.76, w - 12, h * 0.18);
+  ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+  for (let y = 10; y < h; y += 8) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
+  return tex(c, { repeat: false });
+}
+
+// ============ ستارة ميكروباص (بيضا متكسرة) ============
+export function makeCurtain() {
+  const w = 64, h = 256, c = canvas(w, h), ctx = c.getContext('2d');
+  ctx.clearRect(0, 0, w, h);
+  for (let x = 0; x < w; x += 8) {
+    const g = ctx.createLinearGradient(x, 0, x + 8, 0);
+    g.addColorStop(0, '#cfcfc8'); g.addColorStop(0.5, '#fbfbf6'); g.addColorStop(1, '#bdbdb6');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x + 8, 0);
+    // الستارة مربوطة في النص (شكل الساعة الرملية)
+    ctx.lineTo(x + 8 - (x - 28) * 0.35, h * 0.55); ctx.lineTo(x + 8, h); ctx.lineTo(x, h); ctx.lineTo(x - (x - 28) * 0.35, h * 0.55); ctx.fill();
+  }
+  ctx.fillStyle = '#b8b8b0'; ctx.fillRect(14, h * 0.53, 36, 10);
+  return tex(c, { repeat: false });
+}
+
+// ============ لوحة الفتيس على التابلوه P R N D 3 2 L ============
+export function makeShiftGate() {
+  const w = 64, h = 256, c = canvas(w, h), ctx = c.getContext('2d');
+  ctx.fillStyle = '#1e1f21'; ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = '#0a0a0b'; ctx.fillRect(28, 16, 8, h - 32);
+  ctx.font = 'bold 22px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  'PRND32L'.split('').forEach((ch, i) => { ctx.fillStyle = ch === 'D' ? '#7fe08f' : '#d8d8d8'; ctx.fillText(ch, 14, 26 + i * 33); });
+  return tex(c, { repeat: false });
+}
+
+// ============ عداد سرعة كبير 0-180 + بنزين/حرارة ============
+export function makeGauge2(kind) {
+  const s = 256, c = canvas(s, s), ctx = c.getContext('2d');
+  ctx.fillStyle = '#08080a'; ctx.fillRect(0, 0, s, s);
+  ctx.translate(s / 2, s / 2);
+  ctx.strokeStyle = '#3a3a3f'; ctx.lineWidth = 8; ctx.beginPath(); ctx.arc(0, 0, s * 0.47, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = '#eee'; ctx.strokeStyle = '#eee'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const a0 = Math.PI * 0.75, a1 = Math.PI * 2.25;
+  const tick = (t, major, label, red) => {
+    const a = a0 + (a1 - a0) * t;
+    ctx.strokeStyle = red ? '#e33' : '#eee'; ctx.lineWidth = major ? 4 : 2;
+    ctx.beginPath(); ctx.moveTo(Math.cos(a) * s * 0.43, Math.sin(a) * s * 0.43); ctx.lineTo(Math.cos(a) * s * (major ? 0.35 : 0.39), Math.sin(a) * s * (major ? 0.35 : 0.39)); ctx.stroke();
+    if (label) { ctx.fillStyle = red ? '#e33' : '#eee'; ctx.fillText(label, Math.cos(a) * s * 0.27, Math.sin(a) * s * 0.27); }
+  };
+  if (kind === 'speed') {
+    ctx.font = 'bold 19px Arial';
+    for (let i = 0; i <= 18; i++) tick(i / 18, i % 2 === 0, i % 2 === 0 ? String(i * 10) : null);
+    ctx.font = '15px Arial'; ctx.fillStyle = '#9a9a9f'; ctx.fillText('km/h', 0, s * 0.2);
+  } else if (kind === 'rpm') {
+    ctx.font = 'bold 22px Arial';
+    for (let i = 0; i <= 10; i++) tick(i / 10, i % 2 === 0, i % 2 === 0 ? String(i / 2) : null, i >= 9);
+    ctx.font = '13px Arial'; ctx.fillStyle = '#9a9a9f'; ctx.fillText('x1000 r/min', 0, s * 0.22);
+  } else {
+    ctx.font = 'bold 22px Arial';
+    for (let i = 0; i <= 4; i++) tick(i / 4, true, i === 0 ? 'E' : i === 4 ? 'F' : null, i === 0);
+    ctx.font = '15px Arial'; ctx.fillStyle = '#9a9a9f'; ctx.fillText('FUEL', 0, s * 0.22);
+  }
+  return tex(c, { repeat: false });
+}

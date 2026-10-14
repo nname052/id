@@ -1,25 +1,61 @@
 import * as THREE from 'three';
 import { Buckets } from '../render/GeoBuilder.js';
 import { ROAD, CROSSINGS, mainSegments } from '../world/layout.js';
+import { ROUTE, nearestRoute } from '../world/Route.js';
+import { inCity } from '../world/ground.js';
 import { rng } from '../render/textures.js';
 import { CAR_COLORS } from '../vehicles/CarModels.js';
 
-// المرور: عربيات ماشية في الحارات بنموذج IDM (Intelligent Driver Model)
-// - بتقف في الأحمر وتمشي في الأخضر، وفي الأصفر بتقرر حسب مسافة الوقوف
-// - بتحافظ على مسافة من اللي قدامها (وكمان من الميكروباص بتاعك)
-// - سرعات مختلفة لكل سواق + كلاكس لو حد واقف قدامها كتير (طبعًا مصر!)
+// =====================================================================
+//  المرور (خفيف للموبايل):
+//  - مسار دائري واحد = شارع المدينة + الطريق الكبير، 4 حارات (2 رايح و2 جاي)
+//  - العربيات بتلف على المسار على طول (Pooling: مفيش إنشاء/حذف أثناء اللعب)
+//  - IDM: مسافة أمان، بتهدّي في المنحنيات وحسب المنطقة، وبتقف في الأحمر
+//  - بتتجنب الميكروباص بتاعك وبتضرب كلاكس لو سديت الطريق
+// =====================================================================
 
-const TYPES = ['sedan', 'boxy', 'taxi', 'microbus', 'sedan', 'taxi', 'boxy'];
+const TYPES = ['sedan', 'boxy', 'taxi', 'microbus', 'sedan', 'taxi', 'boxy', 'microbus'];
+const STEP = 2;
+const CITY_LEN = ROAD.zMax - ROAD.zMin; // 450
+
+const ZONE_SPEED = { city: 13, residential: 14, roundabout: 11, bridge: 17, agri: 17, village: 10, desert: 24, mountain: 14, tunnel: 17, highway: 22 };
+
+/** المسار الكامل المقفول (المدينة من الشمال للجنوب + الطريق الدائري) */
+export const LOOP = (() => {
+  const S = [];
+  for (let s = 0; s < CITY_LEN; s += STEP) S.push({ x: 0, y: 0, z: ROAD.zMax - s, dx: 0, dz: -1, rx: 1, rz: 0, curv: 0, grade: 0, zone: 'city' });
+  for (const p of ROUTE.samples) S.push({ x: p.x, y: p.y, z: p.z, dx: p.dx, dz: p.dz, rx: p.rx, rz: p.rz, curv: p.curv, grade: p.grade, zone: p.zone });
+  return { samples: S, length: S.length * STEP };
+})();
+
+export function loopAt(s, out = {}) {
+  const S = LOOP.samples, n = S.length;
+  s = ((s % LOOP.length) + LOOP.length) % LOOP.length;
+  const f = s / STEP, i = Math.floor(f), t = f - i;
+  const a = S[i % n], b = S[(i + 1) % n];
+  out.x = a.x + (b.x - a.x) * t; out.y = a.y + (b.y - a.y) * t; out.z = a.z + (b.z - a.z) * t;
+  out.dx = a.dx; out.dz = a.dz; out.rx = a.rx; out.rz = a.rz; out.curv = a.curv; out.grade = a.grade; out.zone = a.zone;
+  return out;
+}
+const _la = {}, _lb = {};
+
+/** إسقاط أي نقطة على المسار → { s, d } */
+export function loopProject(x, z) {
+  if (inCity(x, z) && Math.abs(x) < ROAD.curb + 1) return { s: ROAD.zMax - z, d: x };
+  const r = nearestRoute(x, z);
+  if (!r) return null;
+  return { s: CITY_LEN + r.s, d: r.d };
+}
 
 export class TrafficSystem {
-  constructor(scene, lights, makeCar, audio) {
+  constructor(scene, lights, makeCar, audio, opts = {}) {
     this.scene = scene;
     this.lights = lights;
     this.makeCar = makeCar;
     this.audio = audio;
     this.R = rng(99);
     this.cars = [];
-    this.parked = [];
+    this.perLane = opts.perLane || 8;
     this.lanes = this._buildLanes();
     this._spawn();
     this._spawnParked();
@@ -27,43 +63,53 @@ export class TrafficSystem {
   }
 
   _buildLanes() {
-    const lanes = [];
+    const L = LOOP.length;
     const sig = CROSSINGS.find((c) => c.signal);
-    const L = ROAD.zMax - ROAD.zMin - 6;
-    for (const x of ROAD.lanes) {
-      // رايح ناحية -Z (يمين الطريق)
+    const lanes = [];
+    for (const [off, dir] of [[ROAD.lanes[0], 1], [ROAD.lanes[1], 1], [-ROAD.lanes[0], -1], [-ROAD.lanes[1], -1]]) {
+      const stopS = sig ? (dir > 0 ? ROAD.zMax - (sig.z + sig.half + 4.6) : ROAD.zMax - (sig.z - sig.half - 4.6)) : null;
       lanes.push({
-        id: `S${x}`, ox: x, oz: ROAD.zMax - 3, dx: 0, dz: -1, length: L, group: 'main',
-        stop: sig ? (ROAD.zMax - 3) - (sig.z + sig.half + 4.6) : null, cars: [],
-      });
-      lanes.push({
-        id: `N${x}`, ox: -x, oz: ROAD.zMin + 3, dx: 0, dz: 1, length: L, group: 'main',
-        stop: sig ? (sig.z - sig.half - 4.6) - (ROAD.zMin + 3) : null, cars: [],
+        kind: 'loop', off, dir, length: L, loop: true, group: 'main', cars: [],
+        stop: stopS == null ? null : dir > 0 ? stopS : L - stopS,
+        pos: (p, out) => {
+          const s = dir > 0 ? p : L - p;
+          const q = loopAt(s, _la);
+          out.x = q.x + q.rx * off; out.z = q.z + q.rz * off; out.y = q.y;
+          out.yaw = dir > 0 ? Math.atan2(-q.dx, -q.dz) : Math.atan2(q.dx, q.dz);
+          out.pitch = q.grade * dir; out.curv = q.curv; out.zone = q.zone;
+          return out;
+        },
+        pFromS: (s) => (dir > 0 ? s : L - s),
       });
     }
+    // الشارع الجانبي عند الإشارة (خط مستقيم)
     if (sig) {
       const Lc = sig.xMax - sig.xMin - 4;
-      lanes.push({ id: 'E', ox: sig.xMin + 2, oz: sig.z + 3.2, dx: 1, dz: 0, length: Lc, group: 'cross', stop: -(ROAD.curb + 4.4) - (sig.xMin + 2), cars: [] });
-      lanes.push({ id: 'W', ox: sig.xMax - 2, oz: sig.z - 3.2, dx: -1, dz: 0, length: Lc, group: 'cross', stop: (sig.xMax - 2) - (ROAD.curb + 4.4), cars: [] });
+      for (const [ox, oz, dx, stop] of [[sig.xMin + 2, sig.z + 3.2, 1, -(ROAD.curb + 4.4) - (sig.xMin + 2)], [sig.xMax - 2, sig.z - 3.2, -1, (sig.xMax - 2) - (ROAD.curb + 4.4)]]) {
+        lanes.push({
+          kind: 'line', length: Lc, loop: false, group: 'cross', cars: [], stop,
+          pos: (p, out) => { out.x = ox + dx * p; out.z = oz; out.y = 0; out.yaw = Math.atan2(-dx, 0); out.pitch = 0; out.curv = 0; out.zone = 'city'; return out; },
+          ox, oz, dx, dz: 0,
+        });
+      }
     }
     return lanes;
   }
 
-  _newCar(lane, s) {
+  _newCar(lane, p) {
     const R = this.R;
     const type = TYPES[Math.floor(R() * TYPES.length)];
     const rig = this.makeCar(type, CAR_COLORS[Math.floor(R() * CAR_COLORS.length)]);
     this.scene.add(rig.root);
     const car = {
-      rig, lane, s, type,
-      v: 6 + R() * 4,
-      v0: (type === 'microbus' ? 12.5 : 11) + R() * 4.5,  // الميكروباصات أسرع شوية :)
+      rig, lane, p, type,
+      v: 8 + R() * 4,
+      vMul: (type === 'microbus' ? 1.12 : 1) * (0.85 + R() * 0.3), // اختلاف السواقين
       len: rig.length || 4.4, width: rig.width || 1.8,
-      aMax: 1.3 + R() * 0.6, b: 2.6,
-      T: 1.1 + R() * 0.6, s0: 1.8 + R() * 1.2,
+      aMax: 1.2 + R() * 0.7, b: 2.8, T: 1.1 + R() * 0.6, s0: 2 + R() * 1.2,
       bumped: 0, waitBehindPlayer: 0, honkCooldown: 3 + R() * 6, decidedGo: false,
-      acc: 0, spin: 0, mass: type === 'microbus' ? 2300 : 1250,
-      x: 0, z: 0, yaw: 0,
+      acc: 0, spin: 0, mass: type === 'microbus' ? 2400 : 1250,
+      x: 0, y: 0, z: 0, yaw: 0, pitch: 0, curv: 0, zone: 'city', visible: true,
     };
     lane.cars.push(car);
     this.cars.push(car);
@@ -74,17 +120,19 @@ export class TrafficSystem {
   _spawn() {
     const R = this.R;
     for (const lane of this.lanes) {
-      const count = lane.group === 'main' ? 7 : 3;
-      let s = 10 + R() * 20;
-      for (let i = 0; i < count && s < lane.length - 10; i++) {
-        this._newCar(lane, s);
-        s += 30 + R() * 40;
+      if (lane.kind === 'loop') {
+        const n = this.perLane;
+        for (let i = 0; i < n; i++) this._newCar(lane, ((i + R() * 0.6) / n) * lane.length);
+      } else {
+        let p = 10 + R() * 20;
+        for (let i = 0; i < 3 && p < lane.length - 10; i++) { this._newCar(lane, p); p += 30 + R() * 40; }
       }
     }
   }
 
   _spawnParked() {
     const R = rng(1234);
+    this.parked = [];
     for (const sx of [-1, 1]) {
       for (const [zs, ze] of mainSegments(9)) {
         for (let z = zs - 3; z > ze + 3; z -= 5.6 + R() * 4) {
@@ -106,7 +154,7 @@ export class TrafficSystem {
     }
   }
 
-  /** دمج العربيات المركونة في عدد قليل من الـ Meshes (أداء أعلى بكتير) */
+  /** دمج العربيات المركونة في عدد قليل من الـ Meshes */
   _bake(rig) {
     if (!this._parkB) { this._parkB = new Buckets(); this._parkMats = {}; }
     rig.root.traverse((o) => {
@@ -131,29 +179,26 @@ export class TrafficSystem {
     this._parkB.toMeshes(this._parkMats, g);
     g.traverse((o) => {
       if (!o.isMesh) return;
-      const r = o.name;
-      if (r === 'glass' || r === 'windshield' || r === 'shadow' || r === 'decal') o.castShadow = false;
-      if (r === 'shadow') o.renderOrder = 1;
+      if (['glass', 'windshield', 'shadow', 'decal', 'curtain', 'shade'].includes(o.name)) o.castShadow = false;
+      if (o.name === 'shadow') o.renderOrder = 1;
     });
     this.scene.add(g);
     this._parkB = null;
   }
 
   _place(car) {
-    const l = car.lane;
-    car.x = l.ox + l.dx * car.s;
-    car.z = l.oz + l.dz * car.s;
-    car.yaw = Math.atan2(-l.dx, -l.dz);
+    car.lane.pos(car.p, car);
   }
 
-  /** كل العربيات كصناديق تصادم (للفيزياء) */
+  /** صناديق تصادم العربيات القريبة (للفيزياء) */
   colliders(box, out) {
     const r = Math.hypot(box.hx, box.hz) + 4;
     for (const c of this.cars) {
-      if (Math.abs(c.x - box.cx) > r || Math.abs(c.z - box.cz) > r) continue;
+      if (Math.abs(c.x - box.cx) > r || Math.abs(c.z - box.cz) > r || Math.abs(c.y - (this._py || 0)) > 3) continue;
+      const fx = -Math.sin(c.yaw), fz = -Math.cos(c.yaw);
       out.push({
         cx: c.x, cz: c.z, hx: c.width / 2, hz: c.len / 2, angle: c.yaw, mass: c.mass, restitution: 0.15,
-        vx: c.lane.dx * c.v, vz: c.lane.dz * c.v, kind: 'car', car: c,
+        vx: fx * c.v, vz: fz * c.v, kind: 'car', car: c,
         onHit: () => { c.bumped = 2.5; c.v = 0; c.honkCooldown = Math.min(c.honkCooldown, 0.4); },
       });
     }
@@ -163,41 +208,52 @@ export class TrafficSystem {
     }
   }
 
-  update(dt, player) {
+  update(dt, player, camPos) {
     const pl = player.physics;
+    this._py = pl.heave;
     const pBox = pl.getBox();
+    const proj = loopProject(pBox.cx, pBox.cz);
+    const pv = { x: pl.vx, z: pl.vz };
     for (const lane of this.lanes) {
-      lane.cars.sort((a, b) => b.s - a.s);
+      const L = lane.length;
+      lane.cars.sort((a, b) => b.p - a.p);
       const signal = lane.stop != null ? this.lights.state(lane.group) : 'green';
-      for (let i = 0; i < lane.cars.length; i++) {
-        const car = lane.cars[i];
-        let gap = 1e9, vLead = car.v0;
-        // العربية اللي قدامي
-        if (i > 0) {
-          const lead = lane.cars[i - 1];
-          gap = lead.s - car.s - (lead.len + car.len) / 2;
-          vLead = lead.v;
-        }
-        // الميكروباص بتاعك (لو في نفس الحارة قدامي)
+      // الميكروباص بتاعك في الحارة دي؟
+      let playerP = null, playerV = 0;
+      if (lane.kind === 'loop' && proj && Math.abs(proj.d - lane.off) < 2.6) {
+        playerP = lane.pFromS(proj.s);
+        const q = loopAt(proj.s, _lb);
+        playerV = (pv.x * q.dx + pv.z * q.dz) * lane.dir;
+      } else if (lane.kind === 'line') {
         const relX = pBox.cx - lane.ox, relZ = pBox.cz - lane.oz;
-        const along = relX * lane.dx + relZ * lane.dz;
-        const lateral = Math.abs(relX * lane.dz - relZ * lane.dx);
-        let playerAhead = false;
-        if (lateral < 2.5 && along > car.s) {
-          const g = along - car.s - car.len / 2 - pBox.hz;
-          if (g < gap) { gap = g; vLead = pl.vx * lane.dx + pl.vz * lane.dz; playerAhead = true; }
+        if (Math.abs(relZ) < 2.6 && Math.abs(pBox.cx) > ROAD.curb - 2) { playerP = relX * lane.dx; playerV = pv.x * lane.dx; }
+      }
+      const n = lane.cars.length;
+      for (let i = 0; i < n; i++) {
+        const car = lane.cars[i];
+        let gap = 1e9, vLead = 30;
+        if (n > 1 && (i > 0 || lane.loop)) {
+          const lead = lane.cars[i > 0 ? i - 1 : n - 1];
+          let dp = lead.p - car.p;
+          if (dp <= 0) dp += L;
+          if (lead !== car) { gap = dp - (lead.len + car.len) / 2; vLead = lead.v; }
         }
-        // عربيات من الحارات التانية داخلة في حارتي (مثلاً عربية متخبطة)
+        let playerAhead = false;
+        if (playerP != null) {
+          let dp = playerP - car.p;
+          if (lane.loop && dp < -L / 2) dp += L;
+          if (dp > 0 && dp < 150) {
+            const g = dp - car.len / 2 - pBox.hz;
+            if (g < gap) { gap = g; vLead = Math.max(0, playerV); playerAhead = true; }
+          }
+        }
         // الإشارة
         if (lane.stop != null) {
-          const dStop = lane.stop - (car.s + car.len / 2);
+          const dStop = lane.stop - (car.p + car.len / 2);
           if (signal === 'green') car.decidedGo = false;
           let mustStop = signal === 'red';
           if (signal === 'yellow') {
-            if (!car.decidedGo) {
-              const need = (car.v * car.v) / (2 * 3.0);
-              if (dStop < need * 0.7 || dStop < 1) car.decidedGo = true;
-            }
+            if (!car.decidedGo && (dStop < (car.v * car.v) / 6 * 0.7 || dStop < 1)) car.decidedGo = true;
             mustStop = !car.decidedGo;
           }
           if (mustStop && dStop > -0.5 && dStop < 80) {
@@ -205,58 +261,81 @@ export class TrafficSystem {
             if (g < gap) { gap = g; vLead = 0; }
           }
         }
+        // السرعة المسموحة: المنطقة + المنحنى اللي جاي
+        let v0 = (ZONE_SPEED[car.zone] || 14) * car.vMul;
+        if (lane.kind === 'loop') {
+          const ahead = loopAt(lane.dir > 0 ? car.p + 12 + car.v * 2 : L - (car.p + 12 + car.v * 2), _lb);
+          const k = Math.abs(ahead.curv);
+          if (k > 1e-4) v0 = Math.min(v0, Math.sqrt(2.6 / k));
+          v0 = Math.min(v0, (ZONE_SPEED[ahead.zone] || 14) * car.vMul + 2);
+        }
         // IDM
         const v = car.v;
-        const dv = v - vLead;
-        const sStar = car.s0 + Math.max(0, v * car.T + (v * dv) / (2 * Math.sqrt(car.aMax * car.b)));
-        let a = car.aMax * (1 - Math.pow(v / car.v0, 4) - Math.pow(sStar / Math.max(gap, 0.1), 2));
+        const sStar = car.s0 + Math.max(0, v * car.T + (v * (v - vLead)) / (2 * Math.sqrt(car.aMax * car.b)));
+        let a = car.aMax * (1 - Math.pow(v / v0, 4) - Math.pow(sStar / Math.max(gap, 0.1), 2));
         a = Math.max(-9, Math.min(car.aMax, a));
         if (car.bumped > 0) { car.bumped -= dt; a = -9; }
         car.acc += (a - car.acc) * Math.min(1, dt * 6);
         car.v = Math.max(0, car.v + a * dt);
         if (gap < 0.3 && vLead < car.v) car.v = Math.max(0, vLead);
-        car.s += car.v * dt;
+        car.p += car.v * dt;
 
-        // كلاكس لو الميكروباص بتاعك سادد الطريق
+        // كلاكس
         car.honkCooldown -= dt;
         if (playerAhead && car.v < 1 && gap < 10 && signal !== 'red') car.waitBehindPlayer += dt; else car.waitBehindPlayer = Math.max(0, car.waitBehindPlayer - dt);
-        if ((car.waitBehindPlayer > 2.5 || car.bumped > 0) && car.honkCooldown <= 0 && this.audio) {
-          this.audio.honk(car.x, 1.2, car.z, car.type === 'microbus' ? 1.2 : 1);
+        if ((car.waitBehindPlayer > 2.5 || car.bumped > 0) && car.honkCooldown <= 0 && this.audio && car.visible) {
+          this.audio.honk(car.x, car.y + 1.2, car.z, car.type === 'microbus' ? 1.2 : 1);
           car.honkCooldown = 2 + this.R() * 4;
         }
 
-        // نهاية الحارة: نرجعها للبداية لو محدش شايف
-        if (car.s > lane.length) {
-          const startX = lane.ox, startZ = lane.oz;
-          const endX = lane.ox + lane.dx * lane.length, endZ = lane.oz + lane.dz * lane.length;
-          const far = (x, z) => Math.hypot(pl.x - x, pl.z - z) > 45;
+        if (lane.loop) {
+          if (car.p >= L) car.p -= L;
+        } else if (car.p > L) {
+          // الشارع الجانبي: نرجّعها للبداية لو محدش شايف
+          const far = (x) => Math.hypot(pl.x - (lane.ox + lane.dx * x), pl.z - lane.oz) > 45;
           const last = lane.cars[lane.cars.length - 1];
-          const clear = !last || last === car || last.s > 14;
-          if (far(startX, startZ) && far(endX, endZ) && clear) {
-            car.s = 0; car.v = 6; car.decidedGo = false;
-            lane.cars.splice(i, 1); lane.cars.push(car); i--;
-          } else {
-            car.s = lane.length; car.v = 0;
-          }
+          if (far(0) && far(L) && (!last || last === car || last.p > 14)) { car.p = 0; car.v = 6; }
+          else { car.p = L; car.v = 0; }
         }
         this._place(car);
       }
     }
-    // المرئيات
+    // المرئيات (العربيات البعيدة بتتخفى = أداء)
+    const cx = camPos ? camPos.x : pl.x, cz = camPos ? camPos.z : pl.z;
+    const far2 = (this.viewDist || 320) ** 2;
     for (const car of this.cars) {
       const r = car.rig;
-      r.root.position.set(car.x, 0, car.z);
-      r.root.rotation.y = car.yaw;
+      const vis = (car.x - cx) ** 2 + (car.z - cz) ** 2 < far2;
+      car.visible = vis;
+      r.root.visible = vis;
+      if (!vis) continue;
+      // LOD: العربيات البعيدة من غير عجل ولا ضل
+      const d2 = (car.x - cx) ** 2 + (car.z - cz) ** 2;
+      const near = d2 < 80 * 80, shadow = d2 < 45 * 45;
+      if (near !== car._near) { car._near = near; for (const w of r.wheels) w.group.visible = near; r.root.traverse((o) => { if (o.userData.role && ['chrome', 'plate', 'decal', 'curtain', 'mirrorDark', 'fog', 'tail', 'lamp', 'shadow'].includes(o.userData.role)) o.visible = near; }); }
+      if (shadow !== car._shadow) { car._shadow = shadow; r.root.traverse((o) => { if (o.isMesh && o.userData.role !== 'glass' && o.userData.role !== 'shadow') o.castShadow = shadow; }); }
+      r.root.position.set(car.x, car.y, car.z);
+      r.root.rotation.set(0, car.yaw, 0);
       car.spin += (car.v / (r.wheelRadius || 0.3)) * dt;
       for (const w of r.wheels) w.spin.rotation.x = -car.spin;
-      if (r.body) r.body.rotation.x = car.acc * 0.006;
+      if (r.body) r.body.rotation.x = car.acc * 0.006 + Math.atan(car.pitch || 0);
       const braking = car.acc < -0.6 || car.v < 0.3;
-      if (r.brake) r.brake.emissiveIntensity = braking ? 3.5 : 0.15;
+      if (r.brake) r.brake.emissiveIntensity = braking ? 3.5 : this.night ? 1.0 : 0.15;
     }
+  }
+
+  setNight(on) {
+    this.night = on;
+    for (const c of this.cars) if (c.rig.mats?.headlight) c.rig.mats.headlight.emissiveIntensity = on ? 2.5 : 0.05;
+    for (const c of this.cars) if (c.rig.lights?.head) c.rig.lights.head.emissiveIntensity = on ? 2.2 : 0;
   }
 
   /** أقرب العربيات (للصوت) */
   nearest(x, z, n) {
-    return [...this.cars].sort((a, b) => Math.hypot(a.x - x, a.z - z) - Math.hypot(b.x - x, b.z - z)).slice(0, n);
+    const arr = this._near || (this._near = []);
+    arr.length = 0;
+    for (const c of this.cars) if (c.visible) arr.push(c);
+    arr.sort((a, b) => (a.x - x) ** 2 + (a.z - z) ** 2 - ((b.x - x) ** 2 + (b.z - z) ** 2));
+    return arr.slice(0, n);
   }
 }

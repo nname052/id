@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { ROAD, CROSSINGS } from '../world/layout.js';
+import { LOOP, loopAt } from '../traffic/TrafficSystem.js';
+import { groundHeight } from '../world/ground.js';
 
 // 4 كاميرات: كرسي السائق / ورا الميكروباص / خارجية قريبة / سينمائية. زرار C للتبديل.
 
@@ -10,6 +12,7 @@ export const CAMERA_MODES = [
   { id: 'cinematic', label: 'سينمائية' },
 ];
 
+const _bus = new THREE.Vector3(), _q3 = new THREE.Quaternion();
 const _v = new THREE.Vector3(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _m = new THREE.Matrix4();
 
 export class CameraSystem {
@@ -63,6 +66,14 @@ export class CameraSystem {
       pts.push(new THREE.Vector3(ROAD.curb + 4, 9, c.z + c.half + 6));
       pts.push(new THREE.Vector3(-(ROAD.curb + 4), 4, c.z - c.half - 6));
     }
+    // كاميرات على طول الطريق الكبير (على الجنب، واطية أو عالية)
+    for (let s = 470, k = 0; s < LOOP.length - 20; s += 55, k++) {
+      const q = loopAt(s);
+      const side = k % 2 ? 1 : -1, d = side * 14.5;
+      const x = q.x + q.rx * d, z = q.z + q.rz * d;
+      const y = Math.max(groundHeight(x, z), q.y) + (k % 3 === 0 ? 8 : 1.6);
+      pts.push(new THREE.Vector3(x, y, z));
+    }
     return pts;
   }
 
@@ -91,7 +102,10 @@ export class CameraSystem {
     this.shake = Math.max(0, this.shake - dt * 3);
 
     if (id === 'cockpit') {
-      cam.fov = 72; cam.near = 0.04;
+      // زاوية رؤية أفقية ثابتة ~100° (مناسبة لشاشات الموبايل العريضة والكمبيوتر)
+      const hf = THREE.MathUtils.degToRad(100);
+      cam.fov = THREE.MathUtils.clamp(THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(hf / 2) / cam.aspect)), 52, 74);
+      cam.near = 0.04;
       // قصور الراس (head inertia): زنبرك بسيط
       const target = _v.set(
         THREE.MathUtils.clamp(-ph.accelLat * 0.006, -0.05, 0.05),
@@ -108,8 +122,8 @@ export class CameraSystem {
       p.rig.body.getWorldQuaternion(_q);
       // بص شوية في اتجاه اللفة (زي السواق الحقيقي)
       const steerLook = ph.steerSmooth * 0.16 * Math.min(1, Math.abs(ph.forwardSpeed) / 3 + 0.3);
-      _e.set(-0.1 + this.look.pitch, this.look.yaw + steerLook, 0, 'YXZ');
-      cam.quaternion.copy(_q).multiply(new THREE.Quaternion().setFromEuler(_e));
+      _e.set(-0.2 + this.look.pitch, this.look.yaw + steerLook, 0, 'YXZ');
+      cam.quaternion.copy(_q).multiply(_q3.setFromEuler(_e));
     } else if (id === 'chase') {
       cam.fov = 60; cam.near = 0.1;
       const yaw = ph.yaw;
@@ -119,21 +133,23 @@ export class CameraSystem {
       this.chaseYaw += diff * Math.min(1, dt * 3.2);
       const dist = 8.2 + Math.min(ph.speed, 20) * 0.08;
       const camYaw = this.chaseYaw + this.look.yaw;
-      const target = _v.set(root.position.x + Math.sin(camYaw) * dist, 3.3 + this.look.pitch * 3, root.position.z + Math.cos(camYaw) * dist);
+      const baseY = ph.heave - ph.spec.cgHeight;
+      const target = _v.set(root.position.x + Math.sin(camYaw) * dist, baseY + 3.3 + this.look.pitch * 3, root.position.z + Math.cos(camYaw) * dist);
       if (this.snap) this.chasePos.copy(target); else this.chasePos.lerp(target, Math.min(1, dt * 9));
       cam.position.copy(this.chasePos);
       const fwd = ph.forward;
-      cam.lookAt(root.position.x + fwd[0] * 2.5, 1.4, root.position.z + fwd[1] * 2.5);
+      cam.lookAt(root.position.x + fwd[0] * 2.5, baseY + 1.4, root.position.z + fwd[1] * 2.5);
     } else if (id === 'close') {
       cam.fov = 55; cam.near = 0.1;
       _m.makeRotationY(ph.yaw + this.look.yaw * 1.4);
       const off = _v.set(2.5, 1.15 + this.look.pitch * 2, -3.7).applyMatrix4(_m);
-      cam.position.set(root.position.x + off.x, off.y, root.position.z + off.z);
-      cam.lookAt(root.position.x, 0.75, root.position.z);
+      const baseY = ph.heave - ph.spec.cgHeight;
+      cam.position.set(root.position.x + off.x, baseY + off.y, root.position.z + off.z);
+      cam.lookAt(root.position.x, baseY + 0.75, root.position.z);
     } else {
       // سينمائية: كاميرات ثابتة على الرصيف بتتابع الميكروباص
       const c = this.cine;
-      const bus = root.position;
+      const bus = _bus.set(root.position.x, ph.heave - ph.spec.cgHeight, root.position.z);
       const d = c.pos.distanceTo(bus);
       const fwd = ph.forward;
       const behind = (c.pos.x - bus.x) * fwd[0] + (c.pos.z - bus.z) * fwd[1] < -12;
@@ -146,11 +162,11 @@ export class CameraSystem {
           const score = Math.abs(dist - 35);
           if (score < bestScore) { bestScore = score; best = pt; }
         }
-        if (!best) best = new THREE.Vector3(bus.x + fwd[0] * 30 + 6, 3, bus.z + fwd[1] * 30);
+        if (!best) best = new THREE.Vector3(bus.x + fwd[0] * 30 + 6, bus.y + 3, bus.z + fwd[1] * 30);
         c.pos.copy(best);
         c.target.copy(bus);
       }
-      c.target.lerp(_v.set(bus.x, 1.2, bus.z), Math.min(1, dt * 4));
+      c.target.lerp(_v.set(bus.x, bus.y + 1.2, bus.z), Math.min(1, dt * 4));
       cam.position.copy(c.pos);
       cam.lookAt(c.target);
       cam.fov = THREE.MathUtils.clamp(THREE.MathUtils.radToDeg(2 * Math.atan(5.5 / Math.max(5, d))), 14, 60);

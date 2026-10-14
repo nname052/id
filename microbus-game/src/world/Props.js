@@ -165,15 +165,6 @@ export function buildProps(M) {
   cart(-ROAD.curb - 1.5, 85);
   cart(ROAD.curb + 1.5, -40);
 
-  // ===== حواجز نهاية الشارع =====
-  for (const zb of [ROAD.zMin + 0.6, ROAD.zMax - 0.6]) {
-    for (let x = -ROAD.curb + 0.8; x < ROAD.curb; x += 2.1) {
-      const b = B.get('plastic').setTransform(new THREE.Matrix4());
-      b.setColor([0.9, 0.9, 0.88]).box(x - 0.95, 0, zb - 0.3, x + 0.95, 0.85, zb + 0.3);
-      b.setColor([0.85, 0.12, 0.1]).box(x - 0.95, 0.85, zb - 0.25, x + 0.95, 1.05, zb + 0.25);
-    }
-  }
-
   B.toMeshes(M, group);
   group.traverse((o) => { if (o.name === 'lampGlass') o.castShadow = false; });
 

@@ -54,6 +54,24 @@ export class Environment {
     this.envSky.scale.setScalar(1000);
     this.envScene.add(this.envSky);
     this.envRT = null;
+    // نجوم وقمر بالليل
+    {
+      const n = 1400, pos = new Float32Array(n * 3);
+      for (let i = 0; i < n; i++) {
+        const u = Math.random(), v = Math.random() * 0.48 + 0.02;
+        const th = u * Math.PI * 2, ph = Math.acos(1 - v * 2) ;
+        const r = 1800;
+        pos[i * 3] = Math.sin(ph) * Math.cos(th) * r; pos[i * 3 + 1] = Math.cos(ph) * r; pos[i * 3 + 2] = Math.sin(ph) * Math.sin(th) * r;
+      }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      this.stars = new THREE.Points(g, new THREE.PointsMaterial({ color: 0xdfe8ff, size: 2.2, sizeAttenuation: false, fog: false, transparent: true, opacity: 0.9, depthWrite: false }));
+      this.stars.visible = false;
+      scene.add(this.stars);
+      this.moon = new THREE.Mesh(new THREE.SphereGeometry(40, 20, 12), new THREE.MeshBasicMaterial({ color: 0xf2f0e2, fog: false }));
+      this.moon.visible = false;
+      scene.add(this.moon);
+    }
     this.sunDir = new THREE.Vector3();
     this.setPreset('day');
   }
@@ -72,6 +90,7 @@ export class Environment {
       u.sunPosition.value.copy(this.sunDir);
     }
     this.sky.visible = !p.night;
+    if (this.stars) { this.stars.visible = !!p.night; this.moon.visible = !!p.night; }
     this.scene.background = p.night ? new THREE.Color(0x05070c) : null;
     this.sun.color.set(p.sunColor);
     this.sun.intensity = p.sunIntensity;
@@ -121,6 +140,7 @@ export class Environment {
     const d = 120;
     this.sun.position.set(focus.x + this.sunDir.x * d, focus.y + this.sunDir.y * d, focus.z + this.sunDir.z * d);
     this.sun.target.position.copy(focus);
+    if (this.stars && this.stars.visible) { this.stars.position.copy(focus); this.moon.position.copy(focus).addScaledVector(this.sunDir, 1600); }
     // تثبيت الضل على بكسلات الـ shadow map لتقليل الرعشة
     this.sun.target.updateMatrixWorld();
   }

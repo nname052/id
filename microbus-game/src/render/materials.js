@@ -77,8 +77,11 @@ export function vehicleMaterials(color = 0xf3f3f0) {
     taillight: new THREE.MeshStandardMaterial({ color: 0x8a0a0a, emissive: 0xff1a10, emissiveIntensity: 0.15, roughness: 0.2 }),
     indicator: new THREE.MeshStandardMaterial({ color: 0xd08010, emissive: 0xff9010, emissiveIntensity: 0.1, roughness: 0.2 }),
     underbody: new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.9 }),
+    rimFace: _rimFace(),
   };
 }
 
+let _rimFaceMat = null;
+function _rimFace() { return (_rimFaceMat ||= new THREE.MeshStandardMaterial({ map: T.makeRimTexture(6), roughness: 0.3, metalness: 0.75 })); }
 let _treadTex = null;
 function _tread() { return (_treadTex ||= T.makeTireTread()); }

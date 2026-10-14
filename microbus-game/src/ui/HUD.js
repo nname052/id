@@ -5,6 +5,7 @@ export class HUD {
     this.el = document.getElementById('hud');
     this.speed = document.getElementById('hud-speed');
     this.gear = document.getElementById('hud-gear');
+    this.gearNum = document.getElementById('hud-gear-n');
     this.rpm = document.getElementById('hud-rpm');
     this.steer = document.getElementById('hud-steer');
     this.toastEl = document.getElementById('toast');
@@ -31,7 +32,9 @@ export class HUD {
   update(dt, ph, lights) {
     const kmh = Math.round(ph.speed * 3.6);
     this.speed.textContent = kmh;
-    this.gear.textContent = ph.gear < 0 ? 'R' : ph.shiftTimer > 0.15 ? 'N' : String(ph.gear);
+    const gm = ph.gearMode;
+    const gtxt = gm === 'D' ? `D${ph.gear}` : gm;
+    if (gtxt !== this._g) { this._g = gtxt; this.gear.textContent = gm === 'D' ? 'D' : gm; this.gear.className = gm; this.gearNum.textContent = gm === 'D' ? `سرعة ${ph.gear}` : gm === 'R' ? 'ريوس' : 'محايد'; }
     this.rpm.style.width = `${Math.min(100, (ph.rpm / 4500) * 100)}%`;
     this.rpm.classList.toggle('red', ph.rpm > 3800);
     const deg = Math.round((ph.steeringWheelAngle * 180) / Math.PI);

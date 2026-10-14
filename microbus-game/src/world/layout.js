@@ -16,7 +16,7 @@ export const ROAD = {
 
 export const CROSSINGS = [
   { id: 'A', z: 0, half: 6.5, signal: true, xMin: -95, xMax: 95, sidewalk: 4.0 },
-  { id: 'B', z: -165, half: 6.0, signal: false, xMin: -70, xMax: 70, sidewalk: 4.0 },
+  { id: 'B', z: -165, half: 4.2, signal: false, xMin: -70, xMax: 70, sidewalk: 2.6, narrow: true }, // شارع شعبي ضيق
 ];
 
 export const PLAYER_START = { x: ROAD.lanes[0], z: 150, yaw: 0 };
@@ -109,7 +109,5 @@ export function staticColliders() {
     box(c.xMax, c.xMax + 4, c.z - c.half, c.z + c.half);
     box(c.xMin - 4, c.xMin, c.z - c.half, c.z + c.half);
   }
-  box(-ROAD.curb, ROAD.curb, ROAD.zMin - 4, ROAD.zMin);
-  box(-ROAD.curb, ROAD.curb, ROAD.zMax, ROAD.zMax + 4);
   return out;
 }
