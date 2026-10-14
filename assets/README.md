@@ -37,3 +37,10 @@ uv run python assets/fetch_assets.py
 - **الـ 3D على الماك:** Chromium بيستخدم كارت الشاشة (ANGLE Metal) لو اتشغّل بـ `--use-angle=metal`، والسرعة حوالي 23 فريم/ثانية بمقاس 1600×900.
 - **المانيكان الست** (`ual2/Mannequin_F.glb`) من غير حركات، بس هيكلها نفس هيكل المكتبة، فبتاخد أي حركة من `ual1` أو `ual2` بالاسم.
 - **حزم Quaternius (ual1, ual2):** رخصة الملفات CC0، والموقع بيمنع إعادة توزيع الملفات نفسها كحزمة. علشان كده بتتنزل بالسكريبت ومش بتترفع على git.
+
+## شخصيات Mixamo (بتتنزل بإيدك أو من Claude بعد ما تسجّل دخول)
+- **الفولدر:** `assets/3d/mixamo/`. **مش على git**: رخصة Mixamo مجانية للاستخدام التجاري، بس ممنوع إعادة توزيع الملفات نفسها.
+- **الموجود دلوقتي:** شخصية **Aj** بأربع حركات، كل حركة في ملف FBX لوحده بالجلد (With Skin، 30 فريم):
+  `Aj_Idle.fbx` (Standing Idle)، `Aj_Walking.fbx` (Male Standard Walk، في مكانه)، `Aj_Thinking.fbx` (Thinking While Standing)، `Aj_Talking.fbx` (General Conversation).
+- **الاستخدام:** `FBXLoader`، والشخصية بالسنتيمتر (`scale 0.01`). كل الحركات على هيكل `mixamorig` فبتشتغل على أي شخصية Mixamo من غير تحويل.
+- **مثال:** `reference/room_aj.html`.

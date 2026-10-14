@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>مشهد الأوضة: Aj</title>
+<!--
+  مشهد الأوضة (3D، 10 ثواني، 1080×1920): نفس قصة نسخة الـ 2D.
+  الشخصية: Aj من Mixamo (مجاني تجاري، والملفات نفسها ممنوع إعادة توزيعها، فمش على git).
+  كل حركة في ملف FBX لوحده (Idle، Walking في مكانه، Thinking)، وكلهم على نفس هيكل Mixamo.
+  الأثاث: KayKit Furniture Bits (CC0). الإضاءة: نور السقف بيطفى، ونور قمر أزرق من الشباك، وأباجورة بنور أصفر بيرمي ضل.
+  الحركة حتمية: كل حركة بنحط وقتها بإيدنا (action.time) وبعدين mixer.update(0).
+-->
+<link rel="stylesheet" href="../fonts/fonts.css">
+<style>
+  html, body { margin: 0; width: 1080px; height: 1920px; overflow: hidden; background: #000; }
+  canvas { display: block; }
+  #caption { position: absolute; top: 96px; left: 0; width: 100%; text-align: center; font: 700 64px/1.5 "Alexandria"; color: #fff4dc;
+             text-shadow: 0 4px 30px rgba(0, 0, 0, .55); opacity: 0; }
+  #bubble { position: absolute; width: 230px; height: 190px; opacity: 0; transform-origin: 20% 100%; }
+</style>
+<script type="importmap">
+  { "imports": { "three": "../assets/vendor/three/three.module.js", "three/addons/": "../assets/vendor/three/addons/" } }
+</script>
+</head>
+<body>
+<svg id="bubble" viewBox="-20 -200 250 220">
+  <circle cx="0" cy="0" r="12" fill="#fff"/><circle cx="30" cy="-40" r="20" fill="#fff"/>
+  <ellipse cx="120" cy="-130" rx="105" ry="78" fill="#fff"/>
+  <text x="120" y="-100" text-anchor="middle" font-family="Alexandria" font-weight="800" font-size="100" fill="#001858">؟</text>
+</svg>
+<div id="caption">ساعات الحل بييجي في الهدوء</div>
+<script type="module">
+  import * as THREE from "three";
+  import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+  import { FBXLoader } from "three/addons/loaders/FBXLoader.js";
+
+  window.DURATION = 10;
+  const W = 1080, H = 1920;
+  const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+  const easeInOut = (x) => (x = clamp(x), x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+  const easeOut = (x) => 1 - Math.pow(1 - clamp(x), 3);
+  const lerp = (a, b, p) => a + (b - a) * p;
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setSize(W, H);
+  renderer.setPixelRatio(1);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.0;
+  document.body.prepend(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color("#141a33");
+  const camera = new THREE.PerspectiveCamera(48, W / H, 0.1, 50);
+
+  // ---------- الأوضة ----------
+  const mat = (color, rough = 0.9) => new THREE.MeshStandardMaterial({ color, roughness: rough });
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(7, 7), mat("#c8935f", 0.75));
+  floor.rotation.x = -Math.PI / 2;
+  floor.receiveShadow = true;
+  scene.add(floor);
+  const wallMat = mat("#f3e4cc");
+  const back = new THREE.Mesh(new THREE.PlaneGeometry(7, 6), wallMat);
+  back.position.set(0, 3, -3);
+  back.receiveShadow = true;
+  scene.add(back);
+  // الحيطة الشمال فيها فتحة شباك: 4 حتت حوالين الفتحة
+  const WIN = { z0: -0.2, z1: 1.2, y0: 1.0, y1: 2.3 };
+  const leftWall = new THREE.Group();
+  const piece = (z0, z1, y0, y1) => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(z1 - z0, y1 - y0), wallMat);
+    m.position.set(-3, (y0 + y1) / 2, (z0 + z1) / 2);
+    m.rotation.y = Math.PI / 2;
+    m.receiveShadow = true;
+    leftWall.add(m);
+  };
+  piece(-3, WIN.z0, 0, 6); piece(WIN.z1, 3.5, 0, 6); piece(WIN.z0, WIN.z1, 0, WIN.y0); piece(WIN.z0, WIN.z1, WIN.y1, 6);
+  scene.add(leftWall);
+  // السما ورا الشباك + القمر
+  const sky = new THREE.Mesh(new THREE.PlaneGeometry(6, 4), new THREE.MeshBasicMaterial({ color: "#22305e" }));
+  sky.position.set(-4.2, 1.8, 0.5); sky.rotation.y = Math.PI / 2; scene.add(sky);
+  const moon = new THREE.Mesh(new THREE.CircleGeometry(0.16, 32), new THREE.MeshBasicMaterial({ color: "#f4f1dc" }));
+  moon.position.set(-4.1, 2.05, 0.75); moon.rotation.y = Math.PI / 2; scene.add(moon);
+  const frameMat = mat("#ffffff", 0.6);
+  for (const [z, y, w, h] of [[WIN.z0, (WIN.y0 + WIN.y1) / 2, 0.06, WIN.y1 - WIN.y0 + 0.06], [WIN.z1, (WIN.y0 + WIN.y1) / 2, 0.06, WIN.y1 - WIN.y0 + 0.06],
+                              [(WIN.z0 + WIN.z1) / 2, WIN.y0, WIN.z1 - WIN.z0, 0.06], [(WIN.z0 + WIN.z1) / 2, WIN.y1, WIN.z1 - WIN.z0, 0.06],
+                              [(WIN.z0 + WIN.z1) / 2, (WIN.y0 + WIN.y1) / 2, 0.04, WIN.y1 - WIN.y0], [(WIN.z0 + WIN.z1) / 2, (WIN.y0 + WIN.y1) / 2, WIN.z1 - WIN.z0, 0.04]]) {
+    const f = new THREE.Mesh(new THREE.BoxGeometry(0.08, h, w), frameMat);
+    f.position.set(-2.98, y, z); f.castShadow = true; scene.add(f);
+  }
+
+  // ---------- الإضاءة ----------
+  const hemi = new THREE.HemisphereLight("#fff6e8", "#7a5a3c", 1.4);
+  scene.add(hemi);
+  const ceiling = new THREE.PointLight("#fff1dc", 28, 12, 1.6);
+  ceiling.position.set(0.3, 3.1, 0.2);
+  ceiling.castShadow = true;
+  scene.add(ceiling);
+  const moonLight = new THREE.DirectionalLight("#8fa8ff", 0);
+  moonLight.position.set(-6, 3.2, 1.2);
+  moonLight.target.position.set(0, 0, 0.2);
+  moonLight.castShadow = true;
+  moonLight.shadow.mapSize.set(1024, 1024);
+  Object.assign(moonLight.shadow.camera, { left: -4, right: 4, top: 4, bottom: -4 });
+  scene.add(moonLight, moonLight.target);
+  const fill = new THREE.DirectionalLight("#ffd7a8", 0);
+  fill.position.set(3, 2.5, 6);
+  scene.add(fill);
+  const LAMP_POS = new THREE.Vector3(1.55, 0, -2.2);
+  const lampLight = new THREE.PointLight("#ffa040", 0, 6.5, 2);
+  lampLight.castShadow = true;
+  lampLight.shadow.mapSize.set(1024, 1024);
+  lampLight.shadow.bias = -0.002;
+  scene.add(lampLight);
+  const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.09, 16, 16), new THREE.MeshBasicMaterial({ color: "#fff1c0" }));
+  scene.add(bulb);
+  // هالة النور حوالين الأباجورة (sprite بيتجمع مع اللي وراه)
+  const haloTex = (() => {
+    const c = document.createElement("canvas"); c.width = c.height = 256;
+    const g = c.getContext("2d"), grad = g.createRadialGradient(128, 128, 0, 128, 128, 128);
+    grad.addColorStop(0, "rgba(255,210,130,1)"); grad.addColorStop(0.35, "rgba(255,170,70,.35)"); grad.addColorStop(1, "rgba(255,150,50,0)");
+    g.fillStyle = grad; g.fillRect(0, 0, 256, 256);
+    return new THREE.CanvasTexture(c);
+  })();
+  const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false, transparent: true, opacity: 0 }));
+  halo.scale.set(2.2, 2.2, 1);
+  scene.add(halo);
+
+  // ---------- الشخصية والأثاث ----------
+  const loader = new GLTFLoader();
+  const FURN = 0.66; // أثاث KayKit أكبر من الحقيقي بحوالي مرة ونص
+  const furniture = [
+    ["couch_pillows", [-0.6, 0, -2.35], 0, FURN],
+    ["table_low", [-0.6, 0, -1.25], 0, FURN],
+    ["rug_oval_A", [0.1, 0, 0.1], 0, 1.0],
+    ["lamp_standing", [LAMP_POS.x, 0, LAMP_POS.z], 0, FURN],
+    ["shelf_B_large_decorated", [-2.7, 0, -1.6], Math.PI / 2, FURN],
+    ["pictureframe_large_A", [-0.6, 1.45, -2.93], 0, FURN],
+    ["cactus_medium_A", [-2.55, 0, 1.75], 0, FURN],
+    ["armchair_pillows", [-1.9, 0, 0.0], Math.PI / 2.4, FURN],
+  ];
+  let mixer, actions = {}, man;
+
+  window.ready = (async () => {
+    const fbx = new FBXLoader();
+    const [ual1, walkF, thinkF, ...furn] = await Promise.all([
+      fbx.loadAsync("../assets/3d/mixamo/Aj_Idle.fbx"),
+      fbx.loadAsync("../assets/3d/mixamo/Aj_Walking.fbx"),
+      fbx.loadAsync("../assets/3d/mixamo/Aj_Thinking.fbx"),
+      ...furniture.map(([n]) => loader.loadAsync(`../assets/3d/kaykit-furniture/${n}.gltf`)),
+    ]);
+    furn.forEach((g, i) => {
+      const [, pos, rot, s] = furniture[i];
+      g.scene.position.set(...pos);
+      g.scene.rotation.y = rot;
+      g.scene.scale.setScalar(s);
+      // الأباجورة ما بترميش ضل: اللمبة جواها، فكانت بتعمل مربع ضلمة على الحيطة
+      const isLamp = furniture[i][0] === "lamp_standing";
+      g.scene.traverse((o) => { if (o.isMesh) { o.castShadow = !isLamp; o.receiveShadow = true; } });
+      scene.add(g.scene);
+    });
+    // مكان اللمبة: جوه الأباجورة، تحت أعلى نقطة فيها بشوية
+    const lampBox = new THREE.Box3().setFromObject(furn[3].scene);
+    const bulbPos = new THREE.Vector3(LAMP_POS.x, lampBox.max.y - 0.22, LAMP_POS.z);
+    lampLight.position.copy(bulbPos); bulb.position.copy(bulbPos); halo.position.copy(bulbPos);
+
+    man = ual1;
+    man.scale.setScalar(0.01); // الـ FBX بالسنتيمتر
+    man.traverse((o) => {
+      if (o.isMesh) {
+        o.castShadow = true; o.frustumCulled = false;
+        // خامات Mixamo بتيجي Phong لامعة: نحوّلها Standard بنفس الألوان والصور علشان تتماشى مع إضاءة الأوضة
+        const conv = (m) => new THREE.MeshStandardMaterial({ map: m.map, normalMap: m.normalMap, color: m.color, roughness: 0.75,
+                                                             transparent: m.transparent, alphaTest: m.transparent ? 0.4 : 0, side: m.side });
+        o.material = Array.isArray(o.material) ? o.material.map(conv) : conv(o.material);
+      }
+    });
+    scene.add(man);
+    mixer = new THREE.AnimationMixer(man);
+    const clip = (g, n) => g.animations.find((a) => a.name === n || a.name === "Rig|" + n);
+    // حركات المكتبة التانية (glTF، محورها Y لفوق) على شخصية FBX (محورها Z لفوق):
+    // نشيل حركة العضمة "root" علشان الشخصية تفضل محتفظة باتجاهها، والباقي متطابق بالاسم
+    const fromGltf = (c) => {
+      const out = c.clone();
+      out.tracks = out.tracks.filter((tr) => !tr.name.startsWith("root."));
+      return out;
+    };
+    for (const [key, c] of [["idle", ual1.animations[0]], ["walk", walkF.animations[0]], ["fold", thinkF.animations[0]]]) {
+      const a = mixer.clipAction(c);
+      a.play();
+      actions[key] = a;
+    }
+    await document.fonts.ready;
+    window.renderAt(0);
+  })();
+
+  // ---------- المسار ----------
+  // نقط على الأرض. بين كل مقطع والتاني بيقف ويلف. السرعة ثابتة علشان الرجلين ما تتزحلقش
+  const SPEED = 1.15;
+  const POINTS = [[0.2, 0.6], [1.35, -1.15], [-1.0, -0.4], [0.15, 0.55]].map(([x, z]) => new THREE.Vector2(x, z));
+  const SEGMENTS = [];
+  {
+    let t = 3.2;
+    for (let i = 0; i < POINTS.length - 1; i++) {
+      const len = POINTS[i].distanceTo(POINTS[i + 1]);
+      SEGMENTS.push({ a: t, b: t + len / SPEED, p0: POINTS[i], p1: POINTS[i + 1] });
+      t += len / SPEED + 0.5; // نص ثانية يلف فيها
+    }
+  }
+  const angleOf = (from, to) => Math.atan2(to.x - from.x, to.y - from.y);
+  const turnTo = (a, b, p) => { let d = b - a; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return a + d * p; };
+
+  function manAt(t) {
+    // بيرجّع: المكان، الاتجاه، وزن حركة المشي
+    const FACE_CAM = 0.25;
+    let pos = POINTS[0].clone(), heading = FACE_CAM, walking = 0;
+    for (let i = 0; i < SEGMENTS.length; i++) {
+      const s = SEGMENTS[i], dir = angleOf(s.p0, s.p1);
+      const prevDir = i === 0 ? FACE_CAM : angleOf(SEGMENTS[i - 1].p0, SEGMENTS[i - 1].p1);
+      if (t < s.a) { heading = turnTo(prevDir, dir, easeInOut((t - (s.a - 0.5)) / 0.5)); pos = s.p0.clone(); break; }
+      if (t <= s.b) {
+        pos = s.p0.clone().lerp(s.p1, (t - s.a) / (s.b - s.a));
+        heading = dir;
+        walking = Math.min(clamp((t - s.a) / 0.25), clamp((s.b - t) / 0.25));
+        break;
+      }
+      pos = s.p1.clone();
+      heading = dir;
+      if (i === SEGMENTS.length - 1) heading = turnTo(dir, FACE_CAM, easeInOut((t - s.b) / 0.6));
+    }
+    return { pos, heading, walking };
+  }
+
+  const tmp = new THREE.Vector3();
+  window.renderAt = (t) => {
+    // 1. الإضاءة
+    const dark = easeInOut((t - 1.2) / 1.0);
+    const flicker = [[2.6, 2.68], [2.78, 2.84], [2.95, 9e9]].some(([a, b]) => t >= a && t < b) ? 1 : 0;
+    const glow = flicker * (t < 2.95 ? 0.6 : easeOut((t - 2.95) / 0.6));
+    ceiling.intensity = 28 * (1 - dark);
+    hemi.intensity = lerp(1.4, 0.32, dark);
+    fill.intensity = 0.55 * dark * (0.4 + 0.6 * glow);
+    hemi.color.set(dark > 0.5 ? "#8ea4ff" : "#fff6e8");
+    moonLight.intensity = 0.9 * dark;
+    lampLight.intensity = 14 * glow * (1 + 0.03 * Math.sin(t * 9));
+    halo.material.opacity = 0.6 * glow;
+    bulb.material.color.set(glow > 0.05 ? "#fff1c0" : "#d9cbb0");
+    renderer.toneMappingExposure = lerp(1.0, 1.05, dark);
+
+    // 2. الشخصية: مكانها واتجاهها، وأوزان الحركات
+    const m = manAt(t);
+    man.position.set(m.pos.x, 0, m.pos.y);
+    man.rotation.y = m.heading;
+    const fold = easeInOut((t - 8.7) / 0.5);
+    const weights = { walk: m.walking, fold, idle: Math.max(0, 1 - m.walking - fold) };
+    for (const [k, a] of Object.entries(actions)) {
+      a.setEffectiveWeight(weights[k]);
+      a.time = t % a.getClip().duration; // الوقت بيتحط بإيدنا: نفس t ← نفس الوضعية
+    }
+    mixer.update(0);
+
+    // 3. الكاميرا: بتقرّب ببطء وبتتبع الشخصية شوية
+    const push = easeInOut(t / window.DURATION);
+    // Aj أقصر من المانيكان، فالكاميرا أقرب وبتتبعه أكتر
+    camera.position.set(lerp(1.9, 1.2, push) + m.pos.x * 0.4, lerp(1.7, 1.5, push), lerp(4.6, 3.3, push) + m.pos.y * 0.3);
+    camera.lookAt(tmp.set(m.pos.x * 0.6 + 0.1, 1.0, m.pos.y * 0.5 - 0.6));
+    renderer.render(scene, camera);
+
+    // 4. فقاعة التفكير فوق راسه + الجملة
+    const head = tmp.set(m.pos.x, 2.0, m.pos.y).project(camera);
+    const b = easeOut((t - 8.9) / 0.45);
+    const bubble = document.getElementById("bubble");
+    bubble.style.left = ((head.x + 1) / 2 * W + 30) + "px";
+    bubble.style.top = Math.max(300, (1 - head.y) / 2 * H - 200) + "px"; // تحت الجملة دايمًا
+    bubble.style.opacity = b;
+    bubble.style.transform = `scale(${0.6 + 0.4 * b})`;
+    const cap = easeOut((t - 9.1) / 0.5);
+    document.getElementById("caption").style.opacity = cap;
+    document.getElementById("caption").style.transform = `translateY(${(1 - cap) * 30}px)`;
+  };
+</script>
+</body>
+</html>
