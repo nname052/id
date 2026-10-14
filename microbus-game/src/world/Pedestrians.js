@@ -16,7 +16,7 @@ const PANTS = [[0.15, 0.17, 0.25], [0.3, 0.3, 0.3], [0.35, 0.28, 0.2]];
 const mat = new THREE.MeshStandardMaterial({ roughness: 0.85, vertexColors: true });
 const M = (x, y, z, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1) => new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz)), new THREE.Vector3(sx, sy, sz));
 
-function person(R) {
+export function person(R) {
   const type = R() < 0.35 ? 'galabeya' : R() < 0.55 ? 'woman' : 'casual';
   const skin = SKIN[Math.floor(R() * SKIN.length)];
   const pick = (a) => a[Math.floor(R() * a.length)];
@@ -83,6 +83,29 @@ function person(R) {
   }
   root.scale.setScalar(s);
   return { root, legs, arms, type };
+}
+
+/** راكب قاعد على كرسي (للدمج في Mesh واحد لكل الركاب). الوش ناحية -z، القعدة عند y=0 */
+export function seatedFigure(g, R, m) {
+  const type = R() < 0.35 ? 'galabeya' : R() < 0.55 ? 'woman' : 'casual';
+  const skin = SKIN[Math.floor(R() * SKIN.length)];
+  const pick = (a) => a[Math.floor(R() * a.length)];
+  const top = type === 'galabeya' ? pick(ROBE) : type === 'woman' ? pick(WOMAN) : pick(SHIRT);
+  const low = type === 'casual' ? pick(PANTS) : top;
+  const X = (x, y, z, rx = 0, sx = 1, sy = 1, sz = 1) => new THREE.Matrix4().multiplyMatrices(m, M(x, y, z, rx, 0, 0, sx, sy, sz));
+  g.setColor(top);
+  g.addGeometry(new THREE.CylinderGeometry(0.15, 0.17, 0.56, 9), X(0, 0.3, 0.04, 0.08, 1, 1, 0.72));
+  g.addGeometry(new THREE.SphereGeometry(0.16, 9, 5, 0, Math.PI * 2, 0, Math.PI / 2), X(0, 0.56, 0.05, 0, 1, 0.45, 0.7));
+  g.setColor(low);
+  for (const sx of [-1, 1]) {
+    g.addGeometry(new THREE.CylinderGeometry(0.07, 0.065, 0.42, 7), X(sx * 0.09, 0.02, -0.17, Math.PI / 2));
+    g.addGeometry(new THREE.CylinderGeometry(0.06, 0.05, 0.42, 7), X(sx * 0.09, -0.2, -0.38));
+  }
+  g.setColor(skin);
+  g.addGeometry(new THREE.SphereGeometry(0.1, 10, 8), X(0, 0.74, 0.03, 0, 0.9, 1.08, 1));
+  for (const sx of [-1, 1]) g.addGeometry(new THREE.CylinderGeometry(0.04, 0.035, 0.36, 6), X(sx * 0.19, 0.24, -0.08, 0.7));
+  if (type === 'woman') { g.setColor(pick(HIJAB)); g.addGeometry(new THREE.SphereGeometry(0.118, 10, 8, 0, Math.PI * 2, 0, Math.PI * 0.75), X(0, 0.75, 0.02, -0.3, 0.95, 1.1, 1.05)); }
+  else { g.setColor([0.08, 0.06, 0.05]); g.addGeometry(new THREE.SphereGeometry(0.105, 9, 5, 0, Math.PI * 2, 0, Math.PI / 2.2), X(0, 0.76, 0.03)); }
 }
 
 export class Pedestrians {

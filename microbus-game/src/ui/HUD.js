@@ -18,6 +18,11 @@ export class HUD {
     this.helpTimer = 14;
   }
 
+  setPassengers(n, cap) {
+    const el = (this.paxEl ||= document.getElementById('hud-pax'));
+    if (el) el.textContent = `${n}/${cap}`;
+  }
+
   show() { this.el.classList.remove('hidden'); this.help.classList.remove('hidden'); }
 
   toast(text, sec = 2) {

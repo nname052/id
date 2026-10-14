@@ -181,6 +181,9 @@ export function integrateHiace(rig, asset, spec, A) {
     wsHalf: ws ? (ws.max.x - ws.min.x) / 2 : HW - 0.1,
   };
 
+  // ===== الباب الجرار (يمين): بنفصل مثلثاته من الموديل عشان يتفتح ويتقفل بجد =====
+  rig.slidingDoor = extractSlidingDoor(rig, holder, HW);
+
   // ===== الصالون الجديد =====
   const rigInt = new THREE.Group();
   rigInt.name = 'hiace-interior';
@@ -354,8 +357,15 @@ function buildHiaceInterior(group, rig, D) {
   seat(DX, seatF, 0.48);
   K('seat').addGeometry(new RoundedBoxGeometry(0.44, 0.18, 0.08, 3, 0.04), M4(DX, floorY + 1.12, z(seatF - 0.29), 0.14));
   seat(IW * 0.55, seatF, IW * 0.8);
+  // أماكن قعدة الركاب (للـ Passengers): الكنبة الأمامية 2، وكل صف ورا: كنبة 3 + كرسي 1
+  const sy = floorY + 0.42;
+  rig.paxSeats = [IW * 0.55 - IW * 0.2, IW * 0.55 + IW * 0.2].map((x) => ({ x, y: sy, z: z(seatF) + 0.05 }));
   K('trim').addGeometry(new RoundedBoxGeometry(0.3, 0.44, 0.7, 3, 0.06), M4(-0.02, floorY + 0.22, z(seatF + 0.05)));
-  for (let f = seatF - 0.8; f > D.rearF + 0.55; f -= 0.78) { seat(-IW * 0.32, f, IW * 1.3, true, 0.48); seat(IW * 0.74, f, IW * 0.46, true, 0.48); }
+  for (let f = seatF - 0.8; f > D.rearF + 0.55; f -= 0.78) {
+    seat(-IW * 0.32, f, IW * 1.3, true, 0.48); seat(IW * 0.74, f, IW * 0.46, true, 0.48);
+    for (const dx of [-0.34, 0, 0.34]) rig.paxSeats.push({ x: -IW * 0.32 + dx * IW * 1.3 / 1.04, y: sy, z: z(f) + 0.05 });
+    rig.paxSeats.push({ x: IW * 0.74, y: sy, z: z(f) + 0.05 });
+  }
   // فرامل اليد
   const hb = new THREE.Group();
   hb.position.set(DX + 0.28, floorY + 0.46, z(seatF + 0.05));
@@ -451,6 +461,63 @@ function orientOutward(mesh, holder, c, h) {
   }
   void inv;
   N.needsUpdate = true;
+}
+
+/** الباب الجرار في الهاي إس (ناحية الرصيف): مقاسه متقاس من الموديل (إحداثيات الـ shell، قدام = -z) */
+const DOOR = { z0: -0.52, z1: 0.77, y0: 0.27, y1: 1.64, inset: 0.16 };
+
+function extractSlidingDoor(rig, holder, HW) {
+  rig.shell.updateMatrixWorld(true);
+  const toShell = new THREE.Matrix4().copy(rig.shell.matrixWorld).invert();
+  const group = new THREE.Group();
+  group.name = 'sliding-door';
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), n = new THREE.Vector3();
+  const inDoor = (p) => p.x > HW - DOOR.inset && p.z > DOOR.z0 && p.z < DOOR.z1 && p.y > DOOR.y0 && p.y < DOOR.y1;
+  let moved = 0;
+  holder.traverse((o) => {
+    if (!o.isMesh || !o.visible || !o.geometry.index) return;
+    const name = (o.userData.matName || '').toLowerCase();
+    if (/wheel|lights|glass2|logo/.test(name)) return;
+    o.updateWorldMatrix(true, false);
+    const rel = new THREE.Matrix4().multiplyMatrices(toShell, o.matrixWorld);
+    const nm = new THREE.Matrix3().getNormalMatrix(rel);
+    const g = o.geometry, P = g.attributes.position, N = g.attributes.normal, UV = g.attributes.uv, idx = g.index.array;
+    const keep = [], pos = [], nor = [], uv = [];
+    for (let i = 0; i < idx.length; i += 3) {
+      a.fromBufferAttribute(P, idx[i]).applyMatrix4(rel); b.fromBufferAttribute(P, idx[i + 1]).applyMatrix4(rel); c.fromBufferAttribute(P, idx[i + 2]).applyMatrix4(rel);
+      const m = new THREE.Vector3().add(a).add(b).add(c).multiplyScalar(1 / 3);
+      if (!inDoor(m)) { keep.push(idx[i], idx[i + 1], idx[i + 2]); continue; }
+      for (const [k, v] of [[idx[i], a], [idx[i + 1], b], [idx[i + 2], c]]) {
+        pos.push(v.x, v.y, v.z);
+        if (N) { n.fromBufferAttribute(N, k).applyMatrix3(nm).normalize(); nor.push(n.x, n.y, n.z); }
+        if (UV) uv.push(UV.getX(k), UV.getY(k));
+      }
+    }
+    if (!pos.length) return;
+    moved += pos.length / 9;
+    g.setIndex(keep);
+    const dg = new THREE.BufferGeometry();
+    dg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    if (nor.length) dg.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3)); else dg.computeVertexNormals();
+    if (uv.length) dg.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    const mesh = new THREE.Mesh(dg, o.material);
+    mesh.castShadow = o.castShadow; mesh.receiveShadow = true; mesh.renderOrder = o.renderOrder;
+    mesh.userData = { ...o.userData };
+    group.add(mesh);
+  });
+  rig.shell.add(group);
+  console.info('[HiAce] الباب الجرار:', moved, 'مثلث');
+  // open: 0 مقفول → 1 مفتوح (بيطلع لبره شوية وبعدين يتزحلق لورا)
+  return {
+    group, open: 0, target: 0, moved,
+    center: new THREE.Vector3(HW, 0.9, (DOOR.z0 + DOOR.z1) / 2),
+    update(dt) {
+      const sp = this.target > this.open ? 1.4 : 1.2;
+      this.open += Math.sign(this.target - this.open) * Math.min(Math.abs(this.target - this.open), dt * sp);
+      const out = Math.min(1, this.open * 5) * 0.075, slide = Math.max(0, (this.open - 0.12) / 0.88) * (DOOR.z1 - DOOR.z0 - 0.2);
+      group.position.set(out, 0, slide);
+    },
+  };
 }
 
 /** يمسح المثلثات اللي مركزها جوه صندوق (في إحداثيات الـ holder) */

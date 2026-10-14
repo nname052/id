@@ -21,12 +21,15 @@ import { HUD } from '../ui/HUD.js';
 import { Diagnostics } from '../ui/Diagnostics.js';
 import { Settings } from '../ui/Settings.js';
 import { MirrorInsets } from '../ui/MirrorInsets.js';
+import { Passengers } from '../gameplay/Passengers.js';
 import { TouchControls, isTouchDevice } from '../ui/TouchControls.js';
 
 const FIXED_DT = 1 / 120;
 import { sampleAt } from '../world/Route.js';
 const sampleZoneName = (s) => sampleAt(s - 450).zone;
 const nextFrame = () => new Promise((r) => requestAnimationFrame(() => r()));
+
+if (import.meta.env.DEV) window.__THREE = THREE; // للتجربة بس
 
 export class Game {
   constructor(container, status) {
@@ -128,6 +131,8 @@ export class Game {
     this.cams = new CameraSystem(this.camera, this.player, renderer.domElement);
     this.cams.settings = this.settings;
     this.mirrorInsets = new MirrorInsets(this.player, this.touch);
+    this.passengers = new Passengers(this.scene, this.player, { hud: this.hud, audio: this.audio, settings: this.settings });
+    this.passengers._updateHud();
     this.mirrorInsets.mode = this.settings.get('mirrorInsets');
     this.settings.onChange((k, v) => { if (k === 'mirrorInsets') this.mirrorInsets.mode = v; });
     this.cams.mode = 3; // سينمائية ورا شاشة البداية
@@ -325,6 +330,7 @@ export class Game {
     this.player.syncVisuals(dt, this.acc / FIXED_DT);
     this.cams.update(dt, input);
     this.peds.update(dt, this.camera.position, this.player.physics);
+    if (this.started) this.passengers.update(dt, ph);
     this.env.update(this.player.rig.root.position);
 
     // أقرب أعمدة نور بالليل

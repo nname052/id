@@ -267,6 +267,21 @@ export class AudioSystem {
     ng.gain.exponentialRampToValueAtTime(0.001, t + 0.09 + k * 0.08); n.stop(t + 0.25);
   }
 
+  /** الباب الجرار: زحلقة + خبطة في الآخر */
+  door(opening) {
+    if (!this.started || this.muted) return;
+    const ctx = this.ctx, t = ctx.currentTime, dur = 0.75;
+    const n = ctx.createBufferSource(); n.buffer = this.noiseBuf; n.start(t, Math.random());
+    const f = this._filter('bandpass', opening ? 900 : 1200, 2.5);
+    f.frequency.linearRampToValueAtTime(opening ? 1400 : 700, t + dur);
+    const g = this._gain(0.0); g.gain.linearRampToValueAtTime(0.16, t + 0.08); g.gain.linearRampToValueAtTime(0.1, t + dur - 0.1); g.gain.linearRampToValueAtTime(0.0001, t + dur);
+    n.connect(f).connect(g).connect(this.master); n.stop(t + dur + 0.05);
+    // الخبطة (أقوى في القفل)
+    const o = this._osc('sine', opening ? 140 : 95);
+    const og = this._gain(0); og.gain.setValueAtTime(0.0001, t + dur - 0.02); og.gain.linearRampToValueAtTime(opening ? 0.18 : 0.42, t + dur); og.gain.exponentialRampToValueAtTime(0.001, t + dur + 0.2);
+    o.connect(og).connect(this.master); o.stop(t + dur + 0.25);
+  }
+
   toggleMute() {
     this.muted = !this.muted;
     if (this.master) this.master.gain.setTargetAtTime(this.muted ? 0 : 0.62, this.ctx.currentTime, 0.05);

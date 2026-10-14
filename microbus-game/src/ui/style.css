@@ -114,3 +114,6 @@ body.touch #toast { top: 8px; }
 .set-seg button { border: 1px solid rgba(255, 255, 255, 0.2); background: rgba(255, 255, 255, 0.06); color: #fff; border-radius: 9px; padding: 7px 4px; font: 600 13px 'Cairo', sans-serif; cursor: pointer; }
 .set-seg button.on { background: var(--accent); color: #1a1408; border-color: transparent; }
 .set-note { margin: 0; font-size: 12px; opacity: 0.55; }
+
+.pax { display: flex; align-items: center; gap: 3px; font: 700 15px 'Cairo', sans-serif; font-variant-numeric: tabular-nums; color: #e9e4d8; }
+.pax svg { width: 16px; height: 16px; color: var(--accent); }
