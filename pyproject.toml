@@ -7,6 +7,9 @@ dependencies = [
     "requests>=2.32",
     "playwright>=1.48",
     "psutil>=6.0",
+    "fastapi>=0.143.1",
+    "uvicorn[standard]>=0.54.0",
+    "jinja2>=3.1.6",
 ]
 
 [tool.uv]

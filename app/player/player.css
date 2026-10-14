@@ -1,0 +1,44 @@
+/* المشغّل: 1080×1920. في المعاينة بيتصغّر علشان يملا المكان، وفي التصدير بيفضل بمقاسه */
+html, body { margin: 0; height: 100%; overflow: hidden; background: #0d0d10; }
+#frame { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+#stage { position: relative; width: 1080px; height: 1920px; overflow: hidden; flex: none; transform-origin: center;
+         background: var(--bg); color: var(--ink); }
+body.render #frame { inset: auto; left: 0; top: 0; display: block; }
+body.render #stage { transform: none !important; }
+
+#bg { position: absolute; inset: 0; }
+.blob { position: absolute; border-radius: 50%; background: var(--accent2); opacity: .22; filter: blur(2px); }
+.b1 { width: 900px; height: 900px; }
+.b2 { width: 620px; height: 620px; background: var(--accent); opacity: .12; }
+#grain { position: absolute; inset: 0; width: 100%; height: 100%; opacity: .07; mix-blend-mode: multiply; image-rendering: pixelated; }
+
+.scene { position: absolute; inset: 0; }
+/* العنصر البطل: من y=300 لـ y=1010 (جوه المنطقة الآمنة) */
+.hero { position: absolute; left: 110px; top: 300px; width: 860px; height: 710px; display: flex; align-items: center; justify-content: center;
+        color: var(--accent); will-change: transform, opacity; }
+.hero svg { width: 100%; height: 100%; }
+.hero.icon svg { width: 540px; height: 540px; }
+.hero.icon svg * { stroke-width: 1.4px; }
+.hero.emoji .lottie { width: 560px; height: 560px; }
+.hero.number { font: 800 300px/1 "Alexandria"; color: var(--accent); direction: ltr; }
+.hero.text .big { font: 800 190px/1.15 "Alexandria"; color: var(--ink); text-align: center; max-width: 860px; }
+.hero.text .hl { color: var(--accent); }
+
+/* العنوان: كلمة أو تلاتة تحت البطل */
+.headline { position: absolute; left: 70px; right: 70px; top: 1040px; text-align: center; font: 800 112px/1.2 "Alexandria"; color: var(--ink); }
+.headline .hl { position: relative; display: inline-block; z-index: 0; }
+.headline .hl::before { content: ""; position: absolute; left: -12px; right: -12px; bottom: 12px; height: 40px; border-radius: 12px;
+                        background: var(--accent); opacity: .35; z-index: -1; transform-origin: right; transform: scaleX(var(--p, 0)); }
+
+/* الترجمة (كاريوكي): تحت العنوان وجوه المنطقة الآمنة (لحد y=1459) */
+#subs { position: absolute; left: 70px; right: 70px; top: 1270px; text-align: center; font: 600 52px/1.5 "Alexandria"; color: var(--ink); }
+#subs span { opacity: .35; }
+#subs span.said { opacity: 1; }
+#subs span.now { color: var(--accent); }
+
+#controls { position: fixed; left: 0; right: 0; bottom: 0; display: flex; gap: 10px; align-items: center; padding: 10px 14px;
+            background: rgba(0,0,0,.55); color: #fff; font: 14px system-ui; direction: ltr; }
+#controls button { font-size: 16px; width: 38px; height: 32px; border-radius: 8px; border: 0; cursor: pointer; }
+#controls input { flex: 1; }
+#controls[hidden] { display: none; }
+.headline { white-space: nowrap; }

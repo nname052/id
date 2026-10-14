@@ -1,0 +1,87 @@
+:root {
+  --bg: #f6f4ef; --card: #ffffff; --ink: #1d1d22; --muted: #6b6b73; --line: #e6e2d9; --accent: #e8590c; --accent-soft: #fde9dc;
+  --ok: #188a4a; --ok-soft: #dff3e7; --warn: #b26a00; --warn-soft: #fff1d6; --err: #c0262d; --err-soft: #fde2e2; --blue: #2f6fe0;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #131316; --card: #1c1c21; --ink: #ececf1; --muted: #9b9ba6; --line: #2d2d34; --accent: #ff8a3d; --accent-soft: #3a2416;
+          --ok: #47c47e; --ok-soft: #173322; --warn: #f0b44c; --warn-soft: #3a2c12; --err: #ff6b6b; --err-soft: #3d1a1a; --blue: #6aa0ff; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.6 "IBM Plex Sans Arabic", "Geeza Pro", system-ui, sans-serif; }
+a { color: inherit; }
+header.top { display: flex; align-items: center; gap: 14px; padding: 14px 22px; border-bottom: 1px solid var(--line); background: var(--card); position: sticky; top: 0; z-index: 5; }
+header.top .brand { font: 800 20px "Alexandria", sans-serif; text-decoration: none; }
+header.top nav { display: flex; gap: 8px; margin-inline-start: auto; }
+main { max-width: 1180px; margin: 0 auto; padding: 22px 18px 80px; }
+h1 { font: 800 28px/1.3 "Alexandria", sans-serif; margin: 4px 0 16px; }
+h2 { font: 700 19px "Alexandria", sans-serif; margin: 0 0 12px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 18px 20px; }
+.muted { color: var(--muted); font-size: 14px; }
+button, .btn { font: inherit; cursor: pointer; border: 1px solid var(--line); background: var(--card); color: var(--ink); padding: 8px 16px; border-radius: 10px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+button:hover, .btn:hover { border-color: var(--accent); }
+button:disabled { opacity: .5; cursor: not-allowed; }
+.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+.danger { color: var(--err); }
+input[type=text], textarea, select { font: inherit; color: inherit; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; width: 100%; }
+textarea { resize: vertical; }
+label.field { display: block; margin: 14px 0 6px; font-weight: 600; }
+.row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.grow { flex: 1; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip { border: 1px solid var(--line); border-radius: 999px; padding: 5px 14px; cursor: pointer; background: var(--card); }
+.chip.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 700; }
+.badge { display: inline-block; font-size: 12px; padding: 1px 9px; border-radius: 999px; background: var(--bg); border: 1px solid var(--line); color: var(--muted); }
+.note { padding: 10px 14px; border-radius: 12px; font-size: 14px; margin: 10px 0; }
+.note.warn { background: var(--warn-soft); color: var(--warn); }
+.note.err { background: var(--err-soft); color: var(--err); }
+.note.ok { background: var(--ok-soft); color: var(--ok); }
+.spinner { display: inline-block; width: 18px; height: 18px; border: 3px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* اختيار الصوت */
+.vpick { position: relative; }
+.vpick > button { width: 100%; justify-content: space-between; }
+.vpanel { position: absolute; inset-inline: 0; top: calc(100% + 6px); background: var(--card); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 12px 40px rgba(0,0,0,.15); z-index: 20; padding: 10px; }
+.vpanel .list { max-height: 340px; overflow: auto; margin-top: 8px; }
+.vrow { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 10px; cursor: pointer; }
+.vrow:hover, .vrow.sel { background: var(--accent-soft); }
+.vrow .nm { flex: 1; direction: ltr; text-align: right; font-weight: 600; font-size: 14px; }
+.vrow .play { width: 34px; height: 30px; justify-content: center; padding: 0; }
+
+/* صفحة المشروع */
+.stages { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+.stage { padding: 6px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); font-size: 14px; color: var(--muted); }
+.stage.running, .stage.queued { border-color: var(--accent); color: var(--accent); }
+.stage.review { background: var(--accent); color: #fff; border-color: var(--accent); }
+.stage.approved { background: var(--ok-soft); color: var(--ok); border-color: transparent; }
+.stage.failed, .stage.needs_credits, .stage.waiting_limit { background: var(--err-soft); color: var(--err); border-color: transparent; }
+.stage.stale { background: var(--warn-soft); color: var(--warn); border-color: transparent; }
+.layout { display: grid; grid-template-columns: 1fr 380px; gap: 18px; align-items: start; }
+@media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+.phone { position: sticky; top: 80px; background: #0d0d10; border-radius: 22px; overflow: hidden; aspect-ratio: 1080 / 1972; }
+.phone iframe, .phone video { width: 100%; height: 100%; border: 0; display: block; background: #0d0d10; }
+.phone .empty { color: #8a8a94; display: grid; place-items: center; height: 100%; text-align: center; padding: 20px; font-size: 14px; }
+.sentences .s { display: flex; gap: 8px; margin-bottom: 8px; }
+.sentences .n { width: 26px; text-align: center; color: var(--muted); padding-top: 9px; font-size: 13px; }
+.scenes { display: grid; gap: 10px; }
+.scene-card { display: flex; gap: 12px; align-items: center; border: 1px solid var(--line); border-radius: 14px; padding: 10px; }
+.scene-card .thumb { width: 84px; height: 84px; border-radius: 10px; background: var(--bg); display: grid; place-items: center; flex: none; overflow: hidden; color: var(--accent); font: 800 26px "Alexandria"; }
+.scene-card .thumb img { width: 100%; height: 100%; object-fit: contain; }
+.scene-card .hd { font: 700 17px "Alexandria"; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+.progress { height: 10px; border-radius: 999px; background: var(--line); overflow: hidden; margin: 10px 0; }
+.progress > div { height: 100%; background: var(--accent); transition: width .4s; }
+details.log { margin-top: 16px; }
+details.log pre { white-space: pre-wrap; font-size: 12px; color: var(--muted); max-height: 220px; overflow: auto; direction: ltr; text-align: left; }
+
+/* المكتبة */
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 16px; }
+.vcard { background: var(--card); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+.vcard .cover { aspect-ratio: 9/16; background: #0d0d10; display: grid; place-items: center; color: #9b9ba6; position: relative; }
+.vcard .cover img { width: 100%; height: 100%; object-fit: cover; }
+.vcard .body { padding: 10px 12px 12px; }
+.vcard .ttl { font: 700 16px "Alexandria"; margin-bottom: 2px; }
+.vcard .acts { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.vcard .acts .btn, .vcard .acts button { padding: 5px 10px; font-size: 13px; }
+.modal { position: fixed; inset: 0; background: rgba(0,0,0,.7); display: grid; place-items: center; z-index: 50; }
+.modal video { max-height: 90vh; max-width: 92vw; border-radius: 16px; }
