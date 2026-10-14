@@ -22,52 +22,33 @@ export class PlayerVehicle {
     this.hbVis = 0;
     this.sebha = { ax: 0, vx: 0, az: 0, vz: 0 };
     this.glbSteering = null;
-    this._applyGLB(assets?.get('microbus'));
+    this._applyGLB(assets?.get('microbus'), assets?.status?.microbus);
     this._setupMirrors();
     this._setupHeadlights();
     this.reset(true);
   }
 
-  // ===== موديل GLB خارجي (لو موجود) =====
-  _applyGLB(asset) {
-    if (!asset) return;
-    const cfg = asset.cfg;
-    // موديل حقيقي (زي الهاي إس): نقيسه ونظبط الفيزياء على مقاسه ونبني صالون على مقاس كابينته
-    if (cfg.autoWheels) {
+  // ===== الهاي إس (GLB) — هو عربية اللاعب الوحيدة. مفيش رجوع للميكروباص القديم المتبني بالمكعبات =====
+  _applyGLB(asset, status) {
+    const fail = (msg) => {
+      this.hiaceError = msg;
+      this.rig.shell.visible = false; // منخبّيش الفشل بعربية تانية
+      this.rig.mirrors = [];
+      console.error('[HiAce] FAILED:', msg);
+    };
+    if (!asset) return fail(status?.error || 'microbus.glb was not loaded');
+    try {
       const A = analyzeVehicle(asset.holder);
-      if (A.ok) {
-        const spec = specFromModel(MICROBUS_SPEC, A);
-        this.physics = new VehiclePhysics(spec, groundHeight);
-        this.rig.shell.position.y = -spec.cgHeight;
-        integrateHiace(this.rig, asset, spec, A);
-        this.glbIntegrated = true;
-        console.info('[HiAce] wheelBase', A.wheelBase.toFixed(2), 'track', A.track.toFixed(2), 'R', A.radius.toFixed(3), 'body', (spec.halfLength * 2).toFixed(2), 'x', (spec.halfWidth * 2).toFixed(2));
-        return;
-      }
-      console.warn('[HiAce] مقدرتش ألاقي 4 عجلات في الموديل → هستخدم العجل الإجرائي');
+      if (!A.ok) return fail('could not detect the 4 wheels in the model');
+      const spec = specFromModel(MICROBUS_SPEC, A);
+      this.physics = new VehiclePhysics(spec, groundHeight);
+      this.rig.shell.position.y = -spec.cgHeight;
+      integrateHiace(this.rig, asset, spec, A);
+      this.glbIntegrated = true;
+      console.info('[HiAce] wheelBase', A.wheelBase.toFixed(2), 'track', A.track.toFixed(2), 'R', A.radius.toFixed(3), 'body', (spec.halfLength * 2).toFixed(2), 'x', (spec.halfWidth * 2).toFixed(2));
+    } catch (e) {
+      fail('integration error: ' + (e?.message || e));
     }
-    const model = asset.holder;
-    model.position.z = 0.15; // مركز الموديل → مركز جسم الميكروباص
-    this.rig.shell.add(model);
-    this.rig.exterior.visible = false;
-    // المرايات الإجرائية شغالة (بتعكس فعلًا). لو موديلك فيه مرايات خاصة بيه: proceduralMirrors: false
-    if (cfg.proceduralMirrors === false) this.rig.mirrors = this.rig.mirrors.filter((m) => { if (m.side !== 0) { m.holder.visible = false; return false; } return true; });
-    const names = cfg.nodes || {};
-    const ids = { FL: names.wheelFL, FR: names.wheelFR, RL: names.wheelRL, RR: names.wheelRR };
-    for (const w of this.rig.wheels) {
-      const node = ids[w.id] && model.getObjectByName(ids[w.id]);
-      if (!node) continue;
-      // ننقل عجلة الموديل جوه مجموعة الدوران بتاعتنا ونسنترها
-      w.spin.attach(node);
-      const box = new THREE.Box3().setFromObject(node);
-      const c = box.getCenter(new THREE.Vector3());
-      w.spin.worldToLocal(c);
-      node.position.sub(c);
-      for (const ch of [...w.spin.children]) if (ch !== node) ch.visible = false;
-    }
-    const sw = names.steeringWheel && model.getObjectByName(names.steeringWheel);
-    if (sw) this.glbSteering = { node: sw, q0: sw.quaternion.clone(), axis: new THREE.Vector3(...(cfg.steeringAxis || [0, 0, 1])) };
-    if (cfg.hasInterior) this.rig.interiorGroup.visible = false;
   }
 
   // ===== المرايات (Render to texture حقيقي) =====
@@ -87,7 +68,7 @@ export class PlayerVehicle {
       const n = toEye.add(rear).normalize();
       m.holder.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), n);
       const cam = new THREE.PerspectiveCamera(m.fov || 22, aspect, m.side === 0 ? 0.6 : 0.3, 160);
-      this.mirrorCams.push({ m, rt, cam });
+      this.mirrorCams.push({ m, rt, cam, renders: 0, error: null, blank: false, checked: false });
     }
     this._mirrorFrame = 0;
   }
@@ -98,7 +79,8 @@ export class PlayerVehicle {
     const skip = (this.mirrorSkip || 0) + (this.lowPower ? 1 : 0);
     if (skip && (this._skipN = ((this._skipN || 0) + 1) % (skip + 1)) !== 0) return;
     const i = this._mirrorFrame++ % this.mirrorCams.length;
-    const { m, rt, cam } = this.mirrorCams[i];
+    const mc = this.mirrorCams[i];
+    const { m, rt, cam } = mc;
     const facePos = m.face.getWorldPosition(_v1);
     const n = _v2.set(0, 0, 1).applyQuaternion(m.face.getWorldQuaternion(_q1));
     const d = _v3.copy(facePos).sub(cameraPos).normalize();
@@ -106,11 +88,25 @@ export class PlayerVehicle {
     cam.position.copy(facePos);
     cam.up.set(0, 1, 0);
     cam.lookAt(_v4.copy(facePos).add(r));
-    const fog = scene.fog;
-    renderer.setRenderTarget(rt);
-    renderer.render(scene, cam);
-    renderer.setRenderTarget(null);
-    scene.fog = fog;
+    try {
+      renderer.setRenderTarget(rt);
+      renderer.render(scene, cam);
+      renderer.setRenderTarget(null);
+      mc.renders++;
+      mc.error = null;
+      // مرة واحدة: نتأكد إن الصورة اللي في المراية مش فاضية (للتشخيص)
+      if (!mc.checked && mc.renders >= 4) {
+        mc.checked = true;
+        const px = new Uint8Array(4 * 16);
+        renderer.readRenderTargetPixels(rt, (rt.width >> 1) - 2, (rt.height >> 1) - 2, 4, 4, px);
+        let mx = 0, mn = 255;
+        for (let k = 0; k < px.length; k += 4) { const v = px[k] + px[k + 1] + px[k + 2]; mx = Math.max(mx, v); mn = Math.min(mn, v); }
+        mc.blank = mx === 0;
+      }
+    } catch (e) {
+      renderer.setRenderTarget(null);
+      mc.error = e?.message || String(e);
+    }
   }
 
   _setupHeadlights() {

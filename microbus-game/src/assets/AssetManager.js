@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { MODEL_ASSETS, TEXTURE_ASSETS, AUDIO_ASSETS } from '../config/assets.config.js';
 
@@ -20,8 +19,13 @@ export class AssetManager {
     this.textures = {};
     this.audio = {};
     this.loader = new GLTFLoader();
-    this.loader.setMeshoptDecoder(MeshoptDecoder);
+    // صفحة الـ Artifact بتمنع fetch لـ blob:/data: → الصور اللي جوه الـ GLB نحملها كـ <img> عادي
+    this.loader.register((parser) => {
+      parser.textureLoader = new THREE.TextureLoader(parser.options.manager);
+      return { name: 'force_image_textures' };
+    });
     this.report = [];
+    this.status = {}; // للتشخيص على الشاشة: { microbus: { ok, error } }
   }
 
   url(folder, file) { return byName[`${folder}/${file}`]; }
@@ -30,11 +34,17 @@ export class AssetManager {
     const jobs = [];
     for (const [key, cfg] of Object.entries(MODEL_ASSETS)) {
       const url = this.url('models', cfg.file);
-      if (!url) { this.report.push(`○ ${cfg.file}: مش موجود → Placeholder إجرائي`); continue; }
-      jobs.push(this.loader.loadAsync(url).then((gltf) => {
+      if (!url) this.report.push(`○ ${cfg.file}: مش موجود → Placeholder إجرائي`);
+      if (!url) { this.status[key] = { ok: false, error: `${cfg.file} not in build` }; continue; }
+      jobs.push(this._loadGLB(url).then((gltf) => {
         this.models[key] = this._wrap(key, cfg, gltf);
+        this.status[key] = { ok: true };
         this.report.push(`✓ ${cfg.file}`);
-      }).catch((e) => { this.report.push(`✗ ${cfg.file}: ${e.message}`); }));
+      }).catch((e) => {
+        this.status[key] = { ok: false, error: `${cfg.file}: ${e?.message || e}` };
+        this.report.push(`✗ ${cfg.file}: ${e?.message || e}`);
+        console.error('[Assets]', cfg.file, e);
+      }));
     }
     const tl = new THREE.TextureLoader();
     for (const [key, cfg] of Object.entries(TEXTURE_ASSETS)) {
@@ -58,6 +68,23 @@ export class AssetManager {
     jobs.forEach((j) => j.then(() => onProgress(++done / jobs.length)));
     await Promise.all(jobs);
     console.info('[Assets]\n' + this.report.join('\n'));
+  }
+
+  // الـ GLB مدموج في الـ JS كـ data: URI → نفكه بإيدنا من غير fetch (الـ CSP بتاع الـ Artifact ممكن يمنعه)
+  async _loadGLB(url) {
+    let buf;
+    if (url.startsWith('data:')) {
+      const b64 = url.slice(url.indexOf(',') + 1);
+      const bin = atob(b64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      buf = bytes.buffer;
+    } else {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status} ${url}`);
+      buf = await res.arrayBuffer();
+    }
+    return this.loader.parseAsync(buf, '');
   }
 
   get(key) { return this.models[key] || null; }

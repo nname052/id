@@ -62,8 +62,9 @@ export function integrateHiace(rig, asset, spec, A) {
   holder.position.set(-A.xMid, spec.wheelRadius - A.wheelY, -spec._cgZ);
   rig.shell.add(holder);
   holder.updateMatrixWorld(true);
-  rig.exterior.visible = false;
-  rig.interiorGroup.visible = false;
+  // الميكروباص القديم (المكعبات) بيتشال من المشهد خالص — مش بس بيستخبى
+  rig.exterior.removeFromParent();
+  rig.interiorGroup.removeFromParent();
 
   // ===== العجل: نشيلها من الموديل ونحطها في مجموعات التوجيه/الدوران =====
   const FA = spec.cgToFront, RA = -(spec.wheelBase - spec.cgToFront), t = spec.track / 2;
@@ -72,7 +73,7 @@ export function integrateHiace(rig, asset, spec, A) {
     const src = A.wheels.find((x) => x.id === w.id);
     w.group.position.set(pos[w.id][0], spec.wheelRadius, -pos[w.id][1]);
     if (!src) continue;
-    for (const ch of [...w.spin.children]) ch.visible = false;
+    for (const ch of [...w.spin.children]) ch.removeFromParent();
     // نطبّق تحويل العجلة الكامل (تحجيم + دوران) بالنسبة للـ holder، وبعدين نسنترها
     src.mesh.updateWorldMatrix(true, false);
     const rel = new THREE.Matrix4().copy(holder.matrixWorld).invert().multiply(src.mesh.matrixWorld);

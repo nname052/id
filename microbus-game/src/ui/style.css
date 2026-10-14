@@ -1,10 +1,10 @@
-@font-face { font-family: 'Cairo'; src: url('/fonts/Cairo-Variable.ttf') format('truetype'); font-weight: 200 1000; font-display: swap; }
-@font-face { font-family: 'Lalezar'; src: url('/fonts/Lalezar-Regular.ttf') format('truetype'); font-display: swap; }
-@font-face { font-family: 'Rakkas'; src: url('/fonts/Rakkas-Regular.ttf') format('truetype'); font-display: swap; }
-@font-face { font-family: 'Lemonada'; src: url('/fonts/Lemonada-Variable.ttf') format('truetype'); font-weight: 300 700; font-display: swap; }
-@font-face { font-family: 'El Messiri'; src: url('/fonts/ElMessiri-Variable.ttf') format('truetype'); font-weight: 400 700; font-display: swap; }
-@font-face { font-family: 'Aref Ruqaa'; src: url('/fonts/ArefRuqaa-Bold.ttf') format('truetype'); font-display: swap; }
-@font-face { font-family: 'Almarai'; src: url('/fonts/Almarai-Regular.ttf') format('truetype'); font-display: swap; }
+@font-face { font-family: 'Cairo'; src: url('../fonts/Cairo-Variable.ttf') format('truetype'); font-weight: 200 1000; font-display: swap; }
+@font-face { font-family: 'Lalezar'; src: url('../fonts/Lalezar-Regular.ttf') format('truetype'); font-display: swap; }
+@font-face { font-family: 'Rakkas'; src: url('../fonts/Rakkas-Regular.ttf') format('truetype'); font-display: swap; }
+@font-face { font-family: 'Lemonada'; src: url('../fonts/Lemonada-Variable.ttf') format('truetype'); font-weight: 300 700; font-display: swap; }
+@font-face { font-family: 'El Messiri'; src: url('../fonts/ElMessiri-Variable.ttf') format('truetype'); font-weight: 400 700; font-display: swap; }
+@font-face { font-family: 'Aref Ruqaa'; src: url('../fonts/ArefRuqaa-Bold.ttf') format('truetype'); font-display: swap; }
+@font-face { font-family: 'Almarai'; src: url('../fonts/Almarai-Regular.ttf') format('truetype'); font-display: swap; }
 
 :root { --fg: #f4f1ea; --accent: #f2b330; --bg: rgba(14, 14, 16, 0.72); }
 * { box-sizing: border-box; }
@@ -92,3 +92,7 @@ body.touch #toast { top: 54px; }
 .mobile-hint { display: none; }
 @media (pointer: coarse) { .mobile-hint { display: block; color: var(--accent); opacity: 0.95; } }
 .credit { font-size: 11px; opacity: 0.45; direction: ltr; }
+/* تشخيص مؤقت */
+#diag { position: fixed; z-index: 30; left: calc(8px + env(safe-area-inset-left, 0px)); top: calc(46px + env(safe-area-inset-top, 0px)); font: 600 10px/1.45 ui-monospace, monospace; color: #e8e8e8; background: rgba(0, 0, 0, 0.55); padding: 4px 7px; border-radius: 6px; pointer-events: none; direction: ltr; text-align: left; max-width: 46vw; }
+#diag .ok { color: #6dff95; } #diag .bad { color: #ff6b5a; }
+#hiace-fail { position: fixed; inset: 0; z-index: 25; display: grid; place-items: center; background: rgba(60, 0, 0, 0.82); color: #fff; font: 700 16px 'Cairo', sans-serif; text-align: center; padding: 24px; direction: ltr; }

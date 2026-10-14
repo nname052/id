@@ -17,6 +17,7 @@ game.init().then(() => {
   go.focus();
 }).catch((e) => {
   console.error(e);
+  game.diag?.set('hiace', `INIT FAILED — ${e.message}`, 'bad');
   statusEl.textContent = 'حصلت مشكلة: ' + e.message + ' — جرّب Chrome أو Edge محدّث.';
 });
 
@@ -28,10 +29,11 @@ const begin = async () => {
 go.addEventListener('click', begin);
 window.addEventListener('keydown', (e) => { if (e.code === 'Enter' && !start.classList.contains('hidden')) begin(); });
 
-// PWA: تسجيل الـ Service Worker في نسخة الإنتاج بس
-if ('serviceWorker' in navigator && import.meta.env.PROD) {
-  navigator.serviceWorker.register('./sw.js').catch(() => {});
-}
+// الـ Service Worker متوقف مؤقتًا (صفحة الـ Artifact مش بتسمح بيه، وكان ممكن يفضّل نسخة قديمة متخزنة).
+// لو فيه واحد متسجل من نسخة قديمة نشيله.
+try {
+  navigator.serviceWorker?.getRegistrations?.().then((rs) => rs.forEach((r) => r.unregister())).catch(() => {});
+} catch { /* مش متاح */ }
 
 // منع سكرول/زووم/تحديد النص أثناء القيادة (موبايل)
 const stop = (e) => { if (e.cancelable) e.preventDefault(); };

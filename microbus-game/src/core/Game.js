@@ -18,6 +18,7 @@ import { AudioSystem } from '../audio/AudioSystem.js';
 import { AssetManager, applyTextureOverrides } from '../assets/AssetManager.js';
 import { Input } from './Input.js';
 import { HUD } from '../ui/HUD.js';
+import { Diagnostics } from '../ui/Diagnostics.js';
 import { TouchControls, isTouchDevice } from '../ui/TouchControls.js';
 
 const FIXED_DT = 1 / 120;
@@ -34,6 +35,7 @@ export class Game {
 
   async init() {
     const S = this.status;
+    this.diag = new Diagnostics();
     S('تحميل الخطوط العربية...', 0.05);
     await Promise.all(['Lalezar', 'Rakkas', 'Lemonada', 'El Messiri', 'Aref Ruqaa', 'Cairo'].map((f) => document.fonts.load(`40px "${f}"`).catch(() => {})));
 
@@ -89,6 +91,14 @@ export class Game {
     await nextFrame();
     this.audio = new AudioSystem(this.assets);
     this.player = new PlayerVehicle(this.scene, this.assets);
+    if (this.player.glbIntegrated) this.diag.set('hiace', 'HIACE: LOADED', 'ok');
+    else {
+      this.diag.set('hiace', `HIACE: FAILED — ${this.player.hiaceError}`, 'bad');
+      const f = document.createElement('div');
+      f.id = 'hiace-fail';
+      f.textContent = `HIACE: FAILED — ${this.player.hiaceError}`;
+      document.body.appendChild(f);
+    }
     this.player.lowPower = this.mobile;
     this.player.physics.onImpact = (v) => { this.audio.impact(v); this.cams.shake = Math.min(1.5, v / 4); };
 
@@ -307,6 +317,7 @@ export class Game {
     if (this.touch) this.touch.update(ph.steeringWheelAngle);
 
     if (inside) this.player.renderMirrors(this.renderer, this.scene, this.camera.position);
+    this.diag.update(dt, this.player, inside);
     this.renderer.render(this.scene, this.camera);
   }
 }
