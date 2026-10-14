@@ -22,6 +22,16 @@ app.mount("/player", StaticFiles(directory=APP / "player"), name="player")
 app.mount("/assets", StaticFiles(directory=ASSETS), name="assets")
 app.mount("/fonts", StaticFiles(directory=FONTS), name="fonts")
 pages = Jinja2Templates(directory=APP / "web" / "templates")
+pages.env.globals["v"] = int(time.time())  # رقم نسخة لملفات الواجهة: بيتغيّر مع كل تشغيل، فالمتصفح ما يستخدمش نسخة قديمة
+
+
+@app.middleware("http")
+async def _no_stale_files(request: Request, call_next):
+    """ملفات الواجهة والمشغّل: المتصفح يتأكد من آخر نسخة كل مرة (من غير كده بيفضل شايل نسخة قديمة بعد أي تعديل)."""
+    response = await call_next(request)
+    if request.url.path.startswith(("/static/", "/player/")):
+        response.headers["Cache-Control"] = "no-cache"
+    return response
 
 
 @app.on_event("startup")

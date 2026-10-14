@@ -43,3 +43,4 @@ body.render #stage { transform: none !important; }
 #controls input { flex: 1; }
 #controls[hidden] { display: none; }
 .headline { white-space: nowrap; }
+[hidden] { display: none !important; }

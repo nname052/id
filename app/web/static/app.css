@@ -7,9 +7,11 @@
           --ok: #47c47e; --ok-soft: #173322; --warn: #f0b44c; --warn-soft: #3a2c12; --err: #ff6b6b; --err-soft: #3d1a1a; --blue: #6aa0ff; }
 }
 * { box-sizing: border-box; }
+/* أي عنصر عليه hidden يستخبى فعلًا، حتى لو تنسيقه بيقول display: grid أو flex */
+[hidden] { display: none !important; }
 body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.6 "IBM Plex Sans Arabic", "Geeza Pro", system-ui, sans-serif; }
 a { color: inherit; }
-header.top { display: flex; align-items: center; gap: 14px; padding: 14px 22px; border-bottom: 1px solid var(--line); background: var(--card); position: sticky; top: 0; z-index: 5; }
+header.top { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 14px 22px; border-bottom: 1px solid var(--line); background: var(--card); position: sticky; top: 0; z-index: 5; }
 header.top .brand { font: 800 20px "Alexandria", sans-serif; text-decoration: none; }
 header.top nav { display: flex; gap: 8px; margin-inline-start: auto; }
 main { max-width: 1180px; margin: 0 auto; padding: 22px 18px 80px; }
