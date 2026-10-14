@@ -6,6 +6,7 @@ import { ROADS, SIDEWALK_W, onOtherCarriageway } from './RoadNetwork.js';
 import { ROUTE, URBAN_ZONES, nearJunction } from './Route.js';
 import { groundHeight } from './ground.js';
 import { TERMINAL } from './Shibin.js';
+import { toFloat } from '../vehicles/ModelFit.js';
 
 // الزحمة: ناس كتير ماشيين وواقفين على كل الأرصفة (وسط البلد، شبين الكوم، الموقف، والقرى).
 // - "حارات مشي" جاهزة على كل رصيف (خط + عرض الرصيف)
@@ -14,7 +15,7 @@ import { TERMINAL } from './Shibin.js';
 
 const VARIANTS = 15;
 const STEP = 3; // متر بين نقط الحارة
-const VIEW = 95, RECYCLE = 125, SPAWN_MIN = 14, SPAWN_MAX = 115;
+const VIEW = 75, RECYCLE = 125, SPAWN_MIN = 14, SPAWN_MAX = 115;
 
 function buildLanes() {
   const lanes = [];
@@ -41,7 +42,7 @@ function buildLanes() {
   // 2) الطريق الدائري: المناطق السكنية ليها رصيف، والقرى الناس ماشية على جنب الطريق
   for (const side of [-1, 1]) {
     let pts = [], kind = null;
-    const flush = () => { if (kind) add(pts, kind === 'urban' ? 10.5 : 10.8, kind === 'urban' ? 14.9 : 12.2, kind === 'urban' ? 0.8 : 0.45); pts = []; kind = null; };
+    const flush = () => { if (kind) add(pts, kind === 'urban' ? 10.5 : 12.2, kind === 'urban' ? 14.9 : 13.8, kind === 'urban' ? 0.8 : 0.45); pts = []; kind = null; };
     let next = 0;
     for (const p of ROUTE.samples) {
       if (p.s < next) continue;
@@ -49,7 +50,8 @@ function buildLanes() {
       const k = URBAN_ZONES.has(p.zone) ? 'urban' : p.zone === 'village' ? 'village' : null;
       if (!k || nearJunction(p.s, side, 4) || (kind && k !== kind)) { flush(); if (!k || nearJunction(p.s, side, 4)) continue; }
       kind = k;
-      const lo = k === 'urban' ? 10.5 : 10.8, hi = k === 'urban' ? 14.9 : 12.2;
+      // القرية: الأسفلت لحد 11.5م → الناس ماشية على الجنب بعده
+      const lo = k === 'urban' ? 10.5 : 12.2, hi = k === 'urban' ? 14.9 : 13.8;
       pts.push(pt(p.x, p.z, p.rx * side, p.rz * side, lo, hi));
     }
     flush();
@@ -84,12 +86,14 @@ function buildLanes() {
 }
 
 export class Crowd {
-  constructor(scene, { count = 150 } = {}) {
+  constructor(scene, { count = 150, assets = null } = {}) {
+    this.assets = assets;
     this.cap = Math.ceil(count * 1.7);
     this.R = rng(777);
     this.lanes = buildLanes();
     this._buildSpawnGrid();
     this._buildMeshes(scene);
+    this._buildScan();
     this.people = [];
     for (let i = 0; i < this.cap; i++) this.people.push({ on: false, variant: i % VARIANTS, phase: this.R() * 10, heading: 0, scared: 0 });
     this.setCount(count);
@@ -123,7 +127,7 @@ export class Crowd {
       let p;
       for (let seed = v * 2654435761 + 97, k = 0; k < 40; k++, seed += 7919) {
         const R = rng(seed >>> 0); for (let w = 0; w < 8; w++) R();
-        p = person(R);
+        p = person(R, true);
         const want = ['galabeya', 'woman', 'casual'][v % 3];
         if (p.type === want) break;
       }
@@ -146,6 +150,23 @@ export class Crowd {
   setCount(n) {
     this.count = Math.min(this.cap, Math.round(n));
     this.people.forEach((p, i) => { if (i >= this.count) p.on = false; });
+  }
+
+  /** الشخص الحقيقي (سكان): نسخة واحدة InstancedMesh للناس الواقفة */
+  _buildScan() {
+    const a = this.assets?.get('person_scan');
+    if (!a) return;
+    const h = a.holder; h.updateMatrixWorld(true);
+    let src = null; h.traverse((o) => { if (o.isMesh && !src) src = o; });
+    if (!src) return;
+    const geo = toFloat(src.geometry).applyMatrix4(src.matrixWorld);
+    if (!geo.attributes.normal) geo.computeVertexNormals();
+    const mat = new THREE.MeshStandardMaterial({ map: src.material.map, roughness: 0.9 });
+    const m = new THREE.InstancedMesh(geo, mat, this.cap);
+    m.count = 0; m.frustumCulled = false; m.castShadow = true;
+    m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.group.add(m);
+    this.scan = m;
   }
 
   setShadows(on) { for (const v of this.vars) v.torso.castShadow = on; }
@@ -176,6 +197,7 @@ export class Crowd {
       p.lane = a[k]; p.s = Math.min(L.len - 0.5, a[k + 1] + R() * STEP);
       p.lat = L.lo + R() * (L.hi - L.lo);
       p.standing = R() < 0.3;
+      p.scan = !!this.scan && p.standing && R() < 0.45; // جزء من الواقفين ناس حقيقية (سكان)
       p.dir = R() < 0.5 ? 1 : -1;
       p.speed = p.standing ? 0 : 0.85 + R() * 0.7;
       p.look = R() * 2 - 1;
@@ -208,7 +230,7 @@ export class Crowd {
     if (nl > L.lo && nl < L.hi && Math.abs(along) > 0.3) p.lat = nl;
     else p.s = Math.min(L.len - 0.5, Math.max(0.5, p.s + Math.sign((dx * p.dx + dz * p.dz) || 1) * 3.4 * dt));
     p.scared = 1.2;
-    p.standing = false; p.speed ||= 1.2;
+    if (!p.scan) { p.standing = false; p.speed ||= 1.2; }
   }
 
   update(dt, cam, ph, camDir) {
@@ -230,7 +252,7 @@ export class Crowd {
       if (!p.standing) {
         p.s += p.dir * p.speed * (p.scared ? 1.6 : 1) * dt;
         if (p.s > L.len - 0.5) { p.s = L.len - 0.5; p.dir = -1; } else if (p.s < 0.5) { p.s = 0.5; p.dir = 1; }
-      } else if (this.R() < dt * 0.02) { p.standing = false; p.speed = 0.9 + this.R() * 0.5; } // يمشي بعد شوية
+      } else if (!p.scan && this.R() < dt * 0.02) { p.standing = false; p.speed = 0.9 + this.R() * 0.5; } // يمشي بعد شوية
       this._lanePos(p);
       const ty = this._targetYaw(p);
       p.heading += Math.atan2(Math.sin(ty - p.heading), Math.cos(ty - p.heading)) * Math.min(1, dt * 4);
@@ -242,10 +264,16 @@ export class Crowd {
 
   _draw(cx, cz) {
     for (const v of this.vars) v.n = 0;
+    let nScan = 0;
     const m = _m, q = _q, e = _e;
     for (let i = 0; i < this.count; i++) {
       const p = this.people[i];
       if (!p.on || (p.x - cx) ** 2 + (p.z - cz) ** 2 > VIEW * VIEW) continue;
+      if (p.scan) {
+        _root.compose(_v.set(p.x, p.y, p.z), _q.setFromAxisAngle(_Y, p.heading), _s.setScalar(0.94 + (p.variant % 5) * 0.03));
+        this.scan.setMatrixAt(nScan++, _root);
+        continue;
+      }
       const V = this.vars[p.variant], n = V.n++;
       const bob = p.standing ? 0 : Math.abs(Math.cos(p.phase)) * 0.03;
       _root.compose(_v.set(p.x, p.y + bob, p.z), q.setFromAxisAngle(_Y, p.heading), _s.setScalar(V.scale));
@@ -264,6 +292,7 @@ export class Crowd {
         V.arms.setMatrixAt(n * 2 + k, _t.multiplyMatrices(_root, m));
       }
     }
+    if (this.scan) { this.scan.count = nScan; this.scan.instanceMatrix.needsUpdate = true; this.scan.visible = nScan > 0; }
     for (const V of this.vars) {
       V.torso.count = V.n; V.legs.count = V.n * 2; V.arms.count = V.n * 2;
       V.torso.instanceMatrix.needsUpdate = V.legs.instanceMatrix.needsUpdate = V.arms.instanceMatrix.needsUpdate = true;

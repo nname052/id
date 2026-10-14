@@ -66,6 +66,13 @@ export class Damage {
       shards: new THREE.MeshStandardMaterial({ map: shardsTex(), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6, roughness: 0.2 }),
     };
     this.crackMats = [crackTex(11), crackTex(23)].map((t) => new THREE.MeshBasicMaterial({ map: t, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6 }));
+    // تسخين: نرسم كل خامات الخبط من الأول بحاجة صغيرة جدًا مستخبية جوه العربية،
+    // عشان الـ shader بتاعها يتبني وقت التحميل مش في نص أول خبطة (كان بيعمل تهنيج)
+    for (const m of [this.mats.scratch, this.mats.shards, ...this.crackMats]) {
+      const w = new THREE.Mesh(new THREE.PlaneGeometry(0.001, 0.001), m);
+      w.position.set(0, 0.9, 0); w.frustumCulled = false; w.renderOrder = 3;
+      rig.shell.add(w);
+    }
     // الصاج اللي بيتبعج: كل حاجة برا ماعدا الزجاج والفوانيس والعجل والصالون
     this.meshes = [];
     rig.shell.updateMatrixWorld(true);
@@ -202,7 +209,8 @@ export class Damage {
     if (key.startsWith('head')) {
       const i = key === 'headL' ? 0 : 1;
       const l = this.player.headlights?.[i];
-      if (l) { l.userData.broken = true; l.intensity = 0; l.visible = false; }
+      // شدة 0 بس (من غير visible=false): تغيير عدد الأنوار في المشهد بيعيد بناء كل الـ shaders = اللعبة بتهنّج ثواني
+      if (l) { l.userData.broken = true; l.intensity = 0; }
       const D = this.rig.dims;
       if (D) this._decal(new THREE.Vector3(key === 'headL' ? -D.HW + 0.22 : D.HW - 0.22, 0.85, -D.frontF + 0.05), new THREE.Vector3(0, 0, -1), 0.32, this.mats.shards);
     } else {

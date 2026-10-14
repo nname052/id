@@ -206,7 +206,7 @@ export class TrafficSystem {
   _bake(rig) {
     if (!this._parkB) { this._parkB = new Buckets(); this._parkMats = {}; }
     rig.root.traverse((o) => {
-      if (!o.isMesh) return;
+      if (!o.isMesh || o.userData.role === 'driver') return; // العربيات المركونة من غير سواق
       const role = o.userData.role || `m_${o.material.uuid}`;
       if (!this._parkMats[role]) {
         let m = o.material;
@@ -396,14 +396,14 @@ export class TrafficSystem {
       if (car.off) continue;
       const r = car.rig;
       // شوارع شبين محاطة بعمارات: العربيات اللي فيها بتختفي بدري (أداء)
-      const vis = (car.x - cx) ** 2 + (car.z - cz) ** 2 < (car.lane.kind === 'road' ? Math.min(far2, 180 * 180) : far2);
+      const vis = (car.x - cx) ** 2 + (car.z - cz) ** 2 < (car.lane.kind === 'road' ? Math.min(far2, 140 * 140) : far2);
       car.visible = vis;
       r.root.visible = vis;
       if (!vis) continue;
       // LOD: العربيات البعيدة من غير عجل ولا ضل
       const d2 = (car.x - cx) ** 2 + (car.z - cz) ** 2;
       const near = d2 < 80 * 80, shadow = d2 < 45 * 45;
-      if (near !== car._near) { car._near = near; for (const w of r.wheels) w.group.visible = near; r.root.traverse((o) => { if (o.userData.role && ['chrome', 'plate', 'decal', 'curtain', 'mirrorDark', 'fog', 'tail', 'lamp', 'shadow'].includes(o.userData.role)) o.visible = near; }); }
+      if (near !== car._near) { car._near = near; for (const w of r.wheels) w.group.visible = near; r.root.traverse((o) => { if (o.userData.role && ['chrome', 'plate', 'decal', 'curtain', 'mirrorDark', 'fog', 'tail', 'lamp', 'shadow', 'driver'].includes(o.userData.role)) o.visible = near; }); }
       if (shadow !== car._shadow) { car._shadow = shadow; r.root.traverse((o) => { if (o.isMesh && o.userData.role !== 'glass' && o.userData.role !== 'shadow') o.castShadow = shadow; }); }
       r.root.position.set(car.x, car.y, car.z);
       r.root.rotation.set(0, car.yaw, 0);

@@ -6,7 +6,9 @@ import { buildBuildings } from '../world/Buildings.js';
 import { buildProps, LAMP_POSITIONS, PROP_COLLIDERS } from '../world/Props.js';
 import { TrafficLights } from '../world/TrafficLights.js';
 import { Crowd } from '../world/Crowd.js';
+import { addDriver } from '../world/Pedestrians.js';
 import { applyLivery } from '../vehicles/Livery.js';
+import { bakeTrafficVersion } from '../vehicles/ModelFit.js';
 import { staticColliders } from '../world/layout.js';
 import { PlayerVehicle } from '../vehicles/PlayerVehicle.js';
 import { buildCar } from '../vehicles/CarModels.js';
@@ -120,9 +122,9 @@ export class Game {
     S('المرور والمشاة...', 0.82);
     await nextFrame();
     this.traffic = new TrafficSystem(this.scene, this.lights, (type, color) => this._makeCar(type, color), this.audio, { perLane: this.mobile ? 11 : 16, sideMul: this.mobile ? 1.5 : 1 });
-    this.traffic.viewDist = this.mobile ? 260 : 360;
+    this.traffic.viewDist = this.mobile ? 190 : 260;
     this.crowdBase = this.mobile ? 80 : 160;
-    this.crowd = new Crowd(this.scene, { count: this.crowdBase });
+    this.crowd = new Crowd(this.scene, { count: this.crowdBase, assets: this.assets });
     this.statics = staticColliders();
     // أعمدة النور والشجر والأكشاك في المدينة
     for (const p of PROP_COLLIDERS) this.statics.push({ cx: p.x, cz: p.z, hx: p.hx ?? p.r * 0.85, hz: p.hz ?? p.r * 0.85, angle: 0, restitution: 0.1, kind: p.kind || 'prop' });
@@ -233,14 +235,27 @@ export class Game {
   }
 
   _makeCar(type, color) {
+    const rig = this._makeCarBody(type, color);
+    // كل عربية فيها سواق (قاعد على الشمال زي مصر)
+    this._driverSeed = (this._driverSeed || 0) + 1;
+    // (موديل الهاي إس بتاع المرور دركسيونه يمين، فالسواق قاعد قدامه)
+    const seat = type === 'microbus' ? [0.45, 0.92, -1.28] : [-0.37, 0.42, -0.05];
+    addDriver(rig.body || rig.root, ...seat, this._driverSeed);
+    return rig;
+  }
+
+  _makeCarBody(type, color) {
     const map = { sedan: 'car_sedan', boxy: 'car_old', taxi: 'car_taxi', microbus: 'microbus_traffic' };
     const a = this.assets.get(map[type]);
     if (a && a.cfg.trafficHiace) return buildTrafficHiace(a);
     if (a) {
-      const { root } = a.instantiate();
-      const wrap = new THREE.Group();
-      wrap.add(root);
-      return { root: wrap, body: root, wheels: [], length: a.cfg.targetLength, width: 1.8, brake: null };
+      // نسخة مدموجة خفيفة (2 draw calls) بدل الموديل الكامل لكل عربية
+      const T = bakeTrafficVersion(a);
+      const body = new THREE.Group(), wrap = new THREE.Group();
+      wrap.add(body);
+      const s = new THREE.Mesh(T.solid, T.solidMat); s.castShadow = true; body.add(s);
+      if (T.glass) { const gl = new THREE.Mesh(T.glass, T.glassMat); gl.userData.role = 'glass'; gl.renderOrder = 2; body.add(gl); }
+      return { root: wrap, body, wheels: [], length: a.cfg.targetLength, width: 1.8, brake: null };
     }
     return buildCar(type, color);
   }
@@ -299,7 +314,7 @@ export class Game {
     this.player.mirrorSkip = [0, 1, 2, 3, 5][L];
     this._qCrowd = [1, 0.9, 0.75, 0.6, 0.5][L];
     this._applySetting('crowd', this.settings?.get('crowd') ?? 'normal');
-    this.traffic.viewDist = (this.mobile ? 260 : 360) * far;
+    this.traffic.viewDist = (this.mobile ? 190 : 260) * far;
     this.viewDist = (this.mobile ? 380 : 560) * far;
     this.scene.fog.far = Math.min(this.env.preset.fogFar, this.viewDist + 60);
     console.info('[Quality] مستوى', level, `pixelRatio ${pr.toFixed(2)}`, `(${fps.toFixed(0)} FPS)`);
@@ -470,6 +485,7 @@ export class Game {
     }
     this.player.syncVisuals(dt, this.acc / FIXED_DT);
     this.cams.update(dt, input);
+    if (this.player.driver) this.player.driver.visible = this.cams.mode !== 0;
     this.crowd.update(dt, this.camera.position, this.player.physics, this.camera.getWorldDirection(this._camDir || (this._camDir = new THREE.Vector3())));
     this.passengers.camPos = this.camera.position;
     if (this.started) this.passengers.update(dt, ph);

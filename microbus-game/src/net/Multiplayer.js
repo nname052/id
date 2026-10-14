@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { buildCar } from '../vehicles/CarModels.js';
 import { buildTrafficHiace } from '../vehicles/TrafficHiace.js';
 import { buildTuktukRig } from '../vehicles/PlayerRigs.js';
+import { addDriver } from '../world/Pedestrians.js';
 import { MICROBUS_SPEC, TUKTUK_SPEC_BASE, TAXI_SPEC_BASE } from '../physics/VehiclePhysics.js';
 
 // اللعب الجماعي: كل اللي فاتحين اللعبة في نفس اللحظة بيشوفوا بعض.
@@ -142,12 +143,15 @@ export class Multiplayer {
     if (kind === 'microbus' && g.assets.get('microbus_traffic')) rig = buildTrafficHiace(g.assets.get('microbus_traffic'));
     else if (kind === 'tuktuk') {
       const spec = { ...MICROBUS_SPEC, ...TUKTUK_SPEC_BASE };
-      rig = buildTuktukRig(spec);
+      rig = buildTuktukRig(spec, g.assets);
       rig.body.position.y = spec.cgHeight; // الـ shell متظبط على مركز الثقل
       rig.baseBodyY = spec.cgHeight;
       rig.brake = rig.lights.tail;
-    } else rig = buildCar('taxi', 0xf2f2ee, { profile: 'sedan' });
+    } else rig = g.assets.get('car_taxi') ? g._makeCar('taxi', 0xf2f2ee) : buildCar('taxi', 0xf2f2ee, { profile: 'sedan' });
     rig.baseBodyY ??= 0;
+    // سواق: التوكتوك عنده مكان عين السواق؛ الباقي في _makeCar أو مكان ثابت
+    if (kind === 'tuktuk' && rig.eye) addDriver(rig.eye.parent, rig.eye.position.x, rig.eye.position.y - 0.78, rig.eye.position.z + 0.1, seat);
+    else if (kind === 'microbus') addDriver(rig.body, 0.45, 0.92, -1.28, seat);
     const label = labelSprite(seat, name);
     label.position.y = LABEL_Y[kind];
     rig.root.add(label);

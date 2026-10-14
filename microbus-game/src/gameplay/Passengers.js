@@ -2,7 +2,9 @@ import * as THREE from 'three';
 import { person, seatedFigure } from '../world/Pedestrians.js';
 import { loopAt, LOOP } from '../traffic/TrafficSystem.js';
 import { groundHeight } from '../world/ground.js';
-import { roadPointAt } from '../world/RoadNetwork.js';
+import { roadPointAt, ROADS, SIDEWALK_W, onOtherCarriageway } from '../world/RoadNetwork.js';
+import { crossingAt } from '../world/layout.js';
+import { nearJunction, ZONE_LABEL } from '../world/Route.js';
 import { GeoBuilder } from '../render/GeoBuilder.js';
 import { canvas, tex, rng } from '../render/textures.js';
 
@@ -102,47 +104,112 @@ export class Passengers {
     this._updateHud();
   }
 
-  // ===== المواقف =====
+  // ===== أماكن الركوب =====
+  // الناس بتشاور على الميكروباص من أي حتة على الرصيف (زي الحقيقة)، مش مواقف ثابتة:
+  // بنجهز "أماكن ممكنة" كل ~30م على كل الطرق (على الرصيف/الجنب بس، عمرها ما تبقى على الأسفلت)،
+  // ووقت اللعب بنفعّل كام مكان عشوائي حواليك وقدامك، والبعيد بيتشال. الموقف الكبير بس اللي ثابت.
   _buildStops() {
     this.stops = [];
+    this.cands = [];
+    this.candGrid = new Map();
     const q = {};
-    const poles = new GeoBuilder();
-    const plates = new GeoBuilder();
-    const defs = [...STOP_DEFS, ...SIDE_STOPS];
-    for (const def of defs) {
-      let edge, laneD;
-      if (def.road) { Object.assign(q, roadPointAt(def.road, def.frac)); edge = def.off ?? q.half + 1.4; laneD = q.half - 1.15; } else { loopAt(def.s, q); edge = URBAN.has(def.kind) ? 11.3 : 10.8; laneD = 8.6; }
+    const mk = (base, side, edge, laneD, name, kind) => {
+      const d = side * edge;
+      const x = base.x + base.rx * d, z = base.z + base.rz * d;
+      const c = {
+        name, kind, side, x, z, y: groundHeight(x, z),
+        nx: -base.rx * side, nz: -base.rz * side,        // من الرصيف ناحية الطريق
+        ax: base.dx * side, az: base.dz * side,          // اتجاه السير
+        mx: base.x + base.rx * side * laneD, mz: base.z + base.rz * side * laneD,
+      };
+      c.my = groundHeight(c.mx, c.mz);
+      return c;
+    };
+    const addCand = (c) => {
+      this.cands.push(c);
+      const k = `${Math.floor(c.x / 60)},${Math.floor(c.z / 60)}`;
+      let a = this.candGrid.get(k); if (!a) this.candGrid.set(k, (a = [])); a.push(c);
+    };
+    // 1) الطريق الرئيسي (وسط البلد + الدائري)
+    const SKIP = new Set(['bridge', 'tunnel', 'mountain', 'highway']);
+    for (let s = 20; s < LOOP.length - 20; s += 30) {
+      loopAt(s, q);
+      if (SKIP.has(q.zone)) continue;
+      const city = s < CITY_LEN;
+      if (city && crossingAt(q.z, 7)) continue;
+      const urban = URBAN.has(q.zone) || city;
       for (const side of [1, -1]) {
-        const d = side * edge;
-        const x = q.x + q.rx * d, z = q.z + q.rz * d;
-        // اتجاه السير اللي الموقف ده ليه: اليمين (+r) لما بنمشي في اتجاه المسار
-        const dir = side;
-        const stop = {
-          id: this.stops.length, name: def.name, kind: def.kind, side,
-          x, z, y: groundHeight(x, z),
-          nx: -q.rx * side, nz: -q.rz * side,        // من الرصيف ناحية الطريق
-          ax: q.dx * dir, az: q.dz * dir,            // اتجاه السير
-          waiting: [], cooldown: 0,
-          // "ضل" مكان الوقوف: على الأسفلت جنب الرصيف، في اتجاه السير
-          mx: q.x + q.rx * side * laneD, mz: q.z + q.rz * side * laneD,
-        };
-        stop.my = groundHeight(stop.mx, stop.mz);
-        this.stops.push(stop);
-        // عمود + لافتة "موقف"
-        const px = x - stop.ax * 1.6 - stop.nx * 0.4, pz = z - stop.az * 1.6 - stop.nz * 0.4, py = groundHeight(px, pz);
-        poles.setColor([0.75, 0.76, 0.78]);
-        poles.addGeometry(new THREE.CylinderGeometry(0.04, 0.05, 2.5, 6), new THREE.Matrix4().makeTranslation(px, py + 1.25, pz));
-        const yaw = Math.atan2(stop.nx, stop.nz);
-        const m = new THREE.Matrix4().compose(new THREE.Vector3(px, py + 2.2, pz), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, yaw, 0)), new THREE.Vector3(1, 1, 1));
-        plates.addGeometry(new THREE.PlaneGeometry(0.62, 0.39), m);
-        const back = new THREE.Matrix4().compose(new THREE.Vector3(px, py + 2.2, pz), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, yaw + Math.PI, 0)), new THREE.Vector3(1, 1, 1));
-        plates.addGeometry(new THREE.PlaneGeometry(0.62, 0.39), back);
+        if (!city && nearJunction(s - CITY_LEN, side, 10)) continue;
+        // الأسفلت لحد 11.5م من النص برا المدينة → الناس على الجنب بعده
+        addCand(mk(q, side, urban ? 11.3 : 12.6, 8.6, city ? 'وسط البلد' : ZONE_LABEL[q.zone] || 'الطريق', q.zone));
       }
     }
-    const pm = new THREE.Mesh(poles.build(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.4, metalness: 0.6 }));
-    const sm = new THREE.Mesh(plates.build(), new THREE.MeshStandardMaterial({ map: stopSign(), roughness: 0.5 }));
-    pm.castShadow = true;
-    this.group.add(pm, sm);
+    // 2) الطرق الفرعية وشوارع شبين
+    for (const road of ROADS) {
+      if (road.style === 'highway' || road.style === 'desert') continue;
+      const urban = road.style === 'urban';
+      let next = 25;
+      for (const p of road.samples) {
+        if (p.s < next || p.s > road.length - 25) continue;
+        next = p.s + 30;
+        if (p.half > road.half + 0.5) continue; // بوق التقاطع
+        for (const side of [1, -1]) {
+          const edge = urban ? road.half + SIDEWALK_W - 1 : road.half + 1.6;
+          const c = mk(p, side, edge, road.half - 1.15, road.name, urban ? 'shibin' : 'side');
+          if (onOtherCarriageway(c.x, c.z, road, 1.5) || onOtherCarriageway(c.mx, c.mz, road, 1)) continue;
+          addCand(c);
+        }
+      }
+    }
+    // 3) الموقف الكبير (ثابت، وفيه ناس كتير على طول)
+    {
+      const def = SIDE_STOPS.find((d) => d.kind === 'terminal');
+      Object.assign(q, roadPointAt(def.road, def.frac));
+      for (const side of [1, -1]) this.stops.push({ ...mk(q, side, def.off, q.half - 1.15, def.name, 'terminal'), fixed: true, waiting: [], cooldown: 0 });
+    }
+  }
+
+  _activate(c) {
+    const st = this.stops.find((x) => x.cand === c);
+    if (st) return st;
+    const n = { ...c, cand: c, waiting: [], cooldown: 0 };
+    this.stops.push(n);
+    return n;
+  }
+
+  /** كل شوية: نفعّل أماكن جديدة قدامك ونشيل البعيد */
+  _manageStops(ph) {
+    const density = this.settings ? +(this.settings.get('paxDensity') ?? 1) : 1;
+    const [fx, fz] = ph.forward;
+    // أماكن لازم تفضل: وجهة أي راكب (راكب أو لسه مستني على الرصيف)
+    const needed = new Set(this.onboard.map((o) => o.dest));
+    for (const w of this.walkers) if (w.dest) needed.add(w.dest);
+    this.stops = this.stops.filter((st) => {
+      if (st.fixed || needed.has(st)) return true;
+      const d2 = (st.x - ph.x) ** 2 + (st.z - ph.z) ** 2;
+      if (d2 < 470 * 470 || st.waiting.some((w) => w.state === 'toDoor')) return true;
+      for (const w of [...st.waiting]) if (w.state === 'wait') this._release(w);
+      return false;
+    });
+    const want = Math.round(5 + 4 * density);
+    // سقف: مايبقاش فيه أماكن كتير أوي مفعّلة (نشيل الأبعد اللي محدش محتاجه)
+    const free = this.stops.filter((st) => !st.fixed && !needed.has(st) && !st.waiting.some((w) => w.state === 'toDoor'));
+    if (free.length > want + 4) {
+      free.sort((a, b) => ((b.x - ph.x) ** 2 + (b.z - ph.z) ** 2) - ((a.x - ph.x) ** 2 + (a.z - ph.z) ** 2));
+      for (const st of free.slice(0, free.length - want - 4)) { for (const w of [...st.waiting]) if (w.state === 'wait') this._release(w); this.stops.splice(this.stops.indexOf(st), 1); }
+    }
+    let near = this.stops.filter((st) => !st.fixed && (st.x - ph.x) ** 2 + (st.z - ph.z) ** 2 < 330 * 330).length;
+    for (let tries = 0; near < want && tries < 30; tries++) {
+      const ang = this.R() * Math.PI * 2, d = 70 + this.R() * 250;
+      const ux = Math.cos(ang), uz = Math.sin(ang);
+      if (ux * fx + uz * fz < -0.2 && this.R() < 0.75) continue; // أغلبهم قدامك
+      const a = this.candGrid.get(`${Math.floor((ph.x + ux * d) / 60)},${Math.floor((ph.z + uz * d) / 60)}`);
+      if (!a) continue;
+      const c = a[Math.floor(this.R() * a.length)];
+      if (this.stops.some((st) => (st.x - c.x) ** 2 + (st.z - c.z) ** 2 < 70 * 70)) continue;
+      this._activate(c);
+      near++;
+    }
   }
 
   // ===== علامة مكان الوقوف (مستطيل منوّر على الأرض) =====
@@ -182,10 +249,10 @@ export class Passengers {
 
   _updateMarkers(ph, t) {
     const want = [];
-    const dests = new Set(this.onboard.map((o) => o.dest?.name));
+    const dests = new Set(this.onboard.map((o) => o.dest));
     for (const st of this.stops) {
       const has = st.waiting.some((w) => w.state === 'wait' || w.state === 'toDoor');
-      const dest = dests.has(st.name) && ph.forward[0] * st.ax + ph.forward[1] * st.az > 0;
+      const dest = dests.has(st);
       if (!has && !dest) continue;
       const d2 = (st.mx - ph.x) ** 2 + (st.mz - ph.z) ** 2;
       if (d2 < 160 * 160) want.push([d2, st, dest]);
@@ -293,9 +360,13 @@ export class Passengers {
   }
 
   _pickDest(from) {
-    // رايح موقف تاني (غالبًا لقدام في نفس الاتجاه)
-    const others = this.stops.filter((s) => s.name !== from.name && s.side === from.side);
-    return others[Math.floor(this.R() * others.length)];
+    // رايح مكان عشوائي بعيد شوية (250م - 1.4كم) على أي طريق
+    for (let i = 0; i < 40; i++) {
+      const c = this.cands[Math.floor(this.R() * this.cands.length)];
+      const d = Math.hypot(c.x - from.x, c.z - from.z);
+      if (d > 250 && d < 1400) return this._activate(c);
+    }
+    return this._activate(this.cands[Math.floor(this.R() * this.cands.length)]);
   }
 
   // ===== الحلقة الأساسية =====
@@ -308,6 +379,9 @@ export class Passengers {
     const rx = -fz, rz = fx; // يمين العربية (ناحية الباب)
     const doorP = this._doorPoint(_v);
 
+    // --- أماكن الركوب العشوائية حواليك ---
+    this._mgT = (this._mgT ?? 0) - dt;
+    if (this._mgT <= 0) { this._mgT = 0.7; this._manageStops(ph); }
     // --- ظهور/اختفاء المستنيين ---
     for (const st of this.stops) {
       st.cooldown = Math.max(0, st.cooldown - dt);
@@ -343,7 +417,7 @@ export class Passengers {
         const sideOk = (st.x - vx) * rx + (st.z - vz) * rz > 0.5;
         if (!sideOk || !this._inMarker(st, ph)) continue;
         // اللي نازل هنا + اللي عدّينا محطته (بينزل في أي موقف بعدها)
-        const out = this.onboard.filter((p) => !p.leaving && ((p.dest && p.dest.name === st.name) || p.missed));
+        const out = this.onboard.filter((p) => !p.leaving && ((p.dest && (p.dest === st || (p.dest.cand && p.dest.cand === st.cand) || (st.fixed && p.dest.fixed))) || p.missed));
         out.forEach((p, i) => { p.leaving = true; p.leaveDelay = 0.4 + i * 0.9; p.leaveStop = st; });
       }
     }
@@ -449,6 +523,7 @@ export class Passengers {
   }
 
   _board(p) {
+    if (p.dest && !this.stops.includes(p.dest)) this.stops.push(p.dest); // الوجهة لازم تفضل مفعّلة
     const free = this.seats.filter((s) => !s.pax);
     if (!free.length) { p.state = 'return'; return; }
     const seat = free[Math.floor(this.R() * free.length)];

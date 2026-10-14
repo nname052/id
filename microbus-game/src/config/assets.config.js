@@ -23,7 +23,12 @@ export const MODEL_ASSETS = {
   // عربيات المرور (اختياري: أي واحد تحطه هيتستخدم بدل الإجرائي)
   car_sedan: { file: 'car_sedan.glb', targetLength: 4.45, rotationY: 180 },
   car_old: { file: 'car_old.glb', targetLength: 4.0, rotationY: 180 },
-  car_taxi: { file: 'car_taxi.glb', targetLength: 4.4, rotationY: 180 },
+  // التاكسي: BYD Seal (Sketchfab) متصغّر 9% عشان العجل ييجي على عجل الفيزياء (فرق العجل 2.64م)
+  car_taxi: { file: 'car_taxi.glb', targetLength: 4.32, rotationY: 180, paint: 0xf4f4f0 },
+  // التوكتوك (Sketchfab) → بيتركب على ريج التوكتوك بتاع اللاعب
+  tuktuk_model: { file: 'tuktuk.glb', targetLength: 2.65, rotationY: 180 },
+  // شخص حقيقي (سكان ثابت) للناس الواقفة على الرصيف
+  person_scan: { file: 'person_scan.glb', targetHeight: 1.74, rotationY: 0 },
   // ميكروباصات المرور: نفس موديل الهاي إس (نسخة منفصلة)
   microbus_traffic: { file: 'microbus.glb', targetLength: 4.69, rotationY: 90, trafficHiace: true },
   // المشاة (يفضّل يكون فيه أنيميشن اسمه فيه "walk")  →  assets/models/pedestrian.glb

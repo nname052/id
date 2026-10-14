@@ -132,13 +132,14 @@ body.touch #toast { top: 8px; }
 
 .money { display: flex; align-items: center; gap: 3px; font: 700 15px 'Cairo', sans-serif; font-variant-numeric: tabular-nums; color: #9ff0b5; }
 .money b { color: #1a1408; background: #f2c230; border-radius: 50%; width: 18px; height: 18px; display: grid; place-items: center; font-size: 11px; }
-#minimap { position: fixed; z-index: 6; left: calc(10px + env(safe-area-inset-left, 0px)); bottom: 12px; width: 150px; height: 150px; border-radius: 50%; overflow: hidden; border: 3px solid rgba(255, 255, 255, 0.25); box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5); cursor: pointer; touch-action: none; }
+#minimap { position: fixed; z-index: 6; left: calc(10px + env(safe-area-inset-left, 0px)); bottom: 12px; width: 150px; height: 150px; border-radius: 50%; overflow: hidden; border: 3px solid #fff; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45), 0 0 0 2px #3a3128; cursor: pointer; touch-action: none; }
 #minimap canvas { width: 100%; height: 100%; display: block; }
-#minimap .mm-hint { position: absolute; bottom: 6px; left: 0; right: 0; text-align: center; font: 600 10px 'Cairo', sans-serif; color: #fff; text-shadow: 0 1px 2px #000; pointer-events: none; }
+#minimap .mm-hint { position: absolute; bottom: 6px; left: 0; right: 0; text-align: center; font: 700 10px 'Cairo', sans-serif; color: #3a3128; text-shadow: 0 0 3px #fff, 0 0 3px #fff; pointer-events: none; }
 #minimap.big { left: 50%; top: 50%; bottom: auto; transform: translate(-50%, -50%); width: min(92vw, 92vh * 0.85); height: 88vh; border-radius: 14px; z-index: 35; }
 #minimap.big .mm-hint { display: none; }
-body.touch #minimap { left: 50%; transform: translateX(-50%); bottom: calc(66px + env(safe-area-inset-bottom, 0px)); width: 96px; height: 96px; }
-body.touch #minimap.big { bottom: auto; top: 50%; transform: translate(-50%, -50%); width: 92vw; height: 86vh; }
+/* الموبايل: فوق على الشمال جنب المراية (مش في النص فوق العدادات) */
+body.touch #minimap { left: calc(112px + env(safe-area-inset-left, 0px)); top: 8px; bottom: auto; transform: none; width: 92px; height: 92px; }
+body.touch #minimap.big { left: 50%; bottom: auto; top: 50%; transform: translate(-50%, -50%); width: 92vw; height: 86vh; }
 
 .lobby { display: grid; gap: 8px; margin: 10px 0 0; text-align: right; }
 .lobby-row { display: flex; gap: 8px; align-items: center; }

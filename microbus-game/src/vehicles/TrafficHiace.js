@@ -5,7 +5,8 @@ import { contactShadow } from './CarModels.js';
 // ميكروباصات المرور بنفس موديل الهاي إس الحقيقي (نسخة منفصلة من الملف، من غير صالون مصري).
 // العجل بتلف، وفيه فوانيس فرامل ونور بالليل. الخامات مشتركة بين كل النسخ (أداء).
 
-const PAINTS = [0xf4f2ee, 0xeeeae0, 0xe3e8ea, 0xf6f4ef];
+// ميكروباصات شبين: أغلبها تركواز (زي الصورة الحقيقية) وشوية بيض
+const PAINTS = [0x0d9d92, 0x109f95, 0x0b968b, 0xf4f2ee];
 let shared = null;
 
 function prepare(asset) {

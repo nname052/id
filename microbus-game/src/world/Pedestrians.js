@@ -16,7 +16,9 @@ const PANTS = [[0.15, 0.17, 0.25], [0.3, 0.3, 0.3], [0.35, 0.28, 0.2]];
 const mat = new THREE.MeshStandardMaterial({ roughness: 0.85, vertexColors: true });
 const M = (x, y, z, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1) => new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz)), new THREE.Vector3(sx, sy, sz));
 
-export function person(R) {
+export function person(R, low = false) {
+  // low: نسخة قليلة المثلثات (للزحمة اللي بتترسم بالمئات)
+  const S = (n, m = 4) => (low ? Math.max(m, Math.round(n * 0.55)) : n);
   const type = R() < 0.35 ? 'galabeya' : R() < 0.55 ? 'woman' : 'casual';
   const skin = SKIN[Math.floor(R() * SKIN.length)];
   const pick = (a) => a[Math.floor(R() * a.length)];
@@ -26,21 +28,21 @@ export function person(R) {
   const top = type === 'galabeya' ? pick(ROBE) : type === 'woman' ? pick(WOMAN) : pick(SHIRT);
   // الجسم
   body.setColor(top);
-  if (type === 'casual') body.addGeometry(new THREE.CylinderGeometry(0.17, 0.15, 0.58, 10), M(0, 1.2, 0, 0, 0, 0, 1, 1, 0.65));
-  else body.addGeometry(new THREE.CylinderGeometry(0.16, 0.26, 1.28, 12), M(0, 0.82, 0, 0, 0, 0, 1, 1, 0.75));
-  body.addGeometry(new THREE.SphereGeometry(0.17, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), M(0, 1.46, 0, 0, 0, 0, 1, 0.5, 0.7));
+  if (type === 'casual') body.addGeometry(new THREE.CylinderGeometry(0.17, 0.15, 0.58, S(10)), M(0, 1.2, 0, 0, 0, 0, 1, 1, 0.65));
+  else body.addGeometry(new THREE.CylinderGeometry(0.16, 0.26, 1.28, S(12)), M(0, 0.82, 0, 0, 0, 0, 1, 1, 0.75));
+  body.addGeometry(new THREE.SphereGeometry(0.17, S(10), S(6, 3), 0, Math.PI * 2, 0, Math.PI / 2), M(0, 1.46, 0, 0, 0, 0, 1, 0.5, 0.7));
   // الرقبة والراس
   body.setColor(skin);
-  body.addGeometry(new THREE.CylinderGeometry(0.05, 0.06, 0.12, 8), M(0, 1.55, 0));
-  body.addGeometry(new THREE.SphereGeometry(0.105, 12, 10), M(0, 1.67, 0.0, 0, 0, 0, 0.9, 1.08, 1));
+  body.addGeometry(new THREE.CylinderGeometry(0.05, 0.06, 0.12, S(8)), M(0, 1.55, 0));
+  body.addGeometry(new THREE.SphereGeometry(0.105, S(12), S(10, 3)), M(0, 1.67, 0.0, 0, 0, 0, 0.9, 1.08, 1));
   if (type === 'woman') {
     body.setColor(pick(HIJAB));
-    body.addGeometry(new THREE.SphereGeometry(0.122, 12, 10, 0, Math.PI * 2, 0, Math.PI * 0.75), M(0, 1.68, -0.012, -0.3, 0, 0, 0.95, 1.1, 1.05));
-    body.addGeometry(new THREE.CylinderGeometry(0.1, 0.19, 0.22, 12), M(0, 1.5, 0, 0, 0, 0, 1, 1, 0.8));
+    body.addGeometry(new THREE.SphereGeometry(0.122, S(12), S(10, 3), 0, Math.PI * 2, 0, Math.PI * 0.75), M(0, 1.68, -0.012, -0.3, 0, 0, 0.95, 1.1, 1.05));
+    body.addGeometry(new THREE.CylinderGeometry(0.1, 0.19, 0.22, S(12)), M(0, 1.5, 0, 0, 0, 0, 1, 1, 0.8));
   } else {
     body.setColor(R() < 0.3 ? [0.6, 0.6, 0.6] : [0.08, 0.06, 0.05]);
-    body.addGeometry(new THREE.SphereGeometry(0.11, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2.2), M(0, 1.69, -0.005));
-    if (type === 'galabeya' && R() < 0.4) { body.setColor([0.95, 0.95, 0.93]); body.addGeometry(new THREE.CylinderGeometry(0.11, 0.115, 0.07, 12), M(0, 1.76, 0)); }
+    body.addGeometry(new THREE.SphereGeometry(0.11, S(10), S(6, 3), 0, Math.PI * 2, 0, Math.PI / 2.2), M(0, 1.69, -0.005));
+    if (type === 'galabeya' && R() < 0.4) { body.setColor([0.95, 0.95, 0.93]); body.addGeometry(new THREE.CylinderGeometry(0.11, 0.115, 0.07, S(12)), M(0, 1.76, 0)); }
   }
   const torso = new THREE.Mesh(body.build(), mat);
   torso.castShadow = true;
@@ -49,7 +51,7 @@ export function person(R) {
   const limb = (color, len, r0, r1) => {
     const g = new GeoBuilder();
     g.setColor(color);
-    g.addGeometry(new THREE.CylinderGeometry(r0, r1, len, 7), M(0, -len / 2, 0));
+    g.addGeometry(new THREE.CylinderGeometry(r0, r1, len, S(7)), M(0, -len / 2, 0));
     return g;
   };
   const legs = [];
@@ -73,7 +75,7 @@ export function person(R) {
     pivot.position.set(sx * 0.2, 1.43, 0);
     const ag = limb(top, 0.56, 0.05, 0.045);
     ag.setColor(skin);
-    ag.addGeometry(new THREE.SphereGeometry(0.045, 8, 6), M(0, -0.6, 0));
+    ag.addGeometry(new THREE.SphereGeometry(0.045, S(8), S(6, 3)), M(0, -0.6, 0));
     const arm = new THREE.Mesh(ag.build(), mat);
     arm.castShadow = true;
     pivot.add(arm);
@@ -187,4 +189,28 @@ export class Pedestrians {
       }
     }
   }
+}
+
+// ===== سواقين العربيات =====
+// كام شكل جاهز (جلابية/قميص/...) بنعيد استخدامهم في كل العربيات (نفس الـ geometry = خفيف)
+const _drivers = [];
+const _driverMat = new THREE.MeshStandardMaterial({ roughness: 0.85, vertexColors: true });
+function driverGeo(i) {
+  if (!_drivers[i]) {
+    const g = new GeoBuilder();
+    const R = rng(9100 + i * 131); for (let k = 0; k < 6; k++) R();
+    seatedFigure(g, R, new THREE.Matrix4());
+    _drivers[i] = g.build();
+  }
+  return _drivers[i];
+}
+
+/** يقعد سواق: pos = مكان القعدة (الوش ناحية -z زي العربية) */
+export function addDriver(parent, x, y, z, seed = 0) {
+  const m = new THREE.Mesh(driverGeo(Math.abs(Math.floor(seed)) % 6), _driverMat);
+  m.position.set(x, y, z);
+  m.castShadow = false;
+  m.userData.role = 'driver';
+  parent.add(m);
+  return m;
 }

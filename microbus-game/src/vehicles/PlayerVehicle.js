@@ -10,6 +10,7 @@ import { TERMINAL } from '../world/Shibin.js';
 // البداية: راكن جوه موقف ميكروباص شبين الكوم ووشك ناحية شارع المحطة
 const PLAYER_START = { x: TERMINAL.x0 + 22.5, z: TERMINAL.z1 - 4.5, yaw: Math.PI / 2 }; // صف فاضي قدامه طريق الخروج
 import { groundHeight } from '../world/ground.js';
+import { addDriver } from '../world/Pedestrians.js';
 import { loopProject, loopAt } from '../traffic/TrafficSystem.js';
 
 // الميكروباص بتاع اللاعب: بيربط الفيزياء بالموديل (عجل، دركسيون، عدادات، دواسات، فتيس، فرامل يد، سبحة، مرايات)
@@ -41,7 +42,7 @@ export class PlayerVehicle {
     if (this.kind === 'taxi' || this.kind === 'tuktuk') {
       const spec = { ...MICROBUS_SPEC, ...(this.kind === 'taxi' ? TAXI_SPEC_BASE : TUKTUK_SPEC_BASE) };
       this.physics = new VehiclePhysics(spec, groundHeight);
-      this.rig = this.kind === 'taxi' ? buildTaxiRig(spec) : buildTuktukRig(spec);
+      this.rig = this.kind === 'taxi' ? buildTaxiRig(spec, assets) : buildTuktukRig(spec, assets);
       scene.add(this.rig.root);
     } else {
       this.physics = new VehiclePhysics(MICROBUS_SPEC, groundHeight);
@@ -52,6 +53,9 @@ export class PlayerVehicle {
     this._setupMirrors();
     this._setupHeadlights();
     if (this.glbIntegrated) this.damage = new Damage(this);
+    // السواق (إنت): بيبان من الكاميرا اللي برا بس، ومن كرسي السواق بيختفي عشان مايغطيش الرؤية
+    const eye = this.rig.eye;
+    if (eye?.parent) { this.driver = addDriver(eye.parent, eye.position.x, eye.position.y - 0.78, eye.position.z + 0.1, 3); this.driver.castShadow = true; }
     this.reset(true);
   }
 

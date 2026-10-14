@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
+import { toCreasedNormals } from 'three/addons/utils/BufferGeometryUtils.js';
 import { MODEL_ASSETS, TEXTURE_ASSETS, AUDIO_ASSETS } from '../config/assets.config.js';
 
 // بيدور على الملفات اللي إنت حاطتها في فولدر assets/ (وقت البناء)،
@@ -93,6 +94,20 @@ export class AssetManager {
     let scene = gltf.scene;
     // موديلات Sketchfab/Source بتيجي Skinned: نخبز الهيكل في Mesh عادي (أخف وأسهل في التحريك)
     if (!gltf.animations.length) scene = bakeSkinned(scene);
+    // الموديلات اللي اتخسّت (اتشال منها النورمالز عشان تتبسّط): نحسبها هنا بحواف حادة عند الزوايا
+    scene.traverse((o) => {
+      if (!o.isMesh || o.geometry.attributes.normal) return;
+      o.geometry = toCreasedNormals(o.geometry, THREE.MathUtils.degToRad(38));
+    });
+    // لون الدهان (مثلًا التاكسي): الخامات اللي اسمها فيها paint
+    if (cfg.paint !== undefined) {
+      scene.traverse((o) => {
+        if (!o.isMesh || !/paint/i.test(o.material.name || '')) return;
+        o.material = o.material.clone(); o.material.color.set(cfg.paint); o.material.map = null;
+        o.material.roughness = 0.32; o.material.metalness = 0.1; o.material.needsUpdate = true;
+        o.userData.role = 'paint';
+      });
+    }
     scene.rotation.y = THREE.MathUtils.degToRad(cfg.rotationY || 0);
     scene.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(scene);

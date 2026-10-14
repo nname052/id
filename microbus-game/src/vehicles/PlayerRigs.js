@@ -5,6 +5,7 @@ import { vehicleMaterials } from '../render/materials.js';
 import { canvas, tex, makeGauge2, makeSeatFabric } from '../render/textures.js';
 import { buildCar, contactShadow } from './CarModels.js';
 import { buildWheel } from './wheel.js';
+import { fitModelToRig, tuktukColors } from './ModelFit.js';
 
 // عربيات اللاعب التانية (غير الميكروباص): تاكسي وتوكتوك.
 // كل واحدة بترجع "rig" بنفس شكل rig الهاي إس عشان PlayerVehicle والكاميرا والمرايات والركاب يشتغلوا عليها:
@@ -68,7 +69,7 @@ function mirrorFace(w, h) {
 // =====================================================================
 //  التاكسي (سيدان أبيض بشريط شطرنج — نفس شكل تاكسي المرور)
 // =====================================================================
-export function buildTaxiRig(spec) {
+export function buildTaxiRig(spec, assets = null) {
   const rig = baseRig(spec);
   const car = buildCar('taxi', 0xf2f2ee, { profile: 'sedan' });
   const P = car.profile;
@@ -125,8 +126,8 @@ export function buildTaxiRig(spec) {
   const add = (geo, mat, m) => { const mesh = new THREE.Mesh(geo, mat); if (m) mesh.applyMatrix4(m); mesh.receiveShadow = true; g.add(mesh); return mesh; };
   // أرضية + تابلوه
   add(new THREE.BoxGeometry(IW * 2, 0.04, 3.0), mats.trim, M4(0, 0.3, zf(-0.3)));
-  add(new RoundedBoxGeometry(IW * 2, 0.3, 0.55, 3, 0.06), mats.dash, M4(0, 0.78, zf(0.68)));
-  add(new RoundedBoxGeometry(IW * 2 - 0.02, 0.06, 0.4, 2, 0.03), mats.dash, M4(0, 0.93, zf(0.78), -0.18));
+  const dashMain = add(new RoundedBoxGeometry(IW * 2, 0.3, 0.55, 3, 0.06), mats.dash, M4(0, 0.78, zf(0.68)));
+  const dashTray = add(new RoundedBoxGeometry(IW * 2 - 0.02, 0.06, 0.4, 2, 0.03), mats.dash, M4(0, 0.93, zf(0.78), -0.18));
   // عدادات
   const gauges = {};
   for (const [kind, dx, r] of [['rpm', -0.09, 0.045], ['speed', 0.06, 0.055]]) {
@@ -190,6 +191,27 @@ export function buildTaxiRig(spec) {
   rig.slidingDoor = fakeDoor(new THREE.Vector3(P.width / 2, 0.8, zf(-0.8)));
   rig.kind = 'taxi';
   rig.root.traverse((o) => { if (o.isMesh && o.userData.role !== 'glass' && o.userData.role !== 'shadow') o.castShadow = true; });
+  // موديل التاكسي الحقيقي (BYD Seal) لو موجود: بيبقى هو شكل العربية من برا، والصالون الإجرائي جواه
+  const a = assets?.get('car_taxi');
+  if (a && fitModelToRig(rig, spec, a, { wheelRe: /tyre|tire|rim|disk/i })) {
+    car.body.visible = false;
+    // التابلوه أقصر شوية عشان مايطلعش من الكابوت (كابوت الـ BYD أوطى)
+    dashMain.geometry.dispose(); dashMain.geometry = new RoundedBoxGeometry(IW * 2 - 0.06, 0.26, 0.36, 3, 0.06);
+    dashMain.position.set(0, 0.76, zf(0.58));
+    dashTray.geometry.dispose(); dashTray.geometry = new RoundedBoxGeometry(IW * 2 - 0.08, 0.05, 0.26, 2, 0.03);
+    dashTray.position.set(0, 0.9, zf(0.62));
+    // المرايات الجانبية: الموديل فيه مراياته؛ بنخفي الإجرائية (الكاميرا بتاعتها بتفضل شغالة للمرايات اللي على الشاشة)
+    for (const m of rig.mirrors) if (m.side) m.holder.traverse((o) => { if (o.isMesh) o.visible = false; });
+    // سقف الـ BYD أوطى: المراية اللي جوه والسبحة تنزل شوية عشان ماتطلعش من السقف
+    for (const m of rig.mirrors) if (!m.side) m.holder.position.y -= 0.12;
+    for (const h of rig.hangers) h.obj.position.y -= 0.12;
+    // فوانيس الفرامل من الموديل
+    rig.model.traverse((o) => {
+      if (!o.isMesh) return;
+      if (/red_emis|tail_light/i.test(o.material.name || '')) { o.material = o.material.clone(); o.material.emissive = new THREE.Color(0xff1a10); o.material.emissiveIntensity = 0.15; rig.lights.tail = o.material; }
+      if (/glass/i.test(o.material.name || '') && o.material.transparent !== true) { o.material = o.material.clone(); o.material.transparent = true; o.material.opacity = 0.45; o.material.depthWrite = false; o.material.side = THREE.FrontSide; }
+    });
+  }
   return rig;
 }
 
@@ -204,7 +226,7 @@ function tuktukDecal() {
   return tex(c, { repeat: false });
 }
 
-export function buildTuktukRig(spec) {
+export function buildTuktukRig(spec, assets = null) {
   const rig = baseRig(spec);
   const paint = new THREE.MeshPhysicalMaterial({ color: 0x7a1020, roughness: 0.35, clearcoat: 0.8, clearcoatRoughness: 0.15 });
   const black = new THREE.MeshStandardMaterial({ color: 0x141414, roughness: 0.7 });
@@ -298,8 +320,9 @@ export function buildTuktukRig(spec) {
   const rl = mk(-t, zR, -1), rr = mk(t, zR, 1);
   rig.wheels.push({ id: 'FL', front: true, ...fw }, { id: 'FR', front: true, ...ghost }, { id: 'RL', front: false, ...rl }, { id: 'RR', front: false, ...rr });
   // المرايات: مدورة على عصيان قدام
+  const mirrorSticks = [];
   for (const sx of [-1, 1]) {
-    tube([sx * 0.45, 1.1, zF + 0.12], [sx * 0.74, 1.3, zF + 0.05], 0.01, black);
+    mirrorSticks.push(tube([sx * 0.45, 1.1, zF + 0.12], [sx * 0.74, 1.3, zF + 0.05], 0.01, black));
     const { holder, face } = mirrorFace(0.12, 0.09);
     holder.position.set(sx * 0.76, 1.34, zF + 0.04);
     const back = new THREE.Mesh(new RoundedBoxGeometry(0.135, 0.105, 0.03, 2, 0.02), black); back.position.z = -0.018; holder.add(back);
@@ -317,5 +340,15 @@ export function buildTuktukRig(spec) {
   rig.paxSeats = [-0.38, 0, 0.38].map((x) => ({ x, y: 0.72, z: 0.42 }));
   rig.slidingDoor = fakeDoor(new THREE.Vector3(0.66, 0.8, 0.42));
   rig.kind = 'tuktuk';
+  // موديل التوكتوك الحقيقي لو موجود: بيبقى هو الجسم، ونخفي الجسم الإجرائي (الدركسيون والمرايات والعين بيفضلوا)
+  const a = assets?.get('tuktuk_model');
+  if (a) {
+    const keep = new Set([head, tail]);
+    const procedural = S.children.filter((o) => o.isMesh && !keep.has(o.material) && !mirrorSticks.includes(o));
+    if (fitModelToRig(rig, spec, a, { wheelRe: /rin/i })) {
+      for (const o of procedural) o.visible = false;
+      tuktukColors(rig.model);
+    }
+  }
   return rig;
 }

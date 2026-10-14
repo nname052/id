@@ -7,7 +7,7 @@ const KEY = 'egy-microbus-settings-v1';
 export const SCHEMA = [
   { group: 'العربية' },
   { key: 'vehicle', type: 'seg', label: 'بتسوق إيه؟', options: [['microbus', 'ميكروباص'], ['taxi', 'تاكسي'], ['tuktuk', 'توكتوك']], def: 'microbus' },
-  { key: 'livery', type: 'seg', label: 'لون شريطة الميكروباص', options: [['blue', 'أزرق'], ['green', 'أخضر'], ['red', 'أحمر'], ['yellow', 'أصفر'], ['plain', 'سادة']], def: 'blue' },
+  { key: 'livery', type: 'seg', label: 'شكل الميكروباص', options: [['shibin', 'شبين (تركواز)'], ['blue', 'أبيض/أزرق'], ['green', 'أبيض/أخضر'], ['plain', 'أبيض']], def: 'shibin' },
   { group: 'الكاميرا' },
   { key: 'fov', type: 'range', label: 'زاوية الرؤية من كرسي السواق', min: 55, max: 90, step: 1, fmt: (v) => `${v}°`, def: 62 },
   { key: 'seat', type: 'seg', label: 'مكان الكرسي (كاميرا السواق)', options: [['near', 'قريب'], ['normal', 'عادي'], ['back', 'لورا']], def: 'normal' },
@@ -41,6 +41,7 @@ export class Settings {
     try {
       const saved = JSON.parse(localStorage.getItem(KEY) || '{}');
       if (saved.fovV !== 2) delete saved.fov; // الافتراضي اتغير في التحديث ده
+      if (saved.livV !== 1) delete saved.livery; // شكل شبين التركواز بقى هو الافتراضي
       for (const s of SCHEMA) {
         if (!s.key || saved[s.key] === undefined) continue;
         const v = saved[s.key];
@@ -57,7 +58,7 @@ export class Settings {
   set(k, v) {
     if (this.values[k] === v) return;
     this.values[k] = v;
-    try { localStorage.setItem(KEY, JSON.stringify({ ...this.values, fovV: 2 })); } catch { /* مفيش تخزين */ }
+    try { localStorage.setItem(KEY, JSON.stringify({ ...this.values, fovV: 2, livV: 1 })); } catch { /* مفيش تخزين */ }
     for (const fn of this.listeners) fn(k, v);
     this._sync?.();
   }

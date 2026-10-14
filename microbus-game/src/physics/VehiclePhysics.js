@@ -9,7 +9,7 @@ const TIRE_K = 230000, TIRE_C = 900, WHEEL_M = 55; // كاوتش + كتلة ال
 // تاكسي سيدان (1.6 بنزين)
 export const TAXI_SPEC_BASE = {
   mass: 1180, inertiaYaw: 1850, inertiaPitch: 1750, inertiaRoll: 470, cgHeight: 0.52,
-  wheelBase: 2.64, cgToFront: 1.25, track: 1.44, wheelRadius: 0.3,
+  wheelBase: 2.64, cgToFront: 1.25, track: 1.44, wheelRadius: 0.31,
   springK: 27000, damperBump: 2100, damperRebound: 2800, maxCompression: 0.12,
   tireMu: 1.0, tireB: 8.5, tireC: 1.45, rearLatGrip: 1.0, slideMu: 0.75, rollingResistance: 0.013,
   dragCoef: 0.42, brakeForce: 11500, brakeBiasFront: 0.65, handbrakeForce: 4200,
@@ -24,7 +24,7 @@ export const TAXI_SPEC_BASE = {
 // توكتوك (باجاج 200 سي سي، 3 عجلات)
 export const TUKTUK_SPEC_BASE = {
   mass: 430, inertiaYaw: 280, inertiaPitch: 300, inertiaRoll: 95, cgHeight: 0.62,
-  wheelBase: 2.0, cgToFront: 1.32, track: 1.16, trackFront: 0.06, wheelRadius: 0.2,
+  wheelBase: 2.0, cgToFront: 1.32, track: 1.0, trackFront: 0.06, wheelRadius: 0.22, // نفس مقاس موديل التوكتوك الحقيقي
   springK: 9500, damperBump: 750, damperRebound: 1000, maxCompression: 0.09,
   tireMu: 0.92, tireB: 7, tireC: 1.4, rearLatGrip: 1.0, slideMu: 0.7, rollingResistance: 0.02,
   dragCoef: 0.5, brakeForce: 3400, brakeBiasFront: 0.45, handbrakeForce: 1500,
@@ -189,12 +189,12 @@ export class VehiclePhysics {
     } else if (Math.abs(input.steer || 0) > 0.01) {
       // كيبورد (أسهم/A-D): السهم مش بيلف الدركسيون لآخره. أقصى لفة بتقل مع السرعة
       // (زي السواق الحقيقي اللي بيلف حتة صغيرة على السريع)، واللفة نفسها بالراحة
+      // (رجعت زي الأول بناءً على طلب اللاعب: لفة كاملة وسريعة؛ الحساسية من الإعدادات بتضرب في السرعة بس)
       const ks = this.keySens ?? 1;
-      const limit = maxWheel * clamp(ks / (1 + u * 0.26), 0.07, 1);
-      const target = clamp(input.steer, -1, 1) * limit;
-      const rate = (maxWheel * 0.75 * ks) / (1 + u * 0.14);
+      const target = clamp(input.steer, -1, 1) * maxWheel;
+      const rate = (maxWheel * 1.15 * ks) / (1 + u * 0.03);
       const diff = target - this.wheelAngle;
-      const r = Math.sign(diff) !== Math.sign(this.wheelAngle) && Math.abs(this.wheelAngle) > 0.3 ? rate * 2 : rate;
+      const r = Math.sign(diff) !== Math.sign(this.wheelAngle) && Math.abs(this.wheelAngle) > 0.3 ? rate * 1.7 : rate;
       const prev = this.wheelAngle;
       this.wheelAngle += clamp(diff, -r * dt, r * dt);
       this.wheelVel = (this.wheelAngle - prev) / dt;
