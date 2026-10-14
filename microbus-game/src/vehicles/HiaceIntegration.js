@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { GeoBuilder } from '../render/GeoBuilder.js';
 import { addCabAccessories } from './CabAccessories.js';
+import { tireGeometry } from './wheel.js';
+import { toCreasedNormals, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import { canvas, tex, makeSeatFabric, makeGauge2, makeShiftGate, tileNoise, heightToNormal, rng } from '../render/textures.js';
 
 // =====================================================================
@@ -80,11 +82,20 @@ export function integrateHiace(rig, asset, spec, A) {
     const rel = new THREE.Matrix4().copy(holder.matrixWorld).invert().multiply(src.mesh.matrixWorld);
     const g = src.mesh.geometry.clone().applyMatrix4(rel);
     g.translate(-src.c.x, -src.c.y, -src.c.z);
-    g.computeBoundingBox(); g.computeBoundingSphere();
-    const m = new THREE.Mesh(g, src.mesh.material);
-    m.castShadow = true; m.receiveShadow = true;
-    m.userData.role = 'tire';
-    w.spin.add(m);
+    // الجنط من الموديل (المثلثات اللي جوه نص قطر الجنط) + كاوتش جديد عالي التفاصيل حواليه
+    const R = spec.wheelRadius, rimR = R * 0.64;
+    const rim = keepInside(g, rimR + 0.012);
+    const wid = src.w * 0.98;
+    const rm = new THREE.Mesh(rim, src.mesh.material);
+    rm.castShadow = true; rm.receiveShadow = true; rm.userData.role = 'rim';
+    const tireMat = (rig.mats.hiTire ||= new THREE.MeshStandardMaterial({ color: 0x1d1d1e, roughness: 0.88, normalMap: rig.mats.tire?.normalMap || null, normalScale: new THREE.Vector2(0.45, 0.45) }));
+    const tire = new THREE.Mesh(tireGeometry(R, wid, rimR, 48), tireMat);
+    tire.castShadow = true; tire.receiveShadow = true; tire.userData.role = 'tire';
+    // جوه الجنط غامق (مش فاضي)
+    const back = new THREE.Mesh(new THREE.CircleGeometry(rimR, 32).rotateY(Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x141414, roughness: 0.8, side: THREE.DoubleSide }));
+    const sideIn = Math.sign(pos[w.id][0]) * -1; // ناحية جوه العربية
+    back.position.x = sideIn * wid * 0.25;
+    w.spin.add(tire, rm, back);
     src.mesh.visible = false;
   }
 
@@ -133,6 +144,7 @@ export function integrateHiace(rig, asset, spec, A) {
       // الصاج لبره بس، وله أولوية على أي سطح لازق فيه (زي التلبيس الأسود)
       mat.side = THREE.DoubleSide; mat.polygonOffset = true; mat.polygonOffsetFactor = -1; mat.polygonOffsetUnits = -2; mat.needsUpdate = true;
     } else if (n === 'black') {
+      mat.color = new THREE.Color(0x5a5a5a); // التلبيس الأسود كان باين رمادي باهت
       mat.side = THREE.DoubleSide; mat.polygonOffset = true; mat.polygonOffsetFactor = 1; mat.polygonOffsetUnits = 2; mat.needsUpdate = true;
     }
     if (n === 'glass2') {
@@ -288,6 +300,8 @@ export function integrateHiace(rig, asset, spec, A) {
     });
   }
   rig.dims = D;
+  // تنعيم كل حواف الجسم (بعد ما خلصنا فصل الباب والإكصدامات اللي محتاجة index)
+  smoothShell(rig.shell);
   return D;
 }
 
@@ -507,7 +521,8 @@ function buildHiaceInterior(group, rig, D) {
     const sill = wbY - 0.12, dz0 = z(dashBackF + 0.02), dz1 = z(seatF - 0.38);
     const dc = new GeoBuilder();
     for (const sx of [-1, 1]) {
-      const xin = sx * (IW + 0.01), xo = sx * (IW + 0.06);
+      // جوه الصاج بمسافة (الصاج الخارجي عند HW) عشان التجليد ميطلعش من برا
+      const xin = sx * (IW - 0.1), xo = sx * (IW - 0.05);
       dc.setColor([1, 1, 1]);
       dc.box(Math.min(xin, xo), floorY + 0.02, Math.min(dz0, dz1), Math.max(xin, xo), sill, Math.max(dz0, dz1));
       // مسند الإيد + جيب الباب
@@ -525,10 +540,10 @@ function buildHiaceInterior(group, rig, D) {
     // سماعة + أوكرة الباب
     for (const sx of [-1, 1]) {
       const spk = new THREE.Mesh(new THREE.CircleGeometry(0.075, 18), new THREE.MeshStandardMaterial({ color: 0x18181a, roughness: 0.7 }));
-      spk.position.set(sx * (IW - 0.002), floorY + 0.42, z(dashBackF + 0.12)); spk.rotation.y = -sx * Math.PI / 2;
+      spk.position.set(sx * (IW - 0.102), floorY + 0.42, z(dashBackF + 0.12)); spk.rotation.y = -sx * Math.PI / 2;
       group.add(spk);
       const h = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.03, 0.12), mats.chrome);
-      h.position.set(sx * (IW - 0.015), sill - 0.18, z(seatF + 0.05));
+      h.position.set(sx * (IW - 0.115), sill - 0.18, z(seatF + 0.05));
       group.add(h);
     }
     // المساحات (برا على قاعدة الزجاج) — بتبان من كرسي السواق زي الحقيقة
@@ -660,6 +675,38 @@ function extractSlidingDoor(rig, holder, HW) {
       group.position.set(out, 0, slide);
     },
   };
+}
+
+/** يرجّع هندسة فيها المثلثات اللي كل نقطها جوه نص قطر معين حوالين المحور X (الجنط) */
+function keepInside(g, r) {
+  const P = g.attributes.position, idx = g.index ? g.index.array : null, n = idx ? idx.length : P.count;
+  const keep = [];
+  const rad = (i) => Math.hypot(P.getY(i), P.getZ(i));
+  for (let k = 0; k < n; k += 3) {
+    const a = idx ? idx[k] : k, b = idx ? idx[k + 1] : k + 1, c = idx ? idx[k + 2] : k + 2;
+    if (rad(a) < r && rad(b) < r && rad(c) < r) keep.push(a, b, c);
+  }
+  const out = g.clone();
+  out.setIndex(keep);
+  out.computeBoundingBox(); out.computeBoundingSphere();
+  return out;
+}
+
+/** تنعيم الصاج: normals ناعمة لحد زاوية معينة (الحواف الحادة الحقيقية بتفضل حادة) */
+export function smoothShell(root, crease = 42) {
+  const ang = THREE.MathUtils.degToRad(crease);
+  root.traverse((o) => {
+    if (!o.isMesh) return;
+    const n = (o.userData.matName || '').toLowerCase();
+    if (!/paint|black|parts|chrome/.test(n) || o.userData.role === 'rim') return;
+    try {
+      let g = o.geometry;
+      if (g.index) g = g.toNonIndexed();
+      g = toCreasedNormals(mergeVertices(g, 1e-4), ang);
+      o.geometry.dispose?.();
+      o.geometry = g;
+    } catch { /* سيبها زي ما هي */ }
+  });
 }
 
 /** يمسح المثلثات اللي مركزها جوه صندوق (في إحداثيات الـ holder) */

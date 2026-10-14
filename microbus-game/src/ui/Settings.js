@@ -11,7 +11,7 @@ export const SCHEMA = [
   { key: 'lookSens', type: 'range', label: 'حساسية لف الكاميرا', min: 0.4, max: 2, step: 0.1, fmt: (v) => `${(+v).toFixed(1)}×`, def: 1 },
   { key: 'mirrorInsets', type: 'seg', label: 'المرايات الجانبية على حرف الشاشة', options: [['auto', 'تلقائي'], ['on', 'دايمًا'], ['off', 'مقفولة']], def: 'auto' },
   { group: 'الجرافيكس' },
-  { key: 'graphics', type: 'seg', label: 'الجودة', options: [['auto', 'تلقائي'], ['low', 'واطية'], ['med', 'متوسطة'], ['high', 'عالية']], def: 'auto' },
+  { key: 'graphics', type: 'seg', label: 'الجودة', options: [['auto', 'تلقائي'], ['low', 'واطية'], ['med', 'متوسطة'], ['high', 'عالية'], ['ultra', 'ألترا']], def: 'auto' },
   { key: 'shadows', type: 'seg', label: 'الضل', options: [['on', 'شغال'], ['off', 'مقفول']], def: 'on' },
   { key: 'mirrorQuality', type: 'seg', label: 'جودة المرايات', options: [['low', 'واطية'], ['med', 'متوسطة'], ['high', 'عالية']], def: 'auto-device' },
   { group: 'الوقت والإضاءة' },

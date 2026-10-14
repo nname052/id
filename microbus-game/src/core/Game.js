@@ -10,6 +10,8 @@ import { staticColliders } from '../world/layout.js';
 import { PlayerVehicle } from '../vehicles/PlayerVehicle.js';
 import { buildCar } from '../vehicles/CarModels.js';
 import { buildTrafficHiace } from '../vehicles/TrafficHiace.js';
+import { TERMINAL_VANS } from '../world/Shibin.js';
+import { groundHeight } from '../world/ground.js';
 import { TrafficSystem, loopProject, loopAt } from '../traffic/TrafficSystem.js';
 import { RouteWorld } from '../world/RouteWorld.js';
 import { ZONE_LABEL } from '../world/Route.js';
@@ -135,6 +137,16 @@ export class Game {
     this.mirrorInsets = new MirrorInsets(this.player, this.touch);
     this.passengers = new Passengers(this.scene, this.player, { hud: this.hud, audio: this.audio, settings: this.settings });
     this.passengers._updateHud();
+    // ميكروباصات راكنة في موقف شبين الكوم
+    {
+      const a = this.assets.get('microbus_traffic');
+      if (a) for (const v of TERMINAL_VANS) {
+        const r = buildTrafficHiace(a);
+        r.root.position.set(v.x, groundHeight(v.x, v.z), v.z); r.root.rotation.y = v.yaw;
+        this.scene.add(r.root);
+        this.statics.push({ cx: v.x, cz: v.z, hx: r.width / 2, hz: r.length / 2, angle: v.yaw, restitution: 0.1, kind: 'parked' });
+      }
+    }
     this.settings.onChange((k, v) => this._applySetting(k, v));
     if (this.player.damage) this.player.damage.onBreak = () => this.audio.glass();
     this.cams.mode = 3; // سينمائية ورا شاشة البداية
@@ -239,7 +251,8 @@ export class Game {
       q.level++; q.cooldown = 3; q.good = 0; this._applyQuality(q.level, fps);
     } else if (fps > 57) {
       q.good += 1.5;
-      if (q.good > 8 && q.level > 0) { q.level--; q.good = 0; q.cooldown = 4; this._applyQuality(q.level, fps); }
+      // الجهاز قوي ومستقر فوق 57 FPS → نطلع لحد ألترا
+      if (q.good > 8 && q.level > -1) { q.level--; q.good = 0; q.cooldown = 4; this._applyQuality(q.level, fps); }
     } else q.good = 0;
   }
 
@@ -252,15 +265,17 @@ export class Game {
 
   _applyQuality(level, fps) {
     const base = this.basePR;
-    const pr = [base, base * 0.85, base * 0.72, base * 0.62, base * 0.55][level];
+    // ألترا (-1): دقة الشاشة الكاملة + ضل عالي الدقة
+    const pr = level < 0 ? Math.min(window.devicePixelRatio, 2) : [base, base * 0.85, base * 0.72, base * 0.62, base * 0.55][level];
     this.renderer.setPixelRatio(pr);
     this._resize();
-    const sh = level >= 2 ? 1024 : this.mobile ? 1024 : 2048;
+    const sh = level < 0 ? (this.mobile ? 2048 : 4096) : level >= 2 ? 1024 : this.mobile ? 1024 : 2048;
     if (this.env.sun.shadow.mapSize.x !== sh) { this.env.sun.shadow.mapSize.set(sh, sh); this.env.sun.shadow.map?.dispose(); this.env.sun.shadow.map = null; }
     this.env.sun.castShadow = level < 4 && this.settings?.get('shadows') !== 'off';
-    this.player.mirrorSkip = [0, 1, 2, 3, 5][level];
-    this.traffic.viewDist = (this.mobile ? 260 : 360) * [1, 0.95, 0.85, 0.75, 0.65][level];
-    this.viewDist = (this.mobile ? 380 : 560) * [1, 0.95, 0.85, 0.75, 0.65][level];
+    const L = Math.max(0, level), far = level < 0 ? 1.25 : [1, 0.95, 0.85, 0.75, 0.65][L];
+    this.player.mirrorSkip = [0, 1, 2, 3, 5][L];
+    this.traffic.viewDist = (this.mobile ? 260 : 360) * far;
+    this.viewDist = (this.mobile ? 380 : 560) * far;
     this.scene.fog.far = Math.min(this.env.preset.fogFar, this.viewDist + 60);
     console.info('[Quality] مستوى', level, `pixelRatio ${pr.toFixed(2)}`, `(${fps.toFixed(0)} FPS)`);
   }
@@ -317,7 +332,7 @@ export class Game {
       }
       case 'mirrorQuality': this.player.setMirrorQuality(v); break;
       case 'graphics': {
-        const fixed = { low: 3, med: 2, high: 0 }[v];
+        const fixed = { low: 3, med: 2, high: 0, ultra: -1 }[v];
         const q = (this._q ||= { t: 0, frames: 0, level: 0, good: 0, cooldown: 3 });
         if (fixed !== undefined) { q.level = fixed; this._applyQuality(fixed, this.fps || 0); }
         else q.cooldown = 2;

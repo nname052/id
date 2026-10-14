@@ -12,6 +12,11 @@ import { person } from './Pedestrians.js';
 
 const byId = (id) => ROADS.find((r) => r.id === id);
 
+// موقف الميكروباص: أرض ركنة شرق شارع المحطة (الميكروباصات الراكنة بتتضاف من Game لأنها محتاجة الموديل)
+export const TERMINAL = { x0: 259.5, x1: 298, z0: 244, z1: 289 };
+export const TERMINAL_VANS = [];
+for (let i = 0; i < 7; i++) TERMINAL_VANS.push({ x: 266 + (i % 2) * 9, z: 248 + Math.floor(i / 2) * 10 + (i % 2) * 4, yaw: Math.PI / 2 + (i % 3 - 1) * 0.06 });
+
 function textPlate(lines, { w = 1024, h = 256, bg = '#11663a', fg = '#ffffff', font = 'Cairo', border = true } = {}) {
   const c = canvas(w, h), x = c.getContext('2d');
   x.fillStyle = bg; x.fillRect(0, 0, w, h);
@@ -44,6 +49,7 @@ export function buildShibin(world) {
     { x0: 210, x1: 300, z0: 200, z1: 236 },   // المحطة والرصيف
     { x0: 100, x1: 240, z0: 470, z1: 560 },   // الجامعة
     { x0: 90, x1: 330, z0: RL.z - 10, z1: RL.z + 8 }, // السكة
+    { x0: 259, x1: 299, z0: 243, z1: 290 },   // موقف الميكروباص
   ];
   const isReserved = (x, z, pad = 0) => reserved.some((r) => x > r.x0 - pad && x < r.x1 + pad && z > r.z0 - pad && z < r.z1 + pad) || Math.abs(x - C.x) < C.half + 6;
 
@@ -245,6 +251,37 @@ export function buildShibin(world) {
     tm.castShadow = true;
     const tg = new THREE.Group(); tg.add(tm);
     world._addChunk(tg, 258, RL.z, 70);
+  }
+
+  // ===== موقف ميكروباص شبين الكوم (جنب المحطة على شارع المحطة) =====
+  {
+    const T = TERMINAL, y = Y0 + 0.03;
+    const g = new GeoBuilder();
+    g.setColor([0.42, 0.41, 0.4]); g.box(T.x0, y - 0.03, T.z0, T.x1, y + 0.01, T.z1); // أرضية أسفلت قديم
+    g.setColor([0.95, 0.95, 0.9]);
+    for (let z = T.z0 + 4; z < T.z1 - 3; z += 5) g.box(T.x0 + 3, y + 0.012, z, T.x1 - 10, y + 0.016, z + 0.12); // خطوط الركنة
+    // مظلة على عمدان
+    g.setColor([0.35, 0.36, 0.38]);
+    for (let z = T.z0 + 3; z <= T.z1 - 3; z += 8) for (const x of [T.x1 - 9, T.x1 - 2]) g.box(x - 0.1, y, z - 0.1, x + 0.1, y + 3.6, z + 0.1);
+    g.setColor([0.15, 0.45, 0.35]); g.box(T.x1 - 10, y + 3.6, T.z0 + 2, T.x1 - 1, y + 3.75, T.z1 - 2);
+    // دكك خرسانة للركاب
+    g.setColor([0.7, 0.68, 0.64]);
+    for (let z = T.z0 + 6; z < T.z1 - 6; z += 9) g.box(T.x1 - 7, y, z, T.x1 - 4, y + 0.45, z + 2.4);
+    // كشك التذاكر/المنادي
+    g.setColor([0.85, 0.82, 0.74]); g.box(T.x0 + 1, y, T.z1 - 6, T.x0 + 4, y + 2.6, T.z1 - 2);
+    g.setColor([0.2, 0.3, 0.38]); g.box(T.x0 + 0.98, y + 1.2, T.z1 - 5.5, T.x0 + 1.0, y + 2.1, T.z1 - 2.5);
+    box(T.x0 + 2.5, T.z1 - 4, 1.5, 2, 0, 'building');
+    for (let z = T.z0 + 6; z < T.z1 - 6; z += 9) box(T.x1 - 5.5, z + 1.2, 1.5, 1.2, 0, 'prop');
+    for (let z = T.z0 + 3; z <= T.z1 - 3; z += 8) for (const x of [T.x1 - 9, T.x1 - 2]) box(x, z, 0.15, 0.15, 0, 'pole');
+    const m = new THREE.Mesh(g.build(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, map: M.concrete.map }));
+    m.castShadow = true; m.receiveShadow = true;
+    const grp = new THREE.Group(); grp.add(m);
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(8.5, 1.4), new THREE.MeshStandardMaterial({ map: textPlate(['موقف ميكروباص شبين الكوم', 'طنطا · قويسنا · منوف · الباجور · السادات'], { bg: '#c8a020', fg: '#1a1408' }), side: THREE.DoubleSide }));
+    sign.position.set(T.x0 + 0.2, y + 4.4, (T.z0 + T.z1) / 2); sign.rotation.y = -Math.PI / 2;
+    grp.add(sign);
+    const pole2 = new THREE.Mesh(new THREE.BoxGeometry(0.2, 4.4, 0.2), M.paintedMetal); pole2.position.set(T.x0 + 0.2, y + 2.2, (T.z0 + T.z1) / 2 - 4.4); grp.add(pole2);
+    const pole3 = pole2.clone(); pole3.position.z = (T.z0 + T.z1) / 2 + 4.4; grp.add(pole3);
+    world._addChunk(grp, (T.x0 + T.x1) / 2, (T.z0 + T.z1) / 2, 60);
   }
 
   // ===== قصر ثقافة شبين الكوم (على شارع باريس) =====

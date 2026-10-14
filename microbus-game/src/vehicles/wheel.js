@@ -7,8 +7,8 @@ import { GeoBuilder } from '../render/GeoBuilder.js';
 const tireCache = new Map();
 const rimCache = new Map();
 
-function tireGeometry(R, width, rimR) {
-  const key = `${R}|${width}|${rimR}`;
+export function tireGeometry(R, width, rimR, segs = 28) {
+  const key = `${R}|${width}|${rimR}|${segs}`;
   if (tireCache.has(key)) return tireCache.get(key);
   const w = width / 2;
   const P = (r, y) => new THREE.Vector2(r, y);
@@ -17,7 +17,7 @@ function tireGeometry(R, width, rimR) {
     P(R - 0.025, -w * 0.97), P(R - 0.004, -w * 0.82), P(R, -w * 0.6), P(R, w * 0.6), P(R - 0.004, w * 0.82),
     P(R - 0.025, w * 0.97), P(rimR + (R - rimR) * 0.7, w * 1.02), P(rimR + (R - rimR) * 0.3, w * 0.98), P(rimR, w * 0.82),
   ];
-  const g = new THREE.LatheGeometry(pts, 28);
+  const g = new THREE.LatheGeometry(pts, segs);
   g.rotateZ(Math.PI / 2);
   tireCache.set(key, g);
   return g;

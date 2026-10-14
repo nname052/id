@@ -27,9 +27,11 @@ const SIDE_STOPS = [
   { road: 'S1', frac: 0.45, name: 'شارع باريس', kind: 'shibin', off: 4.4 + 3.2 - 1 },
   { road: 'S2', frac: 0.06, name: 'جامعة المنوفية', kind: 'shibin', off: 5.2 + 3.2 - 1 },
   { road: 'S4', frac: 0.15, name: 'محطة القطر', kind: 'shibin', off: 3.8 + 3.2 - 1 },
+  // الموقف الكبير: ناس كتير ومستنيين على طول
+  { road: 'S4', frac: 0.55, name: 'موقف شبين الكوم', kind: 'terminal', off: 3.8 + 3.2 - 0.8 },
 ];
 const URBAN = new Set(['city', 'market', 'residential']);
-const MAX_WALKERS = 12;
+const MAX_WALKERS = 18;
 const WALK = 1.45, _v = new THREE.Vector3(), _w = new THREE.Vector3();
 
 function stopSign() {
@@ -145,9 +147,10 @@ export class Passengers {
   }
 
   _spawnWaiting(stop) {
-    const density = this.settings ? this.settings.get('paxDensity') ?? 1 : 1;
-    if (this.R() > 0.55 + 0.4 * density) { stop.cooldown = 25; return; }
-    const n = 1 + Math.floor(this.R() * (1.5 + 2 * density));
+    const density = this.settings ? +(this.settings.get('paxDensity') ?? 1) : 1;
+    const terminal = stop.kind === 'terminal';
+    if (!terminal && this.R() > 0.55 + 0.4 * density) { stop.cooldown = 25; return; }
+    const n = terminal ? 5 + Math.floor(this.R() * 5 * density) : 1 + Math.floor(this.R() * (1.5 + 2 * density));
     for (let i = 0; i < n; i++) {
       const p = this._take();
       if (!p) break;
@@ -310,7 +313,7 @@ export class Passengers {
     seat.pax = pax;
     this.onboard.push(pax);
     p.stop.waiting.splice(p.stop.waiting.indexOf(p), 1);
-    if (!p.stop.waiting.length) p.stop.cooldown = 40;
+    if (!p.stop.waiting.length) p.stop.cooldown = p.stop.kind === 'terminal' ? 6 : 40;
     this._release(p);
     this._rebuildSeated();
     this.hud?.toast(`ركب راكب · نازل ${pax.dest ? pax.dest.name : 'قدام'}`, 2.2);
