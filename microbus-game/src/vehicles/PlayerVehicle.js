@@ -17,6 +17,18 @@ import { loopProject, loopAt } from '../traffic/TrafficSystem.js';
 const _v1 = new THREE.Vector3(), _v2 = new THREE.Vector3(), _v3 = new THREE.Vector3(), _v4 = new THREE.Vector3(), _q1 = new THREE.Quaternion(), _q2 = new THREE.Quaternion();
 const GEAR_POS = { '-1': [0.05, -0.06], 0: [0, 0], 1: [-0.05, 0.06], 2: [-0.05, -0.06], 3: [0, 0.06], 4: [0, -0.06], 5: [0.05, 0.06] };
 
+function deepClone(root) {
+  const c = root.clone(true);
+  const mats = new Map();
+  c.traverse((o) => {
+    if (!o.isMesh) return;
+    o.geometry = o.geometry.clone();
+    if (!mats.has(o.material)) mats.set(o.material, o.material.clone());
+    o.material = mats.get(o.material);
+  });
+  return c;
+}
+
 export class PlayerVehicle {
   constructor(scene, assets, opts = {}) {
     this.scene = scene;
@@ -52,6 +64,10 @@ export class PlayerVehicle {
       console.error('[HiAce] FAILED:', msg);
     };
     if (!asset) return fail(status?.error || 'microbus.glb was not loaded');
+    // التركيب بيعدّل الموديل نفسه (قص الصالون، فصل الباب...) → كل مرة نشتغل على نسخة جديدة من الأصل
+    if (!asset._pristine) asset._pristine = deepClone(asset.holder);
+    if (asset._used) asset = { ...asset, holder: deepClone(asset._pristine) };
+    asset._used = true;
     try {
       const A = analyzeVehicle(asset.holder);
       if (!A.ok) return fail('could not detect the 4 wheels in the model');
