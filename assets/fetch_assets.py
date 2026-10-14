@@ -170,7 +170,7 @@ def main() -> None:
             say(f"⏳ {name}")
             with zipfile.ZipFile(download(url, tmp / f"{name}.zip")) as z:
                 for m in z.namelist():
-                    keep = (m.endswith(".glb") and ("/Godot/" in m or "/Unreal-Godot/" in m)) if name.startswith("ual") else \
+                    keep = ((m.endswith(".glb") and ("/Godot/" in m or "/Unreal-Godot/" in m)) or m.endswith("AL_Standard.fbx")) if name.startswith("ual") else \
                            ("/Characters/gltf/" in m and m.endswith((".glb", ".png"))) if name == "kaykit-adventurers" else \
                            ("/gltf/" in m.lower() and m.lower().endswith((".gltf", ".glb", ".bin", ".png")))
                     if keep or m.endswith("License.txt") or m.endswith("LICENSE.txt"):

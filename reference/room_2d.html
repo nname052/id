@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>مشهد الأوضة 2D</title>
+<!--
+  مشهد الأوضة (2D، 10 ثواني، 1080×1920):
+  الأوضة منورة ← النور يطفى ← الأباجورة تولّع نور أصفر دافي ← الشخص يتمشى رايح جاي ← يقف ويفكر.
+  الشخصية من Kenney Toon Characters (CC0): الوضعيات بتتقص من ملف الـ Vector علشان تفضل حادة في أي حجم.
+  الأوضة نفسها أشكال SVG مرسومة بالكود. كل حاجة بتتحسب من t جوه renderAt(t).
+-->
+<link rel="stylesheet" href="../fonts/fonts.css">
+<style>
+  html, body { margin: 0; width: 1080px; height: 1920px; overflow: hidden; background: #000; }
+  #stage { position: relative; width: 1080px; height: 1920px; overflow: hidden; }
+  svg { position: absolute; inset: 0; }
+  #caption { position: absolute; top: 96px; left: 0; width: 100%; text-align: center; font: 700 64px/1.5 "Alexandria"; color: #fff4dc;
+             text-shadow: 0 4px 30px rgba(0, 0, 0, .5); }
+</style>
+</head>
+<body>
+<div id="stage">
+<svg viewBox="0 0 1080 1920" width="1080" height="1920">
+  <defs>
+    <linearGradient id="wall" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f6ead6"/><stop offset="1" stop-color="#ecd9bb"/></linearGradient>
+    <linearGradient id="floor" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#c8935f"/><stop offset="1" stop-color="#a8733f"/></linearGradient>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1b2a55"/><stop offset="1" stop-color="#3c4f86"/></linearGradient>
+    <radialGradient id="moonGlow"><stop offset="0" stop-color="#cfe0ff" stop-opacity=".6"/><stop offset="1" stop-color="#cfe0ff" stop-opacity="0"/></radialGradient>
+    <!-- الضلمة: فيها "فتحة" حوالين الأباجورة بتتحكم فيها --hole -->
+    <radialGradient id="dark" cx="900" cy="960" r="1350" gradientUnits="userSpaceOnUse">
+      <stop id="d0" offset="0" stop-color="#0a0f2a"/><stop id="d1" offset=".18" stop-color="#0a0f2a"/><stop id="d2" offset=".6" stop-color="#0a0f2a"/><stop offset="1" stop-color="#0a0f2a"/>
+    </radialGradient>
+    <radialGradient id="warm" cx="900" cy="960" r="820" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffcf7a" stop-opacity=".9"/><stop offset=".35" stop-color="#ffb04a" stop-opacity=".35"/><stop offset="1" stop-color="#ff9a2a" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="beam" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9fb8ff" stop-opacity=".0"/><stop offset=".55" stop-color="#9fb8ff" stop-opacity=".16"/><stop offset="1" stop-color="#9fb8ff" stop-opacity=".05"/></linearGradient>
+    <radialGradient id="shadow"><stop offset="0" stop-color="#000" stop-opacity=".35"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>
+  </defs>
+
+  <g id="cam">
+  <!-- الأوضة -->
+  <rect width="1080" height="1360" fill="url(#wall)"/>
+  <rect y="1360" width="1080" height="560" fill="url(#floor)"/>
+  <g stroke="#9b6a38" stroke-width="3" opacity=".5">
+    <line x1="0" y1="1460" x2="1080" y2="1460"/><line x1="0" y1="1590" x2="1080" y2="1590"/><line x1="0" y1="1750" x2="1080" y2="1750"/>
+  </g>
+  <rect y="1340" width="1080" height="24" fill="#d9c09a"/>
+
+  <!-- الشباك والقمر -->
+  <g transform="translate(110 380)">
+    <rect width="330" height="430" rx="10" fill="#fff" />
+    <rect x="16" y="16" width="298" height="398" fill="url(#sky)"/>
+    <circle cx="225" cy="105" r="120" fill="url(#moonGlow)"/>
+    <circle cx="225" cy="105" r="36" fill="#f4f1dc"/>
+    <g fill="#fff"><circle cx="70" cy="70" r="3"/><circle cx="120" cy="190" r="2.5"/><circle cx="260" cy="250" r="2"/><circle cx="60" cy="320" r="2.5"/><circle cx="180" cy="300" r="2"/></g>
+    <rect x="160" y="16" width="10" height="398" fill="#fff"/><rect x="16" y="210" width="298" height="10" fill="#fff"/>
+    <rect x="-20" y="420" width="370" height="26" rx="6" fill="#e9dcc4"/>
+  </g>
+
+  <!-- برواز على الحيطة -->
+  <g transform="translate(560 470)">
+    <rect width="190" height="240" rx="8" fill="#5a4a3a"/><rect x="16" y="16" width="158" height="208" fill="#f582ae" opacity=".85"/>
+    <circle cx="95" cy="110" r="44" fill="#fef6e4" opacity=".9"/>
+  </g>
+
+  <!-- السجادة -->
+  <ellipse cx="520" cy="1600" rx="450" ry="100" fill="#8bd3dd" opacity=".75"/>
+  <ellipse cx="520" cy="1600" rx="400" ry="76" fill="none" stroke="#fef6e4" stroke-width="6" opacity=".7"/>
+
+  <!-- الأباجورة -->
+  <g id="lamp">
+    <ellipse cx="900" cy="1520" rx="95" ry="22" fill="#3a3a48"/>
+    <rect x="891" y="1000" width="18" height="520" fill="#3a3a48"/>
+    <circle id="bulb" cx="900" cy="985" r="34" fill="#fff3c4" opacity="0"/>
+    <path id="shade" d="M790 1010 L1010 1010 L962 840 L838 840 Z" fill="#f2e3c6"/>
+  </g>
+
+  <!-- الإضاءة: الضلمة فوق كل حاجة، وبعدين النور الدافي، وبعدين نور القمر على الأرض -->
+  <rect id="darkness" x="-200" y="-200" width="1480" height="2320" fill="url(#dark)" opacity="0"/>
+  <rect id="warmth" x="-200" y="-200" width="1480" height="2320" fill="url(#warm)" opacity="0" style="mix-blend-mode: screen"/>
+  <polygon id="moonbeam" points="126,396 424,396 520,1700 40,1700" fill="url(#beam)" opacity="0" style="mix-blend-mode: screen"/>
+  <!-- الشخصية فوق الضلمة: الإضاءة بتاعتها بتتحسب في renderAt -->
+  <!-- ضل الشخصية -->
+  <ellipse id="shadowEl" cx="540" cy="1580" rx="190" ry="32" fill="url(#shadow)"/>
+  <!-- الشخصية: <svg> جوه بيقص وضعية واحدة من ملف الـ Vector -->
+  <g id="charWrap"><svg id="char" x="0" y="0" width="495" height="660" viewBox="0 0 96 128" overflow="hidden">
+    <image id="sheet" href="../assets/2d/toon-characters/Male%20person/Vector/character_malePerson.svg" width="864" height="640"/>
+  </svg></g>
+
+  <!-- فقاعة التفكير -->
+  <g id="bubble" opacity="0">
+    <circle cx="0" cy="0" r="14" fill="#fff"/><circle cx="34" cy="-46" r="22" fill="#fff"/>
+    <ellipse cx="120" cy="-150" rx="110" ry="88" fill="#fff"/>
+    <text x="120" y="-118" text-anchor="middle" font-family="Alexandria" font-weight="800" font-size="110" fill="#001858">؟</text>
+  </g>
+
+  </g>
+</svg>
+<div id="caption">ساعات الحل بييجي في الهدوء</div>
+</div>
+<script>
+  window.DURATION = 10;
+  const $ = (id) => document.getElementById(id);
+  const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+  const easeInOut = (x) => (x = clamp(x), x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+  const easeOut = (x) => 1 - Math.pow(1 - clamp(x), 3);
+  const lerp = (a, b, p) => a + (b - a) * p;
+
+  // المسار: [وقت البداية، وقت النهاية، x من، x لـ]. بين المقاطع بيقف ويلف
+  const PATH = [[3.2, 4.4, 520, 700], [4.8, 6.9, 700, 300], [7.3, 8.4, 300, 500]];
+  const STAND_X = 520, FEET_Y = 1585, SCALE = 660 / 128;
+  let poses = {};
+
+  window.ready = (async () => {
+    // أماكن الوضعيات في الملف (نفس ترتيب ملف الـ XML بتاع Kenney)
+    const xml = await (await fetch("../assets/2d/toon-characters/Male%20person/Tilesheet/character_malePerson_sheet.xml")).text();
+    for (const m of xml.matchAll(/name="(\w+)" x="(\d+)" y="(\d+)"/g)) poses[m[1]] = [+m[2], +m[3]];
+    await document.fonts.ready;
+    window.renderAt(0);
+  })();
+
+  function characterAt(t) {
+    // بيرجّع: x، الوضعية، الاتجاه (1 يمين، -1 شمال)
+    let x = STAND_X, pose = "idle", dir = 1;
+    for (let i = 0; i < PATH.length; i++) {
+      const [a, b, x0, x1] = PATH[i];
+      if (t < a) break;
+      dir = Math.sign(x1 - x0);
+      if (t <= b) {
+        const p = (t - a) / (b - a);
+        x = lerp(x0, x1, p);                               // سرعة ثابتة علشان الرجلين ما تتزحلقش
+        pose = "walk" + (Math.floor((t - a) * 12) % 8);   // 12 فريم مشي في الثانية
+        return { x, pose, dir };
+      }
+      x = x1;
+      pose = "idle";
+    }
+    if (t >= 8.6) pose = "think";
+    return { x, pose, dir };
+  }
+
+  window.renderAt = function (t) {
+    // 1. النور بيطفى (1.2 ← 2.2)، والأباجورة بتولّع برعشة صغيرة (2.6 ← 3.1)
+    const dark = easeInOut((t - 1.2) / 1.0);
+    const flicker = [[2.6, 2.68], [2.78, 2.84], [2.95, 9e9]];
+    const lampOn = flicker.some(([a, b]) => t >= a && t < b) ? 1 : 0;
+    const glow = lampOn * easeOut((t - 2.95) / 0.6) + (t < 2.95 ? lampOn * 0.6 : 0);
+    $("darkness").setAttribute("opacity", 0.9 * dark);
+    $("moonbeam").setAttribute("opacity", dark);
+    // الكاميرا: بتقرّب ببطء من الشخصية طول المشهد
+    const zoom = 1 + 0.16 * easeInOut(t / window.DURATION);
+    $("cam").setAttribute("transform", `translate(520 1250) scale(${zoom}) translate(-520 -1250)`);
+    // الفتحة اللي حوالين الأباجورة: كل ما النور يزيد، الضلمة حواليها تقل
+    $("d0").setAttribute("stop-opacity", 1 - 0.95 * glow);
+    $("d1").setAttribute("stop-opacity", 1 - 0.75 * glow);
+    $("d2").setAttribute("stop-opacity", 1 - 0.25 * glow);
+    $("warmth").setAttribute("opacity", glow * (0.9 + 0.05 * Math.sin(t * 7)));
+    $("bulb").setAttribute("opacity", glow);
+    $("shade").setAttribute("fill", glow > 0.05 ? "#ffe2a3" : "#f2e3c6");
+
+    // 2. الشخصية
+    const c = characterAt(t);
+    const [px, py] = poses[c.pose] || [0, 0];
+    $("char").setAttribute("viewBox", `${px} ${py} 96 128`);
+    const w = 96 * SCALE, h = 128 * SCALE;
+    const bob = c.pose.startsWith("walk") ? Math.abs(Math.sin(t * Math.PI * 3)) * -6 : Math.sin(t * 2) * 2;
+    $("charWrap").setAttribute("transform",
+      `translate(${c.x} ${FEET_Y + bob}) scale(${c.dir} 1) translate(${-w / 2} ${-h})`);
+    // الشخصية بتضلم في الضلمة، وبتنوّر كل ما تقرّب من الأباجورة
+    const near = clamp(1 - Math.abs(c.x - 900) / 750);
+    const bright = lerp(1, 0.28 + 0.62 * glow * (0.45 + 0.55 * near), dark);
+    $("charWrap").style.filter = `brightness(${bright.toFixed(3)}) sepia(${(0.4 * glow * dark).toFixed(3)}) saturate(${(1 - 0.25 * dark + 0.2 * glow * dark).toFixed(3)})`;
+    // الضل بيتمد بعيد عن الأباجورة
+    const away = (c.x - 900) / 750;
+    $("shadowEl").setAttribute("cx", c.x + away * 60 * glow);
+    $("shadowEl").setAttribute("rx", 150 + Math.abs(away) * 60 * glow);
+
+    // 3. فقاعة التفكير + الجملة
+    const b = easeOut((t - 8.75) / 0.45);
+    $("bubble").setAttribute("opacity", b);
+    $("bubble").setAttribute("transform", `translate(${c.x + 150} ${FEET_Y - 690}) scale(${0.6 + 0.4 * b})`);
+    $("caption").style.opacity = easeOut((t - 9.0) / 0.5);
+    $("caption").style.transform = `translateY(${(1 - easeOut((t - 9.0) / 0.5)) * 30}px)`;
+  };
+</script>
+</body>
+</html>
