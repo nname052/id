@@ -105,6 +105,32 @@ export function applyLivery(rig, name = 'shibin') {
     mat.roughness = 0.45;
     mat.needsUpdate = true;
   });
+  // الأجزاء اللي بتبان من جوه الكابينة (ضهر الأبواب والإطارات في الموديل — كانت سودا): الوش اللي ناحية جوه
+  // بيتلوّن بلون العربية، والوش اللي برا زي ما هو
+  const cabC = new THREE.Vector3(0, 1.15, -(D.frontF + D.rearF) / 2);
+  shell.traverse((o) => {
+    if (!o.isMesh || (o.userData.matName || '') !== 'parts') return;
+    const PM = { value: new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld) };
+    const mat = (o.material = o.material.clone());
+    mat.onBeforeCompile = (sh) => {
+      Object.assign(sh.uniforms, { uPM: PM, uCabC: { value: cabC }, uTrimIn: trimIn });
+      sh.vertexShader = sh.vertexShader
+        .replace('#include <common>', '#include <common>\nuniform mat4 uPM; varying vec3 vPP; varying vec3 vPN;')
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\nvPP = (uPM * vec4(position, 1.0)).xyz; vPN = normalize(mat3(uPM) * objectNormal);');
+      sh.fragmentShader = sh.fragmentShader
+        .replace('#include <common>', '#include <common>\nuniform vec3 uCabC, uTrimIn; varying vec3 vPP; varying vec3 vPN;')
+        .replace('#include <map_fragment>', `#include <map_fragment>
+{
+  vec3 n = gl_FrontFacing ? vPN : -vPN;
+  vec3 toC = uCabC - vPP; toC.y *= 0.3;
+  float inward = smoothstep(0.1, 0.4, dot(normalize(n), normalize(toC)));
+  float cabin = step(0.75, vPP.y);
+  diffuseColor.rgb = mix(diffuseColor.rgb, uTrimIn, inward * cabin * 0.9);
+}`);
+    };
+    mat.customProgramCacheKey = () => 'parts-in1';
+    mat.needsUpdate = true;
+  });
   shell.traverse((o) => {
     if (!o.isMesh || o.userData.role !== 'paint') return;
     const M = { value: new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld) };
