@@ -171,7 +171,7 @@ body.touch #minimap.big { left: 50%; bottom: auto; top: 50%; transform: translat
 #job .job-sw { position: absolute; left: 6px; top: 50%; transform: translateY(-50%); width: 28px; height: 28px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.25); background: rgba(255, 255, 255, 0.08); color: #fff; font: 700 15px/1 system-ui, sans-serif; pointer-events: auto; cursor: pointer; touch-action: none; }
 #job:has(.job-sw.hidden) { padding-left: 12px; }
 #toast { top: 64px; }
-body.touch #toast { top: calc(6px + env(safe-area-inset-top, 0px)); font-size: 12px; padding: 2px 12px; max-width: 52vw; }
+body.touch #toast { top: calc(50px + env(safe-area-inset-top, 0px)); font-size: 12px; padding: 2px 12px; max-width: 52vw; }
 body.touch #job { font-size: 12px; padding: 3px 10px 4px 36px; max-width: min(340px, 46vw); background: rgba(14, 14, 16, 0.5); }
 body.touch #job .job-2 { font-size: 11px; }
 /* اللفة الجاية (GPS) جنب الخريطة */
@@ -233,11 +233,12 @@ body.touch #job:not(:has(.job-sw.hidden)) { padding-left: 36px; }
 body.touch .rpm-wrap, body.touch .sig { display: none !important; }
 body.touch .dash { gap: 8px; }
 /* شاشات ضيقة: لوحة الشغل تنزل تحت الأزرار */
-@media (max-width: 760px) { body.touch #job { top: calc(52px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%); max-width: 46vw; } body.touch #toast { top: calc(6px + env(safe-area-inset-top, 0px)); } }
+@media (max-width: 760px) { body.touch #job { top: calc(52px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%); max-width: 46vw; } body.touch #toast { top: calc(94px + env(safe-area-inset-top, 0px)); } body.touch #racebar { top: calc(118px + env(safe-area-inset-top, 0px)); } }
 
 /* السباق: شريط صغير فوق في النص (لفة · وقت · مركز) */
 #racebar { position: fixed; z-index: 7; top: calc(30px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%); display: flex; gap: 14px; align-items: center; background: rgba(14, 14, 16, 0.6); color: #fff; border-radius: 999px; padding: 3px 16px; font: 700 14px 'Cairo', sans-serif; pointer-events: none; direction: rtl; font-variant-numeric: tabular-nums; }
 #racebar.hidden { display: none; }
 #racebar b { color: #f2b330; font-size: 16px; }
 #racebar b.go { color: #22c55e; font-size: 22px; }
-body.touch #racebar { font-size: 12px; padding: 2px 12px; top: calc(26px + env(safe-area-inset-top, 0px)); }
+body.touch #racebar { font-size: 12px; padding: 2px 12px; top: calc(76px + env(safe-area-inset-top, 0px)); }
+@media (max-width: 760px) { body.touch #racebar { top: calc(118px + env(safe-area-inset-top, 0px)); } }
