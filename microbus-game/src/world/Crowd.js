@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { rng } from '../render/textures.js';
-import { person } from './Pedestrians.js';
+import { HumanBatch, humanVariants } from './Humans.js';
 import { ROAD, CROSSINGS, mainSegments } from './layout.js';
 import { ROADS, SIDEWALK_W, onOtherCarriageway } from './RoadNetwork.js';
 import { ROUTE, URBAN_ZONES, nearJunction } from './Route.js';
@@ -120,31 +120,8 @@ export class Crowd {
     this.group = new THREE.Group();
     this.group.name = 'crowd';
     scene.add(this.group);
-    const mat = new THREE.MeshStandardMaterial({ roughness: 0.85, vertexColors: true });
-    this.vars = [];
-    for (let v = 0; v < VARIANTS; v++) {
-      // الـ seeds الصغيرة بتدي أول أرقام متشابهة: نسخّن المولّد الأول عشان كل نسخة تطلع مختلفة (جلابية/حجاب/قميص)
-      let p;
-      for (let seed = v * 2654435761 + 97, k = 0; k < 40; k++, seed += 7919) {
-        const R = rng(seed >>> 0); for (let w = 0; w < 8; w++) R();
-        p = person(R, true);
-        const want = ['galabeya', 'woman', 'casual'][v % 3];
-        if (p.type === want) break;
-      }
-      const torsoGeo = p.root.children[0].geometry;
-      const legMesh = p.legs[0].children[0], armMesh = p.arms[0].children[0];
-      const mk = (geo, n, shadow) => {
-        const m = new THREE.InstancedMesh(geo, mat, n);
-        m.count = 0; m.frustumCulled = false; m.castShadow = shadow;
-        m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-        this.group.add(m);
-        return m;
-      };
-      this.vars.push({
-        scale: p.root.scale.x, legScale: legMesh.scale.x,
-        torso: mk(torsoGeo, this.cap, true), legs: mk(legMesh.geometry, this.cap * 2, false), arms: mk(armMesh.geometry, this.cap * 2, false),
-      });
-    }
+    // كل شكل (variant) = InstancedMesh واحدة، والمشي بيتحسب في الـ shader (draw call واحد لكل شكل)
+    this.batch = new HumanBatch(this.group, humanVariants(VARIANTS, 777, true), this.cap);
   }
 
   setCount(n) {
@@ -169,7 +146,7 @@ export class Crowd {
     this.scan = m;
   }
 
-  setShadows(on) { for (const v of this.vars) v.torso.castShadow = on; }
+  setShadows(on) { this.batch.setShadows(on); }
 
   _lanePos(p) {
     const L = this.lanes[p.lane], f = Math.min(L.pts.length - 1.001, Math.max(0, p.s / STEP)), i = Math.floor(f), t = f - i;
@@ -263,9 +240,8 @@ export class Crowd {
   }
 
   _draw(cx, cz) {
-    for (const v of this.vars) v.n = 0;
+    this.batch.begin();
     let nScan = 0;
-    const m = _m, q = _q, e = _e;
     for (let i = 0; i < this.count; i++) {
       const p = this.people[i];
       if (!p.on || (p.x - cx) ** 2 + (p.z - cz) ** 2 > VIEW * VIEW) continue;
@@ -274,30 +250,13 @@ export class Crowd {
         this.scan.setMatrixAt(nScan++, _root);
         continue;
       }
-      const V = this.vars[p.variant], n = V.n++;
-      const bob = p.standing ? 0 : Math.abs(Math.cos(p.phase)) * 0.03;
-      _root.compose(_v.set(p.x, p.y + bob, p.z), q.setFromAxisAngle(_Y, p.heading), _s.setScalar(V.scale));
-      V.torso.setMatrixAt(n, _root);
-      const swing = p.standing && !p.scared ? 0 : Math.sin(p.phase) * (p.scared ? 0.7 : 0.45);
-      for (let k = 0; k < 2; k++) {
-        const sx = k ? 1 : -1;
-        // رجل
-        e.set(k ? -swing : swing, 0, 0);
-        m.compose(_v.set(sx * 0.09, 0.9, 0), q.setFromEuler(e), _s.set(V.legScale, 1, V.legScale));
-        V.legs.setMatrixAt(n * 2 + k, _t.multiplyMatrices(_root, m));
-        // دراع
-        const ax = p.standing && !p.scared ? (k ? Math.sin(p.phase * 0.7) * 0.12 : 0.05) : (k ? swing : -swing) * 0.8;
-        e.set(ax, 0, sx * 0.08);
-        m.compose(_v.set(sx * 0.2, 1.43, 0), q.setFromEuler(e), _s.set(1, 1, 1));
-        V.arms.setMatrixAt(n * 2 + k, _t.multiplyMatrices(_root, m));
-      }
+      // الواقفين: إيد بتتحرك وهما بيتكلموا (ساعات)
+      const talk = p.standing && !p.scared && (p.variant + i) % 4 === 0 ? 0.18 + Math.sin(p.phase * 0.7) * 0.08 : 0;
+      const amp = p.standing && !p.scared ? 0 : p.scared ? 1.5 : Math.min(1.2, p.speed * 0.8);
+      this.batch.add(p.variant, p.x, p.y, p.z, p.heading, 1, p.phase, amp, talk, 0);
     }
     if (this.scan) { this.scan.count = nScan; this.scan.instanceMatrix.needsUpdate = true; this.scan.visible = nScan > 0; }
-    for (const V of this.vars) {
-      V.torso.count = V.n; V.legs.count = V.n * 2; V.arms.count = V.n * 2;
-      V.torso.instanceMatrix.needsUpdate = V.legs.instanceMatrix.needsUpdate = V.arms.instanceMatrix.needsUpdate = true;
-      V.torso.visible = V.legs.visible = V.arms.visible = V.n > 0;
-    }
+    this.batch.flush();
   }
 
   /** حد عشوائي قريب (عشان صوته يطلع من مكانه) */
@@ -317,6 +276,6 @@ export class Crowd {
   }
 }
 
-const _m = new THREE.Matrix4(), _t = new THREE.Matrix4(), _root = new THREE.Matrix4();
-const _q = new THREE.Quaternion(), _e = new THREE.Euler(), _v = new THREE.Vector3(), _s = new THREE.Vector3();
+const _root = new THREE.Matrix4();
+const _q = new THREE.Quaternion(), _v = new THREE.Vector3(), _s = new THREE.Vector3();
 const _Y = new THREE.Vector3(0, 1, 0);

@@ -221,3 +221,16 @@ body.touch #paycard .pc-ok { padding: 6px; font-size: 14px; }
 #docs .dx-row b.neg { color: #ff7a6a; } #docs .dx-row b.pos { color: #7ee39a; }
 #docs .dx-renew { font: 700 12px 'Cairo', sans-serif; padding: 4px 10px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.25); background: rgba(255, 255, 255, 0.08); color: #fff; cursor: pointer; white-space: nowrap; }
 #docs .dx-renew.warn { background: #e5482f; border-color: transparent; }
+/* ===== واجهة الموبايل: الأزرار أصغر وشفافة، والمعلومات الثانوية مستخبية، ولوحة الشغل في المسافة الفاضية فوق ===== */
+body.touch .t-top { gap: 6px; }
+body.touch .t-top button { width: 38px; height: 38px; border-radius: 11px; }
+body.touch .t-top .t-zoom { width: 32px; opacity: 0.7; }
+body.touch #touch .t-top [data-act="time"] { display: none; } /* الوقت من الإعدادات */
+body.touch #minimap { left: calc(124px + env(safe-area-inset-left, 0px)); }
+body.touch #navpill { left: calc(124px + env(safe-area-inset-left, 0px)); }
+body.touch #job { left: calc(224px + env(safe-area-inset-left, 0px)); transform: none; max-width: calc(100vw - 224px - 330px - env(safe-area-inset-right, 0px)); min-width: 120px; text-align: right; padding: 3px 10px 4px 10px; }
+body.touch #job:not(:has(.job-sw.hidden)) { padding-left: 36px; }
+body.touch .rpm-wrap, body.touch .sig { display: none !important; }
+body.touch .dash { gap: 8px; }
+/* شاشات ضيقة: لوحة الشغل تنزل تحت الأزرار */
+@media (max-width: 760px) { body.touch #job { top: calc(52px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%); max-width: 46vw; } body.touch #toast { top: 98px; } }

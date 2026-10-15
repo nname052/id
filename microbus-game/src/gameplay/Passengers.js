@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { person, seatedFigure } from '../world/Pedestrians.js';
+import { HumanBatch, humanVariants, seatedGeometry, humanStaticMaterial } from '../world/Humans.js';
 import { loopAt, LOOP } from '../traffic/TrafficSystem.js';
 import { groundHeight } from '../world/ground.js';
 import { roadPointAt, ROADS, SIDEWALK_W, onOtherCarriageway } from '../world/RoadNetwork.js';
@@ -88,14 +88,15 @@ export class Passengers {
     scene.add(this.group);
     this._buildStops();
     this._buildMarkers();
-    this._complainCd = 0;
     // الركاب القاعدين: Mesh واحد جوه العربية بيتبني من جديد لما حد يركب/ينزل
-    this.seatedMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 });
+    this.seatedMat = humanStaticMaterial();
     this.seatedMesh = null;
+    // الماشيين (المستنيين/الراكبين/النازلين): ناس شبه حقيقيين بيترسموا بالـ instancing (الحركة في الـ shader)
+    this.variants = humanVariants(12, 4242);
+    this.batch = new HumanBatch(this.group, this.variants, MAX_WALKERS);
     for (let i = 0; i < MAX_WALKERS; i++) {
-      const p = person(this.R);
+      const p = { root: new THREE.Object3D(), variant: i % this.variants.length, scale: 0.96 + this.R() * 0.08, amp: 0, armR: 0, armL: 0 };
       p.root.visible = false;
-      this.group.add(p.root);
       this.pool.push(p);
     }
     this._resetJob();
@@ -424,27 +425,56 @@ export class Passengers {
     return fx * st.ax + fz * st.az >= 0 ? st.side : -st.side;
   }
 
-  // ===== الأجرة والاعتراضات =====
+  // ===== ردود فعل الركاب =====
+  // على أحداث حقيقية بس: خبطة، فرملة جامدة، لف عنيف، شدّة بنزين خطيرة، سرعة زيادة، تقليب.
+  // التسارع متفلتر (المطبات والرجّات القصيرة مش بتتحسب)، كل حدث بيتحسب مرة واحدة (rising edge)،
+  // وكل نوع له فترة راحة. الفرملة/اللف العادي مفيهمش أي رد فعل.
   _complain(text, hit = 0.12) {
     for (const p of this.onboard) p.mood = Math.max(0.2, (p.mood ?? 1) - hit);
-    if (this._complainCd > 0) return;
-    this._complainCd = 5;
+    this._toastCd = this._toastCd || 0;
+    if (this._toastCd > 0) return;
+    this._toastCd = 2;
     this.hud?.toast(`🗣️ ${text}`, 2.6);
     this.audio?.chatterBurst?.();
   }
 
   _watchDriving(dt, ph) {
-    this._complainCd = Math.max(0, this._complainCd - dt);
-    if (!this.onboard.length) return;
-    const kmh = ph.speed * 3.6;
+    const cd = (this._cd ||= { hit: 0, brake: 0, turn: 0, accel: 0, speed: 0, flip: 0 });
+    for (const k in cd) cd[k] = Math.max(0, cd[k] - dt);
+    this._toastCd = Math.max(0, (this._toastCd || 0) - dt);
+    // فلتر ~0.2ث على التسارع
+    const k = 1 - Math.exp(-dt * 5);
+    this._aL = (this._aL ?? 0) + (ph.accelLong - (this._aL ?? 0)) * k;
+    this._aT = (this._aT ?? 0) + (ph.accelLat - (this._aT ?? 0)) * k;
+    if (!this.onboard.length) { this._brakeArmed = true; this._latT = this._accT = this._spdT = 0; return; }
+    const kmh = Math.abs(ph.speed) * 3.6, kind = this.player.kind;
     const pick = (a) => a[Math.floor(this.R() * a.length)];
-    if (ph.lastImpact > 2.5) this._complain(pick(['حاسب يا أسطى! هتموتنا!', 'إيه يا عم الخبطة دي؟!', 'العربية اتخبطت يا جدع!']), 0.25);
-    else if (ph.accelLong < -6.5 && kmh > 15) this._complain(pick(['براحة على الفرامل يا أسطى!', 'إيه الفرملة دي؟ راسي اتخبطت!', 'هدّي يا عم!']), 0.1);
-    else if (Math.abs(ph.accelLat) > 5.2) this._complain(pick(['براحة في اللف يا أسطى!', 'إنت سايق ولا طاير؟', 'هنتقلب كده!']), 0.1);
-    else if (kmh > 95) this._complain(pick(['هدّي السرعة شوية يا أسطى!', 'إحنا مش في سباق!']), 0.06);
-    if (ph.flip?.mode) this._complain('يا نهار أسود! العربية اتقلبت!', 0.5);
+    const ev = (key, cool, hit, lines) => { if (cd[key] > 0) return; cd[key] = cool; this._complain(pick(lines), hit); };
+    // 1) خبطة (الخبطات الخفيفة زي لمس الرصيف مش بتتحسب)
+    if (ph.lastImpact > 2.2 && !this._hitLatch) {
+      this._hitLatch = true;
+      if (ph.lastImpact > 5) ev('hit', 3, 0.3, ['حاسب يا أسطى! هتموتنا!', 'يا ساتر! إيه الخبطة دي؟!', 'العربية اتدشدشت يا جدع!']);
+      else ev('hit', 3, 0.15, ['حاسب يا أسطى!', 'إيه يا عم الخبطة دي؟', 'براحة يا أسطى، خبطنا!']);
+    }
+    if (ph.lastImpact < 0.4) this._hitLatch = false;
+    // 2) فرملة جامدة: قريبة من أقصى فرملة العربية وانت ماشي (الفرملة العادية مش بتتحسب)
+    const hardBrake = { microbus: 5.8, taxi: 8.0, tuktuk: 7.2 }[kind] || 7;
+    if (this._brakeArmed && this._aL < -hardBrake && kmh > 20) { this._brakeArmed = false; ev('brake', 6, 0.1, ['براحة على الفرامل يا أسطى!', 'إيه الفرملة دي؟ راسي اتخبطت!', 'هدّي يا عم!']); }
+    if (this._aL > -2.5) this._brakeArmed = true;
+    // 3) لف عنيف: أكتر من 0.55g لمدة نص ثانية
+    this._latT = Math.abs(this._aT) > 5.4 && kmh > 22 ? (this._latT || 0) + dt : 0;
+    if (this._latT > 0.5) { this._latT = -1.5; ev('turn', 8, 0.08, ['براحة في اللف يا أسطى!', 'إنت سايق ولا طاير؟', 'هنتقلب كده!']); }
+    // 4) شدّة بنزين خطيرة: تسارع قوي ومستمر وانت أصلًا سريع
+    this._accT = this._aL > 3.2 && kmh > 35 ? (this._accT || 0) + dt : 0;
+    if (this._accT > 1.2) { this._accT = -4; ev('accel', 15, 0.05, ['على مهلك يا أسطى، ورانا إيه؟', 'براحة على البنزين!']); }
+    // 5) سرعة زيادة (على حسب العربية)
+    const lim = kind === 'tuktuk' ? 52 : kind === 'microbus' ? 95 : 110;
+    this._spdT = kmh > lim ? (this._spdT || 0) + dt : 0;
+    if (this._spdT > 3) { this._spdT = -10; ev('speed', 20, 0.05, ['هدّي السرعة شوية يا أسطى!', 'إحنا مش في سباق!']); }
+    // 6) العربية اتقلبت
+    if (ph.flip?.mode && !this._flipLatch) { this._flipLatch = true; ev('flip', 10, 0.5, ['يا نهار أسود! العربية اتقلبت!']); }
+    if (!ph.flip?.mode) this._flipLatch = false;
   }
-
 
   // ===== أدوات =====
   _take() { const p = this.pool.pop(); if (p) { p.root.visible = true; this.walkers.push(p); } return p; }
@@ -453,7 +483,7 @@ export class Passengers {
     this.walkers.splice(this.walkers.indexOf(p), 1);
     this.pool.push(p);
     p.state = null;
-    for (const a of p.arms) a.rotation.set(0, 0, a.rotation.z > 0 ? 0.08 : -0.08);
+    p.amp = p.armR = p.armL = 0;
   }
 
   /** نقطة قدام الباب الجرار (عالم) */
@@ -471,7 +501,8 @@ export class Passengers {
     const occ = this.seats.filter((s) => s.pax);
     if (!occ.length) return;
     const g = new GeoBuilder();
-    for (const s of occ) seatedFigure(g, rng(s.pax.seed), new THREE.Matrix4().makeTranslation(s.x, s.y, s.z));
+    // كل راكب: شكل من الأشكال الجاهزة في وضع القعدة، وشه ناحية قدام العربية (-z)
+    for (const s of occ) g.addGeometry(seatedHuman(this.variants, s.pax.seed), new THREE.Matrix4().makeRotationY(Math.PI).setPosition(s.x, s.y - 0.06, s.z + 0.04));
     this.seatedMesh = new THREE.Mesh(g.build(), this.seatedMat);
     this.seatedMesh.castShadow = true;
     this.player.rig.shell.add(this.seatedMesh);
@@ -624,7 +655,7 @@ export class Passengers {
       const d = Math.hypot(p.dest.mx - vx, p.dest.mz - vz);
       if (d < 18) p.near = true;
       else if (p.near && d > 45) {
-        p.mood = Math.max(0.2, (p.mood ?? 1) - 0.3); this._complainCd = 0;
+        p.mood = Math.max(0.2, (p.mood ?? 1) - 0.3); this._toastCd = 0;
         if (this.mode === 'line') { p.missed = true; this._complain(`يا أسطى عدّيت ${p.dest.name}! نزّلني في أي محطة`, 0); }
         else { p.near = false; this._complain(`يا أسطى عدّيت ${p.dest.name}! ارجع`, 0); }
       }
@@ -725,6 +756,7 @@ export class Passengers {
       if ((was === 0 && door.open > 0) || (was === 1 && door.open < 1)) this.audio?.door?.(door.target > 0.5);
     }
 
+    this._drawWalkers();
     // --- "على جنب يا أسطى" قبل موقف حد نازل فيه ---
     for (const p of this.onboard) {
       if (p.warned || !p.dest) continue;
@@ -788,21 +820,31 @@ export class Passengers {
     }
     r.position.set(p.x, groundHeight(p.x, p.z), p.z);
     r.rotation.y = p.heading || 0;
-    const t = p.phase;
-    const [L, R] = p.legs, [aL, aR] = p.arms;
-    if (!L) return;
-    if (mode === 'walk') {
-      const s = Math.sin(t * 7.5) * 0.45;
-      L.rotation.x = s; R.rotation.x = -s; aL.rotation.set(-s * 0.8, 0, -0.08); aR.rotation.set(s * 0.8, 0, 0.08);
-      r.position.y += Math.abs(Math.cos(t * 7.5)) * 0.03;
-      return;
-    }
-    L.rotation.x = 0; R.rotation.x = 0; aL.rotation.set(0, 0, -0.08);
-    if (mode === 'wave') aR.rotation.set(-2.7, 0, 0.35 * Math.sin(t * 7));            // إيده فوق بيلوّح
-    else if (mode === 'hail') aR.rotation.set(-0.95 + 0.12 * Math.sin(t * 3), 0, 0.25); // إيده ناحية الطريق (إشارة الوجهة)
-    else if (mode === 'beckon') aR.rotation.set(-1.45 + 0.35 * Math.sin(t * 6), 0, 0.1);
-    else aR.rotation.set(0, 0, 0.08);
+    // الحركة نفسها في الـ shader: سرعة المشي + رفع الإيد اليمين (بيلوّح/بيشاور/بينادي)
+    p.amp = mode === 'walk' ? Math.min(1.2, (speed || WALK) * 0.75) : 0;
+    p.armL = 0;
+    p.armR = mode === 'wave' ? 1 : mode === 'hail' ? 0.45 + 0.05 * Math.sin(p.phase * 3) : mode === 'beckon' ? 0.75 : 0;
   }
+
+  /** بعد كل الحركة: نكتب الماشيين اللي باينين في الـ InstancedMeshes */
+  _drawWalkers() {
+    const B = this.batch;
+    B.begin();
+    for (const p of this.walkers) {
+      if (!p.root.visible) continue;
+      const r = p.root;
+      B.add(p.variant, r.position.x, r.position.y, r.position.z, r.rotation.y, p.scale, p.phase || 0, p.amp, p.armR, p.armL);
+    }
+    B.flush();
+  }
+}
+
+/** شكل راكب قاعد (من الأشكال الجاهزة، متخزن) */
+const _seated = new Map();
+function seatedHuman(variants, seed) {
+  const k = Math.abs(Math.floor(seed)) % variants.length;
+  if (!_seated.has(variants[k])) _seated.set(variants[k], seatedGeometry(variants[k].geo));
+  return _seated.get(variants[k]);
 }
 
 export { STOP_DEFS };

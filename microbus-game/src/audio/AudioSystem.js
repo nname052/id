@@ -524,7 +524,14 @@ export class AudioSystem {
     const bk = ph.brake * Math.min(1, ph.speed / 8);
     set(tr.rubG.gain, bk * 0.22 * distAtt, 0.06);
     set(tr.hissG.gain, bk * Math.min(1, ph.speed / 15) * 0.03 * distAtt, 0.06);
-    const squeal = ph.brake > 0.25 && ph.speed > 0.3 && ph.speed < 3.5 ? 0.02 + ph.brake * 0.02 : 0;
+    // صفارة الفرامل: مش في كل وقفة — احتمال لكل وقفة (أعلى في الميكروباص القديم)، وقصيرة
+    if (ph.speed > 4.2) this._sqArm = true;
+    if (this._sqArm && ph.brake > 0.3 && ph.speed < 3.0 && ph.speed > 0.3) {
+      this._sqArm = false;
+      this._sqT = Math.random() < (this.engineKind === 'microbus' ? 0.3 : 0.12) ? 0.3 + Math.random() * 0.35 : 0;
+    }
+    this._sqT = Math.max(0, (this._sqT || 0) - dt);
+    const squeal = this._sqT > 0 && ph.brake > 0.2 && ph.speed > 0.2 ? 0.014 + ph.brake * 0.014 : 0;
     set(tr.brakeG.gain, squeal * distAtt, 0.08);
     set(tr.brake.frequency, 2500 + Math.sin(t * 7) * 120 + ph.speed * 60, 0.05);
     if (ph.speed > 2) this._armStop = true;

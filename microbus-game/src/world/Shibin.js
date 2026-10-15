@@ -4,7 +4,7 @@ import { rng, canvas, tex } from '../render/textures.js';
 import { buildOne } from './Buildings.js';
 import { ROADS, SHIBIN, SIDEWALK_W, SIDEWALK_H, onOtherCarriageway, nearestSide } from './RoadNetwork.js';
 import { terrainHeight } from './Route.js';
-import { person } from './Pedestrians.js';
+import { humanVariants, humanStaticMaterial } from './Humans.js';
 
 // حي شبين الكوم: شارع باريس (تجاري)، شارع الجامعة وبوابة جامعة المنوفية والكليات، قصر ثقافة شبين الكوم،
 // محطة القطر بالرصيف والقطر والمزلقان، وبحر شبين بالكورنيش.
@@ -387,12 +387,12 @@ export function buildShibin(world) {
     for (let i = 0; i < 5; i++) spots.push([192 + R() * 16, 486 + R() * 14, Y0, R() * 6]);
     const S1 = byId('S1');
     for (let i = 0; i < 6; i++) { const p = S1.samples[10 + Math.floor(R() * (S1.samples.length - 20))]; const sd = (R() < 0.5 ? -1 : 1) * (p.half + 1.4); spots.push([p.x + p.rx * sd, p.z + p.rz * sd, p.y + 0.18, R() * 6]); }
-    for (const [x, z, y, r] of spots) {
-      const pp = person(R);
-      pp.root.position.set(x, y, z); pp.root.rotation.y = r;
-      pp.arms.forEach((a, i) => { a.rotation.x = i ? -0.15 : 0.1; });
-      ppl.add(pp.root);
-    }
+    // كلهم في Mesh واحد (ناس واقفين شبه حقيقيين)
+    const hv = humanVariants(8, 1955), hg = new GeoBuilder();
+    spots.forEach(([x, z, y, r], i) => { const h = hv[i % hv.length]; hg.addGeometry(h.geo, new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), r), new THREE.Vector3(h.scale, h.scale, h.scale))); });
+    const pm = new THREE.Mesh(hg.build(), humanStaticMaterial());
+    pm.castShadow = true;
+    ppl.add(pm);
     world._addChunk(ppl, 220, 330, 260);
   }
 
