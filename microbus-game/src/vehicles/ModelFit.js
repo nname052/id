@@ -160,10 +160,13 @@ export function tuktukColors(model) {
   float keep = front * top;
   float lum = dot(c, vec3(0.299, 0.587, 0.114));
   vec3 black = vec3(0.012) + lum * 0.025;
-  diffuseColor.rgb = mix(c, black, yellow * (1.0 - keep));
+  // الأصفر اللي فوق: دهان نضيف (من غير صدا الخامة الأصلية) بنفس درجة تابلوه الكابينة
+  vec3 clean = vec3(0.875, 0.46, 0.002) * mix(0.82, 1.04, smoothstep(0.08, 0.5, lum));
+  float warm = max(yellow, smoothstep(0.02, 0.09, c.r - c.b)); // بقع الصدا الغامقة برضه
+  diffuseColor.rgb = mix(mix(c, clean, warm * keep), black, warm * (1.0 - keep));
 }`);
     };
-    mat.customProgramCacheKey = () => 'tuktuk-colors1';
+    mat.customProgramCacheKey = () => 'tuktuk-colors3';
     // دهان عادي مش معدني (المعدني بيعكس السما فيبان رمادي)
     mat.metalnessMap = null; mat.metalness = 0.05; mat.roughness = 0.42; mat.envMapIntensity = 0.6;
     mat.needsUpdate = true;

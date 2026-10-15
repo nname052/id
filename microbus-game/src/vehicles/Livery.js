@@ -3,7 +3,7 @@ import { canvas, tex } from '../render/textures.js';
 
 // شكل الميكروباص:
 // - "shibin" (الافتراضي، من صورة ميكروباص شبين الحقيقي): الجسم تركواز، وزوايا تحت قدام وورا صفرا بحرف مايل،
-//   ولافتة "شبين الكوم" بيضا فوق الزجاج الأمامي.
+//   ولافتة "شبين الكوم" بيضا صغيرة ورا الزجاج الأمامي في ركن الراكب.
 // - الباقي: جسم أبيض بشريطة لون + كتابة "شبين الكوم • داخلي".
 // كله بيترسم في الـ shader بتاع دهان العربية (مش ملزوق)، فبيمشي مع الباب الجرار وبياخد نفس الإضاءة واللمعة.
 
@@ -62,13 +62,15 @@ export function applyLivery(rig, name = 'shibin') {
     uLivEnds: { value: new THREE.Vector2(-D.frontF, -D.rearF) },
   };
   const paints = [];
-  // لافتة "شبين الكوم" فوق الزجاج الأمامي (من جوه، باينة من برا)
+  // لافتة "شبين الكوم" ورا الزجاج الأمامي (من جوه، باينة من برا)
   let sign = null;
   if (D.wsBase && D.wsTop) {
-    const [bf, by] = D.wsBase, [tf, ty] = D.wsTop, t = 0.86;
+    // تحت في ركن الراكب (زي الميكروباصات الحقيقية) — صغيرة ومش بتقفل رؤية السواق من جوه
+    const [bf, by] = D.wsBase, [tf, ty] = D.wsTop, t = 0.15;
     const z = -(bf + (tf - bf) * t) + 0.05, y = by + (ty - by) * t;
-    sign = new THREE.Mesh(new THREE.PlaneGeometry(Math.min(1.0, D.wsHalf * 1.25), 0.2), new THREE.MeshBasicMaterial({ map: signTexture(), side: THREE.DoubleSide, toneMapped: false }));
-    sign.position.set(0, y, z);
+    const w = Math.min(0.62, D.wsHalf * 0.8);
+    sign = new THREE.Mesh(new THREE.PlaneGeometry(w, w * 112 / 512), new THREE.MeshBasicMaterial({ map: signTexture(), side: THREE.DoubleSide, toneMapped: false }));
+    sign.position.set(D.wsHalf - w / 2 - 0.05, y, z);
     // بنلفها تبص لقدام (−z) وبعدين نميلها لورا زي الزجاج بالظبط
     sign.rotation.set(Math.atan2(bf - tf, ty - by), Math.PI, 0);
     sign.renderOrder = 3;

@@ -558,6 +558,8 @@ export class Game {
     this.player.syncVisuals(dt, this.acc / FIXED_DT);
     this.cams.update(dt, input);
     if (this.player.driver) this.player.driver.visible = this.cams.mode !== 0;
+    // إيدين السواق على الجادون بتبان من الكابينة بس (من برا الموديل بتاع السواق هو اللي باين)
+    if (this.player.rig.hands) this.player.rig.hands.visible = this.cams.mode === 0;
     this.crowd.update(dt, this.camera.position, this.player.physics, this.camera.getWorldDirection(this._camDir || (this._camDir = new THREE.Vector3())));
     this.passengers.camPos = this.camera.position;
     if (this.started) this.passengers.update(dt, ph);

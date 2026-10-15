@@ -344,8 +344,8 @@ export class PlayerVehicle {
     if (rig.gauges) {
       const a0 = Math.PI * 0.75, a1 = Math.PI * 2.25;
       const needle = (t) => -(a0 + (a1 - a0) * THREE.MathUtils.clamp(t, 0, 1)) - Math.PI / 2;
-      rig.gauges.speed.pivot.rotation.z = needle((ph.speed * 3.6) / (rig.gauges.fuel ? 180 : 160));
-      rig.gauges.rpm.pivot.rotation.z = needle(ph.rpm / 5000);
+      rig.gauges.speed.pivot.rotation.z = needle((Math.abs(ph.speed) * 3.6) / (rig.gauges.speed.max || 160));
+      rig.gauges.rpm.pivot.rotation.z = needle(ph.rpm / (rig.gauges.rpm.max || 5000));
       if (rig.gauges.fuel) rig.gauges.fuel.pivot.rotation.z = needle(this.fuel ? this.fuel.level / this.fuel.capacity : 0.68);
     }
     // الدواسات

@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { toCreasedNormals } from 'three/addons/utils/BufferGeometryUtils.js';
+import { GeoBuilder } from '../render/GeoBuilder.js';
 import { canvas, tex, makeSeatFabric } from '../render/textures.js';
 
 // =====================================================================
@@ -101,19 +103,40 @@ function drawTaxiCluster(x, W, H, s) {
   if (s.hb) { x.fillStyle = '#ff4a3a'; x.fillText('(P)', cx, cy + H * 0.36); }
 }
 
-function drawTaxiCenter(x, W, H, s) {
-  // شاشة النص: الخريطة (من الميني ماب) + اسم الراكب والمسافة
+/** شاشة الخريطة (التاكسي والميكروباص): الخريطة من الميني ماب + عنوان فوق + سطر تحت بلون العربية */
+export function drawNavScreen(x, W, H, s, accent = '#e8711a', title = 'تاكسي شبين', idle = 'مستني راكب') {
   x.fillStyle = '#0b0d10'; x.fillRect(0, 0, W, H);
   if (s.mapCanvas && s.mapCanvas.width) {
     try { x.drawImage(s.mapCanvas, 0, 0, s.mapCanvas.width, s.mapCanvas.height, 0, 0, W, H - 40); } catch { /* */ }
   }
   x.fillStyle = 'rgba(0,0,0,0.65)'; x.fillRect(0, 0, W, 36);
   x.fillStyle = '#fff'; x.font = 'bold 20px Cairo, Arial'; x.textAlign = 'right'; x.direction = 'rtl'; x.textBaseline = 'middle';
-  x.fillText(s.navTitle || 'تاكسي شبين', W - 12, 19);
-  x.textAlign = 'left'; x.direction = 'ltr'; x.font = '16px Arial'; x.fillStyle = '#cfd6dc'; x.fillText(s.clock || '', 10, 19);
-  x.fillStyle = '#e8711a'; x.fillRect(0, H - 40, W, 40);
+  x.fillText(s.navTitle || title, W - 12, 19);
+  // الساعة بتتحسب هنا بس (الشاشة بتترسم كام مرة في الثانية) مش كل فريم
+  const d = new Date(), hh = String(d.getHours()).padStart(2, '0'), mm = String(d.getMinutes()).padStart(2, '0');
+  x.textAlign = 'left'; x.direction = 'ltr'; x.font = '16px Arial'; x.fillStyle = '#cfd6dc'; x.fillText(`${hh}:${mm}`, 10, 19);
+  x.fillStyle = accent; x.fillRect(0, H - 40, W, 40);
   x.fillStyle = '#fff'; x.font = 'bold 20px Cairo, Arial'; x.textAlign = 'center'; x.direction = 'rtl';
-  x.fillText(s.navLine || 'مستني راكب', W / 2, H - 20);
+  x.fillText(s.navLine || idle, W / 2, H - 20);
+}
+const drawTaxiCenter = (x, W, H, s) => drawNavScreen(x, W, H, s);
+
+/** الشاشة الصغيرة بين عدادين الميكروباص: الفتيس + البنزين + الكيلومترات */
+export function drawVanLCD(x, W, H, s) {
+  x.fillStyle = '#05080a'; x.fillRect(0, 0, W, H);
+  x.textAlign = 'center'; x.textBaseline = 'middle'; x.direction = 'ltr';
+  x.fillStyle = s.gear === 'R' ? '#ff7a4a' : '#e6f3ff';
+  x.font = `bold ${Math.round(H * 0.28)}px Arial`;
+  x.fillText(s.gear === 'D' ? `D${Math.max(1, s.gearN)}` : s.gear, W / 2, H * 0.22);
+  // البنزين: 8 شرط (برتقاني لما يقل)
+  const n = 8, bw = (W - 28) / n, low = s.fuel < 0.15;
+  for (let i = 0; i < n; i++) { x.fillStyle = (i + 0.5) / n <= s.fuel + 0.02 ? (low ? '#ff9a1a' : '#bfe6ff') : 'rgba(191,230,255,0.14)'; x.fillRect(14 + i * bw, H * 0.46, bw - 3, H * 0.1); }
+  x.font = `bold ${Math.round(H * 0.08)}px Arial`; x.fillStyle = low ? '#ff9a1a' : '#7fa6b8';
+  x.fillText('E', 7, H * 0.51); x.fillText('F', W - 7, H * 0.51);
+  x.font = `bold ${Math.round(H * 0.1)}px Arial`; x.fillStyle = '#cfe6f2';
+  x.fillText(`${Math.floor(s.odo)} km`, W / 2, H * 0.72);
+  if (s.hb) { x.fillStyle = '#ff4a3a'; x.fillText('(P)', W / 2, H * 0.88); }
+  else if (low) { x.fillStyle = '#ff9a1a'; x.fillText('⛽ LOW', W / 2, H * 0.88); }
 }
 
 /**
@@ -209,18 +232,241 @@ export function buildTaxiCockpit(rig, { mirrorFace }) {
   }
   // عين السواق
   const eye = new THREE.Object3D(); eye.position.set(-0.36, 1.16, 0.0); g.add(eye);
+  const st = { kmh: 0, gear: 'D', throttle: 0, fuel: 0.6, lights: false, hb: false, mapCanvas: null, navTitle: '', navLine: '' };
   const cockpit = {
     cluster, center,
     update(dt, ph, P) {
-      const st = {
-        kmh: ph.speed * 3.6, gear: ph.gearMode, throttle: ph.throttle, fuel: P.fuel ? P.fuel.level / P.fuel.capacity : 0.6,
-        lights: P.headOn, hb: ph.handbrake > 0.1, mapCanvas: P.navCanvas, navTitle: P.navTitle, navLine: P.navLine,
-        clock: new Date().toTimeString().slice(0, 5),
-      };
+      st.kmh = ph.speed * 3.6; st.gear = ph.gearMode; st.throttle = ph.throttle;
+      st.fuel = P.fuel ? P.fuel.level / P.fuel.capacity : 0.6;
+      st.lights = P.headOn; st.hb = ph.handbrake > 0.1;
+      st.mapCanvas = P.navCanvas; st.navTitle = P.navTitle; st.navLine = P.navLine;
       cluster.update(dt, st);
       center.update(dt, st);
     },
     setNight(on) { cluster.mat.emissiveIntensity = on ? 1.1 : 0.9; center.mat.emissiveIntensity = on ? 0.95 : 0.85; m.button.emissiveIntensity = on ? 0.6 : 0; },
   };
   return { group: g, steering, eye, eyePitch: -0.1, cockpit, mirrors };
+}
+
+// =====================================================================
+//  التوكتوك (صورة 3): تابلوه أصفر مقوّس + عداد مدوّر في النص + مفاتيح + درجين سود
+//  + جادون أزرق بمساكات سودا وذراع فرامل + إيدين السواق ماسكين الجادون (بيلفوا معاه)
+//  المقاسات على موديل التوكتوك (الحيطة اللي قدام من جوه: z ≈ -1.26 في النص و -0.95 على الجناب عند y=1)
+// =====================================================================
+
+/** شكل بيتسحب على العرض: profile(x) بيرجّع نقط [z,y] (مضلع محدّب)، والطرفين مقفولين.
+ *  halfW(z): أقصى عرض عند العمق ده (عشان الطرفين يمشوا مع حيطة الموديل وميطلعوش برا الجسم) */
+function loftX(x0, x1, n, profile, halfW = null) {
+  const pos = [], idx = [];
+  const P = profile(x0).length;
+  for (let i = 0; i <= n; i++) {
+    const x = x0 + (x1 - x0) * (i / n);
+    for (const [z, y] of profile(x)) pos.push(halfW ? Math.sign(x) * Math.min(Math.abs(x), halfW(z)) : x, y, z);
+  }
+  for (let i = 0; i < n; i++) for (let k = 0; k < P; k++) {
+    const a = i * P + k, b = i * P + ((k + 1) % P), c = a + P, d = b + P;
+    idx.push(a, b, c, b, d, c);
+  }
+  // الطرفين (مروحة من أول نقطة)
+  for (const [ring, flip] of [[0, true], [n, false]]) {
+    const o = pos.length / 3;
+    for (let k = 0; k < P; k++) pos.push(pos[(ring * P + k) * 3], pos[(ring * P + k) * 3 + 1], pos[(ring * P + k) * 3 + 2]);
+    for (let k = 1; k < P - 1; k++) idx.push(...(flip ? [o, o + k + 1, o + k] : [o, o + k, o + k + 1]));
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setIndex(idx);
+  const flat = g.toNonIndexed();
+  return toCreasedNormals(flat, 0.7);
+}
+
+function tukDialTexture() {
+  const s = 256, c = canvas(s, s), x = c.getContext('2d');
+  x.fillStyle = '#0a0a0c'; x.fillRect(0, 0, s, s);
+  x.translate(s / 2, s / 2);
+  x.textAlign = 'center'; x.textBaseline = 'middle';
+  const a0 = Math.PI * 0.75, a1 = Math.PI * 2.25;
+  for (let i = 0; i <= 16; i++) {
+    const t = i / 16, a = a0 + (a1 - a0) * t, major = i % 2 === 0, red = i >= 13;
+    x.strokeStyle = red ? '#e43' : '#f2f2f2'; x.lineWidth = major ? 5 : 2.5;
+    x.beginPath(); x.moveTo(Math.cos(a) * 112, Math.sin(a) * 112); x.lineTo(Math.cos(a) * (major ? 92 : 101), Math.sin(a) * (major ? 92 : 101)); x.stroke();
+    if (major) { x.fillStyle = red ? '#e43' : '#f2f2f2'; x.font = 'bold 21px Arial'; x.fillText(String(i * 5), Math.cos(a) * 72, Math.sin(a) * 72); }
+  }
+  x.fillStyle = '#9a9aa0'; x.font = '15px Arial'; x.fillText('km/h', 0, -30);
+  // عداد البنزين الصغير تحت (E ← → F)
+  const fy = 52, f0 = Math.PI * 1.2, f1 = Math.PI * 1.8;
+  x.strokeStyle = '#d8d8d8'; x.lineWidth = 3; x.beginPath(); x.arc(0, fy, 34, f0, f1); x.stroke();
+  x.strokeStyle = '#e43'; x.lineWidth = 5; x.beginPath(); x.arc(0, fy, 34, f0, f0 + 0.12); x.stroke();
+  x.fillStyle = '#e8e8e8'; x.font = 'bold 14px Arial';
+  x.fillText('E', Math.cos(f0) * 46, fy + Math.sin(f0) * 46); x.fillText('F', Math.cos(f1) * 46, fy + Math.sin(f1) * 46);
+  x.font = '13px Arial'; x.fillText('⛽', 0, fy + 10);
+  return tex(c, { repeat: false });
+}
+
+export function buildTuktukCockpit(rig) {
+  const S = rig.shell;
+  const g = new THREE.Group(); g.name = 'tuktuk-cockpit';
+  S.add(g);
+  const M = {
+    yellow: new THREE.MeshStandardMaterial({ color: 0xf0b30a, roughness: 0.36 }),
+    black: new THREE.MeshStandardMaterial({ color: 0x161616, roughness: 0.6 }),
+    hole: new THREE.MeshBasicMaterial({ color: 0x040404 }),
+    chrome: new THREE.MeshStandardMaterial({ color: 0xd9dde0, roughness: 0.18, metalness: 1 }),
+    blue: new THREE.MeshStandardMaterial({ color: 0x1c4fc8, roughness: 0.3, metalness: 0.35 }),
+    grip: new THREE.MeshStandardMaterial({ color: 0x1b1b1b, roughness: 0.88 }),
+    skin: new THREE.MeshStandardMaterial({ color: 0x96603f, roughness: 0.6 }),
+    sleeve: new THREE.MeshStandardMaterial({ color: 0x33404f, roughness: 0.92 }),
+    mark: new THREE.MeshStandardMaterial({ color: 0xe8e8e8, roughness: 0.5, emissive: 0xffffff, emissiveIntensity: 0 }),
+  };
+  const merged = new Map();
+  const K = (mat) => { if (!merged.has(mat)) merged.set(mat, new GeoBuilder()); return merged.get(mat); };
+  // ===== التابلوه: حيطة صفرا مقوّسة قدام السواق (الوش مايل لقدام فوق) =====
+  // جوه "البوز" بتاع الموديل بالظبط: الرف الأسود بتاعه آخره z=-0.895، والبوز مفتوح من الجناب ورا z≈-0.82
+  const zr = (x) => -0.835 - 0.12 * x * x;
+  const zf = (x) => Math.min(-1.23 + 1.1 * x * x + 1.2 * x ** 4, zr(x) - 0.06);
+  // عرض البوز من جوه عند كل عمق (من قياس الموديل)
+  const WZ = [[-1.25, 0.12], [-1.2, 0.19], [-1.1, 0.32], [-1.0, 0.41], [-0.95, 0.44], [-0.9, 0.46], [-0.85, 0.475], [-0.8, 0.48]];
+  const halfW = (z) => {
+    if (z <= WZ[0][0]) return WZ[0][1];
+    for (let i = 1; i < WZ.length; i++) if (z <= WZ[i][0]) { const [z0, w0] = WZ[i - 1], [z1, w1] = WZ[i]; return w0 + (w1 - w0) * (z - z0) / (z1 - z0); }
+    return WZ[WZ.length - 1][1];
+  };
+  const top = 0.99, bot = 0.74, lean = 0.02;
+  const dash = new THREE.Mesh(loftX(-0.47, 0.47, 28, (x) => {
+    const r = zr(x), f = zf(x);
+    return [[f, bot], [f, top], [r - 0.035, top], [r - 0.01, top - 0.008], [r, top - 0.025], [r - lean, bot]];
+  }, (z) => halfW(z) - 0.012), M.yellow);
+  dash.receiveShadow = true; g.add(dash);
+  // نقطة على وش التابلوه (متجهة للسواق) + d لبره
+  const faceM = (x, y, d = 0, ex = new THREE.Matrix4()) => {
+    const z = zr(x) - lean * (top - 0.025 - y) / (top - 0.025 - bot);
+    const ry = Math.atan2(0.24 * x, 1), rx = Math.atan2(lean, top - 0.025 - bot);
+    return M4(x, y, z, rx, ry).multiply(M4(0, 0, d)).multiply(ex);
+  };
+  // درجين سود (يمين وشمال)
+  for (const sx of [-1, 1]) {
+    K(M.black).addGeometry(new RoundedBoxGeometry(0.2, 0.12, 0.024, 2, 0.01), faceM(sx * 0.3, 0.845, 0.004));
+    K(M.hole).addGeometry(new THREE.PlaneGeometry(0.17, 0.092), faceM(sx * 0.3, 0.845, 0.0165));
+  }
+  // مفاتيح: 3 شمال + كونتاكت ومفتاح يمين
+  K(M.black).addGeometry(new RoundedBoxGeometry(0.13, 0.05, 0.014, 2, 0.006), faceM(-0.13, 0.925, 0.002));
+  for (const dx of [-0.04, 0, 0.04]) {
+    K(M.black).addGeometry(new RoundedBoxGeometry(0.024, 0.032, 0.02, 2, 0.006), faceM(-0.13 + dx, 0.925, 0.012, M4(0, 0, 0, 0.18)));
+    K(M.mark).addGeometry(new THREE.BoxGeometry(0.012, 0.004, 0.002), faceM(-0.13 + dx, 0.932, 0.0235));
+  }
+  K(M.black).addGeometry(new RoundedBoxGeometry(0.09, 0.05, 0.014, 2, 0.006), faceM(0.14, 0.925, 0.002));
+  K(M.chrome).addGeometry(new THREE.CylinderGeometry(0.016, 0.016, 0.008, 16).rotateX(Math.PI / 2), faceM(0.12, 0.925, 0.012));
+  K(M.black).addGeometry(new THREE.BoxGeometry(0.006, 0.03, 0.03), faceM(0.12, 0.925, 0.03));
+  K(M.black).addGeometry(new RoundedBoxGeometry(0.024, 0.032, 0.02, 2, 0.006), faceM(0.165, 0.925, 0.012, M4(0, 0, 0, -0.18)));
+
+  // ===== العداد المدوّر في النص (فوق التابلوه، متوجه للسواق) =====
+  const podM = M4(0, 1.075, -0.915, -0.5);
+  K(M.black).addGeometry(new THREE.CylinderGeometry(0.084, 0.07, 0.07, 28).rotateX(Math.PI / 2), podM.clone().multiply(M4(0, 0, -0.037)));
+  K(M.black).addGeometry(new THREE.CylinderGeometry(0.02, 0.03, 0.09, 10), M4(0, 1.0, -0.925));
+  K(M.chrome).addGeometry(new THREE.TorusGeometry(0.076, 0.007, 8, 36), podM.clone().multiply(M4(0, 0, 0.002)));
+  const dialMat = new THREE.MeshStandardMaterial({ map: tukDialTexture(), emissive: 0xffffff, emissiveIntensity: 0, roughness: 0.3 });
+  dialMat.emissiveMap = dialMat.map;
+  const pod = new THREE.Group(); pod.matrixAutoUpdate = true;
+  podM.decompose(pod.position, pod.quaternion, pod.scale);
+  g.add(pod);
+  pod.add(new THREE.Mesh(new THREE.CircleGeometry(0.07, 40), dialMat));
+  const needleMat = new THREE.MeshStandardMaterial({ color: 0xff5a1a, emissive: 0xff3a00, emissiveIntensity: 0.7 });
+  const speedPivot = new THREE.Group(); speedPivot.position.z = 0.004; pod.add(speedPivot);
+  speedPivot.add(new THREE.Mesh(new THREE.BoxGeometry(0.004, 0.058, 0.002).translate(0, 0.024, 0), needleMat));
+  const capM = new THREE.Mesh(new THREE.CircleGeometry(0.008, 14), M.black); capM.position.z = 0.0055; pod.add(capM);
+  const fuelPivot = new THREE.Group(); fuelPivot.position.set(0, -0.07 * 2 * 52 / 256, 0.004); pod.add(fuelPivot);
+  fuelPivot.add(new THREE.Mesh(new THREE.BoxGeometry(0.003, 0.02, 0.002).translate(0, 0.009, 0), needleMat));
+
+  // ===== الجادون (أزرق) بيلف حوالين عمود مايل لورا =====
+  const col = new THREE.Group();
+  col.position.set(0, 1.08, -0.78);
+  col.rotation.x = -Math.PI / 2 + 0.36;          // محور z المحلي = العمود (لفوق ومايل ناحية السواق)
+  g.add(col);
+  const steering = new THREE.Group(); col.add(steering);
+  // في إحداثيات الجادون: x يمين، y لقدام، z لفوق مع العمود
+  const barPts = [[-0.345, -0.1, -0.012], [-0.24, -0.068, 0], [-0.12, -0.016, 0.006], [0, 0, 0.01], [0.12, -0.016, 0.006], [0.24, -0.068, 0], [0.345, -0.1, -0.012]].map((p) => new THREE.Vector3(...p));
+  const S2 = new GeoBuilder(), skin = new GeoBuilder(), sleeve = new GeoBuilder();
+  const blueBar = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(barPts), 40, 0.0115, 8, false), M.blue);
+  blueBar.castShadow = true; steering.add(blueBar);
+  // مساكات + ذراع فرامل + الإيدين
+  const gripAng = Math.atan2(-0.032, 0.105);
+  for (const sx of [-1, 1]) {
+    const gm = M4(sx * 0.288, -0.083, -0.006, 0, 0, sx * gripAng);
+    S2.addGeometry(new THREE.CylinderGeometry(0.02, 0.02, 0.12, 14).rotateZ(Math.PI / 2), gm);
+    S2.addGeometry(new THREE.CylinderGeometry(0.024, 0.024, 0.012, 14).rotateZ(Math.PI / 2), gm.clone().multiply(M4(-sx * 0.062, 0, 0)));
+    addHand(skin, sleeve, gm, sx);
+  }
+  const grips = new THREE.Mesh(S2.build(), M.grip); grips.castShadow = true; steering.add(grips);
+  {
+    const L = new GeoBuilder(), lm = M4(0.288, -0.083, -0.006, 0, 0, gripAng);
+    L.addGeometry(new THREE.BoxGeometry(0.03, 0.02, 0.022), lm.clone().multiply(M4(-0.075, 0.035, 0.004)));
+    L.addGeometry(new RoundedBoxGeometry(0.13, 0.012, 0.016, 2, 0.005), lm.clone().multiply(M4(0.0, 0.05, 0.0, 0, 0, -0.05)));
+    const lever = new THREE.Mesh(L.build(), M.chrome); steering.add(lever);
+  }
+  const hands = new THREE.Group();
+  hands.add(new THREE.Mesh(skin.build(), M.skin), new THREE.Mesh(sleeve.build(), M.sleeve));
+  steering.add(hands);
+  // العمود + الكاب اللي فوقه
+  const colMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.026, 0.26, 12).rotateX(Math.PI / 2).translate(0, 0, -0.13), M.black);
+  col.add(colMesh);
+  const capTop = new THREE.Mesh(new RoundedBoxGeometry(0.075, 0.05, 0.035, 2, 0.012), M.black); capTop.position.z = 0.005; steering.add(capTop);
+
+  for (const [mat, gb] of merged) {
+    if (gb.empty) continue;
+    const m = new THREE.Mesh(gb.build(), mat); m.receiveShadow = true; m.castShadow = mat !== M.hole && mat !== M.mark;
+    g.add(m);
+  }
+  const a0 = Math.PI * 0.75, a1 = Math.PI * 2.25, f0 = Math.PI * 1.2, f1 = Math.PI * 1.8;
+  const cockpit = {
+    update(dt, ph, P) {
+      speedPivot.rotation.z = -(a0 + (a1 - a0) * Math.min(1, Math.abs(ph.speed) * 3.6 / 80)) - Math.PI / 2;
+      const fuel = P.fuel ? P.fuel.level / P.fuel.capacity : 0.6;
+      fuelPivot.rotation.z = -(f0 + (f1 - f0) * Math.max(0, Math.min(1, fuel))) - Math.PI / 2;
+    },
+    setNight(on) { dialMat.emissiveIntensity = on ? 0.5 : 0; M.mark.emissiveIntensity = on ? 0.4 : 0; },
+  };
+  return { group: g, steering, hands, cockpit };
+}
+
+/**
+ * إيد ماسكة مساكة الجادون (شبه حقيقية): 4 صوابع ملفوفة حوالين المساكة + كف فوق ورا + صباع إبهام من تحت + رسغ ودراع بكم
+ * gm: مصفوفة المساكة (محورها x)، sx: 1 يمين / -1 شمال (الإبهام ناحية جوه)
+ */
+function addHand(skin, sleeve, gm, sx) {
+  const rg = 0.021;
+  const T = (x, y, z, rx = 0, ry = 0, rz = 0) => gm.clone().multiply(M4(x, y, z, rx, ry, rz));
+  // تورس حوالين محور x: بنبنيه في xy (محوره z) ونلفّه (z→x)
+  const toX = new THREE.Matrix4().makeBasis(new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1), new THREE.Vector3(1, 0, 0));
+  const arcAround = (r, tube, start, span, x) => {
+    const tg = new THREE.TorusGeometry(r, tube, 6, 12, span).rotateZ(start);
+    return [tg, T(x, 0, 0).multiply(toX)];
+  };
+  const deg = Math.PI / 180;
+  // الصوابع (السبابة ناحية جوه): بتبدأ فوق عند العقل وتلف قدام وتحت لحد ورا تحت
+  const fx = [-0.027, -0.008, 0.01, 0.027].map((v) => v * sx); // السبابة ناحية جوه (ناحية نص الجادون)
+  const tubes = [0.0098, 0.0102, 0.0094, 0.0084];
+  fx.forEach((x, i) => {
+    const [tg, m] = arcAround(rg + tubes[i] * 0.95, tubes[i], -120 * deg, 205 * deg, x);
+    skin.addGeometry(tg, m);
+    skin.addGeometry(new THREE.SphereGeometry(tubes[i] * 1.15, 8, 6), T(x, 0.004, rg + tubes[i] * 1.1)); // عُقلة
+  });
+  // الكف/ضهر الإيد: فوق ورا المساكة
+  skin.addGeometry(new RoundedBoxGeometry(0.088, 0.075, 0.032, 3, 0.014), T(0, -0.026, 0.03, 45 * deg));
+  // الإبهام: من ورا تحت ولافف لقدام تحت ناحية جوه
+  {
+    const [tg, m] = arcAround(rg + 0.011, 0.0105, 175 * deg, 115 * deg, -sx * 0.047);
+    skin.addGeometry(tg, m);
+  }
+  // الرسغ + الدراع (رايح لورا وتحت وبره ناحية الكوع) + الكم
+  const wrist = new THREE.Vector3(0.004 * sx, -0.068, 0.036);
+  const dir = new THREE.Vector3(sx * 0.3, -0.86, -0.42).normalize();
+  const limb = (r0, r1, a, b, gb) => {
+    const len = b - a, cyl = new THREE.CylinderGeometry(r1, r0, len, 12, 1, true);
+    const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+    const c = wrist.clone().addScaledVector(dir, (a + b) / 2);
+    gb.addGeometry(cyl, gm.clone().multiply(new THREE.Matrix4().compose(c, q, new THREE.Vector3(1, 1, 1))));
+  };
+  skin.addGeometry(new THREE.SphereGeometry(0.027, 10, 8).scale(1.15, 1, 0.8), gm.clone().multiply(M4(wrist.x, wrist.y, wrist.z)));
+  limb(0.026, 0.031, 0, 0.09, skin);
+  limb(0.039, 0.044, 0.07, 0.34, sleeve);
 }

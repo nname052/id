@@ -2,12 +2,12 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { GeoBuilder } from '../render/GeoBuilder.js';
 import { vehicleMaterials } from '../render/materials.js';
-import { canvas, tex, makeGauge2, makeSeatFabric } from '../render/textures.js';
+import { canvas, tex, makeSeatFabric } from '../render/textures.js';
 import { buildCar, contactShadow } from './CarModels.js';
 import { buildWheel } from './wheel.js';
 import { fitModelToRig, tuktukColors } from './ModelFit.js';
 import { buildSedan, SEDAN } from './SedanModel.js';
-import { buildTaxiCockpit } from './Cockpits.js';
+import { buildTaxiCockpit, buildTuktukCockpit } from './Cockpits.js';
 
 // عربيات اللاعب التانية (غير الميكروباص): تاكسي وتوكتوك.
 // كل واحدة بترجع "rig" بنفس شكل rig الهاي إس عشان PlayerVehicle والكاميرا والمرايات والركاب يشتغلوا عليها:
@@ -30,18 +30,6 @@ function fakeDoor(center) {
     group: null, open: 0, target: 0, center,
     update(dt) { this.open += Math.sign(this.target - this.open) * Math.min(Math.abs(this.target - this.open), dt * 4); },
   };
-}
-
-function gauge(kind, r, mat0) {
-  const gm = new THREE.MeshStandardMaterial({ map: makeGauge2(kind), emissive: 0xffffff, emissiveIntensity: 0, roughness: 0.35 });
-  gm.emissiveMap = gm.map;
-  const h = new THREE.Group();
-  h.add(new THREE.Mesh(new THREE.CircleGeometry(r, 32), gm));
-  if (mat0) h.add(new THREE.Mesh(new THREE.TorusGeometry(r + 0.004, 0.004, 6, 32), mat0));
-  const pivot = new THREE.Group(); pivot.position.z = 0.004;
-  pivot.add(new THREE.Mesh(new THREE.BoxGeometry(0.004, r * 0.85, 0.002).translate(0, r * 0.38, 0), new THREE.MeshStandardMaterial({ color: 0xff4a10, emissive: 0xff3a00, emissiveIntensity: 0.7 })));
-  h.add(pivot);
-  return { h, g: { pivot, mat: gm } };
 }
 
 /** يمسح المثلثات اللي مركزها بيحقق شرط (geometry مش indexed أو indexed) */
@@ -145,8 +133,8 @@ export function buildTuktukRig(spec, assets = null) {
   // الرفارف القدام فوق العجلة
   add(new THREE.CylinderGeometry(0.26, 0.26, 0.2, 18, 1, true, -Math.PI / 2, Math.PI).rotateZ(Math.PI / 2), black, M4(0, spec.wheelRadius + 0.03, zF));
   // كشاف قدام + غماز
-  add(new THREE.CylinderGeometry(0.1, 0.1, 0.05, 20).rotateX(Math.PI / 2), head, M4(0, 0.86, zF - 0.36));
-  add(new THREE.TorusGeometry(0.105, 0.012, 8, 24), chrome, M4(0, 0.86, zF - 0.37));
+  const headLamp = add(new THREE.CylinderGeometry(0.1, 0.1, 0.05, 20).rotateX(Math.PI / 2), head, M4(0, 0.86, zF - 0.36));
+  const headRing = add(new THREE.TorusGeometry(0.105, 0.012, 8, 24), chrome, M4(0, 0.86, zF - 0.37));
   for (const sx of [-1, 1]) add(new THREE.BoxGeometry(0.08, 0.05, 0.03), new THREE.MeshStandardMaterial({ color: 0xd08010, emissive: 0xff9010, emissiveIntensity: 0.15 }), M4(sx * 0.33, 0.95, zF - 0.33));
   // جوانب واطية (مفتوحة من فوق)
   for (const sx of [-1, 1]) {
@@ -157,7 +145,8 @@ export function buildTuktukRig(spec, assets = null) {
   }
   // الضهر (الموتور + الشنطة) وفوانيس ورا
   add(new RoundedBoxGeometry(1.26, 0.7, 0.32, 3, 0.06), paint, M4(0, 0.68, zR + 0.32));
-  for (const sx of [-1, 1]) add(new THREE.BoxGeometry(0.14, 0.1, 0.02), tail, M4(sx * 0.48, 0.82, zR + 0.49));
+  const tails = [-1, 1].map((sx) => add(new THREE.BoxGeometry(0.14, 0.1, 0.02), tail, M4(sx * 0.48, 0.82, zR + 0.49)));
+  rig.lamps = { head: [[0, 0.86, zF - 0.39]], tail: tails.map((t) => [t.position.x, t.position.y, t.position.z + 0.012]) };
   // عمدان + سقف قماش
   const roofY = 1.7;
   for (const sx of [-1, 1]) {
@@ -180,31 +169,19 @@ export function buildTuktukRig(spec, assets = null) {
   add(new RoundedBoxGeometry(0.5, 0.42, 0.08, 3, 0.03), seatMat, M4(0, 0.97, -0.2, 0.15));
   add(new RoundedBoxGeometry(1.16, 0.12, 0.5, 3, 0.04), seatMat, M4(0, 0.66, 0.42));
   add(new RoundedBoxGeometry(1.16, 0.5, 0.09, 3, 0.04), seatMat, M4(0, 0.97, 0.72, 0.12));
-  // الجادون (handlebar): بيلف حوالين عمود شبه رأسي
-  const col = new THREE.Group();
-  col.position.set(0, 0.95, zF + 0.32);
-  col.rotation.x = -Math.PI / 2 + 0.42;      // محور z المحلي = العمود (لفوق ومايل لورا)
-  S.add(col);
-  const steering = new THREE.Group(); col.add(steering);
-  steering.add(new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.62, 10).rotateZ(Math.PI / 2), chrome));
-  for (const sx of [-1, 1]) { const gr = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.12, 10).rotateZ(Math.PI / 2), black); gr.position.x = sx * 0.3; steering.add(gr); }
-  const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.03, 0.24, 10).rotateX(Math.PI / 2), black); stem.position.z = -0.12; col.add(stem);
-  // عداد صغير في نص الجادون
-  const gauges = {};
-  {
-    const { h, g: gg } = gauge('speed', 0.045, chrome);
-    h.position.set(0, 0.04, 0.03); h.rotation.x = 0.5; steering.add(h); gauges.speed = gg;
-    const { h: h2, g: g2 } = gauge('rpm', 0.025, null);
-    h2.position.set(0.1, 0.03, 0.02); h2.rotation.x = 0.5; steering.add(h2); gauges.rpm = g2;
-  }
-  rig.gauges = gauges;
-  rig.steering = steering;
+  // الكابينة (صورة 3): تابلوه أصفر مقوّس + عداد في النص + جادون أزرق + إيدين السواق
+  const ck = buildTuktukCockpit(rig);
+  rig.steering = ck.steering;
+  rig.hands = ck.hands;
+  rig.cockpit = ck.cockpit;
+  rig.gauges = null;
   // العجل: واحدة قدام (FL) والتانية مخفية، واتنين ورا
   const wm = vehicleMaterials(0xffffff);
   const mk = (x, z, side) => { const w = buildWheel({ radius: spec.wheelRadius, width: 0.12, rimRadius: 0.115, mats: wm, style: 'steel', side }); w.group.position.set(x, spec.wheelRadius, z); rig.root.add(w.group); return w; };
   const fw = mk(0, zF, 1);
-  // شوكة العجلة القدام (بتلف معاها)
-  for (const sx of [-1, 1]) { const fk = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.42, 0.03), chrome); fk.position.set(sx * 0.08, 0.2, 0.02); fk.rotation.x = 0.15; fw.group.add(fk); }
+  // شوكة العجلة القدام (بتلف معاها) — للتوكتوك الإجرائي بس (الموديل فيه رفرف بيغطيها)
+  const fork = [];
+  for (const sx of [-1, 1]) { const fk = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.42, 0.03), chrome); fk.position.set(sx * 0.08, 0.2, 0.02); fk.rotation.x = 0.15; fw.group.add(fk); fork.push(fk); }
   const ghost = { group: new THREE.Group(), spin: new THREE.Group() }; ghost.group.add(ghost.spin); ghost.group.position.set(0, spec.wheelRadius, zF); rig.root.add(ghost.group);
   const t = spec.track / 2;
   const rl = mk(-t, zR, -1), rr = mk(t, zR, 1);
@@ -222,7 +199,7 @@ export function buildTuktukRig(spec, assets = null) {
   }
   // عين السواق
   const eye = new THREE.Object3D(); eye.position.set(0, 1.36, -0.4); S.add(eye);
-  rig.eye = eye; rig.eyePitch = -0.16; rig.eyeBase = eye.position.clone();
+  rig.eye = eye; rig.eyePitch = -0.25; // باصّة لتحت شوية: الجادون والإيدين والعداد باينين زي الصورة rig.eyeBase = eye.position.clone();
   rig.lights = { head, tail, fog: null };
   rig.dims = { HW: 0.66, frontF: -(zF - 0.36), rearF: -(zR + 0.49), roofY: roofY + 0.05 };
   rig.contactShadow = contactShadow(1.5, 2.9);
@@ -234,10 +211,19 @@ export function buildTuktukRig(spec, assets = null) {
   const a = assets?.get('tuktuk_model');
   if (a) {
     const keep = new Set([head, tail]);
-    const procedural = S.children.filter((o) => o.isMesh && !keep.has(o.material) && !mirrorSticks.includes(o));
+    const procedural = S.children.filter((o) => o.isMesh && !keep.has(o.material) && o !== headRing && !mirrorSticks.includes(o));
     if (fitModelToRig(rig, spec, a, { wheelRe: /rin/i })) {
       for (const o of procedural) o.visible = false;
+      for (const o of fork) o.visible = false;
       tuktukColors(rig.model);
+      // الفوانيس على جسم الموديل بالظبط (مش طايرة قدامه/وراه): الكشاف في نص الوش فوق الرفرف، والفوانيس على الضهر
+      // (المقاسات من قياس سطح الموديل: الوش اللي قدام عند z≈-1.30، والضهر عند z≈1.01)
+      headLamp.geometry = new THREE.CylinderGeometry(0.075, 0.075, 0.04, 24).rotateX(Math.PI / 2);
+      headLamp.position.set(0, 0.7, -1.315);
+      headRing.geometry = new THREE.TorusGeometry(0.079, 0.01, 8, 28);
+      headRing.position.set(0, 0.7, -1.335);
+      for (const t of tails) { t.geometry = new THREE.BoxGeometry(0.12, 0.08, 0.02); t.position.set(Math.sign(t.position.x) * 0.36, 0.8, 1.02); }
+      rig.lamps = { head: [[0, 0.7, -1.34]], tail: tails.map((t) => [t.position.x, t.position.y, 1.035]) };
     }
   }
   return rig;

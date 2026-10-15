@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { GeoBuilder } from '../render/GeoBuilder.js';
-import { addCabAccessories } from './CabAccessories.js';
+import { addEyeCharm } from './CabAccessories.js';
+import { DashScreen, drawVanLCD, drawNavScreen } from './Cockpits.js';
 import { tireGeometry } from './wheel.js';
 import { toCreasedNormals, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import { canvas, tex, makeSeatFabric, makeGauge2, makeShiftGate, tileNoise, heightToNormal, rng } from '../render/textures.js';
@@ -326,81 +327,128 @@ function buildHiaceInterior(group, rig, D) {
   box('floor', -IW, floorY - 0.1, z(D.frontF - 0.2), IW, floorY, z(D.rearF + 0.05));
   K('beige').box(-IW, D.roofY - 0.08, z(wtF - 0.05), IW, D.roofY - 0.05, z(D.rearF + 0.08), { skip: 'py' });
 
-  // خامة التابلوه: بلاستيك محبب (normal map) بدل اللون السادة
+  // خامات الكابينة (من صورة كابينة الميكروباص المرجعية): تابلوه رمادي بلونين — فوق غامق وتحت فاتح،
+  // عمود A رمادي تخين، تجاليد أبواب رمادي، ولمسات فضي (حلقات العدادات وأذرع الدركسيون)
   if (!mats.dashGrain) {
     const N = 128, h = tileNoise(N, [16, 32, 64], rng(77), [0.3, 0.4, 0.3]);
     mats.dashGrain = tex(heightToNormal(h, N, N, 1.6), { srgb: false });
     mats.dashGrain.repeat.set(6, 6);
-    mats.dash = new THREE.MeshStandardMaterial({ color: 0x2c2d30, roughness: 0.82, vertexColors: true, normalMap: mats.dashGrain, normalScale: new THREE.Vector2(0.45, 0.45) });
-    mats.pillarTrim = new THREE.MeshStandardMaterial({ color: 0x2a2928, roughness: 0.9, normalMap: mats.dashGrain, normalScale: new THREE.Vector2(0.3, 0.3) });
-    mats.doorCard = new THREE.MeshStandardMaterial({ color: 0x5d5b57, roughness: 0.88, normalMap: mats.dashGrain, normalScale: new THREE.Vector2(0.35, 0.35), vertexColors: true });
+    const grain = (color, roughness, ns, extra = {}) => new THREE.MeshStandardMaterial({ color, roughness, normalMap: mats.dashGrain, normalScale: new THREE.Vector2(ns, ns), ...extra });
+    mats.dash = grain(0x2c2d30, 0.82, 0.45, { vertexColors: true });
+    mats.dashUp = grain(0x4e5054, 0.8, 0.45);
+    mats.dashLow = grain(0x9a9995, 0.74, 0.3);
+    mats.pillarTrim = grain(0x7a7975, 0.88, 0.3);
+    mats.doorCard = grain(0x8b8a86, 0.86, 0.35, { vertexColors: true });
+    mats.silver = new THREE.MeshStandardMaterial({ color: 0x9ba1a7, roughness: 0.36, metalness: 0.85 });
+    mats.knob = new THREE.MeshStandardMaterial({ color: 0x1a1b1d, roughness: 0.45 });
+    mats.lit = new THREE.MeshStandardMaterial({ color: 0x1a1b1d, roughness: 0.5, emissive: 0x3a8cff, emissiveIntensity: 0 });
+    mats.hazard = new THREE.MeshStandardMaterial({ color: 0xc81e1e, roughness: 0.4, emissive: 0xff2a1a, emissiveIntensity: 0.15 });
   }
 
-  // ===== التابلوه =====
-  const sh = new THREE.Shape();
-  sh.moveTo(dashBackF + 0.06, floorY + 0.2);
-  sh.lineTo(dashBackF, dashTop - 0.14);
-  sh.quadraticCurveTo(dashBackF, dashTop, dashBackF + 0.08, dashTop);
-  sh.lineTo(wbF - 0.04, wbY - 0.03);
-  sh.lineTo(wbF - 0.02, floorY + 0.2);
-  sh.lineTo(dashBackF + 0.06, floorY + 0.2);
-  {
-    const g = new THREE.ExtrudeGeometry(sh, { depth: 2 * IW, bevelEnabled: true, bevelSize: 0.012, bevelThickness: 0.012, bevelSegments: 2, curveSegments: 6 });
+  // ===== التابلوه: سطح فوق غامق (حرفه طالع ناحية السواق) + وش تحت رمادي فاتح =====
+  const dashExtrude = (k, pts) => {
+    const sh = new THREE.Shape();
+    pts.forEach(([u, v], i) => (i ? sh.lineTo(u, v) : sh.moveTo(u, v)));
+    sh.closePath();
+    const g = new THREE.ExtrudeGeometry(sh, { depth: 2 * IW, bevelEnabled: true, bevelSize: 0.01, bevelThickness: 0.01, bevelSegments: 2, curveSegments: 6 });
     g.rotateY(Math.PI / 2); g.translate(-IW, 0, 0);
-    K('dash').addGeometry(g);
-  }
-  // غطا العدادات
+    K(k).addGeometry(g);
+  };
+  const lipY = dashTop - 0.12;
+  dashExtrude('dashUp', [[dashBackF + 0.03, lipY], [dashBackF - 0.005, lipY + 0.05], [dashBackF - 0.005, dashTop - 0.03], [dashBackF + 0.02, dashTop - 0.003],
+    [dashBackF + 0.08, dashTop], [wbF - 0.04, wbY - 0.03], [wbF - 0.02, lipY]]);
+  dashExtrude('dashLow', [[dashBackF + 0.075, floorY + 0.2], [dashBackF + 0.03, lipY], [wbF - 0.02, lipY], [wbF - 0.02, floorY + 0.2]]);
+  // نقطة على الوش اللي تحت (مايل: فوق أقرب للسواق)
+  const lowF = (y) => dashBackF + 0.03 + 0.045 * THREE.MathUtils.clamp((lipY - y) / (lipY - floorY - 0.2), 0, 1);
+  const lowTilt = Math.atan2(0.045, lipY - floorY - 0.2);
+
+  // ===== العدادات: عدادين كبار مدورين (لفّات شمال، سرعة يمين) وبينهم شاشة صغيرة، تحت حاجب =====
   const tilt = -0.5;
-  const binF = dashBackF + 0.1, binY = dashTop + 0.03;
-  K('dash').addGeometry(new RoundedBoxGeometry(0.52, 0.17, 0.2, 3, 0.04), M4(DX, binY, z(binF), tilt));
-  const faceY = binY + 0.1 * Math.sin(-tilt) + 0.004, faceZ = z(binF) + 0.1 * Math.cos(tilt) + 0.004;
+  const binF = dashBackF + 0.1, binY = dashTop + 0.035;
+  const binM = M4(DX, binY, z(binF), tilt);
+  K('dashUp').addGeometry(new RoundedBoxGeometry(0.46, 0.18, 0.2, 3, 0.045), binM);
+  K('dashUp').addGeometry(new RoundedBoxGeometry(0.47, 0.024, 0.1, 2, 0.01), binM.clone().multiply(M4(0, 0.088, 0.1)));
+  K('plasticBlack').addGeometry(new RoundedBoxGeometry(0.42, 0.15, 0.004, 2, 0.002), binM.clone().multiply(M4(0, -0.004, 0.1005)));
+  const clusterG = new THREE.Group();
+  clusterG.position.set(DX, binY, z(binF)); clusterG.rotation.x = tilt;
+  group.add(clusterG);
+  const needleMat = new THREE.MeshStandardMaterial({ color: 0xff5a1a, emissive: 0xff3a00, emissiveIntensity: 0.7 });
   const gauges = {};
-  for (const [kind, dx, r] of [['rpm', -0.15, 0.05], ['speed', 0, 0.066], ['fuel', 0.145, 0.042]]) {
+  for (const [kind, dx, r, max] of [['rpm', -0.112, 0.067, 5000], ['speed', 0.112, 0.067, 180]]) {
     const gm = new THREE.MeshStandardMaterial({ map: makeGauge2(kind), emissive: 0xffffff, emissiveIntensity: 0, roughness: 0.35 });
     gm.emissiveMap = gm.map;
     const h = new THREE.Group();
-    h.position.set(DX + dx, faceY, faceZ); h.rotation.x = tilt;
-    h.add(new THREE.Mesh(new THREE.CircleGeometry(r, 32), gm));
-    h.add(new THREE.Mesh(new THREE.TorusGeometry(r + 0.004, 0.004, 6, 32), mats.chrome));
+    h.position.set(dx, -0.004, 0.104);
+    h.add(new THREE.Mesh(new THREE.CircleGeometry(r, 40), gm));
+    h.add(new THREE.Mesh(new THREE.TorusGeometry(r + 0.005, 0.005, 8, 40), mats.silver));
     const pivot = new THREE.Group(); pivot.position.z = 0.004;
-    pivot.add(new THREE.Mesh(new THREE.BoxGeometry(0.004, r * 0.85, 0.002).translate(0, r * 0.38, 0), new THREE.MeshStandardMaterial({ color: 0xff4a10, emissive: 0xff3a00, emissiveIntensity: 0.7 })));
+    pivot.add(new THREE.Mesh(new THREE.BoxGeometry(0.004, r * 0.85, 0.002).translate(0, r * 0.38, 0), needleMat));
     h.add(pivot);
-    group.add(h);
-    gauges[kind] = { pivot, mat: gm };
+    clusterG.add(h);
+    gauges[kind] = { pivot, mat: gm, max };
   }
   rig.gauges = gauges;
-  // شاشة D/N/R
-  {
-    const c = canvas(64, 32), gt = tex(c, { repeat: false });
-    const plane = new THREE.Mesh(new THREE.PlaneGeometry(0.045, 0.022), new THREE.MeshBasicMaterial({ map: gt }));
-    const h = new THREE.Group(); h.position.set(DX, faceY - 0.05, faceZ + 0.025); h.rotation.x = tilt; h.add(plane); group.add(h);
-    rig.gearDisplay = { set(mode) { const ctx = c.getContext('2d'); ctx.fillStyle = '#0a1a10'; ctx.fillRect(0, 0, 64, 32); ctx.fillStyle = mode === 'R' ? '#ff6040' : '#70ff90'; ctx.font = 'bold 26px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(mode, 32, 17); gt.needsUpdate = true; } };
-    rig.gearDisplay.set('D');
-  }
-  // كونسول + شاشة + تكييف + زرار انتظار
-  const CF = dashBackF - 0.005;
-  box('dash', -0.06, floorY + 0.25, z(CF + 0.03), 0.30, dashTop - 0.02, z(CF));
-  {
-    const scr = new THREE.Mesh(new THREE.PlaneGeometry(0.18, 0.1), new THREE.MeshStandardMaterial({ color: 0x0b1a2a, emissive: 0x3070c0, emissiveIntensity: 0.35, roughness: 0.15 }));
-    scr.position.set(0.12, dashTop - 0.12, z(CF) + 0.002); group.add(scr); rig.screen = scr.material;
-  }
-  for (const x of [-0.03, 0.27]) for (let i = 0; i < 3; i++) box('plasticBlack', x - 0.025, dashTop - 0.16 + i * 0.03, z(CF - 0.002), x + 0.025, dashTop - 0.145 + i * 0.03, z(CF - 0.008));
-  box('tail', 0.105, dashTop - 0.2, z(CF - 0.002), 0.135, dashTop - 0.18, z(CF - 0.01));
-  for (const x of [0.04, 0.12, 0.2]) K('plasticBlack').addGeometry(new THREE.CylinderGeometry(0.02, 0.02, 0.02, 14).rotateX(Math.PI / 2), M4(x, dashTop - 0.27, z(CF - 0.01)));
-  // الفتيس على التابلوه
-  const gate = new THREE.Mesh(new THREE.PlaneGeometry(0.045, 0.18), new THREE.MeshStandardMaterial({ map: makeShiftGate(), roughness: 0.6 }));
-  gate.position.set(-0.11, dashTop - 0.2, z(CF) + 0.004); gate.rotation.x = -0.2; group.add(gate);
-  const gearBase = new THREE.Group();
-  gearBase.position.set(-0.105, dashTop - 0.2, z(CF) + 0.012);
-  const gearLever = new THREE.Group();
-  gearLever.add(new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.01, 0.13, 8).rotateX(Math.PI / 2).translate(0, 0, 0.065), mats.chrome));
-  const knob = new THREE.Mesh(new THREE.SphereGeometry(0.026, 14, 10).scale(0.9, 1.25, 1), new THREE.MeshStandardMaterial({ color: 0x151515, roughness: 0.35 }));
-  knob.position.set(0, 0.014, 0.14); gearLever.add(knob);
-  gearBase.add(gearLever); group.add(gearBase);
-  rig.gearLever = gearLever;
-  rig.gearGate = { base: gearBase, top: dashTop - 0.2 + 0.08, step: 0.025 };
+  const lcd = new DashScreen(128, 160, drawVanLCD, { fps: 8, emissive: 0.8 });
+  const lcdMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.07, 0.0875), lcd.mat);
+  lcdMesh.position.set(0, -0.004, 0.104); clusterG.add(lcdMesh);
 
-  // ===== الدركسيون (مايل زي الأتوبيس، كابينة فوق الموتور) =====
+  // ===== الكونسول اللي في النص: شاشة خريطة + فتحتين تكييف + زرار الانتظار + 3 مفاتيح تكييف + الفتيس =====
+  const podX = 0.07, podY = dashTop - 0.2, podF = dashBackF + 0.02, podTilt = -0.22;
+  const podM = M4(podX, podY, z(podF), podTilt);
+  const onPod = (x, y, d = 0) => podM.clone().multiply(M4(x, y, 0.07 + d));
+  const pod = new THREE.Group();
+  pod.position.set(podX, podY, z(podF)); pod.rotation.x = podTilt;
+  group.add(pod);
+  K('dashUp').addGeometry(new RoundedBoxGeometry(0.46, 0.36, 0.14, 3, 0.03), podM);
+  K('plasticBlack').addGeometry(new RoundedBoxGeometry(0.25, 0.155, 0.014, 2, 0.006), onPod(0, 0.085, 0.004));
+  const nav = new DashScreen(320, 200, (x, W, H, s) => drawNavScreen(x, W, H, s, '#0d8f86', 'ميكروباص شبين', 'مستني ركاب'), { fps: 5, emissive: 0.8 });
+  const navMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.224, 0.14), nav.mat);
+  navMesh.position.set(0, 0.085, 0.07 + 0.0115); pod.add(navMesh);
+  for (const sx of [-1, 1]) {
+    K('plasticBlack').addGeometry(new RoundedBoxGeometry(0.075, 0.13, 0.012, 2, 0.006), onPod(sx * 0.185, 0.085, 0.003));
+    for (let i = 0; i < 5; i++) K('silver').addGeometry(new THREE.BoxGeometry(0.062, 0.005, 0.006), onPod(sx * 0.185, 0.035 + i * 0.025, 0.01));
+  }
+  K('hazard').addGeometry(new RoundedBoxGeometry(0.05, 0.026, 0.014, 2, 0.006), onPod(0, -0.02, 0.006));
+  for (const sx of [-1, 1]) K('lit').addGeometry(new RoundedBoxGeometry(0.045, 0.022, 0.012, 2, 0.005), onPod(sx * 0.075, -0.02, 0.005));
+  {
+    const knobGeo = new THREE.CylinderGeometry(0.024, 0.026, 0.024, 20).rotateX(Math.PI / 2);
+    const ringGeo = new THREE.TorusGeometry(0.028, 0.003, 6, 24);
+    for (const x of [-0.09, 0.01, 0.11]) { K('knob').addGeometry(knobGeo, onPod(x, -0.095, 0.012)); K('silver').addGeometry(ringGeo, onPod(x, -0.095, 0.002)); }
+  }
+  K('plasticBlack').addGeometry(new THREE.BoxGeometry(0.14, 0.012, 0.006), onPod(0.05, -0.15, 0.002));
+  // الفتيس (أوتوماتيك على الكونسول تحت شمال): لوحة P R N D 3 2 L وذراع بيتحرك عليها
+  const gateH = 0.13, gateY = -0.09, gateX = -0.185;
+  const gate = new THREE.Mesh(new THREE.PlaneGeometry(0.036, gateH), new THREE.MeshStandardMaterial({ map: makeShiftGate(), roughness: 0.6 }));
+  gate.position.set(gateX, gateY, 0.0715); pod.add(gate);
+  const gearBase = new THREE.Group();
+  const gTop = gateY + gateH / 2 - gateH * 26 / 256, gStep = gateH * 33 / 256;
+  gearBase.position.set(gateX + 0.006, gTop - 3 * gStep, 0.078);
+  const gearLever = new THREE.Group();
+  gearLever.add(new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.009, 0.11, 8).rotateX(Math.PI / 2).translate(0, 0, 0.055), mats.chrome));
+  const knob = new THREE.Mesh(new THREE.SphereGeometry(0.024, 14, 10).scale(0.9, 1.25, 1), mats.knob);
+  knob.position.set(0, 0.012, 0.12); gearLever.add(knob);
+  gearBase.add(gearLever); pod.add(gearBase);
+  rig.gearLever = gearLever;
+  rig.gearGate = { base: gearBase, top: gTop, step: gStep };
+
+  // ===== فتحات تكييف مدورة على أطراف التابلوه + مفتاح النور + الدرج =====
+  {
+    const ring = new THREE.TorusGeometry(0.043, 0.008, 8, 28), disc = new THREE.CircleGeometry(0.042, 24), slat = new THREE.BoxGeometry(0.07, 0.006, 0.006);
+    for (const sx of [-1, 1]) {
+      const vm = M4(sx * (IW - 0.1), dashTop - 0.062, z(dashBackF - 0.016));
+      K('silver').addGeometry(ring, vm);
+      K('plasticBlack').addGeometry(disc, vm.clone().multiply(M4(0, 0, -0.004)));
+      for (const dy of [-0.02, 0, 0.02]) K('plasticBlack').addGeometry(slat, vm.clone().multiply(M4(0, dy, 0.002)));
+    }
+    const ly = lipY - 0.12, lm = M4(DX - 0.3, ly, z(lowF(ly)) + 0.008, lowTilt);
+    K('knob').addGeometry(new THREE.CylinderGeometry(0.026, 0.028, 0.02, 18).rotateX(Math.PI / 2), lm);
+    K('silver').addGeometry(new THREE.TorusGeometry(0.03, 0.003, 6, 24), lm);
+    const gy = lipY - 0.13;
+    K('dashLow').addGeometry(new RoundedBoxGeometry(0.42, 0.17, 0.02, 2, 0.008), M4(0.47, gy, z(lowF(gy)) + 0.008, lowTilt));
+    K('plasticBlack').addGeometry(new RoundedBoxGeometry(0.1, 0.02, 0.016, 2, 0.006), M4(0.47, gy + 0.055, z(lowF(gy + 0.055)) + 0.02, lowTilt));
+  }
+
+  // ===== الدركسيون: 4 أذرع فضي (اتنين بالعرض واتنين تحت على شكل V)، مايل زي الفان =====
   const swF = dashBackF - 0.18, swY = dashTop - 0.06;
   const swTilt = new THREE.Group();
   swTilt.position.set(DX, swY, z(swF));
@@ -408,20 +456,39 @@ function buildHiaceInterior(group, rig, D) {
   const steering = new THREE.Group();
   swTilt.add(steering);
   {
-    const swMat = new THREE.MeshStandardMaterial({ color: 0x1b1b1d, roughness: 0.6 });
-    steering.add(new THREE.Mesh(new THREE.TorusGeometry(0.19, 0.018, 12, 48), swMat));
-    const hub = new THREE.Mesh(new RoundedBoxGeometry(0.14, 0.11, 0.06, 4, 0.03), swMat); hub.position.set(0, -0.01, 0.025); steering.add(hub);
-    for (const [x, y, w, h, rz] of [[-0.12, -0.02, 0.09, 0.034, 0.08], [0.12, -0.02, 0.09, 0.034, -0.08], [0, -0.12, 0.04, 0.1, 0]]) {
-      const sp = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.02), swMat); sp.position.set(x, y, 0.012); sp.rotation.z = rz; steering.add(sp);
-    }
-    const mark = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.028, 0.04), new THREE.MeshStandardMaterial({ color: 0xc8a050, roughness: 0.4, metalness: 0.5 }));
-    mark.position.set(0, 0.19, 0); steering.add(mark);
-    const col = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.045, 0.34, 10).rotateX(Math.PI / 2), mats.dash);
+    const swMat = (mats.swLeather ||= new THREE.MeshStandardMaterial({ color: 0x1b1b1d, roughness: 0.55 }));
+    const dark = new GeoBuilder(), sil = new GeoBuilder();
+    dark.addGeometry(new THREE.TorusGeometry(0.19, 0.019, 12, 48));
+    dark.addGeometry(new RoundedBoxGeometry(0.135, 0.115, 0.06, 4, 0.03), M4(0, -0.012, 0.025));
+    sil.addGeometry(new THREE.CylinderGeometry(0.018, 0.018, 0.006, 20).rotateX(Math.PI / 2), M4(0, -0.008, 0.057));
+    sil.addGeometry(new THREE.TorusGeometry(0.03, 0.003, 6, 24), M4(0, -0.008, 0.056));
+    const spoke = new RoundedBoxGeometry(0.11, 0.03, 0.016, 2, 0.006);
+    for (const a of [-0.1, Math.PI + 0.1, -Math.PI / 2 + 0.55, -Math.PI / 2 - 0.55]) sil.addGeometry(spoke, M4(Math.cos(a) * 0.125, Math.sin(a) * 0.125 - 0.008, 0.012, 0, 0, a));
+    const rim = new THREE.Mesh(dark.build(), swMat), arms = new THREE.Mesh(sil.build(), mats.silver);
+    rim.castShadow = arms.castShadow = true;
+    steering.add(rim, arms);
+    const col = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.05, 0.34, 12).rotateX(Math.PI / 2), mats.dashUp);
     col.position.z = -0.19; swTilt.add(col);
-    steering.traverse((o) => { o.castShadow = true; });
   }
   group.add(swTilt);
   rig.steering = steering;
+
+  // الشاشات بتتحدّث كام مرة في الثانية بس (مش كل فريم) — من PlayerVehicle.syncVisuals
+  const st = { gear: 'D', gearN: 1, fuel: 0.6, odo: 214370, hb: false, mapCanvas: null, navTitle: '', navLine: '' };
+  rig.cockpit = {
+    lcd, nav,
+    update(dt, ph, P) {
+      st.odo += Math.abs(ph.speed) * dt / 1000;
+      st.gear = ph.gearMode; st.gearN = ph.gear; st.hb = ph.handbrake > 0.1;
+      st.fuel = P.fuel ? P.fuel.level / P.fuel.capacity : 0.6;
+      st.mapCanvas = P.navCanvas; st.navTitle = P.navTitle; st.navLine = P.navLine;
+      lcd.update(dt, st); nav.update(dt, st);
+    },
+    setNight(on) {
+      lcd.mat.emissiveIntensity = on ? 1.0 : 0.8; nav.mat.emissiveIntensity = on ? 0.9 : 0.8;
+      mats.lit.emissiveIntensity = on ? 0.7 : 0; mats.hazard.emissiveIntensity = on ? 0.5 : 0.15;
+    },
+  };
 
   // ===== الدواسات =====
   const pedals = {};
@@ -463,16 +530,7 @@ function buildHiaceInterior(group, rig, D) {
   hb.add(new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.1, 8).rotateX(Math.PI / 2).translate(0, 0, -0.24), mats.dash));
   hb.rotation.x = 0.12; group.add(hb); rig.handbrake = hb;
 
-  // ===== زينة: شرّابة فوق الزجاج + سبحة =====
-  // الشرّابة: رفيعة وفوق خالص عند حرف السقف (كانت عريضة وبتقفل أعلى الرؤية)
-  const fr = new GeoBuilder();
-  fr.setColor([0.55, 0.05, 0.08]);
-  fr.box(-D.wsHalf + 0.02, wtY + 0.005, z(wtF + 0.03), D.wsHalf - 0.02, wtY + 0.025, z(wtF));
-  for (let x = -D.wsHalf + 0.04; x < D.wsHalf - 0.03; x += 0.05) {
-    fr.setColor(Math.round(x * 20) % 3 === 0 ? [0.85, 0.65, 0.15] : [0.6, 0.05, 0.1]);
-    fr.addGeometry(new THREE.CylinderGeometry(0.003, 0.006, 0.022, 5), M4(x, wtY - 0.004, z(wtF + 0.02)));
-  }
-  group.add(new THREE.Mesh(fr.build(), mats.decor));
+  // ===== زينة خفيفة: سبحة + عين زرقا في المراية (التابلوه نضيف زي الصورة المرجعية) =====
   // مراية جوه
   K('plasticBlack').addGeometry(new THREE.CylinderGeometry(0.008, 0.008, 0.08, 6), M4(0, wtY - 0.05, z(wtF - 0.03)));
   {
@@ -494,10 +552,7 @@ function buildHiaceInterior(group, rig, D) {
     sebha.add(new THREE.Mesh(g.build(), mats.decor));
   }
   group.add(sebha); rig.sebha = sebha;
-  // حاجات التابلوه + العين الزرقا
-  const acc = addCabAccessories(group, { DX, IW, dashTop, dashBackF, wbF, wbY, wtF, wtY, floorY, z });
-  rig.hangers = [{ obj: sebha, L: 0.2 }, ...acc.hangers];
-  rig.phoneScreen = acc.phoneScreen;
+  rig.hangers = [{ obj: sebha, L: 0.2 }, addEyeCharm(group, { wtF, wtY, z })];
   // شماسات
   // الشماسات مرفوعة لفوق ناحية السقف (زي ما السواق بيسيبها) عشان متغطيش الرؤية
   for (const sx of [-1, 1]) K('beige').addGeometry(new RoundedBoxGeometry(0.42, 0.016, 0.16, 2, 0.007), M4(sx * IW * 0.5, D.roofY - 0.1, z(wtF - 0.16), 0.05));
@@ -516,7 +571,7 @@ function buildHiaceInterior(group, rig, D) {
     };
     for (const sx of [-1, 1]) {
       const bot = [sx * (D.wsHalf + 0.03), wbY - 0.02, z(wbF + 0.02)], top = [sx * (D.wsHalf - 0.03), wtY - 0.02, z(wtF - 0.02)];
-      beam(bot, top, 0.075, 0.045, mats.pillarTrim, new THREE.Vector3(-sx * 0.025, 0, 0.025));
+      beam(bot, top, 0.11, 0.06, mats.pillarTrim, new THREE.Vector3(-sx * 0.035, 0, 0.03));
     }
     // تجاليد الأبواب الأمامية (شمال = السواق، يمين = الراكب)
     const sill = wbY - 0.12, dz0 = z(dashBackF + 0.02), dz1 = z(seatF - 0.38);
