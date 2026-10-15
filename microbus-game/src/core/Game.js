@@ -640,7 +640,7 @@ export class Game {
       this._visTimer = 0.25;
       this.route.updateVisibility(this.camera.position, this.viewDist || (this.mobile ? 380 : 560));
       // الحلبة بعيدة (غرب البلد): بتترسم بس لما تقرب منها
-      { const c = this.camera.position; this.raceTrack.group.visible = Math.hypot(c.x + 410, c.z - 65) < 300 + (this.viewDist || 400); }
+      { const c = this.camera.position; this.raceTrack.group.visible = Math.hypot(c.x + 410, c.z - 65) < 250 + (this.viewDist || 400) * 0.5; }
       this.player.surface = surfaceAt(ph.x, ph.z);
       // اسم المنطقة لما تدخلها
       // على طريق فرعي: اسمه، غير كده اسم المنطقة على الطريق الرئيسي

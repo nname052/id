@@ -175,8 +175,8 @@ export class Police {
       const dx = ph.x - c.q.x, dz = ph.z - c.q.z, d = Math.hypot(dx, dz);
       // التفعيل: لما تقرب (مرة لكل قربة)، ولو مش شغال يتخفي ومايترسمش خالص
       if (c.state === 'idle') {
-        if (d < 260 && !c.rolled && c.cool <= 0) { c.rolled = true; c.on = Math.random() < CHANCE; c.root.visible = c.on; }
-        if (d > 320) { c.rolled = false; if (!this.active || this.active !== c) c.root.visible = false; }
+        if (d < 170 && !c.rolled && c.cool <= 0) { c.rolled = true; c.on = Math.random() < CHANCE; c.root.visible = c.on; }
+        if (d > 230) { c.rolled = false; if (!this.active || this.active !== c) c.root.visible = false; }
       }
       if (c.state === 'done' && d > 120) c.state = 'idle';
       if (!c.root.visible) continue;
