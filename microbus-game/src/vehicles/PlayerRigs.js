@@ -117,7 +117,7 @@ export function buildTaxiRig(spec, assets = null) {
   rig.gauges = null;
   rig.dims = { HW: SEDAN.halfWidth, frontF: -(SEDAN.zFront + shift), rearF: -(SEDAN.zRear + shift), roofY: SEDAN.roof };
   // الركاب: جنب السواق + 3 ورا (الكراسي في الكابينة)
-  rig.paxSeats = [{ x: 0.37, y: 0.52, z: -0.05 + shift }, ...[-0.42, 0, 0.42].map((x) => ({ x, y: 0.52, z: 0.86 + shift }))];
+  rig.paxSeats = [{ x: 0.37, y: 0.38, z: -0.05 + shift }, ...[-0.4, 0, 0.4].map((x) => ({ x, y: 0.38, z: 0.86 + shift }))]; rig.paxScale = 0.9; // على قد الكراسي الواطية (السقف واطي)
   rig.slidingDoor = fakeDoor(new THREE.Vector3(SEDAN.halfWidth, 0.8, 0.45 + shift));
   rig.kind = 'taxi';
   rig.root.traverse((o) => { if (o.isMesh && o.userData.role !== 'glass' && o.userData.role !== 'shadow' && !o.material?.transparent) o.castShadow = true; });

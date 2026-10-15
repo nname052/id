@@ -502,7 +502,8 @@ export class Passengers {
     if (!occ.length) return;
     const g = new GeoBuilder();
     // كل راكب: شكل من الأشكال الجاهزة في وضع القعدة، وشه ناحية قدام العربية (-z)
-    for (const s of occ) g.addGeometry(seatedHuman(this.variants, s.pax.seed), new THREE.Matrix4().makeRotationY(Math.PI).setPosition(s.x, s.y - 0.06, s.z + 0.04));
+    const k = this.player.rig.paxScale || 1; // (التاكسي سقفه واطي: الركاب أصغر شوية عشان الراس ماتطلعش من السقف)
+    for (const s of occ) g.addGeometry(seatedHuman(this.variants, s.pax.seed), new THREE.Matrix4().makeRotationY(Math.PI).scale(new THREE.Vector3(k, k, k)).setPosition(s.x, s.y - 0.06, s.z + 0.04));
     this.seatedMesh = new THREE.Mesh(g.build(), this.seatedMat);
     this.seatedMesh.castShadow = true;
     this.player.rig.shell.add(this.seatedMesh);
