@@ -79,8 +79,17 @@ function buildLanes() {
   // 4) الموقف: ناس رايحة جاية على طرف الموقف
   {
     const pts = [];
+    // الموقف زحمة: تحت المظلة، وبين الدكك، وعلى طول السور القبلي والبحري (مكان الناس اللي مستنية العربيات)
     for (let z = TERMINAL.z0 + 2; z <= TERMINAL.z1 - 2; z += STEP) pts.push(pt(TERMINAL.x1 - 1, z, -1, 0, 0.2, 2.6));
-    add(pts, 0.2, 2.6, 2.2);
+    add(pts, 0.2, 2.6, 3);
+    const p2 = [];
+    for (let z = TERMINAL.z0 + 2; z <= TERMINAL.z1 - 2; z += STEP) p2.push(pt(TERMINAL.x1 - 8.2, z, 1, 0, 0.2, 2.2));
+    add(p2, 0.2, 2.2, 3);
+    for (const [zz, nz] of [[TERMINAL.z0 + 0.4, 1], [TERMINAL.z1 - 0.4, -1]]) {
+      const p3 = [];
+      for (let x = TERMINAL.x1 - 2; x >= TERMINAL.x0 + 8; x -= STEP) p3.push(pt(x, zz, 0, nz, 0.3, 1.8));
+      add(p3, 0.3, 1.8, 2.4);
+    }
   }
   return lanes;
 }

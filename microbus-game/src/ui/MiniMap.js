@@ -1,5 +1,6 @@
 import { LOOP } from '../traffic/TrafficSystem.js';
 import { ROADS } from '../world/RoadNetwork.js';
+import { RACE } from '../world/RaceTrack.js';
 import { ROAD, CROSSINGS } from '../world/layout.js';
 import { TERMINAL } from '../world/Shibin.js';
 import { SHIBIN } from '../world/RoadNetwork.js';
@@ -42,6 +43,7 @@ export class MiniMap {
     const grow = (x, z) => { x0 = Math.min(x0, x); x1 = Math.max(x1, x); z0 = Math.min(z0, z); z1 = Math.max(z1, z); };
     for (const p of LOOP.samples) grow(p.x, p.z);
     for (const r of ROADS) for (const p of r.samples) grow(p.x, p.z);
+    for (const p of RACE.samples) grow(p.x, p.z);
     x0 -= 60; x1 += 60; z0 -= 60; z1 += 60;
     this.b = { x0, z0, w: x1 - x0, h: z1 - z0 };
     const c = (this.base = document.createElement('canvas'));
@@ -72,6 +74,8 @@ export class MiniMap {
     for (const cr of CROSSINGS) line([{ x: cr.xMin, z: cr.z }, { x: cr.xMax, z: cr.z }], cr.half * 2, '#ffffff');
     for (const r of ROADS) line(r.samples, r.half * 2 + 1, r.surface === 'dirt' ? '#e2c48a' : '#ffffff');
     line(LOOP.samples, 22, '#ffd34d');
+    // حلبة السباق: أسفلت غامق بحواف حمرا + خط البداية
+    { const loop = [...RACE.samples, RACE.samples[0]]; line(loop, 26, '#b91c1c'); line(loop, 16, '#4b5563'); }
     // الموقف
     x.fillStyle = '#ff9f43'; x.strokeStyle = '#5b5348'; x.lineWidth = 3;
     const [ta, tb] = P(TERMINAL.x0, TERMINAL.z0); x.fillRect(ta, tb, (TERMINAL.x1 - TERMINAL.x0) * PX, (TERMINAL.z1 - TERMINAL.z0) * PX); x.strokeRect(ta, tb, (TERMINAL.x1 - TERMINAL.x0) * PX, (TERMINAL.z1 - TERMINAL.z0) * PX);
@@ -96,6 +100,7 @@ export class MiniMap {
     lbl('وسط البلد', 0, ROAD.zMax - 60, 18);
     lbl('شبين الكوم', 220, 380, 18);
     lbl('🚐 موقف الميكروباص', (TERMINAL.x0 + TERMINAL.x1) / 2, TERMINAL.z1 + 16, 15);
+    lbl('🏁 حلبة السباق', -410, 70, 16);
     lbl('⛽ بنزينة الترعة', (STATION.pad.x0 + STATION.pad.x1) / 2, STATION.pad.z1 + 14, 14);
   }
 
@@ -160,7 +165,8 @@ export class MiniMap {
       if (next && (big || dash)) text(next.name, next.x, next.z, '#1f2937');
     }
     // طريق الـ GPS (من مكانك لحد الهدف)
-    if (nav?.route) {
+    // بيظهر بس وإنت محمّل ركاب (أو الكمين/البنزين محتاجينك تروح مكان) — وإنت فاضي الخريطة نضيفة
+    if (nav?.route && (P?.onboard?.length || this.game.hud?.navOverride)) {
       const from = Math.max(0, nav._track?.i ?? 0);
       path(nav.route.pts, from, 8, '#ffffff', 0.95);
       path(nav.route.pts, from, 4.6, '#2b7cff', 1);

@@ -258,7 +258,7 @@ export function humanStaticMaterial() {
 }
 
 /** وضع القعدة: بيلف الأطراف على الـ CPU مرة واحدة (فخد لقدام، ركبة لتحت، إيدين لقدام) */
-export function seatedGeometry(geo, { hands = 'lap' } = {}) {
+export function seatedGeometry(geo, { hands = 'lap', knee = -1.55 } = {}) {
   const g = geo.clone();
   const p = g.attributes.position, n = g.attributes.normal, b = g.attributes.aBone;
   const v = new THREE.Vector3(), w = new THREE.Vector3();
@@ -269,8 +269,8 @@ export function seatedGeometry(geo, { hands = 'lap' } = {}) {
     v.fromBufferAttribute(p, i); w.fromBufferAttribute(n, i);
     if (bone >= 1 && bone <= 4) {
       const side = bone <= 2 ? -1 : 1;
-      const hip = new THREE.Vector3(side * J.hipX, J.hipY, 0), knee = new THREE.Vector3(side * J.hipX, J.kneeY, 0);
-      if (bone === 2 || bone === 4) { rotX(v, knee, -1.55); rotXN(w, -1.55); }
+      const hip = new THREE.Vector3(side * J.hipX, J.hipY, 0), kneeP = new THREE.Vector3(side * J.hipX, J.kneeY, 0);
+      if (bone === 2 || bone === 4) { rotX(v, kneeP, knee); rotXN(w, knee); }
       rotX(v, hip, 1.5); rotXN(w, 1.5);
     } else if (bone === 9) {
       // الجلابية وهو قاعد: النص اللي تحت بيتطبّق قدام على الرجلين

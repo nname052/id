@@ -23,17 +23,19 @@ export const TAXI_SPEC_BASE = {
 
 // توكتوك (باجاج 200 سي سي، 3 عجلات)
 export const TUKTUK_SPEC_BASE = {
-  mass: 430, inertiaYaw: 280, inertiaPitch: 300, inertiaRoll: 95, cgHeight: 0.62,
-  wheelBase: 2.0, cgToFront: 1.32, track: 1.0, trackFront: 0.06, wheelRadius: 0.22, // نفس مقاس موديل التوكتوك الحقيقي
+  mass: 430, inertiaYaw: 280, inertiaPitch: 300, inertiaRoll: 110, cgHeight: 0.52,
+  wheelBase: 2.0, cgToFront: 1.32, track: 1.14, trackFront: 0.06, wheelRadius: 0.22, // نفس مقاس موديل التوكتوك الحقيقي (أعرض شوية)
+  // توجيه خفيف وهادي: الجادون بيتابع صباعك أبطأ، وزاوية العجلة بتقل بسرعة مع السرعة (عشان مايتقلبش)
+  steerFollow: 11, steerRate: 7, steerFade: 0.013, steerMin: 0.2,
   springK: 9500, damperBump: 750, damperRebound: 1000, maxCompression: 0.09,
-  tireMu: 0.92, tireB: 7, tireC: 1.4, rearLatGrip: 1.0, slideMu: 0.7, rollingResistance: 0.02,
+  tireMu: 0.84, tireB: 7, tireC: 1.4, rearLatGrip: 1.0, slideMu: 0.64, rollingResistance: 0.02,
   dragCoef: 0.5, brakeForce: 2900, brakeBiasFront: 0.45, handbrakeForce: 1500,
   maxSteer: 0.72, steeringRatio: 1.35, // جادون (handlebar) مش دركسيون: ±56 درجة
   gears: [3.1, 1.95, 1.35, 0.98], reverseRatio: 3.2, finalDrive: 10.5, drivetrainEff: 0.85,
   idleRpm: 1450, maxRpm: 7800, shiftTime: 0.25, shift: [3600, 7100, 2600],
   torqueCurve: [[1300, 11], [3000, 16.5], [5000, 19.5], [6500, 18.5], [7800, 13]],
-  halfWidth: 0.68, halfLength: 1.35, boxOffset: -0.12, roofHeight: 1.72,
-  antiRollK: 2600, antiRollC: 260,
+  halfWidth: 0.76, halfLength: 1.35, boxOffset: -0.12, roofHeight: 1.72,
+  antiRollK: 3600, antiRollC: 650,
 };
 
 export const MICROBUS_SPEC = {
@@ -181,7 +183,7 @@ export class VehiclePhysics {
       const target = clamp(input.wheelAngle || 0, -maxWheel, maxWheel);
       const prev = this.wheelAngle;
       // متابعة شبه لحظية (ناعمة جدًا عشان مفيش رعشة)
-      this.wheelAngle += (target - this.wheelAngle) * Math.min(1, dt * 30);
+      this.wheelAngle += (target - this.wheelAngle) * Math.min(1, dt * (s.steerFollow ?? 30));
       this.wheelVel = (this.wheelAngle - prev) / dt;
     } else if (input.analog && Math.abs(input.steer || 0) > 0.01) {
       const target = clamp(input.steer, -1, 1) * maxWheel;
@@ -213,9 +215,10 @@ export class VehiclePhysics {
     }
     this.wheelAngle = clamp(this.wheelAngle, -maxWheel, maxWheel);
     // حساسية التوجيه بتقل مع السرعة (Variable ratio) لمنع الحركات العصبية
-    const sens = Math.max(0.3, 1 / (1 + 0.0022 * u * u));
+    // (التوكتوك: بتقل أسرع بكتير — عجلة واحدة قدام ومركز ثقل عالي، لفة جامدة في السرعة = انقلاب)
+    const sens = Math.max(s.steerMin ?? 0.3, 1 / (1 + (s.steerFade ?? 0.0022) * u * u));
     const target = (this.wheelAngle / s.steeringRatio) * sens;
-    this.steerAngle += (target - this.steerAngle) * Math.min(1, dt * 18);
+    this.steerAngle += (target - this.steerAngle) * Math.min(1, dt * (s.steerRate ?? 18));
     this.steer = this.wheelAngle / maxWheel;
     this.steerSmooth = this.steer;
   }
@@ -467,6 +470,11 @@ export class VehiclePhysics {
     const g0 = gh(wx, wz);
     const gA = gh(wx + hx * R * 0.92, wz + hz * R * 0.92), gB = gh(wx - hx * R * 0.92, wz - hz * R * 0.92);
     let need = g0 + R, bestD = 0;
+    // عرض الكاوتش: لو حرف الرصيف تحت جنب الكاوتش (داخل عليه بالجنب أو مايل) العجلة بتطلع من ساعتها،
+    // مش لما نص العجلة يبقى جوه الرصيف
+    const tw = 0.11, rxw = Math.cos(ang), rzw = -Math.sin(ang);
+    const gL = gh(wx - rxw * tw, wz - rzw * tw), gR = gh(wx + rxw * tw, wz + rzw * tw);
+    if (gL > g0 + 0.02 || gR > g0 + 0.02) need = Math.max(need, Math.max(gL, gR) + R);
     if (Math.abs(gA - g0) > 0.02 || Math.abs(gB - g0) > 0.02) {
       for (let k = -12; k <= 12; k++) {
         if (!k) continue;

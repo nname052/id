@@ -257,7 +257,7 @@ export class AudioSystem {
 
   _buildAmbience() {
     const a = (this.amb = {});
-    a.g = this._gain(0.5);
+    a.g = this._gain(0); // دوشة الشارع مقفولة
     a.g.connect(this.outside);
     if (this.buffers.ambience) {
       this._loop(this.buffers.ambience).connect(a.g);
@@ -328,6 +328,26 @@ export class AudioSystem {
       o.connect(lp).connect(g).connect(p).connect(this.outside);
       this.voices.push({ p, g, o, lp });
     }
+  }
+
+  /** سارينة الشرطة (Spatial): بتعلى وتوطى (wail) — بتتبني أول مرة تتطلب بس */
+  _buildSiren() {
+    const ctx = this.ctx, S = (this.sirenN = {});
+    S.p = ctx.createPanner(); S.p.panningModel = 'HRTF'; S.p.distanceModel = 'inverse'; S.p.refDistance = 8; S.p.rolloffFactor = 1.1;
+    S.o = this._osc('sawtooth', 700); S.o2 = this._osc('square', 702);
+    S.lfo = this._osc('sine', 0.32); const depth = this._gain(330); S.lfo.connect(depth); depth.connect(S.o.frequency); depth.connect(S.o2.frequency);
+    S.g = this._gain(0);
+    const bp = this._filter('bandpass', 1100, 0.9);
+    S.o.connect(bp); S.o2.connect(this._gain(0.4)).connect(bp);
+    bp.connect(S.g).connect(S.p).connect(this.outside);
+  }
+  siren(on) { this._sirenOn = !!on; if (!on && this.sirenN) this.sirenN.g.gain.setTargetAtTime(0, this.ctx.currentTime, 0.3); }
+  sirenAt(x, y, z, on) {
+    if (!this.started || !this.ctx) return;
+    if (!this.sirenN) { if (!on) return; this._buildSiren(); }
+    const S = this.sirenN, t = this.ctx.currentTime;
+    S.p.positionX.value = x; S.p.positionY.value = y; S.p.positionZ.value = z;
+    S.g.gain.setTargetAtTime(on && this._sirenOn && !this.muted ? 0.16 : 0, t, 0.15);
   }
 
   /** كلاكس عربية AI (Spatial) */
@@ -567,22 +587,9 @@ export class AudioSystem {
         set(v.g.gain, 0.12 + Math.max(0, c.acc) * 0.05);
       });
     }
-    // الناس: همهمة على قد الزحمة + نداءات متفرقة من حد قريب
-    const busy = crowd ? Math.min(1, crowd.nearby(camera.position.x, camera.position.z, 45) / 22) : 0;
-    set(this.amb.crowd.gain, busy * 0.16, 0.6);
-    set(this.amb.crowdLfo.frequency, 1.3 + Math.sin(t * 0.21) * 0.6, 0.4);
-    this.nextVoice -= dt;
-    if (crowd && this.nextVoice <= 0) {
-      this.nextVoice = busy > 0.1 ? (0.7 + Math.random() * 2.6) / (0.4 + busy) : 3;
-      const who = crowd.randomNear(camera.position.x, camera.position.z, 40);
-      if (who) this.voice(who.x, who.y + 1.6, who.z, 0.6 + Math.random() * 0.6);
-    }
-    // كلاكسات بعيدة (روح الشارع المصري) — أكتر في الزحمة
-    this.nextDistantHonk -= dt;
-    if (this.nextDistantHonk <= 0) {
-      this.nextDistantHonk = (2.5 + Math.random() * 7) * (1 - busy * 0.6);
-      const a = Math.random() * Math.PI * 2, r = 40 + Math.random() * 80;
-      this.honk(camera.position.x + Math.cos(a) * r, 2, camera.position.z + Math.sin(a) * r, 0.8 + Math.random() * 0.5, true);
-    }
+    // دوشة الشارع (همهمة الناس، النداءات اللي كانت بتبان زي التصفير، والكلاكسات البعيدة): مقفولة بناءً على طلب اللاعب.
+    // (الكود فاضل في voice()/honk() لو حبينا نرجّعها بإعداد)
+    set(this.amb.crowd.gain, 0, 0.6);
+    void crowd;
   }
 }

@@ -23,6 +23,8 @@ export const MODEL_ASSETS = {
   // عربيات المرور (اختياري: أي واحد تحطه هيتستخدم بدل الإجرائي)
   car_sedan: { file: 'car_sedan.glb', targetLength: 4.45, rotationY: 180 },
   car_old: { file: 'car_old.glb', targetLength: 4.0, rotationY: 180 },
+  // التاكسي الأبيض (BYD Seal) — عربية اللاعب
+  car_taxi: { file: 'car_taxi.glb', targetLength: 4.6, rotationY: 180, paint: 0xf4f4f0 },
   // التوكتوك (Sketchfab) → بيتركب على ريج التوكتوك بتاع اللاعب
   tuktuk_model: { file: 'tuktuk.glb', targetLength: 2.65, rotationY: 180 },
   // شخص حقيقي (سكان ثابت) للناس الواقفة على الرصيف

@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { Buckets, GeoBuilder } from '../render/GeoBuilder.js';
-import { rng, canvas, tex, tileNoise } from '../render/textures.js';
-import { ROUTE, sampleAt, terrainHeight, nearestRoute, RIVER, CANAL_OFFSET, ROUTE_BUMPS, UTURNS, inUturn, fbm, nearJunction, terrainRaw } from './Route.js';
+import { rng, canvas, tex, tileNoise , fitFont } from '../render/textures.js';
+import { ROUTE, sampleAt, terrainHeight, nearestRoute, RIVER, CANAL_OFFSET, ROUTE_BUMPS, UTURNS, inUturn, fbm, nearJunction, terrainRaw, URBAN_ZONES, SIDEWALK_H } from './Route.js';
+import { stripeBump, bumpWarnLines, buildBumpSigns } from './Bumps.js';
 import { ROADS } from './RoadNetwork.js';
 import { buildShibin } from './Shibin.js';
 import { buildOne } from './Buildings.js';
@@ -80,7 +81,7 @@ export class RouteWorld {
     for (const [idx, B] of this._chunkB) {
       const g = new THREE.Group();
       B.toMeshes({ ...this.M, winGlass: this.M.glass }, g);
-      g.traverse((o) => { if (o.isMesh && ['asphalt', 'paint', 'paintYellow', 'stain', 'water', 'terrain', 'winGlass', 'clinic', 'lampGlass', 'tunnelLamp', 'curtain'].includes(o.name)) o.castShadow = false; });
+      g.traverse((o) => { if (o.isMesh && ['asphalt', 'paint', 'paintYellow', 'bumpYellow', 'bumpBlack', 'bumpWhite', 'stain', 'water', 'terrain', 'winGlass', 'clinic', 'lampGlass', 'tunnelLamp', 'curtain'].includes(o.name)) o.castShadow = false; });
       const q = sampleAt(Math.min(ROUTE.length, idx * CHUNK + CHUNK / 2));
       this._addChunk(g, q.x, q.z, CHUNK * 0.8 + 60);
     }
@@ -181,6 +182,7 @@ export class RouteWorld {
       }
     }
     // المطبات (نفس بروفايل الفيزياء)
+    const bumpSigns = [];
     for (const b of ROUTE_BUMPS) {
       const B = this._chunk(b.s);
       const a = B.get('asphalt');
@@ -191,9 +193,27 @@ export class RouteWorld {
         const h0 = b.height * 0.5 * (1 + Math.cos((Math.PI * d0) / b.half)) + 0.004, h1 = b.height * 0.5 * (1 + Math.cos((Math.PI * d1) / b.half)) + 0.004;
         a.quad(P(b.s + d0, -HALF, h0), P(b.s + d0, HALF, h0), P(b.s + d1, HALF, h1), P(b.s + d1, -HALF, h1));
       }
-      const pt = B.get('paintYellow');
-      for (let d = -HALF + 0.4; d < HALF - 0.6; d += 1.2) pt.quad(P(b.s - 0.12, d, b.height + 0.01), P(b.s - 0.12, d + 0.6, b.height + 0.01), P(b.s + 0.12, d + 0.6, b.height + 0.01), P(b.s + 0.12, d, b.height + 0.01));
+      // المطب كله شرايط صفرا وسودا + خطين أبيض قبله في كل اتجاه + يافطة "مطب"
+      stripeBump(B, (d, a, h) => P(b.s - d, a, h), b.half, b.height, -HALF + 0.3, HALF - 0.3);
+      bumpWarnLines(B, (d, a, h) => P(b.s - d, a, h), 0.7, HALF - 0.3);
+      bumpWarnLines(B, (d, a, h) => P(b.s + d, a, h), -0.7, -HALF + 0.3);
+      for (const dir of [1, -1]) {
+        const q = sampleAt(b.s - dir * 24, {}), side = dir * (HALF + 1.2);
+        bumpSigns.push({ x: q.x + q.rx * side, y: q.y + (URBAN_ZONES.has(q.zone) ? SIDEWALK_H : 0), z: q.z + q.rz * side, yaw: dir > 0 ? Math.atan2(-q.dx, -q.dz) : Math.atan2(q.dx, q.dz) });
+      }
     }
+    // يافطات أقصى سرعة على الطريق الدائري (كل ~350م في الاتجاهين، على قد المنطقة)
+    for (let s0 = 120; s0 < ROUTE.length - 60; s0 += 350) {
+      for (const dir of [1, -1]) {
+        const q = sampleAt(s0 + (dir < 0 ? 40 : 0), {});
+        if (nearJunction(s0, dir, 12)) continue;
+        const lim = q.zone === 'highway' || q.zone === 'desert' ? 80 : URBAN_ZONES.has(q.zone) ? 40 : 60;
+        if (q.zone === 'bridge' || q.zone === 'tunnel') continue;
+        const side = dir * (HALF + 1.4);
+        bumpSigns.push({ kind: `speed${lim}`, x: q.x + q.rx * side, y: q.y + (URBAN_ZONES.has(q.zone) ? SIDEWALK_H : 0), z: q.z + q.rz * side, yaw: dir > 0 ? Math.atan2(-q.dx, -q.dz) : Math.atan2(q.dx, q.dz) });
+      }
+    }
+    this.group.add(buildBumpSigns(bumpSigns));
     // رقع وبقع على الأسفلت (طرق مش مثالية)
     for (let i = 0; i < 160; i++) {
       const s = R() * ROUTE.length;
@@ -708,7 +728,7 @@ export class RouteWorld {
       ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       lines.forEach(([ar, en, arrow], i) => {
         const x = 1024 - (i + 0.5) * (1024 / lines.length);
-        ctx.font = 'bold 52px "Cairo", sans-serif'; ctx.direction = 'rtl'; ctx.fillText(ar, x, 88);
+        ctx.direction = 'rtl'; fitFont(ctx, ar, 1024 / lines.length - 24, 52); ctx.fillText(ar, x, 88);
         ctx.font = '34px Arial'; ctx.direction = 'ltr'; ctx.fillText(en, x, 150);
         ctx.font = 'bold 60px Arial'; ctx.fillText(arrow, x, 210);
       });
@@ -808,8 +828,8 @@ export class RouteWorld {
     ctx.fillStyle = road.style === 'highway' ? '#11663a' : '#1b4f9c'; ctx.fillRect(0, 0, 512, 160);
     ctx.strokeStyle = '#fff'; ctx.lineWidth = 6; ctx.strokeRect(8, 8, 496, 144);
     ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.direction = 'rtl';
-    ctx.font = 'bold 54px Cairo, sans-serif'; ctx.fillText(road.name, 256, 62);
-    ctx.font = 'bold 34px Cairo, sans-serif'; ctx.fillText(`← ${road.sign}`, 256, 122);
+    fitFont(ctx, road.name, 470, 54); ctx.fillText(road.name, 256, 62);
+    fitFont(ctx, `← ${road.sign}`, 470, 36); ctx.fillText(`← ${road.sign}`, 256, 122);
     const mat = new THREE.MeshStandardMaterial({ map: tex(c, { repeat: false }), roughness: 0.5, side: THREE.DoubleSide });
     const g = new THREE.Group();
     const side = road.half + 1.2;

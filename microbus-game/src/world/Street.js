@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Buckets } from '../render/GeoBuilder.js';
 import { rng } from '../render/textures.js';
 import { ROAD, CROSSINGS, BUMPS, MANHOLES, POTHOLES, mainSegments } from './layout.js';
+import { stripeBump, bumpWarnLines, buildBumpSigns } from './Bumps.js';
 
 // بناء سطح الطريق والأرصفة والخطوط والتفاصيل الصغيرة
 export function buildStreet(M) {
@@ -32,6 +33,7 @@ export function buildStreet(M) {
   }
 
   // ===== المطبات (نفس بروفايل الفيزياء بالظبط) =====
+  const bumpSigns = [];
   for (const b of BUMPS) {
     const n = 10;
     asphalt.setColor([1.08, 1.06, 1.02]);
@@ -43,10 +45,14 @@ export function buildStreet(M) {
       asphalt.quad([b.xMin, h1, z1], [b.xMax, h1, z1], [b.xMax, h0, z0], [b.xMin, h0, z0],
         [[b.xMin / UV, z1 / UV], [b.xMax / UV, z1 / UV], [b.xMax / UV, z0 / UV], [b.xMin / UV, z0 / UV]]);
     }
-    // خطوط دهان على المطب (باهتة)
-    const paint = B.get('paintYellow');
-    for (let x = b.xMin + 0.3; x < b.xMax - 0.6; x += 1.2) {
-      paint.quad([x, b.height + 0.006, b.z + 0.12], [x + 0.6, b.height + 0.006, b.z + 0.12], [x + 0.6, b.height + 0.006, b.z - 0.12], [x, b.height + 0.006, b.z - 0.12]);
+    // المطب كله مدهون شرايط صفرا وسودا + خطين أبيض قبله (ناحية العربيات الجاية)
+    stripeBump(B, (d, a, h) => [a, h, b.z + d], b.half, b.height, b.xMin, b.xMax);
+    for (const dir of [-1, 1]) {
+      // الحارة اللي x>0 العربيات فيها رايحة ناحية -z (جاية من +z)
+      const lo = dir > 0 ? Math.max(b.xMin, 0.7) : Math.max(-ROAD.curb + 0.3, b.xMin), hi = dir > 0 ? Math.min(b.xMax, ROAD.curb - 0.3) : Math.min(b.xMax, -0.7);
+      if (hi - lo < 1) continue;
+      bumpWarnLines(B, (d, a, h) => [a, h, b.z + dir * d], dir > 0 ? lo : hi, dir > 0 ? hi : lo);
+      bumpSigns.push({ x: dir * (ROAD.curb + 0.6), y: ROAD.sidewalkHeight, z: b.z + dir * 24, yaw: dir > 0 ? 0 : Math.PI });
     }
   }
 
@@ -160,7 +166,24 @@ export function buildStreet(M) {
   ground.setColor([0.55, 0.52, 0.48]);
   ground.quad([-100, -0.05, ROAD.zMax], [100, -0.05, ROAD.zMax], [100, -0.05, ROAD.zMin], [-100, -0.05, ROAD.zMin], [[0, 0], [25, 0], [25, 50], [0, 50]]);
 
+  // يافطات وسط البلد: أقصى سرعة 40 وممنوع الانتظار
+  for (const [z, dir, kind] of [[150, 1, 'speed40'], [-20, 1, 'noparking'], [-150, -1, 'speed40'], [40, -1, 'noparking'], [-230, 1, 'speed40'], [110, -1, 'speed40']]) {
+    bumpSigns.push({ kind, x: dir * (ROAD.curb + 0.6), y: ROAD.sidewalkHeight, z, yaw: dir > 0 ? 0 : Math.PI });
+  }
+  // أسهم الحارات قبل الإشارة (أبيض على الأسفلت)
+  {
+    const ar = B.get('bumpWhite'), sig = CROSSINGS.find((c) => c.signal);
+    if (sig) for (const s of [-1, 1]) for (const lane of ROAD.lanes) for (const back of [14, 30]) {
+      const x = s * lane, zc = sig.z + s * (sig.half + 4.4 + back), dz = -s; // اتجاه السير
+      const yy = 0.008, w = 0.16, L = 2.6;
+      const q = (a, b, c, d) => (dz < 0 ? ar.quad(a, b, c, d) : ar.quad(b, a, d, c)); // الوش لفوق في الاتجاهين
+      q([x - w, yy, zc], [x + w, yy, zc], [x + w, yy, zc + dz * L], [x - w, yy, zc + dz * L]);
+      const tip = zc + dz * (L + 1.2), base = zc + dz * L;
+      q([x - 0.55, yy, base], [x + 0.55, yy, base], [x + 0.02, yy, tip], [x - 0.02, yy, tip]);
+    }
+  }
   B.toMeshes(M, group, { castShadow: false });
+  group.add(buildBumpSigns(bumpSigns));
 
   // ===== غطيان البلاعات (Mesh منفصل) =====
   const mhGeo = new THREE.CircleGeometry(1, 24).rotateX(-Math.PI / 2);

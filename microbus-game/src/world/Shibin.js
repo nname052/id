@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { Buckets, GeoBuilder } from '../render/GeoBuilder.js';
-import { rng, canvas, tex } from '../render/textures.js';
+import { rng, canvas, tex, fitFont } from '../render/textures.js';
 import { buildOne } from './Buildings.js';
-import { ROADS, SHIBIN, SIDEWALK_W, SIDEWALK_H, onOtherCarriageway, nearestSide } from './RoadNetwork.js';
+import { ROADS, SHIBIN, SIDEWALK_W, SIDEWALK_H, onOtherCarriageway, nearestSide, DRIVEWAYS, MEDIAN_HALF, MEDIAN_H, onMedian } from './RoadNetwork.js';
 import { terrainHeight } from './Route.js';
 import { humanVariants, humanStaticMaterial } from './Humans.js';
 
@@ -24,8 +24,8 @@ function textPlate(lines, { w = 1024, h = 256, bg = '#11663a', fg = '#ffffff', f
   x.fillStyle = fg; x.textAlign = 'center'; x.textBaseline = 'middle'; x.direction = 'rtl';
   const n = lines.length;
   lines.forEach((t, i) => {
-    const size = i === 0 ? h * (n > 1 ? 0.38 : 0.55) : h * 0.22;
-    x.font = `bold ${size}px "${font}", Cairo, sans-serif`;
+    const size = i === 0 ? h * (n > 1 ? 0.4 : 0.56) : h * 0.24;
+    fitFont(x, t, w - h * 0.3, Math.round(size), font); // الاسم كله جوه اليافطة
     x.fillText(t, w / 2, n > 1 ? (i === 0 ? h * 0.4 : h * 0.76) : h * 0.53);
   });
   return tex(c, { repeat: false });
@@ -90,6 +90,68 @@ export function buildShibin(world) {
         else cu.quad(P(a, d0, 0.03), P(b, d0, 0.03), P(b, d0, top), P(a, d0, top), [[a.s, 0], [b.s, 0], [b.s, 1], [a.s, 1]]);
       }
     }
+  }
+
+  // ===== الجزيرة اللي في نص الشارع (شارع الجامعة وشارع باريس): حرف أبيض وأسود + زرع + نخل =====
+  {
+    const palms = [];
+    for (const road of ROADS) {
+      if (!road.boulevard) continue;
+      const S = road.samples, top = 0.03 + MEDIAN_H;
+      for (let i = 0; i < S.length - 1; i++) {
+        const a = S[i], b = S[i + 1], mx = (a.x + b.x) / 2, mz = (a.z + b.z) / 2;
+        if (!onMedian(road, i, mx, mz) || !onMedian(road, i + 1, b.x, b.z)) continue;
+        const P = (p, d, h) => [p.x + p.rx * d, p.y + h, p.z + p.rz * d];
+        const bk = B(mx, mz);
+        const gr = bk.get('median');
+        gr.setColor([0.3 + R() * 0.05, 0.5 + R() * 0.06, 0.22]);
+        gr.quad(P(a, -MEDIAN_HALF, top), P(a, MEDIAN_HALF, top), P(b, MEDIAN_HALF, top), P(b, -MEDIAN_HALF, top));
+        const cu = bk.get('medianCurb');
+        cu.setColor(i % 2 ? [0.95, 0.95, 0.93] : [0.12, 0.12, 0.13]); // حرف أبيض وأسود
+        cu.quad(P(b, MEDIAN_HALF, 0.03), P(a, MEDIAN_HALF, 0.03), P(a, MEDIAN_HALF, top), P(b, MEDIAN_HALF, top));
+        cu.quad(P(a, -MEDIAN_HALF, 0.03), P(b, -MEDIAN_HALF, 0.03), P(b, -MEDIAN_HALF, top), P(a, -MEDIAN_HALF, top));
+        if (i % 7 === 0) palms.push([a.x, a.y + top, a.z]);
+      }
+    }
+    world._instancedPalms(palms.map(([x, y, z]) => [x, y, z, 0.55 + R() * 0.15]));
+    for (const [x, , z] of palms) box(x, z, 0.2, 0.2, 0, 'pole');
+  }
+
+  // ===== كوبري شارع باريس على بحر شبين: سور حجر بلونين + واجهة الكوبري لحد المية + 4 أعمدة نور =====
+  {
+    const road = byId('S1'), S = road.samples, g = new GeoBuilder(), lamps = [];
+    for (let i = 0; i < S.length - 1; i++) {
+      const a = S[i], b = S[i + 1];
+      if (Math.abs((a.x + b.x) / 2 - C.x) > C.half + 3) continue;
+      const P = (p, d, h) => [p.x + p.rx * d, p.y + h, p.z + p.rz * d];
+      for (const sx of [-1, 1]) {
+        const d = sx * (a.half + SIDEWALK_W), top = 0.03 + SIDEWALK_H;
+        const din = d - sx * 0.35;
+        // السور
+        g.setColor([0.86, 0.83, 0.76]);
+        const q = [P(a, din, top), P(a, d, top), P(b, d, top), P(b, din, top)];
+        g.quad(...(sx > 0 ? q : [q[1], q[0], q[3], q[2]]).map((v) => [v[0], v[1] + 1.05, v[2]]));
+        for (const dd of [din, d]) {
+          const f = [P(a, dd, top), P(b, dd, top), P(b, dd, top + 1.05), P(a, dd, top + 1.05)];
+          g.quad(...((dd === din) === (sx > 0) ? f : [f[1], f[0], f[3], f[2]]));
+        }
+        g.setColor([0.55, 0.36, 0.24]); // شريط طوب في النص
+        const st = [P(a, d + sx * 0.005, top + 0.45), P(b, d + sx * 0.005, top + 0.45), P(b, d + sx * 0.005, top + 0.7), P(a, d + sx * 0.005, top + 0.7)];
+        g.quad(...(sx > 0 ? [st[1], st[0], st[3], st[2]] : st));
+        // واجهة الكوبري (من الرصيف لحد المية)
+        g.setColor([0.7, 0.67, 0.6]);
+        const fc = [P(a, d, -1.7), P(b, d, -1.7), P(b, d, top), P(a, d, top)];
+        g.quad(...(sx > 0 ? [fc[1], fc[0], fc[3], fc[2]] : fc));
+        const mx = (a.x + b.x) / 2 + a.rx * (d - sx * 0.17), mz = (a.z + b.z) / 2 + a.rz * (d - sx * 0.17);
+        box(mx, mz, 0.2, 1.05, Math.atan2(a.dx, a.dz), 'wall');
+        if (i % 6 === 0) lamps.push(P(a, d - sx * 0.17, top + 1.05));
+      }
+    }
+    for (const [x, y, z] of lamps) {
+      g.setColor([0.15, 0.17, 0.16]); g.box(x - 0.07, y, z - 0.07, x + 0.07, y + 3.2, z + 0.07);
+      g.setColor([0.98, 0.93, 0.75]); g.box(x - 0.2, y + 3.2, z - 0.2, x + 0.2, y + 3.6, z + 0.2);
+    }
+    if (!g.empty) { const m = new THREE.Mesh(g.build(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8, map: M.concrete.map })); m.castShadow = true; m.receiveShadow = true; const grp = new THREE.Group(); grp.add(m); world._addChunk(grp, C.x, 300, 60); }
   }
 
   // ===== عمارات على الشوارع =====
@@ -254,12 +316,42 @@ export function buildShibin(world) {
   }
 
   // ===== موقف ميكروباص شبين الكوم (جنب المحطة على شارع المحطة) =====
+  // سور واطي حوالين الموقف وفيه فتحتين على شارع المحطة: "دخول" (قبلي) و"خروج" (بحري) ببوابات ويافطات منورة،
+  // وأسهم على الأرض بتوضح اتجاه الحركة، والرصيف مقطوع ومستوي عند الفتحتين
   {
     const T = TERMINAL, y = Y0 + 0.03;
+    const [DIN, DOUT] = DRIVEWAYS;
     const g = new GeoBuilder();
     g.setColor([0.42, 0.41, 0.4]); g.box(T.x0, y - 0.03, T.z0, T.x1, y + 0.01, T.z1); // أرضية أسفلت قديم
+    // الرصيف المقطوع عند الفتحتين: أسفلت مستوي من الشارع للموقف
+    for (const d of DRIVEWAYS) { g.setColor([0.36, 0.36, 0.37]); g.box(d.x0, y - 0.03, d.z0, T.x0 + 0.1, y + 0.012, d.z1); }
     g.setColor([0.95, 0.95, 0.9]);
-    for (let z = T.z0 + 4; z < T.z1 - 3; z += 5) g.box(T.x0 + 3, y + 0.012, z, T.x1 - 10, y + 0.016, z + 0.12); // خطوط الركنة
+    for (let z = T.z0 + 4; z < T.z1 - 3; z += 5) g.box(T.x0 + 6, y + 0.012, z, T.x1 - 10, y + 0.016, z + 0.12); // خطوط الركنة
+    // أسهم بيضا على الأرض: داخل من الفتحة القبلية وخارج من البحرية
+    const arrow = (cx, cz, dirX) => {
+      g.setColor([0.97, 0.97, 0.94]);
+      g.box(Math.min(cx, cx + dirX * 2.2), y + 0.013, cz - 0.22, Math.max(cx, cx + dirX * 2.2), y + 0.018, cz + 0.22);
+      for (let k = 0; k < 6; k++) { const w = 0.85 - k * 0.14, xx = cx + dirX * (2.2 + k * 0.14); g.box(Math.min(xx, xx + dirX * 0.15), y + 0.013, cz - w, Math.max(xx, xx + dirX * 0.15), y + 0.018, cz + w); }
+    };
+    arrow(T.x0 + 1.2, (DIN.z0 + DIN.z1) / 2, 1);
+    arrow(T.x0 + 4.4, (DOUT.z0 + DOUT.z1) / 2, -1);
+    // السور: حيطة واطية بلونين + سور حديد أخضر فوقها، فيه فتحتين على شارع المحطة
+    const wall = (x0, z0, x1, z1) => {
+      g.setColor([0.86, 0.83, 0.76]); g.box(x0, y, z0, x1, y + 0.7, z1);
+      g.setColor([0.2, 0.2, 0.21]); g.box(x0 - 0.01, y, z0 - 0.01, x1 + 0.01, y + 0.12, z1 + 0.01);
+      const along = x1 - x0 > z1 - z0;
+      g.setColor([0.13, 0.38, 0.27]);
+      if (along) { for (let x = x0; x < x1; x += 0.3) g.box(x, y + 0.7, (z0 + z1) / 2 - 0.02, x + 0.035, y + 1.6, (z0 + z1) / 2 + 0.02); g.box(x0, y + 1.56, (z0 + z1) / 2 - 0.04, x1, y + 1.64, (z0 + z1) / 2 + 0.04); }
+      else { for (let z = z0; z < z1; z += 0.3) g.box((x0 + x1) / 2 - 0.02, y + 0.7, z, (x0 + x1) / 2 + 0.02, y + 1.6, z + 0.035); g.box((x0 + x1) / 2 - 0.04, y + 1.56, z0, (x0 + x1) / 2 + 0.04, y + 1.64, z1); }
+      box((x0 + x1) / 2, (z0 + z1) / 2, (x1 - x0) / 2, (z1 - z0) / 2, 0, 'wall');
+    };
+    const t = 0.25;
+    wall(T.x0, T.z0 - t, T.x1, T.z0);           // القبلي
+    wall(T.x0, T.z1, T.x1, T.z1 + t);           // البحري
+    wall(T.x1, T.z0, T.x1 + t, T.z1);           // الشرقي
+    wall(T.x0 - t, T.z0, T.x0, DIN.z0);         // الغربي (على الشارع) بين الفتحات
+    wall(T.x0 - t, DIN.z1, T.x0, DOUT.z0);
+    wall(T.x0 - t, DOUT.z1, T.x0, T.z1);
     // مظلة على عمدان
     g.setColor([0.35, 0.36, 0.38]);
     for (let z = T.z0 + 3; z <= T.z1 - 3; z += 8) for (const x of [T.x1 - 9, T.x1 - 2]) g.box(x - 0.1, y, z - 0.1, x + 0.1, y + 3.6, z + 0.1);
@@ -267,20 +359,41 @@ export function buildShibin(world) {
     // دكك خرسانة للركاب
     g.setColor([0.7, 0.68, 0.64]);
     for (let z = T.z0 + 6; z < T.z1 - 6; z += 9) g.box(T.x1 - 7, y, z, T.x1 - 4, y + 0.45, z + 2.4);
-    // كشك التذاكر/المنادي
-    g.setColor([0.85, 0.82, 0.74]); g.box(T.x0 + 1, y, T.z1 - 6, T.x0 + 4, y + 2.6, T.z1 - 2);
-    g.setColor([0.2, 0.3, 0.38]); g.box(T.x0 + 0.98, y + 1.2, T.z1 - 5.5, T.x0 + 1.0, y + 2.1, T.z1 - 2.5);
-    box(T.x0 + 2.5, T.z1 - 4, 1.5, 2, 0, 'building');
+    // كشك المنادي (جوه جنب المظلة، بعيد عن طريق الدخول والخروج)
+    const kx = T.x1 - 14.5, kz = T.z0 + 1.5;
+    g.setColor([0.85, 0.82, 0.74]); g.box(kx, y, kz, kx + 3, y + 2.6, kz + 3.5);
+    g.setColor([0.2, 0.3, 0.38]); g.box(kx - 0.02, y + 1.2, kz + 0.5, kx, y + 2.1, kz + 3);
+    box(kx + 1.5, kz + 1.75, 1.5, 1.75, 0, 'building');
     for (let z = T.z0 + 6; z < T.z1 - 6; z += 9) box(T.x1 - 5.5, z + 1.2, 1.5, 1.2, 0, 'prop');
     for (let z = T.z0 + 3; z <= T.z1 - 3; z += 8) for (const x of [T.x1 - 9, T.x1 - 2]) box(x, z, 0.15, 0.15, 0, 'pole');
+    // بوابتين: عمودين + كمرة فوق الفتحة
+    const gateCols = [];
+    for (const d of DRIVEWAYS) {
+      for (const zz of [d.z0, d.z1]) { g.setColor([0.78, 0.74, 0.66]); g.box(T.x0 - 0.35, y, zz - 0.35, T.x0 + 0.35, y + 4.6, zz + 0.35); gateCols.push([T.x0, zz]); }
+      g.setColor([0.3, 0.3, 0.32]); g.box(T.x0 - 0.3, y + 4.6, d.z0 - 0.3, T.x0 + 0.3, y + 5.0, d.z1 + 0.3);
+    }
+    for (const [cx, cz] of gateCols) box(cx, cz, 0.35, 0.35, 0, 'pole');
     const m = new THREE.Mesh(g.build(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, map: M.concrete.map }));
     m.castShadow = true; m.receiveShadow = true;
     const grp = new THREE.Group(); grp.add(m);
-    const sign = new THREE.Mesh(new THREE.PlaneGeometry(8.5, 1.4), new THREE.MeshStandardMaterial({ map: textPlate(['موقف ميكروباص شبين الكوم', 'طنطا · قويسنا · منوف · الباجور · السادات'], { bg: '#c8a020', fg: '#1a1408' }), side: THREE.DoubleSide }));
-    sign.position.set(T.x0 + 0.2, y + 4.4, (T.z0 + T.z1) / 2); sign.rotation.y = -Math.PI / 2;
+    // اليافطة الكبيرة (عالية وواضحة، بخط كبير ومنورة شوية): على عمودين بين الفتحتين
+    const bigSign = textPlate(['موقف ميكروباص شبين الكوم', 'طنطا · قويسنا · منوف · الباجور · السادات'], { w: 2048, h: 400, bg: '#0d6b5e', fg: '#ffffff' });
+    const sm = new THREE.MeshStandardMaterial({ map: bigSign, emissive: 0xffffff, emissiveMap: bigSign, emissiveIntensity: 0.25, side: THREE.DoubleSide });
+    const zc = (DIN.z1 + DOUT.z0) / 2;
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(11, 2.15), sm);
+    sign.position.set(T.x0 - 0.1, y + 5.4, zc); sign.rotation.y = -Math.PI / 2;
     grp.add(sign);
-    const pole2 = new THREE.Mesh(new THREE.BoxGeometry(0.2, 4.4, 0.2), M.paintedMetal); pole2.position.set(T.x0 + 0.2, y + 2.2, (T.z0 + T.z1) / 2 - 4.4); grp.add(pole2);
-    const pole3 = pole2.clone(); pole3.position.z = (T.z0 + T.z1) / 2 + 4.4; grp.add(pole3);
+    const pole2 = new THREE.Mesh(new THREE.BoxGeometry(0.22, 5.4, 0.22), M.paintedMetal); pole2.position.set(T.x0 - 0.1, y + 2.7, zc - 5); grp.add(pole2);
+    const pole3 = pole2.clone(); pole3.position.z = zc + 5; grp.add(pole3);
+    box(T.x0 - 0.1, zc - 5, 0.15, 0.15, 0, 'pole'); box(T.x0 - 0.1, zc + 5, 0.15, 0.15, 0, 'pole');
+    // يافطات البوابات: "دخول" أخضر و"خروج" أحمر بسهم (على الوشين)
+    for (const [d, col, arrowTxt] of [[DIN, '#15803d', 'دخول'], [DOUT, '#b91c1c', 'خروج']]) {
+      const tx = textPlate([arrowTxt], { w: 512, h: 160, bg: col, fg: '#ffffff' });
+      const gm = new THREE.MeshStandardMaterial({ map: tx, emissive: 0xffffff, emissiveMap: tx, emissiveIntensity: 0.3, side: THREE.DoubleSide });
+      const pl = new THREE.Mesh(new THREE.PlaneGeometry(Math.min(5.5, d.z1 - d.z0 - 1), 1.3), gm);
+      pl.position.set(T.x0 - 0.33, y + 4.8, (d.z0 + d.z1) / 2); pl.rotation.y = -Math.PI / 2;
+      grp.add(pl);
+    }
     world._addChunk(grp, (T.x0 + T.x1) / 2, (T.z0 + T.z1) / 2, 60);
   }
 

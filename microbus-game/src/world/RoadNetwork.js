@@ -22,8 +22,11 @@ export const ROAD_DEFS = [
     pts: [{ city: [74, -165] }, [110, -175], [130, -280], [120, -400], [100, -490], { J: 335, side: 1 }] },
   { id: 'R6', name: 'حارة المقابر', sign: 'وسط البلد', half: 3.0, surface: 'asphalt', style: 'city',
     pts: [{ city: [-74, -165] }, [-115, -175], [-140, -270], [-110, -350], { J: 140, side: -1 }] },
+  // طريق حلبة السباق (غرب البلد في الأرض المفتوحة) — بيطلع من الطريق الغربي
+  { id: 'R7', name: 'طريق الحلبة', sign: 'حلبة السباق', half: 3.6, surface: 'asphalt', style: 'highway',
+    pts: [[-250, 68], [-232, 72], [-212, 80], { snap: 'R4' }] },
   // ===== شبين الكوم (حي بين الطريق السريع ومخرجه) =====
-  { id: 'S1', name: 'شارع باريس', sign: 'شبين الكوم', half: 4.4, surface: 'asphalt', style: 'urban', district: 'shibin',
+  { id: 'S1', name: 'شارع باريس', sign: 'شبين الكوم', half: 4.6, surface: 'asphalt', style: 'urban', district: 'shibin', boulevard: true,
     pts: [{ J: 2721, side: 1 }, [60, 298], [130, 300], [200, 300], [262, 300], [300, 302], { snap: 'R3' }] },
   { id: 'S2', name: 'شارع الجامعة', sign: 'جامعة المنوفية', half: 5.2, surface: 'asphalt', style: 'urban', district: 'shibin', boulevard: true,
     pts: [[200, 476], [200, 400], [200, 300], [200, 212], [200, 120], [205, 40], { snap: 'R1' }] },
@@ -194,8 +197,14 @@ function distTo(road, x, z, near) {
   for (let i = i0; i < i1; i++) { const p = S[i]; const d = (p.x - x) ** 2 + (p.z - z) ** 2; if (d < bd) { bd = d; bi = i; } }
   return { d: Math.sqrt(bd), i: bi };
 }
-/** نقطة (x,z) على أسفلت أي طريق فرعي تاني غير road؟ (عشان الرصيف يتقطع عند التقاطعات) */
+// مداخل العربيات (الرصيف مقطوع ومستوي مع الطريق): مدخل ومخرج موقف شبين على شارع المحطة
+export const DRIVEWAYS = [
+  { x0: 254.8, x1: 260.6, z0: 245, z1: 253.5, name: 'دخول' },
+  { x0: 254.8, x1: 260.6, z0: 279.5, z1: 288.2, name: 'خروج' },
+];
+/** نقطة (x,z) على أسفلت أي طريق فرعي تاني غير road؟ (عشان الرصيف يتقطع عند التقاطعات ومداخل العربيات) */
 export function onOtherCarriageway(x, z, road, margin = 0.6) {
+  for (const d of DRIVEWAYS) if (x > d.x0 && x < d.x1 && z > d.z0 && z < d.z1) return true;
   const arr = grid.get(key(Math.floor(x / CELL), Math.floor(z / CELL)));
   if (!arr) return false;
   const seen = new Set();
@@ -209,11 +218,19 @@ export function onOtherCarriageway(x, z, road, margin = 0.6) {
   return false;
 }
 
+export const MEDIAN_HALF = 0.9, MEDIAN_H = 0.2;
+/** فيه جزيرة هنا؟ (مش في أول/آخر الشارع ولا جنب تقاطع) */
+export function onMedian(road, i, x, z) {
+  return i > 6 && i < road.samples.length - 7 && !onOtherCarriageway(x, z, road, 7);
+}
+
 /** سطح الطريق الفرعي للفيزياء (أو null لو برا الطريق). الشوارع اللي جوه المدينة ليها رصيف */
 export function sideSurface(x, z) {
   const n = nearestSide(x, z);
   if (!n) return null;
   if (n.dist <= n.half + 0.35) {
+    // الجزيرة اللي في نص الشارع (شارع الجامعة وشارع باريس): رصيف مرفوع بزرع — بتتقطع عند التقاطعات
+    if (n.road.boulevard && n.dist < MEDIAN_HALF && onMedian(n.road, n.i, x, z)) return n.y + 0.03 + MEDIAN_H;
     const rough = n.road.surface === 'dirt' ? 0.02 : 0.004;
     return n.y + 0.03 + rough * Math.sin(x * 1.3 + z * 0.7) * Math.sin(z * 1.9 - x * 0.5);
   }

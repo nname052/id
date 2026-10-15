@@ -141,6 +141,11 @@ export class TrafficSystem {
         });
       }
     }
+    // الحارة الرايحة والجاية على نفس الطريق (عشان العربية تلف في آخره وترجع)
+    for (const a of lanes) {
+      if (a.kind === 'road') a.partner = lanes.find((b) => b !== a && b.kind === 'road' && b.road === a.road && b.dir === -a.dir);
+      else if (a.kind === 'line') a.partner = lanes.find((b) => b !== a && b.kind === 'line');
+    }
     return lanes;
   }
 
@@ -458,10 +463,25 @@ export class TrafficSystem {
           const last = lane.cars[lane.cars.length - 1];
           const ok = lane.endsFar ? lane.endsFar(pl.x, pl.z) : far(0) && far(L);
           if (ok && (!last || last === car || last.p > 14)) { car.p = 0; car.v = 6; }
-          else { car.p = L; car.v = 0; }
+          else if (lane.partner) {
+            // قدام عينك: بدل ما تقف في نص الطريق للأبد، بتلف وترجع في الحارة التانية (U-turn)
+            const back = lane.partner.cars;
+            if (!back.some((c) => c.p < 10)) { car.p = 0; car.v = Math.min(car.v, 4); (this._xfer ||= []).push(car); }
+            else { car.p = L; car.v = 0; }
+          } else { car.p = L; car.v = 0; }
         }
         this._place(car);
       }
+    }
+    // العربيات اللي لفّت للحارة التانية
+    if (this._xfer?.length) {
+      for (const car of this._xfer) {
+        const from = car.lane, to = from.partner;
+        from.cars.splice(from.cars.indexOf(car), 1);
+        to.cars.push(car); car.lane = to;
+        this._place(car);
+      }
+      this._xfer.length = 0;
     }
     // المرئيات (العربيات البعيدة بتتخفى = أداء)
     const cx = camPos ? camPos.x : pl.x, cz = camPos ? camPos.z : pl.z;
@@ -494,12 +514,13 @@ export class TrafficSystem {
     for (const lane of this.lanes) {
       const all = (lane.all ||= [...lane.cars]);
       // بنختار عربيات متوزعة على طول الحارة (مش كلهم في حتة واحدة)
-      lane.cars = all.filter((c, i) => Math.floor((i + 1) * k + 1e-6) > Math.floor(i * k + 1e-6));
-      for (const c of all) {
-        c.off = !lane.cars.includes(c);
+      all.forEach((c, i) => {
+        c.off = !(Math.floor((i + 1) * k + 1e-6) > Math.floor(i * k + 1e-6));
         if (c.off) { c.visible = false; c.rig.root.visible = false; }
-      }
+      });
     }
+    // (العربية ممكن تكون لفّت لحارة تانية: بنوزّع على الحارة اللي هي فيها دلوقتي)
+    for (const lane of this.lanes) lane.cars = this.cars.filter((c) => !c.off && c.lane === lane);
   }
 
   setNight(on) {

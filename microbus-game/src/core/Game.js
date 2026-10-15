@@ -34,6 +34,10 @@ import { Wallet } from '../gameplay/Wallet.js';
 import { FuelSystem } from '../gameplay/Fuel.js';
 import { Licenses } from '../gameplay/Licenses.js';
 import { Police } from '../gameplay/Police.js';
+import { Incidents } from '../gameplay/Incidents.js';
+import { Race } from '../gameplay/Race.js';
+import { buildRaceTrack } from '../world/RaceTrack.js';
+import { buildFootbridge } from '../world/Footbridge.js';
 import { buildPetrolStation, STATION, atPump } from '../world/PetrolStation.js';
 import { Docs } from '../ui/Docs.js';
 import { Navigator, fmtDist } from '../nav/Navigator.js';
@@ -106,6 +110,9 @@ export class Game {
     this.route = new RouteWorld(this.M, { low: this.mobile });
     this.scene.add(this.route.group);
     this.route._mosque(104, 0, -168, -Math.PI / 2); // جامع آخر الشارع الشعبي
+    // حلبة السباق (غرب البلد)
+    this.raceTrack = buildRaceTrack(this.M);
+    this.scene.add(this.raceTrack.group);
     this.lights = new TrafficLights();
     this.scene.add(this.lights.group);
 
@@ -137,6 +144,8 @@ export class Game {
     this.crowdBase = this.mobile ? 80 : 160;
     this.crowd = new Crowd(this.scene, { count: this.crowdBase, assets: this.assets });
     this.statics = staticColliders();
+    // كوبري مشاة فوق الشارع الرئيسي
+    { const fb = buildFootbridge(); this.scene.add(fb.group); this.statics.push(...fb.colliders); }
     // أعمدة النور والشجر والأكشاك في المدينة
     for (const p of PROP_COLLIDERS) this.statics.push({ cx: p.x, cz: p.z, hx: p.hx ?? p.r * 0.85, hz: p.hz ?? p.r * 0.85, angle: 0, restitution: 0.1, kind: p.kind || 'prop' });
     const colOut = [];
@@ -146,6 +155,10 @@ export class Game {
       this.route.queryColliders(box.cx, box.cz, out);
       this.traffic.colliders(box, out);
       this.mp?.colliders(box, out);
+      this.incidents?.colliders(box, out);
+      this.police?.colliders(box, out);
+      this.raceTrack?.colliders(box, out);
+      this.race?.colliders(box, out);
       return out;
     };
 
@@ -170,6 +183,8 @@ export class Game {
     this.station = buildPetrolStation(this.scene);
     this.statics.push(...this.station.colliders);
     this.police = new Police(this.scene, { hud: this.hud, wallet: this.wallet, licenses: this.licenses });
+    this.incidents = new Incidents(this.scene, { hud: this.hud, wallet: this.wallet, licenses: this.licenses, passengers: this.passengers, audio: this.audio });
+    this.race = new Race(this);
     this.docs = new Docs(this, this.touch ? this.touch.root.querySelector('.t-top') : null);
     this.mp = new Multiplayer(this);
     this.minimap = new MiniMap(this);
@@ -254,6 +269,9 @@ export class Game {
         renderer.render(this.scene, cam);
         await nextFrame();
       }
+      // الحلبة (برا الطريق الدائري): رسمة واحدة عشان شيدرزها تتجهز من دلوقتي
+      cam.position.set(-300, 60, 220); cam.lookAt(-410, 0, 60); cam.updateMatrixWorld();
+      renderer.render(this.scene, cam);
       this.route.updateVisibility(this.player.rig.root.position, 600);
     }
     this.clock = new THREE.Clock();
@@ -274,6 +292,8 @@ export class Game {
       if (!fresh && v < (this._hitV || 0) * 1.6) return;
       this._hitT = now; this._hitV = v;
       this.audio.impact(v); this.cams && (this.cams.shake = Math.min(1.5, v / 4));
+      // خبطة جامدة (≈ 30 كم/س في حاجة) → حادثة: الركاب بيخافوا والشرطة جاية (مش في السباق، ومش عربية الشرطة نفسها وهي بتطاردك)
+      if (v >= 8.5 && this.started && !this.race?.active && other !== this.incidents?.col) this.incidents?.trigger('crash', ph, this.player.kind);
       if (this.player.damage && nx !== undefined && v >= 2.2) {
         const q = this._dmgQ;
         if (!q || v > q[5]) this._dmgQ = [px, ph.heave - ph.spec.cgHeight + 0.65, pz, nx, nz, v];
@@ -321,7 +341,7 @@ export class Game {
       car.driverSeat = [-0.36, 0.5, -0.12];
       return car;
     }
-    const map = { sedan: 'car_sedan', boxy: 'car_old', taxi: 'car_taxi', microbus: 'microbus_traffic' };
+    const map = { sedan: 'car_sedan', boxy: 'car_old', taxi: 'car_taxi', seal: 'car_taxi', microbus: 'microbus_traffic' };
     const a = this.assets.get(map[type]);
     if (a && a.cfg.trafficHiace) return buildTrafficHiace(a);
     if (a) {
@@ -346,6 +366,7 @@ export class Game {
     if (this.touch) { this.touch.show(); document.getElementById('help').classList.add('hidden'); this.hud.helpTimer = 0; }
     if (this.mobile) document.documentElement.requestFullscreen?.().catch(() => {});
     this.hud.toast(this.mobile ? 'امسك الدركسيون ولفّه، ودوس بنزين' : 'إنت دلوقتي في كرسي السواق — دوس W', 3);
+    this.incidents.start(this.player.physics);
   }
 
   /** جودة ديناميكية: لو الـ FPS نزل نقلل الدقة/الضلال/المرايات/مسافة الرؤية، ولو علي نرجّعها */
@@ -564,7 +585,10 @@ export class Game {
 
   _frame() {
     const dt = Math.min(0.1, this.clock.getDelta());
-    const input = this.started ? this.input.read() : { throttle: 0, brake: 0, steer: 0, handbrake: 1, actions: {} };
+    let input = this.started ? this.input.read() : { throttle: 0, brake: 0, steer: 0, handbrake: 1, actions: {} };
+    // الشرطة جاية بعد حادثة / الشرطة مسكتك ومدفعتش: العربية واقفة (الدركسيون بس)
+    if (this.race?.hold) input = { ...input, throttle: 0, brake: 1, actions: {} };
+    if (this.incidents?.hold) input = { ...input, throttle: 0, brake: 1, handbrake: 1, actions: { ...input.actions, reset: input.actions.reset && !this.incidents.blocked } };
     const a = input.actions;
     if (a.camera) this.hud.toast(`الكاميرا: ${this.cams.next()}`);
     if (a.zoomIn) this.cams.zoomBy(1 / 1.15);
@@ -603,6 +627,7 @@ export class Game {
     if (!ph.flip.mode && this._flipNote) { this._flipNote = false; this.touch?.root.querySelector('[data-act="reset"]')?.classList.remove('lit'); }
     if (ph.flip.mode && ph.flip.rest > 0.8 && !this._flipNote) {
       this._flipNote = true;
+      if (ph.flipped && !this.race?.active) this.incidents.trigger('flip', ph, this.player.kind);
       this.hud.toast(this.mobile ? 'العربية اتقلبت! دوس زرار ↺ عشان تعدلها' : 'العربية اتقلبت! دوس R عشان تعدلها', 4);
       this.touch?.root.querySelector('[data-act="reset"]')?.classList.add('lit');
     }
@@ -614,6 +639,8 @@ export class Game {
     if (this._visTimer <= 0) {
       this._visTimer = 0.25;
       this.route.updateVisibility(this.camera.position, this.viewDist || (this.mobile ? 380 : 560));
+      // الحلبة بعيدة (غرب البلد): بتترسم بس لما تقرب منها
+      { const c = this.camera.position; this.raceTrack.group.visible = Math.hypot(c.x + 410, c.z - 65) < 300 + (this.viewDist || 400); }
       this.player.surface = surfaceAt(ph.x, ph.z);
       // اسم المنطقة لما تدخلها
       // على طريق فرعي: اسمه، غير كده اسم المنطقة على الطريق الرئيسي
@@ -622,7 +649,7 @@ export class Game {
       const pr = onMain || !side ? loopProject(ph.x, ph.z) : null;
       const zone = side ? `road:${side.id}` : pr && pr.d !== undefined && Math.abs(pr.d) > 25 ? this._zone : pr ? (pr.s < 450 ? 'city' : sampleZoneName(pr.s)) : null;
       const label = side ? side.name : ZONE_LABEL[zone] || zone;
-      if (zone && zone !== this._zone && this.started) { if (this._zone) this.hud.toast(label, 2.5); this._zone = zone; }
+      if (zone && zone !== this._zone && this.started) { if (this._zone) this.hud.toast(label, 1.6, true); this._zone = zone; }
     }
     this.player.syncVisuals(dt, this.acc / FIXED_DT);
     this.cams.update(dt, input);
@@ -637,6 +664,8 @@ export class Game {
       this.fuel.update(dt, ph);
       this.licenses.update(dt);
       this.police.update(dt, ph, this.player.kind, this.clock.elapsedTime);
+      this.incidents.update(dt, ph);
+      this.race.update(dt, ph);
       this._stationUpdate(dt, ph);
       this.docs.update(dt);
     }
@@ -646,7 +675,7 @@ export class Game {
       this._navT = (this._navT || 0) - dt;
       if (this._navT <= 0) {
         this._navT = 0.25;
-        const pol = this.police.navTarget();
+        const pol = this.police.navTarget() || this.incidents.navTarget?.();
         const lowFuel = this.fuel.frac < 0.15 && !this.passengers.trip && !this.passengers.onboard.length;
         this.hud.navOverride = pol ? 'police' : lowFuel ? 'fuel' : null;
         this.nav.setTarget(pol || (lowFuel ? STATION.nav : this.passengers.navTarget(ph)));

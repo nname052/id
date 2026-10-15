@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { GeoBuilder } from '../render/GeoBuilder.js';
-import { addEyeCharm } from './CabAccessories.js';
+import { addEyeCharm, addBobbleDog } from './CabAccessories.js';
 import { DashScreen, drawVanLCD, drawNavScreen } from './Cockpits.js';
 import { tireGeometry } from './wheel.js';
 import { toCreasedNormals, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -532,18 +532,19 @@ function buildHiaceInterior(group, rig, D) {
 
   // ===== زينة خفيفة: سبحة + عين زرقا في المراية (التابلوه نضيف زي الصورة المرجعية) =====
   // مراية جوه
-  K('plasticBlack').addGeometry(new THREE.CylinderGeometry(0.008, 0.008, 0.08, 6), M4(0, wtY - 0.05, z(wtF - 0.03)));
+  // (مرفوعة لفوق وأصغر شوية: ماتقفلش جزء كبير من الطريق قدام السواق)
+  K('plasticBlack').addGeometry(new THREE.CylinderGeometry(0.008, 0.008, 0.05, 6), M4(0, wtY - 0.035, z(wtF - 0.03)));
   {
     const h = new THREE.Group();
-    h.position.set(0, wtY - 0.12, z(wtF - 0.04));
-    const house = new THREE.Mesh(new RoundedBoxGeometry(0.25, 0.075, 0.028, 2, 0.012), mats.plasticBlack);
-    const face = new THREE.Mesh(new THREE.PlaneGeometry(0.23, 0.06), mats.mirrorDark);
+    h.position.set(0, wtY - 0.085, z(wtF - 0.04));
+    const house = new THREE.Mesh(new RoundedBoxGeometry(0.22, 0.066, 0.028, 2, 0.012), mats.plasticBlack);
+    const face = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.052), mats.mirrorDark);
     face.position.z = 0.015;
     h.add(house, face); group.add(h);
-    rig.mirrors.push({ holder: h, face, side: 0, aspect: 0.23 / 0.06, fov: 13, hiace: true });
+    rig.mirrors.push({ holder: h, face, side: 0, aspect: 0.2 / 0.052, fov: 13, hiace: true });
   }
   const sebha = new THREE.Group();
-  sebha.position.set(0, wtY - 0.16, z(wtF - 0.05));
+  sebha.position.set(0, wtY - 0.12, z(wtF - 0.05));
   {
     const bead = new THREE.SphereGeometry(0.0055, 8, 6), g = new GeoBuilder();
     g.setColor([0.75, 0.42, 0.08]);
@@ -553,6 +554,8 @@ function buildHiaceInterior(group, rig, D) {
   }
   group.add(sebha); rig.sebha = sebha;
   rig.hangers = [{ obj: sebha, L: 0.2 }, addEyeCharm(group, { wtF, wtY, z })];
+  // الكلب أبو راس بتتهز: على التابلوه يمين العدادات قدام السواق
+  rig.bobbles = [addBobbleDog(group, DX + 0.36, dashTop + 0.004, z(dashBackF + 0.16), 0, 1.35)];
   // شماسات
   // الشماسات مرفوعة لفوق ناحية السقف (زي ما السواق بيسيبها) عشان متغطيش الرؤية
   for (const sx of [-1, 1]) K('beige').addGeometry(new RoundedBoxGeometry(0.42, 0.016, 0.16, 2, 0.007), M4(sx * IW * 0.5, D.roofY - 0.1, z(wtF - 0.16), 0.05));
@@ -564,14 +567,17 @@ function buildHiaceInterior(group, rig, D) {
       const len = a.distanceTo(b), mid = a.clone().add(b).multiplyScalar(0.5).add(inward);
       const m = new THREE.Mesh(new RoundedBoxGeometry(w, len, t, 2, Math.min(w, t) * 0.45), mat);
       m.position.copy(mid);
-      m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize());
+      // الوش العريض متوجه ناحية عين السواق (مش ملفوف عشوائي = كان باين زي لوح مكسور)
+      const yA = b.clone().sub(a).normalize(), eyeP = new THREE.Vector3(DX, floorY + 1.09, z(seatF + 0.04) + 0.18);
+      const toEye = eyeP.sub(mid), zA = toEye.sub(yA.clone().multiplyScalar(toEye.dot(yA))).normalize(), xA = new THREE.Vector3().crossVectors(yA, zA);
+      m.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(xA, yA, zA));
       m.receiveShadow = true;
       group.add(m);
       return m;
     };
     for (const sx of [-1, 1]) {
       const bot = [sx * (D.wsHalf + 0.03), wbY - 0.02, z(wbF + 0.02)], top = [sx * (D.wsHalf - 0.03), wtY - 0.02, z(wtF - 0.02)];
-      beam(bot, top, 0.11, 0.06, mats.pillarTrim, new THREE.Vector3(-sx * 0.035, 0, 0.03));
+      beam(bot, top, 0.085, 0.035, mats.pillarTrim, new THREE.Vector3(-sx * 0.03, 0, 0.025));
     }
     // تجاليد الأبواب الأمامية (شمال = السواق، يمين = الراكب)
     const sill = wbY - 0.12, dz0 = z(dashBackF + 0.02), dz1 = z(seatF - 0.38);

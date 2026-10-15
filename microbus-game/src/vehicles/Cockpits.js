@@ -3,6 +3,7 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 import { toCreasedNormals } from 'three/addons/utils/BufferGeometryUtils.js';
 import { GeoBuilder } from '../render/GeoBuilder.js';
 import { canvas, tex, makeSeatFabric } from '../render/textures.js';
+import { addBobbleDog } from './CabAccessories.js';
 
 // =====================================================================
 //  كبائن العربيات (من الصور المرجعية) — كل عربية ليها كابينة مختلفة:
@@ -58,10 +59,12 @@ export class DashScreen {
 
 function roundRectPath(x, a, b, w, h, r) { x.beginPath(); x.roundRect(a, b, w, h, r); }
 
-function mats() {
+function mats(body = 0xa9a7a1) {
   return {
     dashTop: new THREE.MeshStandardMaterial({ color: 0x232529, roughness: 0.82 }),
     dashLow: new THREE.MeshStandardMaterial({ color: 0x8e8e8b, roughness: 0.7 }),
+    // لون العربية من برا (الأبواب والعواميد من جوه بنفس لون الدهان — زي العربيات الحقيقية)
+    body: new THREE.MeshStandardMaterial({ color: body, roughness: 0.35, metalness: 0.05 }),
     trim: new THREE.MeshStandardMaterial({ color: 0x3a3c40, roughness: 0.6 }),
     silver: new THREE.MeshStandardMaterial({ color: 0x8d9298, roughness: 0.42, metalness: 0.8 }),
     headliner: new THREE.MeshStandardMaterial({ color: 0xbdbab2, roughness: 0.95 }),
@@ -143,29 +146,31 @@ export function drawVanLCD(x, W, H, s) {
  * كابينة التاكسي. rig: الريج (فيه shell). بيرجّع { steering, eye, cockpit, mirrors[] }
  * المقاسات على السيدان (SEDAN): الزجاج الأمامي من z=-0.93 (y=0.915) لحد السقف z=-0.08 (y=1.44)
  */
-export function buildTaxiCockpit(rig, { mirrorFace }) {
-  const S = rig.shell, m = mats();
+export function buildTaxiCockpit(rig, { mirrorFace, body = 0xf4f4f0 }) {
+  // المقاسات على موديل التاكسي الأبيض (BYD Seal): الزجاج الأمامي من z=-0.9 (y=0.87) لحد z=-0.1 (y=1.21)،
+  // السقف من جوه ≈1.2، وعرض الكابينة عند الشباك ≈±0.72 — كله جوه الجسم (مفيش حاجة طالعة برا)
+  const S = rig.shell, m = mats(body);
+  m.dashLow.color.set(0xd8d4cb); // وش التابلوه اللي تحت فاتح (زي الدهان) والفوق غامق (مايعكسش على الزجاج)
   const g = new THREE.Group(); g.name = 'taxi-cockpit';
   S.add(g);
   const add = (geo, mat, mtx, shadow = false) => { const o = new THREE.Mesh(geo, mat); if (mtx) o.applyMatrix4(mtx); o.receiveShadow = true; o.castShadow = shadow; g.add(o); return o; };
-  const W = 1.6;
-  // التابلوه: سطح فوق غامق (من قاعدة الزجاج لحد العداد) + وش تحت رمادي فاتح
-  add(extrudeAcross([[-1.0, 0.9], [-0.72, 0.905], [-0.62, 0.885], [-0.575, 0.83], [-0.64, 0.8], [-1.0, 0.85]], W), m.dashTop);
+  const W = 1.36;
+  // التابلوه: سطح فوق غامق (تحت خط الزجاج بالظبط) + وش تحت فاتح
+  add(extrudeAcross([[-0.9, 0.83], [-0.72, 0.885], [-0.62, 0.875], [-0.575, 0.83], [-0.64, 0.8], [-0.9, 0.79]], W), m.dashTop);
   add(extrudeAcross([[-0.64, 0.8], [-0.575, 0.83], [-0.555, 0.72], [-0.57, 0.5], [-0.7, 0.42], [-0.74, 0.8]], W - 0.04), m.dashLow);
-  // غطا العداد (cowl) قدام السواق
-  // غطا العداد: طرف رفيع فوق العداد (مفتوح من ناحية السواق عشان العداد يبان)
-  add(extrudeAcross([[-0.8, 0.9], [-0.74, 1.03], [-0.62, 1.035], [-0.62, 1.02], [-0.72, 1.012], [-0.76, 0.9]], 0.4, 0.012), m.dashTop, M4(-0.36, 0, 0));
-  // العداد الديجيتال
+  // غطا العداد: طرف رفيع فوق العداد (واطي — مايطلعش فوق خط الزجاج ولا يغطي الطريق)
+  add(extrudeAcross([[-0.68, 0.87], [-0.64, 0.93], [-0.56, 0.935], [-0.56, 0.922], [-0.63, 0.918], [-0.66, 0.87]], 0.38, 0.01), m.dashTop, M4(-0.36, 0, 0));
+  // العداد الديجيتال (ورا الدركسيون)
   const cluster = new DashScreen(512, 224, drawTaxiCluster, { fps: 12, emissive: 0.9 });
-  add(new RoundedBoxGeometry(0.33, 0.135, 0.02, 3, 0.02), m.vent, M4(-0.36, 0.952, -0.715, -0.2));
-  add(new THREE.PlaneGeometry(0.3, 0.118), cluster.mat, M4(-0.36, 0.953, -0.703, -0.2));
-  // شاشة النص (تابلت فوق التابلوه) — فيها الخريطة
+  add(new RoundedBoxGeometry(0.31, 0.115, 0.02, 3, 0.02), m.vent, M4(-0.36, 0.868, -0.6, -0.25));
+  add(new THREE.PlaneGeometry(0.28, 0.1), cluster.mat, M4(-0.36, 0.869, -0.589, -0.25));
+  // شاشة النص (فوق التابلوه) — فيها الخريطة
   const center = new DashScreen(400, 280, drawTaxiCenter, { fps: 6, emissive: 0.85 });
-  add(new RoundedBoxGeometry(0.27, 0.19, 0.03, 3, 0.012), m.trim, M4(0.06, 0.975, -0.7, -0.26));
-  add(new THREE.PlaneGeometry(0.25, 0.17), center.mat, M4(0.06, 0.977, -0.683, -0.26));
+  add(new RoundedBoxGeometry(0.26, 0.17, 0.03, 3, 0.012), m.trim, M4(0.06, 0.9, -0.58, -0.26));
+  add(new THREE.PlaneGeometry(0.24, 0.15), center.mat, M4(0.06, 0.902, -0.563, -0.26));
   // فتحات التكييف المدورة (زي الصورة): اتنين جنب الشاشة + طرفين
   const ventGeo = new THREE.TorusGeometry(0.042, 0.011, 8, 22), ventIn = new THREE.CircleGeometry(0.04, 18);
-  for (const [vx, vy] of [[-0.12, 0.79], [0.24, 0.79], [-0.68, 0.84], [0.7, 0.84]]) {
+  for (const [vx, vy] of [[-0.12, 0.79], [0.24, 0.79], [-0.58, 0.79], [0.6, 0.79]]) {
     add(ventGeo, m.silver, M4(vx, vy, -0.566, 0.25));
     add(ventIn, m.vent, M4(vx, vy, -0.57, 0.25));
   }
@@ -179,21 +184,16 @@ export function buildTaxiCockpit(rig, { mirrorFace }) {
   const knob = add(new THREE.SphereGeometry(0.025, 12, 8), m.leather, M4(0.0, 0.665, -0.3));
   void gearBase; void knob;
   // أرضية + باب السواق من جوه (لوح + مسند + أوكرة)
-  add(new THREE.BoxGeometry(1.5, 0.02, 2.2), m.carpet, M4(0, 0.25, 0.25));
+  add(new THREE.BoxGeometry(1.4, 0.02, 2.2), m.carpet, M4(0, 0.25, 0.25));
   for (const sx of [-1, 1]) {
-    add(new RoundedBoxGeometry(0.06, 0.48, 1.0, 3, 0.03), m.trim, M4(sx * 0.79, 0.69, -0.36));
-    add(new RoundedBoxGeometry(0.1, 0.05, 0.42, 2, 0.02), m.dashTop, M4(sx * 0.75, 0.72, -0.32));
-    add(new RoundedBoxGeometry(0.03, 0.03, 0.09, 2, 0.01), m.silver, M4(sx * 0.755, 0.83, -0.62));
-    // حرف الشباك من جوه (فوق الباب)
-    add(new RoundedBoxGeometry(0.07, 0.035, 1.02, 2, 0.015), m.dashTop, M4(sx * 0.78, 0.94, -0.36));
+    // تابلوه الباب: تحت أسود، وفوق بلون العربية (زي الصاج من برا) + مسند + أوكرة كروم
+    add(new RoundedBoxGeometry(0.05, 0.36, 1.9, 3, 0.02), m.trim, M4(sx * 0.74, 0.58, 0.3));
+    add(new RoundedBoxGeometry(0.04, 0.1, 1.9, 2, 0.02), m.body, M4(sx * 0.715, 0.82, 0.3));
+    add(new RoundedBoxGeometry(0.08, 0.04, 0.4, 2, 0.015), m.dashTop, M4(sx * 0.69, 0.7, -0.3));
+    add(new RoundedBoxGeometry(0.025, 0.025, 0.08, 2, 0.01), m.silver, M4(sx * 0.69, 0.76, -0.55));
   }
-  // العواميد A (رمادي فاتح زي الصورة) + السقف من جوه + الشماسات
-  for (const sx of [-1, 1]) {
-    g.add(beam([sx * 0.75, 0.92, -0.98], [sx * 0.63, 1.405, -0.36], 0.085, 0.04, m.pillar));
-    g.add(beam([sx * 0.76, 0.95, 0.17], [sx * 0.63, 1.43, 0.17], 0.09, 0.05, m.pillar)); // عمود B
-    add(new RoundedBoxGeometry(0.36, 0.022, 0.17, 2, 0.01), m.headliner, M4(sx * 0.3, 1.39, -0.4, 0.1));
-  }
-  add(new RoundedBoxGeometry(1.3, 0.03, 1.3, 3, 0.012), m.headliner, M4(0, 1.43, 0.3));
+  // الشماسات (السقف والعواميد هما الجسم نفسه من جوه — بنفس لونه)
+  for (const sx of [-1, 1]) add(new RoundedBoxGeometry(0.34, 0.02, 0.15, 2, 0.01), m.headliner, M4(sx * 0.3, 1.17, -0.14, 0.1));
   // الدركسيون (3 أذرع، جلد غامق ولمسة فضي)
   const tilt = new THREE.Group(); tilt.position.set(-0.36, 0.82, -0.4); tilt.rotation.x = -1.15; g.add(tilt);
   const steering = new THREE.Group(); tilt.add(steering);
@@ -207,31 +207,33 @@ export function buildTaxiCockpit(rig, { mirrorFace }) {
   const col = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.045, 0.28, 12).rotateX(Math.PI / 2), m.dashTop); col.position.z = -0.15; tilt.add(col);
   // الكراسي (اللي جنب السواق باينة + الكنبة ورا)
   const seat = (x, z, w) => {
-    add(new RoundedBoxGeometry(w, 0.12, 0.5, 3, 0.05), m.seat, M4(x, 0.46, z), true);
-    add(new RoundedBoxGeometry(w, 0.62, 0.11, 3, 0.05), m.seat, M4(x, 0.8, z + 0.27, 0.12), true);
-    add(new RoundedBoxGeometry(w * 0.55, 0.16, 0.1, 3, 0.04), m.seat, M4(x, 1.17, z + 0.31, 0.1));
+    add(new RoundedBoxGeometry(w, 0.12, 0.5, 3, 0.05), m.seat, M4(x, 0.42, z), true);
+    add(new RoundedBoxGeometry(w, 0.56, 0.11, 3, 0.05), m.seat, M4(x, 0.74, z + 0.27, 0.12), true);
+    add(new RoundedBoxGeometry(w * 0.55, 0.14, 0.1, 3, 0.04), m.seat, M4(x, 1.07, z + 0.3, 0.1));
   };
-  seat(-0.37, -0.05, 0.5); seat(0.37, -0.05, 0.5); seat(0, 0.86, 1.3);
+  seat(-0.37, -0.05, 0.5); seat(0.37, -0.05, 0.5); seat(0, 0.86, 1.22);
   // المراية اللي جوه (عريضة، فوق النص)
   const mirrors = [];
   {
     const { holder, face } = mirrorFace(0.26, 0.075);
-    holder.position.set(0.02, 1.33, -0.44);
+    holder.position.set(0.02, 1.11, -0.2);
     const house = new THREE.Mesh(new RoundedBoxGeometry(0.28, 0.09, 0.03, 3, 0.02), m.mirrorBack); house.position.z = -0.018; holder.add(house);
     face.position.z = 0.002;
     g.add(holder);
-    const stalk = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.01, 0.08, 6), m.mirrorBack); stalk.position.set(0.02, 1.38, -0.44); g.add(stalk);
+    const stalk = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.01, 0.08, 6), m.mirrorBack); stalk.position.set(0.02, 1.16, -0.2); g.add(stalk);
     mirrors.push({ holder, face, side: 0, aspect: 0.26 / 0.075, fov: 14 });
   }
   // المرايات الجانبية: على مكان جراب المراية في البودي
   for (const sx of [-1, 1]) {
     const { holder, face } = mirrorFace(0.15, 0.085);
-    holder.position.set(sx * 1.0, 1.0, -0.755);
+    holder.position.set(sx * 0.93, 0.93, -0.36);
     S.add(holder);
     mirrors.push({ holder, face, side: sx, aspect: 0.15 / 0.085, fov: 26 });
   }
   // عين السواق
-  const eye = new THREE.Object3D(); eye.position.set(-0.36, 1.16, 0.0); g.add(eye);
+  const eye = new THREE.Object3D(); eye.position.set(-0.36, 1.07, 0.1); g.add(eye);
+  // الكلب أبو راس بتتهز (على التابلوه يمين العداد)
+  const dog = addBobbleDog(g, -0.1, 0.884, -0.7, 0, 1.25);
   const st = { kmh: 0, gear: 'D', throttle: 0, fuel: 0.6, lights: false, hb: false, mapCanvas: null, navTitle: '', navLine: '' };
   const cockpit = {
     cluster, center,
@@ -245,7 +247,7 @@ export function buildTaxiCockpit(rig, { mirrorFace }) {
     },
     setNight(on) { cluster.mat.emissiveIntensity = on ? 1.1 : 0.9; center.mat.emissiveIntensity = on ? 0.95 : 0.85; m.button.emissiveIntensity = on ? 0.6 : 0; },
   };
-  return { group: g, steering, eye, eyePitch: -0.1, cockpit, mirrors };
+  return { group: g, steering, eye, eyePitch: -0.1, cockpit, mirrors, dog };
 }
 
 // =====================================================================

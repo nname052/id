@@ -79,6 +79,13 @@ export function canvasLuminance(c) {
   return out;
 }
 
+/** يصغّر الخط لحد ما الكلام ييجي جوه العرض (اليافطات: الاسم كله باين ومش مقصوص) */
+export function fitFont(ctx, text, maxW, size, family = 'Cairo', weight = 'bold') {
+  ctx.font = `${weight} ${size}px "${family}", "Cairo", sans-serif`;
+  while (ctx.measureText(text).width > maxW && size > 10) { size -= 2; ctx.font = `${weight} ${size}px "${family}", "Cairo", sans-serif`; }
+  return size;
+}
+
 export function tex(c, { srgb = true, repeat = true, aniso = 8 } = {}) {
   const t = new THREE.CanvasTexture(c);
   if (srgb) t.colorSpace = THREE.SRGBColorSpace;
@@ -531,8 +538,8 @@ export function makeClinicAtlas() {
     ctx.fillStyle = '#f7f7f2'; ctx.fillRect(cx, cy, cw, ch);
     ctx.fillStyle = k % 2 ? '#1a4e9c' : '#b0221d'; ctx.fillRect(cx, cy, cw, 40); ctx.fillRect(cx, cy + ch - 28, cw, 28);
     ctx.fillStyle = k % 2 ? '#1a4e9c' : '#b0221d';
-    ctx.font = 'bold 34px "Cairo", sans-serif'; ctx.fillText(a, cx + cw / 2, cy + ch * 0.4);
-    ctx.fillStyle = '#222'; ctx.font = '26px "Cairo", sans-serif'; ctx.fillText(b, cx + cw / 2, cy + ch * 0.62);
+    fitFont(ctx, a, cw - 16, 34); ctx.fillText(a, cx + cw / 2, cy + ch * 0.4);
+    ctx.fillStyle = '#222'; fitFont(ctx, b, cw - 16, 26, 'Cairo', 'normal'); ctx.fillText(b, cx + cw / 2, cy + ch * 0.62);
     ctx.fillStyle = '#fff'; ctx.font = '18px "Cairo", sans-serif'; ctx.fillText('ت: ٠١٠٠٠٠٠٠٠٠٠', cx + cw / 2, cy + ch - 14);
   });
   return tex(c, { repeat: false });

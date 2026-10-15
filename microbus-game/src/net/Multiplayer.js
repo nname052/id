@@ -25,8 +25,9 @@ function labelSprite(seat, name) {
   x.fillStyle = '#ffffff'; x.font = 'bold 50px Cairo, sans-serif'; x.direction = 'rtl';
   x.fillText((name || `لاعب ${seat}`).slice(0, 16), 300, 68);
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
-  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: true, transparent: true }));
-  s.scale.set(2.6, 0.65, 1);
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: true, transparent: true, opacity: 0.85 }));
+  // صغير (مايغطيش الطريق) وبيبان من بعيد بس — قريب منك بيختفي
+  s.scale.set(1.5, 0.375, 1);
   s.renderOrder = 5;
   return s;
 }
@@ -98,6 +99,8 @@ export class Multiplayer {
       }
     }
     this._myLabel();
+    // اسمك فوق عربيتك: مايبانش وإنت سايق (كان بيحجب الطريق) — بيبان في الكاميرا اللي من فوق/السينمائية بس
+    if (this._mine) this._mine.visible = !['cockpit', 'chase', 'hood', 'close'].includes(g.cams?.modeId);
     // عربيات اللاعبين التانيين
     const seen = new Set();
     for (const p of this.others()) {
@@ -147,10 +150,10 @@ export class Multiplayer {
       rig.body.position.y = spec.cgHeight; // الـ shell متظبط على مركز الثقل
       rig.baseBodyY = spec.cgHeight;
       rig.brake = rig.lights.tail;
-    } else rig = g._makeCar('taxi', 0xf2f2ee); // نفس تاكسي شبين (السيدان)
+    } else rig = g._makeCar(g.assets.get('car_taxi') ? 'seal' : 'taxi', 0xf2f2ee); // نفس التاكسي الأبيض بتاع اللاعب
     rig.baseBodyY ??= 0;
     // سواق: التوكتوك عنده مكان عين السواق؛ الباقي في _makeCar أو مكان ثابت
-    if (kind === 'tuktuk' && rig.eye) addDriver(rig.eye.parent, rig.eye.position.x, rig.eye.position.y - 0.78, rig.eye.position.z + 0.1, seat);
+    if (kind === 'tuktuk' && rig.eye) addDriver(rig.eye.parent, rig.eye.position.x, rig.driverSeat?.y ?? rig.eye.position.y - 0.78, rig.eye.position.z + 0.12, seat, rig.driverSeat?.knee);
     else if (kind === 'microbus') addDriver(rig.body, 0.45, 0.92, -1.28, seat);
     const label = labelSprite(seat, name);
     label.position.y = LABEL_Y[kind];
@@ -174,7 +177,8 @@ export class Multiplayer {
     if (rig.brake) rig.brake.emissiveIntensity = pr.br ? 3.5 : 0.2;
     // الاسم يبان من بعيد بس لحد 160م
     const cam = this.game.camera.position;
-    R.label.visible = (c[0] - cam.x) ** 2 + (c[1] - cam.z) ** 2 < 160 * 160;
+    const d2 = (c[0] - cam.x) ** 2 + (c[1] - cam.z) ** 2;
+    R.label.visible = d2 < 160 * 160 && d2 > 14 * 14;
   }
 
   _drop(R) { R.rig.root.removeFromParent(); }

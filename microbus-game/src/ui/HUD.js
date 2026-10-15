@@ -142,10 +142,17 @@ export class HUD {
 
   show() { this.el.classList.remove('hidden'); this.help.classList.remove('hidden'); this._shown = true; this._renderJob(); }
 
-  toast(text, sec = 2) {
+  /** رسالة صغيرة فوق. minor = رسايل ثانوية (كلام الركاب، اسم المنطقة): مابتظهرش لو فيه رسالة شغالة
+   *  أو لو لسه فيه واحدة ثانوية من شوية. ونفس الرسالة مابتتكررش ورا بعض — عشان الشاشة تفضل فاضية للسواقة */
+  toast(text, sec = 2, minor = false) {
+    const now = performance.now() / 1000;
+    if (text === this._lastToast && now - this._lastToastT < 12) return;
+    if (minor && (this.toastTimer > 0 || now - (this._minorT || -99) < 9)) return;
+    if (minor) this._minorT = now;
+    this._lastToast = text; this._lastToastT = now;
     this.toastEl.textContent = text;
     this.toastEl.classList.add('show');
-    this.toastTimer = sec;
+    this.toastTimer = Math.min(sec, minor ? 2 : 3);
   }
 
   toggleHelp() { this.help.classList.toggle('hidden'); this.helpTimer = 0; }

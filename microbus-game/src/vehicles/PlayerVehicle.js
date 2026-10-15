@@ -4,6 +4,7 @@ import { buildTaxiRig, buildTuktukRig } from './PlayerRigs.js';
 import { buildMicrobus } from './MicrobusModel.js';
 import { analyzeVehicle, specFromModel, integrateHiace } from './HiaceIntegration.js';
 import { Damage } from './Damage.js';
+import { addBobbleDog, updateBobbles } from './CabAccessories.js';
 import { nearestSide } from '../world/RoadNetwork.js';
 import { ROAD, CROSSINGS } from '../world/layout.js';
 import { TERMINAL } from '../world/Shibin.js';
@@ -42,7 +43,7 @@ export class PlayerVehicle {
     if (this.kind === 'taxi' || this.kind === 'tuktuk') {
       const spec = { ...MICROBUS_SPEC, ...(this.kind === 'taxi' ? TAXI_SPEC_BASE : TUKTUK_SPEC_BASE) };
       this.physics = new VehiclePhysics(spec, groundHeight);
-      this.rig = this.kind === 'taxi' ? buildTaxiRig(spec) : buildTuktukRig(spec, assets);
+      this.rig = this.kind === 'taxi' ? buildTaxiRig(spec, assets) : buildTuktukRig(spec, assets);
       scene.add(this.rig.root);
     } else {
       this.physics = new VehiclePhysics(MICROBUS_SPEC, groundHeight);
@@ -50,12 +51,17 @@ export class PlayerVehicle {
       scene.add(this.rig.root);
       this._applyGLB(assets?.get('microbus'), assets?.status?.microbus);
     }
+    this._archLiners();
     this._setupMirrors();
     this._setupHeadlights();
     if (this.glbIntegrated) this.damage = new Damage(this);
     // السواق (إنت): بيبان من الكاميرا اللي برا بس، ومن كرسي السواق بيختفي عشان مايغطيش الرؤية
     const eye = this.rig.eye;
-    if (eye?.parent) { this.driver = addDriver(eye.parent, eye.position.x, eye.position.y - 0.78, eye.position.z + 0.1, 3); this.driver.castShadow = true; }
+    if (eye?.parent) {
+      const ds = this.rig.driverSeat; // مكان قعدة السواق لو الريج محدده (التوكتوك: كرسي عالي)
+      this.driver = ds ? addDriver(eye.parent, eye.position.x, ds.y, eye.position.z + (ds.dz ?? 0.1), 3, ds.knee) : addDriver(eye.parent, eye.position.x, eye.position.y - 0.78, eye.position.z + 0.1, 3);
+      this.driver.castShadow = true;
+    }
     this.reset(true);
   }
 
@@ -84,6 +90,24 @@ export class PlayerVehicle {
       console.info('[HiAce] wheelBase', A.wheelBase.toFixed(2), 'track', A.track.toFixed(2), 'R', A.radius.toFixed(3), 'body', (spec.halfLength * 2).toFixed(2), 'x', (spec.halfWidth * 2).toFixed(2));
     } catch (e) {
       fail('integration error: ' + (e?.message || e));
+    }
+  }
+
+  /** بطانة سودا جوه رفارف العجل: من برا وتحت العربية مايبانش صاج فاتح/فراغ فوق الكاوتش */
+  _archLiners() {
+    const sp = this.physics.spec, R = sp.wheelRadius, rig = this.rig;
+    if (this.kind === 'tuktuk') return; // التوكتوك رفارفه مفتوحة (زي الحقيقي)
+    const mat = (PlayerVehicle._linerMat ||= new THREE.MeshStandardMaterial({ color: 0x0b0b0c, roughness: 0.95, side: THREE.DoubleSide }));
+    const w0 = this.kind === 'microbus' ? 0.34 : 0.28, rr = this.kind === 'microbus' ? R + 0.12 : R + 0.07;
+    for (const w of rig.wheels) {
+      if (!w.group || !w.group.parent || w.group.children.length === 0) continue;
+      const geo = new THREE.CylinderGeometry(rr, rr, w0, 22, 1, true, -Math.PI * 0.12, Math.PI * 1.24).rotateZ(Math.PI / 2);
+      const m = new THREE.Mesh(geo, mat);
+      // shell أصله على الأرض: مركز العجلة على ارتفاع R
+      m.position.set(w.group.position.x, R + 0.01, w.group.position.z);
+      m.receiveShadow = true;
+      m.userData.role = 'liner';
+      rig.shell.add(m);
     }
   }
 
@@ -212,6 +236,7 @@ export class PlayerVehicle {
     if (this.rig.gauges) for (const g of Object.values(this.rig.gauges)) g.mat.emissiveIntensity = on ? 0.55 : 0.0;
     if (this.rig.screen) this.rig.screen.emissiveIntensity = on ? 0.9 : 0.35;
     this.rig.cockpit?.setNight?.(on);
+    if (this.rig.taxiSignMat) this.rig.taxiSignMat.emissiveIntensity = on ? 0.9 : 0.15;
     this.setHeadlights(on);
   }
 
@@ -378,6 +403,7 @@ export class PlayerVehicle {
       s.vz += (-(g / Lp) * Math.sin(s.az) - (ph.accelLat / Lp) * Math.cos(s.az) * 0.8 + ph.rollVel * 4) * hdt; s.vz *= 1 - 1.2 * hdt; s.az += s.vz * hdt;
       h.obj.rotation.set(s.ax, 0, s.az);
     }
+    updateBobbles(rig.bobbles, dt, ph);
   }
 
   /** يشيل العربية من المشهد (لما تغيّر نوع العربية) */

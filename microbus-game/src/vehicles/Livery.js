@@ -69,7 +69,8 @@ export function applyLivery(rig, name = 'shibin') {
     const [bf, by] = D.wsBase, [tf, ty] = D.wsTop, t = 0.15;
     const z = -(bf + (tf - bf) * t) + 0.05, y = by + (ty - by) * t;
     const w = Math.min(0.62, D.wsHalf * 0.8);
-    sign = new THREE.Mesh(new THREE.PlaneGeometry(w, w * 112 / 512), new THREE.MeshBasicMaterial({ map: signTexture(), side: THREE.DoubleSide, toneMapped: false }));
+    // FrontSide: بتبان من برا بس (من جوه ماكانتش بتتقري — كلام مقلوب بيزحم الرؤية)
+    sign = new THREE.Mesh(new THREE.PlaneGeometry(w, w * 112 / 512), new THREE.MeshBasicMaterial({ map: signTexture(), side: THREE.FrontSide, toneMapped: false }));
     sign.position.set(D.wsHalf - w / 2 - 0.05, y, z);
     // بنلفها تبص لقدام (−z) وبعدين نميلها لورا زي الزجاج بالظبط
     sign.rotation.set(Math.atan2(bf - tf, ty - by), Math.PI, 0);
@@ -83,6 +84,10 @@ export function applyLivery(rig, name = 'shibin') {
     if (L.corner) U.uLivCorner.value.set(L.corner);
     for (const m of paints) m.color.set(L.body);
     trimOut.value.set(L.body);
+    // من جوه بنفس لون العربية من برا (العواميد وإطار الشبابيك وتجليد الأبواب) — زي الصاج الحقيقي
+    trimIn.value.set(L.body).multiplyScalar(0.92);
+    if (rig.mats?.pillarTrim) rig.mats.pillarTrim.color.set(L.body);
+    if (rig.mats?.doorCard) rig.mats.doorCard.color.set(L.body);
     if (sign) sign.visible = !!L.sign;
   };
   // إطار الزجاج والعواميد: كانت سودا خالص (بتبان "سواد من قدام"). من برا بلون العربية، ومن جوه رمادي بلاستيك

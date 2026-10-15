@@ -6,7 +6,7 @@
 // =====================================================================
 import * as THREE from 'three';
 import { buildSedan } from '../vehicles/SedanModel.js';
-import { roadPointAt } from '../world/RoadNetwork.js';
+import { roadPointAt, ROADS } from '../world/RoadNetwork.js';
 import { groundHeight } from '../world/ground.js';
 import { GeoBuilder } from '../render/GeoBuilder.js';
 import { canvas, tex } from '../render/textures.js';
@@ -15,9 +15,12 @@ import { LICENSE } from './Licenses.js';
 const SPOTS = [
   { road: 'S1', frac: 0.3, name: 'كمين شارع باريس' },
   { road: 'R1', frac: 0.62, name: 'كمين طريق الترعة' },
+  { road: 'S2', frac: 0.55, name: 'كمين شارع الجامعة' },
+  { road: 'R4', frac: 0.45, name: 'كمين الطريق الغربي' },
+  { road: 'R5', frac: 0.5, name: 'كمين شارع الميدان' },
 ];
 const FINE = { driver: 500, vehicle: 400, flee: 1000 };
-const CHANCE = 0.6;        // احتمال إن الكمين يبقى شغال لما تقرب
+const CHANCE = 0.75;        // احتمال إن الكمين يبقى شغال لما تقرب
 const COOL = 8 * 60;       // بعد التفتيش: الكمين ده بيرتاح 8 دقايق
 const M4 = (x = 0, y = 0, z = 0, ry = 0) => new THREE.Matrix4().makeRotationY(ry).setPosition(x, y, z);
 
@@ -28,6 +31,16 @@ function signTexture() {
   x.fillStyle = '#fff'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.direction = 'rtl';
   x.font = 'bold 78px Cairo, sans-serif'; x.fillText('قف', 128, 72);
   x.font = 'bold 34px Cairo, sans-serif'; x.fillText('كمين مرور', 128, 146);
+  return tex(c, { repeat: false });
+}
+
+/** حاجز مرور: لوح مخطط أحمر وأبيض على رجلين (A) */
+function barrierTexture() {
+  const c = canvas(256, 64), x = c.getContext('2d');
+  x.fillStyle = '#f4f4f4'; x.fillRect(0, 0, 256, 64);
+  x.fillStyle = '#d81a1a';
+  for (let i = -2; i < 10; i++) { x.beginPath(); x.moveTo(i * 32, 64); x.lineTo(i * 32 + 16, 64); x.lineTo(i * 32 + 48, 0); x.lineTo(i * 32 + 32, 0); x.closePath(); x.fill(); }
+  x.strokeStyle = '#222'; x.lineWidth = 4; x.strokeRect(2, 2, 252, 60);
   return tex(c, { repeat: false });
 }
 
@@ -92,8 +105,35 @@ export class Police {
         cg.setColor([0.95, 0.95, 0.95]); cg.addGeometry(new THREE.CylinderGeometry(0.105, 0.125, 0.09, 10), M4(x, y + 0.36, z));
         cg.setColor([0.08, 0.08, 0.08]); cg.addGeometry(new THREE.BoxGeometry(0.4, 0.04, 0.4), M4(x, y + 0.02, z));
       };
-      for (const along of [-14, -10, -6, 6, 10, 14]) for (const side of [-1, 1]) { const [x, z] = at(along, side * (road - 0.4 - Math.max(0, 6 - Math.abs(along)) * 0.18)); cone(x, z); }
+      for (const along of [-18, -14, 14, 18]) for (const side of [-1, 1]) { const [x, z] = at(along, side * (road - 0.4)); cone(x, z); }
       root.add(new THREE.Mesh(cg.build(), coneMat));
+      // حواجز مخططة: بتضيّق الطريق لحارة واحدة في النص قدام الظابط (لازم تهدّي)، ومتلاغية مع بعض (زقزاق)
+      const colliders = [];
+      {
+        const bg = new GeoBuilder(), plank = new GeoBuilder();
+        const B = (along, side, len) => {
+          const off = side * (road - len / 2 - 0.15);
+          const [x, z] = at(along, off), y = groundHeight(x, z);
+          const m = new THREE.Matrix4().makeRotationY(yaw + Math.PI / 2).setPosition(x, y, z);
+          plank.addGeometry(new THREE.BoxGeometry(len, 0.32, 0.05).translate(0, 0.78, 0), m);
+          plank.addGeometry(new THREE.BoxGeometry(len, 0.2, 0.05).translate(0, 0.36, 0), m);
+          bg.setColor([0.15, 0.15, 0.16]);
+          for (const e of [-1, 1]) {
+            bg.addGeometry(new THREE.BoxGeometry(0.05, 0.98, 0.05).translate(e * (len / 2 - 0.08), 0.49, 0), m);
+            bg.addGeometry(new THREE.BoxGeometry(0.08, 0.04, 0.5).translate(e * (len / 2 - 0.08), 0.02, 0), m);
+          }
+          colliders.push({ cx: x, cz: z, hx: len / 2, hz: 0.12, angle: yaw + Math.PI / 2, restitution: 0.2, kind: 'prop' });
+        };
+        // (الشوارع اللي فيها جزيرة في النص: الحواجز على الجناب بس عشان العربية تعدي)
+        const blvd = ROADS.find((r) => r.id === def.road)?.boulevard;
+        const L = blvd ? 1.1 : Math.max(1.6, road - 1.9);
+        for (const along of [-10, -6]) B(along, -1, L);
+        for (const along of [6, 10]) B(along, 1, L);
+        if (!blvd) { B(-2.5, 1, L * 0.55); B(2.5, -1, L * 0.55); }
+        const pm = new THREE.MeshStandardMaterial({ map: barrierTexture(), roughness: 0.5 });
+        const pmesh = new THREE.Mesh(plank.build(), pm); pmesh.castShadow = true; root.add(pmesh);
+        const bmesh = new THREE.Mesh(bg.build(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7 })); root.add(bmesh);
+      }
       // يافطة "قف كمين" على حامل
       const [sx, sz] = at(-15, road + 0.6);
       const sg = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.9), signMat);
@@ -106,7 +146,7 @@ export class Police {
       off.position.set(q.x, y0, q.z);
       root.add(off);
       scene.add(root);
-      this.cps.push({ def, q: { x: q.x, z: q.z, dx: q.dx, dz: q.dz, rx: q.rx, rz: q.rz, half: road }, root, car, off, state: 'idle', cool: 0, rolled: false, t: 0 });
+      this.cps.push({ def, q: { x: q.x, z: q.z, dx: q.dx, dz: q.dz, rx: q.rx, rz: q.rz, half: road }, root, car, off, colliders, state: 'idle', cool: 0, rolled: false, t: 0 });
     }
     // مكان "اركن على جنب": علامة حمرا/زرقا على الأرض
     const mk = new THREE.Mesh(new THREE.PlaneGeometry(2.8, 6).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x3b82f6, transparent: true, opacity: 0.6, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, toneMapped: false }));
@@ -115,6 +155,14 @@ export class Police {
     this.marker = mk;
     this.active = null;
     this._flash = 0;
+  }
+
+  /** الحواجز جسم حقيقي (لما الكمين ظاهر بس) */
+  colliders(box, out) {
+    for (const c of this.cps) {
+      if (!c.root.visible || Math.abs(c.q.x - box.cx) > 30 || Math.abs(c.q.z - box.cz) > 30) continue;
+      for (const b of c.colliders) out.push(b);
+    }
   }
 
   /** بيرجّع هدف للـ GPS لو لازم تركن على جنب */

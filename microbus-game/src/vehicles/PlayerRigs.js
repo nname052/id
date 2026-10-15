@@ -8,6 +8,7 @@ import { buildWheel } from './wheel.js';
 import { fitModelToRig, tuktukColors } from './ModelFit.js';
 import { buildSedan, SEDAN } from './SedanModel.js';
 import { buildTaxiCockpit, buildTuktukCockpit } from './Cockpits.js';
+import { addBobbleDog } from './CabAccessories.js';
 
 // عربيات اللاعب التانية (غير الميكروباص): تاكسي وتوكتوك.
 // كل واحدة بترجع "rig" بنفس شكل rig الهاي إس عشان PlayerVehicle والكاميرا والمرايات والركاب يشتغلوا عليها:
@@ -59,7 +60,7 @@ function mirrorFace(w, h) {
 // =====================================================================
 //  التاكسي (سيدان أبيض بشريط شطرنج — نفس شكل تاكسي المرور)
 // =====================================================================
-export function buildTaxiRig(spec) {
+export function buildTaxiRig(spec, assets = null) {
   // تاكسي شبين الكوم (سيدان BYD F3 بنفس ألوان الصورة) + كابينة سيدان حديثة (الصورة المرجعية)
   const rig = baseRig(spec);
   const car = buildSedan({ livery: 'taxi', lod: 0, seeThrough: true, uniqueMat: true });
@@ -81,7 +82,7 @@ export function buildTaxiRig(spec) {
   const ck = buildTaxiCockpit(rig, { mirrorFace });
   ck.group.position.z += shift;
   for (const mm of ck.mirrors) if (mm.side) mm.holder.position.z += shift;
-  rig.steering = ck.steering; rig.mirrors = ck.mirrors; rig.cockpit = ck.cockpit;
+  rig.steering = ck.steering; rig.mirrors = ck.mirrors; rig.cockpit = ck.cockpit; rig.bobbles = [ck.dog];
   rig.eye = ck.eye; rig.eyePitch = ck.eyePitch; rig.eyeBase = ck.eye.position.clone();
   rig.gauges = null;
   rig.dims = { HW: SEDAN.halfWidth, frontF: -(SEDAN.zFront + shift), rearF: -(SEDAN.zRear + shift), roofY: SEDAN.roof };
@@ -90,6 +91,47 @@ export function buildTaxiRig(spec) {
   rig.slidingDoor = fakeDoor(new THREE.Vector3(SEDAN.halfWidth, 0.8, 0.45 + shift));
   rig.kind = 'taxi';
   rig.root.traverse((o) => { if (o.isMesh && o.userData.role !== 'glass' && o.userData.role !== 'shadow' && !o.material?.transparent) o.castShadow = true; });
+  // التاكسي الأبيض الحقيقي (BYD Seal): بيبقى هو الجسم من برا، والسيدان الإجرائي بيستخبى
+  const a = assets?.get('car_taxi');
+  if (a) {
+    const sedanParts = rig.shell.children.filter((o) => o !== ck.group && !ck.mirrors.some((mm) => mm.holder === o));
+    if (fitModelToRig(rig, spec, a, { wheelRe: /tyre|tire|rim|disk/i })) {
+      for (const o of sedanParts) o.visible = false;
+      rig.contactShadow && (rig.contactShadow.visible = true);
+      // فوانيس الموديل نفسه: الفرامل/الوقوف (أحمر) والكشافات
+      const tailMats = [], headMats = [];
+      rig.model.traverse((o) => {
+        if (!o.isMesh) return;
+        const n = o.material.name || '';
+        if (/red_emis|tail_light/i.test(n)) { o.material = o.material.clone(); o.material.emissive = new THREE.Color(0xff1a10); o.material.emissiveIntensity = 0.12; tailMats.push(o.material); }
+        else if (/HL_Mat|HL_CHR/i.test(n)) { o.material = o.material.clone(); o.material.emissive = new THREE.Color(0xfff2d8); o.material.emissiveIntensity = 0; headMats.push(o.material); }
+        else if (/corner/i.test(n)) { o.material = o.material.clone(); o.material.color.set(0x1a1b1d); } // الحواف اللي تحت: أسود مش أزرق
+      });
+      rig.lights = {
+        head: { set emissiveIntensity(v) { for (const m of headMats) m.emissiveIntensity = v > 0.1 ? 1.4 : 0; } },
+        tail: { set emissiveIntensity(v) { for (const m of tailMats) m.emissiveIntensity = v > 2 ? 2.4 : v > 0.5 ? 0.9 : 0.12; } },
+        fog: null,
+      };
+      rig.setReverse = () => {};
+      rig.lamps = { head: [[-0.62, 0.64, -1.78], [0.62, 0.64, -1.78]], tail: [[-0.66, 0.8, 2.25], [0.66, 0.8, 2.25]] };
+      rig.dims = { HW: 0.96, frontF: 1.95, rearF: -2.36, roofY: 1.29 };
+      // يافطة تاكسي صغيرة على السقف (منورة بالليل)
+      {
+        const c = canvas(256, 64), x = c.getContext('2d');
+        x.fillStyle = '#f7d21c'; x.fillRect(0, 0, 256, 64);
+        x.fillStyle = '#111'; x.font = 'bold 40px Cairo, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.direction = 'rtl';
+        x.fillText('تاكسي', 128, 34);
+        const tm = new THREE.MeshStandardMaterial({ map: tex(c, { repeat: false }), emissive: 0xffffff, roughness: 0.4 });
+        tm.emissiveMap = tm.map; tm.emissiveIntensity = 0.15;
+        const sign = new THREE.Group(); sign.position.set(0, 1.29, 0.45);
+        const box = new THREE.Mesh(new RoundedBoxGeometry(0.5, 0.13, 0.16, 2, 0.03), new THREE.MeshStandardMaterial({ color: 0xf7d21c, roughness: 0.4 }));
+        box.position.y = 0.07; box.castShadow = true; sign.add(box);
+        for (const sz of [-1, 1]) { const f = new THREE.Mesh(new THREE.PlaneGeometry(0.46, 0.11), tm); f.position.set(0, 0.07, sz * 0.081); if (sz < 0) f.rotation.y = Math.PI; sign.add(f); }
+        rig.shell.add(sign);
+        rig.taxiSignMat = tm;
+      }
+    }
+  }
   return rig;
 }
 
@@ -175,6 +217,9 @@ export function buildTuktukRig(spec, assets = null) {
   rig.hands = ck.hands;
   rig.cockpit = ck.cockpit;
   rig.gauges = null;
+  rig.bobbles = [addBobbleDog(S, 0.26, 0.99, -1.0, 0, 1.1)];
+  // السواق قاعد على كرسي التوكتوك العالي ورجله ممدودة لقدام على الأرضية (مش نازلة من تحت)
+  rig.driverSeat = { y: 0.8, dz: 0.12, knee: -1.0 };
   // العجل: واحدة قدام (FL) والتانية مخفية، واتنين ورا
   const wm = vehicleMaterials(0xffffff);
   const mk = (x, z, side) => { const w = buildWheel({ radius: spec.wheelRadius, width: 0.12, rimRadius: 0.115, mats: wm, style: 'steel', side }); w.group.position.set(x, spec.wheelRadius, z); rig.root.add(w.group); return w; };
@@ -224,6 +269,17 @@ export function buildTuktukRig(spec, assets = null) {
       headRing.position.set(0, 0.7, -1.335);
       for (const t of tails) { t.geometry = new THREE.BoxGeometry(0.12, 0.08, 0.02); t.position.set(Math.sign(t.position.x) * 0.36, 0.8, 1.02); }
       rig.lamps = { head: [[0, 0.7, -1.34]], tail: tails.map((t) => [t.position.x, t.position.y, 1.035]) };
+      // التوكتوك كان باين رفيع من برا: بنعرّضه (الجسم + الكابينة + المرايات) على قد العجل اللي ورا
+      const WX = spec.track / 1.0;
+      rig.model.scale.x *= WX;
+      ck.group.scale.x = WX;
+      for (const m of rig.mirrors) m.holder.position.x *= WX;
+      for (const o of mirrorSticks) o.position.x *= WX;
+      for (const t of tails) t.position.x *= WX;
+      rig.lamps.tail = tails.map((t) => [t.position.x, t.position.y, 1.035]);
+      rig.dims.HW *= WX;
+      for (const p of rig.paxSeats) p.x *= WX;
+      rig.slidingDoor.center.x *= WX;
     }
   }
   return rig;

@@ -15,6 +15,9 @@ export function createMaterials() {
   M.sidewalkTop = std({ ...side, roughness: 0.92, vertexColors: true });
   M.sidewalkTop.userData.castShadow = false;
   M.curb = std({ map: T.makeCurb(), roughness: 0.85 });
+  // الجزيرة اللي في نص الشارع: زرع + حرف ملوّن
+  M.median = std({ roughness: 0.95, vertexColors: true });
+  M.medianCurb = std({ roughness: 0.6, vertexColors: true });
   M.curbYellow = std({ map: T.makeCurb(['#e8c22a', '#1d1d1d']), roughness: 0.85 });
   M.dirt = std({ map: T.makeDirt(), roughness: 1 });
 
@@ -48,6 +51,11 @@ export function createMaterials() {
 
   M.paint = std({ color: 0xf2f0e6, roughness: 0.65, alphaMap: T.makePaintWear(), transparent: true, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, depthWrite: false });
   M.paintYellow = M.paint.clone(); M.paintYellow.color.set(0xe8c030);
+  // دهان المطبات: جديد وواضح (مش باهت)
+  const fresh = { roughness: 0.55, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 };
+  M.bumpYellow = std({ color: 0xf5c400, ...fresh });
+  M.bumpBlack = std({ color: 0x141414, ...fresh });
+  M.bumpWhite = std({ color: 0xf4f4f0, ...fresh });
   M.stain = std({ color: 0x000000, alphaMap: T.makeStain(), transparent: true, opacity: 1, roughness: 0.6, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1, depthWrite: false, vertexColors: true });
   M.patch = std({ ...asphalt, color: 0x77746f, roughness: 1, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
   const mh = T.makeManhole();

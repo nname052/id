@@ -39,7 +39,7 @@ kbd { display: inline-block; min-width: 26px; padding: 1px 7px; margin-left: 4px
 .sig.yellow { background: #ffb000; box-shadow: 0 0 10px #ffb000; }
 .sig.green { background: #2bff70; box-shadow: 0 0 10px #2bff70; }
 
-#toast { position: fixed; top: 18px; left: 50%; transform: translateX(-50%) translateY(-20px); background: var(--bg); padding: 8px 18px; border-radius: 10px; opacity: 0; transition: all 0.25s; z-index: 6; pointer-events: none; font-size: 17px; }
+#toast { position: fixed; top: 18px; left: 50%; transform: translateX(-50%) translateY(-20px); background: rgba(14, 14, 16, 0.55); padding: 4px 14px; border-radius: 999px; opacity: 0; transition: all 0.25s; z-index: 6; pointer-events: none; font-size: 14px; max-width: min(520px, 62vw); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 #fps { position: fixed; bottom: 8px; left: 50%; transform: translateX(-50%); font: 600 13px monospace; background: var(--bg); padding: 3px 8px; border-radius: 6px; z-index: 6; direction: ltr; }
 #help { position: fixed; top: 92px; right: 14px; max-width: min(460px, calc(100vw - 28px)); background: var(--bg); padding: 10px 14px; border-radius: 12px; font-size: 13px; line-height: 1.8; z-index: 5; pointer-events: none; }
@@ -171,7 +171,7 @@ body.touch #minimap.big { left: 50%; bottom: auto; top: 50%; transform: translat
 #job .job-sw { position: absolute; left: 6px; top: 50%; transform: translateY(-50%); width: 28px; height: 28px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.25); background: rgba(255, 255, 255, 0.08); color: #fff; font: 700 15px/1 system-ui, sans-serif; pointer-events: auto; cursor: pointer; touch-action: none; }
 #job:has(.job-sw.hidden) { padding-left: 12px; }
 #toast { top: 64px; }
-body.touch #toast { top: 54px; }
+body.touch #toast { top: calc(6px + env(safe-area-inset-top, 0px)); font-size: 12px; padding: 2px 12px; max-width: 52vw; }
 body.touch #job { font-size: 12px; padding: 3px 10px 4px 36px; max-width: min(340px, 46vw); background: rgba(14, 14, 16, 0.5); }
 body.touch #job .job-2 { font-size: 11px; }
 /* اللفة الجاية (GPS) جنب الخريطة */
@@ -233,4 +233,11 @@ body.touch #job:not(:has(.job-sw.hidden)) { padding-left: 36px; }
 body.touch .rpm-wrap, body.touch .sig { display: none !important; }
 body.touch .dash { gap: 8px; }
 /* شاشات ضيقة: لوحة الشغل تنزل تحت الأزرار */
-@media (max-width: 760px) { body.touch #job { top: calc(52px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%); max-width: 46vw; } body.touch #toast { top: 98px; } }
+@media (max-width: 760px) { body.touch #job { top: calc(52px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%); max-width: 46vw; } body.touch #toast { top: calc(6px + env(safe-area-inset-top, 0px)); } }
+
+/* السباق: شريط صغير فوق في النص (لفة · وقت · مركز) */
+#racebar { position: fixed; z-index: 7; top: calc(30px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%); display: flex; gap: 14px; align-items: center; background: rgba(14, 14, 16, 0.6); color: #fff; border-radius: 999px; padding: 3px 16px; font: 700 14px 'Cairo', sans-serif; pointer-events: none; direction: rtl; font-variant-numeric: tabular-nums; }
+#racebar.hidden { display: none; }
+#racebar b { color: #f2b330; font-size: 16px; }
+#racebar b.go { color: #22c55e; font-size: 22px; }
+body.touch #racebar { font-size: 12px; padding: 2px 12px; top: calc(26px + env(safe-area-inset-top, 0px)); }

@@ -434,7 +434,7 @@ export class Passengers {
     this._toastCd = this._toastCd || 0;
     if (this._toastCd > 0) return;
     this._toastCd = 2;
-    this.hud?.toast(`🗣️ ${text}`, 2.6);
+    this.hud?.toast(`🗣️ ${text}`, 2, true);
     this.audio?.chatterBurst?.();
   }
 
@@ -740,6 +740,14 @@ export class Passengers {
         if (this._walkTo(p, p.target[0], p.target[1], dt, 0.2)) { p.state = 'leave'; p.timer = 0; }
         continue;
       }
+      if (p.state === 'flee') {
+        // بيجري بعيد عن العربية
+        p.timer += dt;
+        p.x += p.fdx * WALK * 2.6 * dt; p.z += p.fdz * WALK * 2.6 * dt;
+        this._pose(p, 'walk', WALK * 2.6, Math.atan2(p.fdx, p.fdz));
+        if (p.timer > 6) this._release(p);
+        continue;
+      }
       if (p.state === 'leave') {
         p.timer += dt;
         const st = this.stops.find((s) => Math.hypot(s.x - p.x, s.z - p.z) < 6) || { ax: 1, az: 0 };
@@ -768,6 +776,28 @@ export class Passengers {
     }
   }
 
+  /** حادثة: كل الركاب بينزلوا يجروا مرعوبين (من غير أجرة). بيرجّع عددهم */
+  panicExit() {
+    const n = this.onboard.length;
+    if (!n) return 0;
+    const doorP = this._doorPoint(_v);
+    for (const p of this.onboard) {
+      if (p.seat) p.seat.pax = null;
+      const w = this._take();
+      if (!w) continue;
+      const a = this.R() * Math.PI * 2;
+      w.state = 'flee'; w.x = doorP.x + Math.cos(a) * 0.6; w.z = doorP.z + Math.sin(a) * 0.6; w.timer = 0;
+      w.fdx = Math.cos(a); w.fdz = Math.sin(a);
+    }
+    this.onboard.length = 0;
+    this.trip = null;
+    for (const w of this.walkers) if (w.state === 'toDoor') w.state = 'return';
+    this._rebuildSeated();
+    this._updateHud();
+    this.audio?.chatterBurst?.();
+    return n;
+  }
+
   _board(p) {
     if (p.dest && !this.stops.includes(p.dest)) this.stops.push(p.dest); // الوجهة لازم تفضل مفعّلة
     const free = this.seats.filter((s) => !s.pax);
@@ -783,7 +813,7 @@ export class Passengers {
       const fare = tripFare(this.player.kind, p.group.meters);
       this.trip = { dest: p.dest, meters: p.group.meters, fare, t0: performance.now() };
       this.hud?.toast(`🧍 ركب زبون · رايح ${p.dest.name} (${fmtDist(p.group.meters)}) · الأجرة ${fare} ج`, 3.2);
-    } else if (this.mode === 'line') this.hud?.toast(`ركب راكب · نازل ${pax.dest ? pax.dest.name : 'آخر الخط'}`, 2.2);
+    } else if (this.mode === 'line') this.hud?.toast(`ركب راكب · نازل ${pax.dest ? pax.dest.name : 'آخر الخط'}`, 2, true);
     this._release(p);
     this._rebuildSeated();
     this._updateHud();
