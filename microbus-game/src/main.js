@@ -24,6 +24,17 @@ pick.addEventListener('click', (e) => {
   game.mp?.setMe({ kind: picked });
 });
 
+// اختيار الخريطة من شاشة البداية (الحالية متاحة دلوقتي، والكاملة لسه متبنتش فمتقفلة)
+const maps = document.getElementById('maps');
+let mapPick = (() => { try { return localStorage.getItem('egy-map') || 'current'; } catch { return 'current'; } })();
+const syncMap = () => { for (const b of maps.children) b.classList.toggle('on', b.dataset.m === mapPick); };
+syncMap();
+maps.addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b || b.disabled) return;
+  mapPick = b.dataset.m; syncMap();
+  try { localStorage.setItem('egy-map', mapPick); } catch { /* مفيش تخزين */ }
+});
+
 game.init().then(() => {
   game.settings.set('vehicle', picked);
   if (game.player.kind !== picked) game.setVehicle(picked);
