@@ -54,7 +54,7 @@ export function createMaterials() {
   // دهان المطبات: جديد وواضح (مش باهت)
   const fresh = { roughness: 0.55, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 };
   M.bumpYellow = std({ color: 0xf5c400, ...fresh });
-  M.bumpBlack = std({ color: 0x141414, ...fresh });
+  M.bumpBlack = std({ color: 0x0c0c0c, ...fresh }); // (أسود غامق جدًا عشان يبان جنب الأصفر)
   M.bumpWhite = std({ color: 0xf4f4f0, ...fresh });
   M.stain = std({ color: 0x000000, alphaMap: T.makeStain(), transparent: true, opacity: 1, roughness: 0.6, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1, depthWrite: false, vertexColors: true });
   M.patch = std({ ...asphalt, color: 0x77746f, roughness: 1, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });

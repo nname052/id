@@ -255,9 +255,9 @@ export function terrainRaw(x, z) {
 export const ROUTE_BUMPS = [];
 (() => {
   const v = ROUTE.zones.village;
-  if (v) for (const s of [v[0] + 40, v[0] + 120, v[1] - 30]) ROUTE_BUMPS.push({ s, half: 0.5, height: 0.08 });
+  if (v) for (const s of [v[0] + 40, v[0] + 120, v[1] - 30]) ROUTE_BUMPS.push({ s, half: 0.85, height: 0.085 });
   const r = ROUTE.zones.residential;
-  if (r) ROUTE_BUMPS.push({ s: r[0] + 160, half: 0.5, height: 0.085 });
+  if (r) ROUTE_BUMPS.push({ s: r[0] + 160, half: 0.85, height: 0.09 });
 })();
 
 /** ارتفاع سطح الطريق (للفيزياء) + المطبات + خشونة حسب نوع الطريق */

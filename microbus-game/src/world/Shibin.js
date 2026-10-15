@@ -104,7 +104,7 @@ export function buildShibin(world) {
         const P = (p, d, h) => [p.x + p.rx * d, p.y + h, p.z + p.rz * d];
         const bk = B(mx, mz);
         const gr = bk.get('median');
-        gr.setColor([0.3 + R() * 0.05, 0.5 + R() * 0.06, 0.22]);
+        gr.setColor([0.2 + R() * 0.04, 0.36 + R() * 0.05, 0.14]);
         gr.quad(P(a, -MEDIAN_HALF, top), P(a, MEDIAN_HALF, top), P(b, MEDIAN_HALF, top), P(b, -MEDIAN_HALF, top));
         const cu = bk.get('medianCurb');
         cu.setColor(i % 2 ? [0.95, 0.95, 0.93] : [0.12, 0.12, 0.13]); // حرف أبيض وأسود
@@ -393,6 +393,18 @@ export function buildShibin(world) {
       const pl = new THREE.Mesh(new THREE.PlaneGeometry(Math.min(5.5, d.z1 - d.z0 - 1), 1.3), gm);
       pl.position.set(T.x0 - 0.33, y + 4.8, (d.z0 + d.z1) / 2); pl.rotation.y = -Math.PI / 2;
       grp.add(pl);
+    }
+    // ناس كتير مستنية تحت المظلة وجنب الدكك والكشك (ثابتين — أخف من الماشيين)
+    {
+      const hv = humanVariants(8, 2626), hg = new GeoBuilder();
+      let k = 0;
+      for (let z = T.z0 + 3; z < T.z1 - 3; z += 1.6) for (const x of [T.x1 - 3.0, T.x1 - 7.7, T.x1 - 9.6]) {
+        if (R() < 0.35) continue;
+        const h = hv[k++ % hv.length], px = x + (R() - 0.5) * 0.8, pz = z + (R() - 0.5) * 0.8;
+        hg.addGeometry(h.geo, new THREE.Matrix4().compose(new THREE.Vector3(px, y, pz), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -Math.PI / 2 + (R() - 0.5) * 2), new THREE.Vector3(h.scale, h.scale, h.scale)));
+      }
+      for (let i = 0; i < 8; i++) { const h = hv[k++ % hv.length]; hg.addGeometry(h.geo, new THREE.Matrix4().compose(new THREE.Vector3(kx - 1 - R() * 2, y, kz + R() * 4), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), R() * 6.28), new THREE.Vector3(h.scale, h.scale, h.scale))); }
+      const pm = new THREE.Mesh(hg.build(), humanStaticMaterial()); pm.castShadow = true; grp.add(pm);
     }
     world._addChunk(grp, (T.x0 + T.x1) / 2, (T.z0 + T.z1) / 2, 60);
   }

@@ -23,11 +23,11 @@ export const PLAYER_START = { x: ROAD.lanes[0], z: 150, yaw: 0 };
 
 // مطبات صناعية عرضية
 export const BUMPS = [
-  { z: 95, half: 0.5, height: 0.085, xMin: 0.7, xMax: 10 },
-  { z: 60, half: 0.5, height: 0.085, xMin: -10, xMax: -0.7 },
-  { z: -60, half: 0.55, height: 0.09, xMin: -10, xMax: 10 },
-  { z: -120, half: 0.45, height: 0.08, xMin: 0.7, xMax: 10 },
-  { z: -215, half: 0.5, height: 0.085, xMin: -10, xMax: 10 },
+  { z: 95, half: 0.85, height: 0.085, xMin: 0.7, xMax: 10 },
+  { z: 60, half: 0.85, height: 0.085, xMin: -10, xMax: -0.7 },
+  { z: -60, half: 0.85, height: 0.09, xMin: -10, xMax: 10 },
+  { z: -120, half: 0.85, height: 0.08, xMin: 0.7, xMax: 10 },
+  { z: -215, half: 0.85, height: 0.085, xMin: -10, xMax: 10 },
 ];
 
 // غطيان بلاعات (هبوط بسيط) وحفر

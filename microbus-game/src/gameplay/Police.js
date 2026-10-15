@@ -114,7 +114,7 @@ export class Police {
         const B = (along, side, len) => {
           const off = side * (road - len / 2 - 0.15);
           const [x, z] = at(along, off), y = groundHeight(x, z);
-          const m = new THREE.Matrix4().makeRotationY(yaw + Math.PI / 2).setPosition(x, y, z);
+          const m = new THREE.Matrix4().makeRotationY(yaw).setPosition(x, y, z); // بالعرض (بيقفل جزء من الحارة)
           plank.addGeometry(new THREE.BoxGeometry(len, 0.32, 0.05).translate(0, 0.78, 0), m);
           plank.addGeometry(new THREE.BoxGeometry(len, 0.2, 0.05).translate(0, 0.36, 0), m);
           bg.setColor([0.15, 0.15, 0.16]);
@@ -122,7 +122,7 @@ export class Police {
             bg.addGeometry(new THREE.BoxGeometry(0.05, 0.98, 0.05).translate(e * (len / 2 - 0.08), 0.49, 0), m);
             bg.addGeometry(new THREE.BoxGeometry(0.08, 0.04, 0.5).translate(e * (len / 2 - 0.08), 0.02, 0), m);
           }
-          colliders.push({ cx: x, cz: z, hx: len / 2, hz: 0.12, angle: yaw + Math.PI / 2, restitution: 0.2, kind: 'prop' });
+          colliders.push({ cx: x, cz: z, hx: len / 2, hz: 0.12, angle: yaw, restitution: 0.2, kind: 'prop' });
         };
         // (الشوارع اللي فيها جزيرة في النص: الحواجز على الجناب بس عشان العربية تعدي)
         const blvd = ROADS.find((r) => r.id === def.road)?.boulevard;
