@@ -9,7 +9,7 @@ import { nearestSide } from '../world/RoadNetwork.js';
 import { ROAD, CROSSINGS } from '../world/layout.js';
 import { TERMINAL } from '../world/Shibin.js';
 // البداية: راكن جوه موقف ميكروباص شبين الكوم ووشك ناحية شارع المحطة
-const PLAYER_START = { x: TERMINAL.x0 + 22.5, z: TERMINAL.z1 - 4.5, yaw: Math.PI / 2 }; // صف فاضي قدامه طريق الخروج
+const PLAYER_START = { x: TERMINAL.x0 + 22.5, z: TERMINAL.z0 + 5, yaw: Math.PI / 2 }; // صف فاضي قدامه بوابة الخروج (القبلية)
 import { groundHeight } from '../world/ground.js';
 import { addDriver } from '../world/Pedestrians.js';
 import { loopProject, loopAt } from '../traffic/TrafficSystem.js';

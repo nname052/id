@@ -24,9 +24,9 @@ export const ROAD_DEFS = [
     pts: [{ city: [-74, -165] }, [-115, -175], [-140, -270], [-110, -350], { J: 140, side: -1 }] },
   // طريق حلبة السباق (غرب البلد في الأرض المفتوحة) — بيطلع من الطريق الغربي
   { id: 'R7', name: 'طريق الحلبة', sign: 'حلبة السباق', half: 3.6, surface: 'asphalt', style: 'highway',
-    pts: [[-250, 68], [-232, 72], [-212, 80], { snap: 'R4' }] },
+    pts: [[-256, -12], [-236, -8], [-212, 8], { snap: 'R4' }] },
   // ===== شبين الكوم (حي بين الطريق السريع ومخرجه) =====
-  { id: 'S1', name: 'شارع باريس', sign: 'شبين الكوم', half: 4.6, surface: 'asphalt', style: 'urban', district: 'shibin', boulevard: true,
+  { id: 'S1', name: 'شارع باريس', sign: 'شبين الكوم', half: 4.4, surface: 'asphalt', style: 'urban', district: 'shibin',
     pts: [{ J: 2721, side: 1 }, [60, 298], [130, 300], [200, 300], [262, 300], [300, 302], { snap: 'R3' }] },
   { id: 'S2', name: 'شارع الجامعة', sign: 'جامعة المنوفية', half: 5.2, surface: 'asphalt', style: 'urban', district: 'shibin', boulevard: true,
     pts: [[200, 476], [200, 400], [200, 300], [200, 212], [200, 120], [205, 40], { snap: 'R1' }] },
@@ -197,10 +197,10 @@ function distTo(road, x, z, near) {
   for (let i = i0; i < i1; i++) { const p = S[i]; const d = (p.x - x) ** 2 + (p.z - z) ** 2; if (d < bd) { bd = d; bi = i; } }
   return { d: Math.sqrt(bd), i: bi };
 }
-// مداخل العربيات (الرصيف مقطوع ومستوي مع الطريق): مدخل ومخرج موقف شبين على شارع المحطة
+// مداخل العربيات (الرصيف مقطوع ومستوي مع الطريق): مخرج (قبلي) ومدخل (بحري) موقف شبين على شارع المحطة
 export const DRIVEWAYS = [
-  { x0: 254.8, x1: 260.6, z0: 245, z1: 253.5, name: 'دخول' },
-  { x0: 254.8, x1: 260.6, z0: 279.5, z1: 288.2, name: 'خروج' },
+  { x0: 254.8, x1: 260.6, z0: 245, z1: 253.5, name: 'خروج' },
+  { x0: 254.8, x1: 260.6, z0: 279.5, z1: 288.2, name: 'دخول' },
 ];
 /** نقطة (x,z) على أسفلت أي طريق فرعي تاني غير road؟ (عشان الرصيف يتقطع عند التقاطعات ومداخل العربيات) */
 export function onOtherCarriageway(x, z, road, margin = 0.6) {

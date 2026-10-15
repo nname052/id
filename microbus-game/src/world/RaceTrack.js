@@ -12,6 +12,9 @@ import { humanVariants, humanStaticMaterial } from './Humans.js';
 export const RACE_Y = -0.5;
 const HALF = 6.5;               // نص عرض الأسفلت
 const WALL = HALF + 4.5;        // مكان الحاجز من النص
+// مدخل الحلبة: فتحة في الحاجز الشرقي قبل خط البداية (طريق الحلبة داخل منها) — side=-1 = الناحية الشرقية على المستقيم
+export const RACE_GATE = { z0: -24, z1: 2, xMin: -300 };
+const inGate = (p, sg) => sg < 0 && p.x > RACE_GATE.xMin && p.z > RACE_GATE.z0 && p.z < RACE_GATE.z1;
 
 // نقط التحكم (مقفولة) — الاتجاه: على المستقيم الشرقي ناحية +z
 const CTRL = [
@@ -99,6 +102,13 @@ export function buildRaceTrack(M) {
     asphalt.quad(P(a, -HALF, 0.004), P(a, HALF, 0.004), P(b, HALF, 0.004), P(b, -HALF, 0.004));
     // نجيلة خضرا على الجناب (منطقة الهروب)
     for (const sg of [-1, 1]) {
+      const gate = inGate(a, sg);
+      if (gate) {
+        // المدخل: أسفلت من الحلبة لحد طريق الحلبة (مكان النجيلة والحاجز)
+        const d0 = -(WALL + 1.2), d1 = -HALF;
+        asphalt.quad(P(a, d0, 0.004), P(a, d1, 0.004), P(b, d1, 0.004), P(b, d0, 0.004));
+        continue;
+      }
       grass.setColor([0.36, 0.55, 0.26]);
       const d0 = sg * (HALF + 1.2), d1 = sg * WALL;
       if (sg > 0) grass.quad(P(a, d0, 0.002), P(a, d1, 0.002), P(b, d1, 0.002), P(b, d0, 0.002));
@@ -204,6 +214,7 @@ export function buildRaceTrack(M) {
     for (let i = 0; i < N; i += 20) {
       const a = S[i];
       for (const sg of [-1, 1]) {
+        if (inGate(a, sg)) continue;
         const [x, , z] = P(a, sg * (WALL + 0.4));
         fg.setColor([0.3, 0.3, 0.3]); fg.box(x - 0.04, y + 0.9, z - 0.04, x + 0.04, y + 4.2, z + 0.04);
         fg.setColor(i % 40 ? [0.95, 0.75, 0.1] : [0.1, 0.45, 0.85]); fg.box(x + 0.04, y + 3.3, z - 0.02, x + 1.3, y + 4.1, z + 0.02);
@@ -216,6 +227,7 @@ export function buildRaceTrack(M) {
   for (let i = 0; i < N; i += 2) {
     const a = S[i];
     for (const sg of [-1, 1]) {
+      if (inGate(a, sg)) continue;
       const [x, , z] = P(a, sg * (WALL + 0.4));
       const c = { cx: x, cz: z, hx: 0.45, hz: 2.3, angle: Math.atan2(a.dx, a.dz), restitution: 0.25, kind: 'wall' };
       const k = gkey(x, z);

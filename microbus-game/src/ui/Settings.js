@@ -37,10 +37,10 @@ const GEAR_SVG = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M19.14 1
 export class Settings {
   constructor({ mobile = false } = {}) {
     // زاوية رؤية أضيق شوية على الموبايل (الشاشة عريضة جدًا → الأطراف بتتمط)
-    this.values = { ...DEFAULTS, mirrorQuality: mobile ? 'med' : 'high', fov: mobile ? 52 : 58 };
+    this.values = { ...DEFAULTS, mirrorQuality: mobile ? 'med' : 'high', fov: mobile ? 60 : 64 };
     try {
       const saved = JSON.parse(localStorage.getItem(KEY) || '{}');
-      if (saved.fovV !== 2) delete saved.fov; // الافتراضي اتغير في التحديث ده
+      if (saved.fovV !== 3) delete saved.fov; // الافتراضي اتغير في التحديث ده
       if (saved.livV !== 1) delete saved.livery; // شكل شبين التركواز بقى هو الافتراضي
       for (const s of SCHEMA) {
         if (!s.key || saved[s.key] === undefined) continue;
@@ -58,7 +58,7 @@ export class Settings {
   set(k, v) {
     if (this.values[k] === v) return;
     this.values[k] = v;
-    try { localStorage.setItem(KEY, JSON.stringify({ ...this.values, fovV: 2, livV: 1 })); } catch { /* مفيش تخزين */ }
+    try { localStorage.setItem(KEY, JSON.stringify({ ...this.values, fovV: 3, livV: 1 })); } catch { /* مفيش تخزين */ }
     for (const fn of this.listeners) fn(k, v);
     this._sync?.();
   }

@@ -15,7 +15,7 @@ const byId = (id) => ROADS.find((r) => r.id === id);
 // موقف الميكروباص: أرض ركنة شرق شارع المحطة (الميكروباصات الراكنة بتتضاف من Game لأنها محتاجة الموديل)
 export const TERMINAL = { x0: 259.5, x1: 298, z0: 244, z1: 289 };
 export const TERMINAL_VANS = [];
-for (let i = 0; i < 7; i++) TERMINAL_VANS.push({ x: 266 + (i % 2) * 9, z: 248 + Math.floor(i / 2) * 10 + (i % 2) * 4, yaw: Math.PI / 2 + (i % 3 - 1) * 0.06 });
+for (let i = 0; i < 7; i++) TERMINAL_VANS.push({ x: 266 + (i % 2) * 9, z: 257 + Math.floor(i / 2) * 9.5 + (i % 2) * 4, yaw: Math.PI / 2 + (i % 3 - 1) * 0.06 });
 
 function textPlate(lines, { w = 1024, h = 256, bg = '#11663a', fg = '#ffffff', font = 'Cairo', border = true } = {}) {
   const c = canvas(w, h), x = c.getContext('2d');
@@ -320,7 +320,8 @@ export function buildShibin(world) {
   // وأسهم على الأرض بتوضح اتجاه الحركة، والرصيف مقطوع ومستوي عند الفتحتين
   {
     const T = TERMINAL, y = Y0 + 0.03;
-    const [DIN, DOUT] = DRIVEWAYS;
+    // (الدخول من الفتحة البحرية والخروج من القبلية)
+    const [D0, D1] = DRIVEWAYS, DIN = D1, DOUT = D0;
     const g = new GeoBuilder();
     g.setColor([0.42, 0.41, 0.4]); g.box(T.x0, y - 0.03, T.z0, T.x1, y + 0.01, T.z1); // أرضية أسفلت قديم
     // الرصيف المقطوع عند الفتحتين: أسفلت مستوي من الشارع للموقف
@@ -349,9 +350,9 @@ export function buildShibin(world) {
     wall(T.x0, T.z0 - t, T.x1, T.z0);           // القبلي
     wall(T.x0, T.z1, T.x1, T.z1 + t);           // البحري
     wall(T.x1, T.z0, T.x1 + t, T.z1);           // الشرقي
-    wall(T.x0 - t, T.z0, T.x0, DIN.z0);         // الغربي (على الشارع) بين الفتحات
-    wall(T.x0 - t, DIN.z1, T.x0, DOUT.z0);
-    wall(T.x0 - t, DOUT.z1, T.x0, T.z1);
+    wall(T.x0 - t, T.z0, T.x0, D0.z0);          // الغربي (على الشارع) بين الفتحات
+    wall(T.x0 - t, D0.z1, T.x0, D1.z0);
+    wall(T.x0 - t, D1.z1, T.x0, T.z1);
     // مظلة على عمدان
     g.setColor([0.35, 0.36, 0.38]);
     for (let z = T.z0 + 3; z <= T.z1 - 3; z += 8) for (const x of [T.x1 - 9, T.x1 - 2]) g.box(x - 0.1, y, z - 0.1, x + 0.1, y + 3.6, z + 0.1);
@@ -360,7 +361,7 @@ export function buildShibin(world) {
     g.setColor([0.7, 0.68, 0.64]);
     for (let z = T.z0 + 6; z < T.z1 - 6; z += 9) g.box(T.x1 - 7, y, z, T.x1 - 4, y + 0.45, z + 2.4);
     // كشك المنادي (جوه جنب المظلة، بعيد عن طريق الدخول والخروج)
-    const kx = T.x1 - 14.5, kz = T.z0 + 1.5;
+    const kx = T.x1 - 14.5, kz = T.z1 - 5;
     g.setColor([0.85, 0.82, 0.74]); g.box(kx, y, kz, kx + 3, y + 2.6, kz + 3.5);
     g.setColor([0.2, 0.3, 0.38]); g.box(kx - 0.02, y + 1.2, kz + 0.5, kx, y + 2.1, kz + 3);
     box(kx + 1.5, kz + 1.75, 1.5, 1.75, 0, 'building');
@@ -379,7 +380,7 @@ export function buildShibin(world) {
     // اليافطة الكبيرة (عالية وواضحة، بخط كبير ومنورة شوية): على عمودين بين الفتحتين
     const bigSign = textPlate(['موقف ميكروباص شبين الكوم', 'طنطا · قويسنا · منوف · الباجور · السادات'], { w: 2048, h: 400, bg: '#0d6b5e', fg: '#ffffff' });
     const sm = new THREE.MeshStandardMaterial({ map: bigSign, emissive: 0xffffff, emissiveMap: bigSign, emissiveIntensity: 0.25, side: THREE.DoubleSide });
-    const zc = (DIN.z1 + DOUT.z0) / 2;
+    const zc = (D0.z1 + D1.z0) / 2;
     const sign = new THREE.Mesh(new THREE.PlaneGeometry(11, 2.15), sm);
     sign.position.set(T.x0 - 0.1, y + 5.4, zc); sign.rotation.y = -Math.PI / 2;
     grp.add(sign);

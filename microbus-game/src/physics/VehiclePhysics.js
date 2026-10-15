@@ -26,7 +26,7 @@ export const TUKTUK_SPEC_BASE = {
   mass: 430, inertiaYaw: 280, inertiaPitch: 300, inertiaRoll: 110, cgHeight: 0.52,
   wheelBase: 2.0, cgToFront: 1.32, track: 1.14, trackFront: 0.06, wheelRadius: 0.22, // نفس مقاس موديل التوكتوك الحقيقي (أعرض شوية)
   // توجيه خفيف وهادي: الجادون بيتابع صباعك أبطأ، وزاوية العجلة بتقل بسرعة مع السرعة (عشان مايتقلبش)
-  steerFollow: 11, steerRate: 7, steerFade: 0.013, steerMin: 0.2,
+  steerFollow: 20, steerRate: 13, steerFade: 0.013, steerMin: 0.2,
   springK: 9500, damperBump: 750, damperRebound: 1000, maxCompression: 0.09,
   tireMu: 0.84, tireB: 7, tireC: 1.4, rearLatGrip: 1.0, slideMu: 0.64, rollingResistance: 0.02,
   dragCoef: 0.5, brakeForce: 2900, brakeBiasFront: 0.45, handbrakeForce: 1500,

@@ -146,11 +146,11 @@ export function drawVanLCD(x, W, H, s) {
  * كابينة التاكسي. rig: الريج (فيه shell). بيرجّع { steering, eye, cockpit, mirrors[] }
  * المقاسات على السيدان (SEDAN): الزجاج الأمامي من z=-0.93 (y=0.915) لحد السقف z=-0.08 (y=1.44)
  */
-export function buildTaxiCockpit(rig, { mirrorFace, body = 0xf4f4f0 }) {
+export function buildTaxiCockpit(rig, { mirrorFace, body = 0x19b82a }) {
   // المقاسات على موديل التاكسي الأبيض (BYD Seal): الزجاج الأمامي من z=-0.9 (y=0.87) لحد z=-0.1 (y=1.21)،
   // السقف من جوه ≈1.2، وعرض الكابينة عند الشباك ≈±0.72 — كله جوه الجسم (مفيش حاجة طالعة برا)
   const S = rig.shell, m = mats(body);
-  m.dashLow.color.set(0xd8d4cb); // وش التابلوه اللي تحت فاتح (زي الدهان) والفوق غامق (مايعكسش على الزجاج)
+  m.dashLow.color.set(0xcfcac0); // وش التابلوه اللي تحت فاتح والفوق غامق (مايعكسش على الزجاج)
   const g = new THREE.Group(); g.name = 'taxi-cockpit';
   S.add(g);
   const add = (geo, mat, mtx, shadow = false) => { const o = new THREE.Mesh(geo, mat); if (mtx) o.applyMatrix4(mtx); o.receiveShadow = true; o.castShadow = shadow; g.add(o); return o; };
@@ -161,11 +161,11 @@ export function buildTaxiCockpit(rig, { mirrorFace, body = 0xf4f4f0 }) {
   // غطا العداد: طرف رفيع فوق العداد (واطي — مايطلعش فوق خط الزجاج ولا يغطي الطريق)
   add(extrudeAcross([[-0.68, 0.87], [-0.64, 0.93], [-0.56, 0.935], [-0.56, 0.922], [-0.63, 0.918], [-0.66, 0.87]], 0.38, 0.01), m.dashTop, M4(-0.36, 0, 0));
   // العداد الديجيتال (ورا الدركسيون)
-  const cluster = new DashScreen(512, 224, drawTaxiCluster, { fps: 12, emissive: 0.9 });
+  const cluster = new DashScreen(512, 224, drawTaxiCluster, { fps: 6, emissive: 0.9 });
   add(new RoundedBoxGeometry(0.31, 0.115, 0.02, 3, 0.02), m.vent, M4(-0.36, 0.868, -0.6, -0.25));
   add(new THREE.PlaneGeometry(0.28, 0.1), cluster.mat, M4(-0.36, 0.869, -0.589, -0.25));
   // شاشة النص (فوق التابلوه) — فيها الخريطة
-  const center = new DashScreen(400, 280, drawTaxiCenter, { fps: 6, emissive: 0.85 });
+  const center = new DashScreen(400, 280, drawTaxiCenter, { fps: 4, emissive: 0.85 });
   add(new RoundedBoxGeometry(0.26, 0.17, 0.03, 3, 0.012), m.trim, M4(0.06, 0.9, -0.58, -0.26));
   add(new THREE.PlaneGeometry(0.24, 0.15), center.mat, M4(0.06, 0.902, -0.563, -0.26));
   // فتحات التكييف المدورة (زي الصورة): اتنين جنب الشاشة + طرفين
@@ -247,7 +247,7 @@ export function buildTaxiCockpit(rig, { mirrorFace, body = 0xf4f4f0 }) {
     },
     setNight(on) { cluster.mat.emissiveIntensity = on ? 1.1 : 0.9; center.mat.emissiveIntensity = on ? 0.95 : 0.85; m.button.emissiveIntensity = on ? 0.6 : 0; },
   };
-  return { group: g, steering, eye, eyePitch: -0.1, cockpit, mirrors, dog };
+  return { group: g, steering, eye, eyePitch: -0.04, cockpit, mirrors, dog };
 }
 
 // =====================================================================

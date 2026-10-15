@@ -57,6 +57,36 @@ function mirrorFace(w, h) {
   return { holder, face };
 }
 
+/** ألوان تاكسي شبين على الـ Seal: أخضر + شريطة صفرا مايلة قدام وورا على الجناب + دايرة سودا على الباب */
+function sealShibinLivery(o, shell) {
+  shell.updateMatrixWorld(true);
+  const M = { value: new THREE.Matrix4().copy(shell.matrixWorld).invert().multiply(o.matrixWorld) };
+  const mat = (o.material = o.material.clone());
+  mat.color.set(0x19b82a);
+  mat.onBeforeCompile = (sh) => {
+    sh.uniforms.uSM = M;
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nuniform mat4 uSM; varying vec3 vSP; varying vec3 vSN;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSP = (uSM * vec4(position, 1.0)).xyz; vSN = normalize(mat3(uSM) * normal);');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', `#include <common>
+varying vec3 vSP; varying vec3 vSN;
+float bandL(vec2 p, vec2 a, vec2 b, float w) { vec2 d = normalize(b - a); vec2 n = vec2(-d.y, d.x); float t = dot(p - a, d); return step(abs(dot(p - a, n)), w) * step(0.0, t) * step(t, length(b - a)); }`)
+      .replace('#include <color_fragment>', `#include <color_fragment>
+{
+  float side = smoothstep(0.35, 0.6, abs(vSN.x));
+  vec2 sz = vec2(vSP.z, vSP.y);
+  float m = max(bandL(sz, vec2(-0.55, 0.92), vec2(-1.75, 0.3), 0.12), bandL(sz, vec2(1.3, 0.9), vec2(1.95, 0.35), 0.09)) * side;
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.96, 0.82, 0.0), m);
+  float r = length(sz - vec2(0.05, 0.62));
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.03), (1.0 - smoothstep(0.1, 0.104, r)) * side);
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.8), (1.0 - smoothstep(0.004, 0.008, abs(r - 0.075))) * side * 0.8);
+}`);
+  };
+  mat.customProgramCacheKey = () => 'seal-shibin-1';
+  mat.needsUpdate = true;
+}
+
 // =====================================================================
 //  التاكسي (سيدان أبيض بشريط شطرنج — نفس شكل تاكسي المرور)
 // =====================================================================
@@ -106,6 +136,9 @@ export function buildTaxiRig(spec, assets = null) {
         if (/red_emis|tail_light/i.test(n)) { o.material = o.material.clone(); o.material.emissive = new THREE.Color(0xff1a10); o.material.emissiveIntensity = 0.12; tailMats.push(o.material); }
         else if (/HL_Mat|HL_CHR/i.test(n)) { o.material = o.material.clone(); o.material.emissive = new THREE.Color(0xfff2d8); o.material.emissiveIntensity = 0; headMats.push(o.material); }
         else if (/corner/i.test(n)) { o.material = o.material.clone(); o.material.color.set(0x1a1b1d); } // الحواف اللي تحت: أسود مش أزرق
+        else if (o.userData.role === 'paint') sealShibinLivery(o, rig.shell);
+        // زجاج الموديل كان بـ transmission: ده بيعمل رسمة زيادة للمشهد كله كل فريم (كان سبب اللاج من جوه التاكسي)
+        if (o.material.transmission > 0) { o.material = o.material.clone(); o.material.transmission = 0; o.material.transparent = true; o.material.opacity = Math.min(o.material.opacity, 0.35); o.material.depthWrite = false; }
       });
       rig.lights = {
         head: { set emissiveIntensity(v) { for (const m of headMats) m.emissiveIntensity = v > 0.1 ? 1.4 : 0; } },
