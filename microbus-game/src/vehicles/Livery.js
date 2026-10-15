@@ -113,18 +113,18 @@ export function applyLivery(rig, name = 'shibin') {
     const PM = { value: new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld) };
     const mat = (o.material = o.material.clone());
     mat.onBeforeCompile = (sh) => {
-      Object.assign(sh.uniforms, { uPM: PM, uCabC: { value: cabC }, uTrimIn: trimIn });
+      Object.assign(sh.uniforms, { uPM: PM, uCabC: { value: cabC }, uTrimIn: trimIn, uRoofY: { value: D.roofY - 0.32 } });
       sh.vertexShader = sh.vertexShader
         .replace('#include <common>', '#include <common>\nuniform mat4 uPM; varying vec3 vPP; varying vec3 vPN;')
         .replace('#include <begin_vertex>', '#include <begin_vertex>\nvPP = (uPM * vec4(position, 1.0)).xyz; vPN = normalize(mat3(uPM) * objectNormal);');
       sh.fragmentShader = sh.fragmentShader
-        .replace('#include <common>', '#include <common>\nuniform vec3 uCabC, uTrimIn; varying vec3 vPP; varying vec3 vPN;')
+        .replace('#include <common>', '#include <common>\nuniform vec3 uCabC, uTrimIn; uniform float uRoofY; varying vec3 vPP; varying vec3 vPN;')
         .replace('#include <map_fragment>', `#include <map_fragment>
 {
   vec3 n = gl_FrontFacing ? vPN : -vPN;
   vec3 toC = uCabC - vPP; toC.y *= 0.3;
   float inward = smoothstep(0.1, 0.4, dot(normalize(n), normalize(toC)));
-  float cabin = step(0.75, vPP.y);
+  float cabin = step(0.75, vPP.y) * step(vPP.y, uRoofY); // السقف من جوه بيفضل فاتح
   diffuseColor.rgb = mix(diffuseColor.rgb, uTrimIn, inward * cabin * 0.9);
 }`);
     };

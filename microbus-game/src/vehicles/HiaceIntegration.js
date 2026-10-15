@@ -624,10 +624,10 @@ function buildHiaceInterior(group, rig, D) {
 
   // ===== عين السواق: ورا الدركسيون وناحية الشمال =====
   const eye = new THREE.Object3D();
-  eye.position.set(DX, Math.min(D.roofY - 0.3, floorY + 1.04), z(seatF + 0.04) + 0.18);
+  eye.position.set(DX, Math.min(D.roofY - 0.3, floorY + 1.04), z(seatF + 0.04) + 0.02); // أقرب للزجاج = الزجاج باين أكبر
   group.add(eye);
   rig.eye = eye;
-  rig.eyePitch = -0.12; // أقل ميل لتحت: الزجاج باين أطول والسقف مايقفلش الرؤية من فوق
+  rig.eyePitch = -0.17; // السقف مايقفلش الرؤية من فوق والتابلوه باين
   rig.eyeBase = eye.position.clone();
 
   if (!mats.beige) mats.beige = new THREE.MeshStandardMaterial({ color: 0xcfc6b2, roughness: 0.9, vertexColors: true });

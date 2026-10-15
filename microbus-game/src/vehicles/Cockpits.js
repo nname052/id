@@ -231,7 +231,7 @@ export function buildTaxiCockpit(rig, { mirrorFace, body = 0x19b82a }) {
     mirrors.push({ holder, face, side: sx, aspect: 0.15 / 0.085, fov: 26 });
   }
   // عين السواق
-  const eye = new THREE.Object3D(); eye.position.set(-0.36, 1.07, 0.1); g.add(eye);
+  const eye = new THREE.Object3D(); eye.position.set(-0.36, 1.06, 0.02); g.add(eye);
   // الكلب أبو راس بتتهز (على التابلوه يمين العداد)
   const dog = addBobbleDog(g, -0.1, 0.884, -0.7, 0, 1.25);
   const st = { kmh: 0, gear: 'D', throttle: 0, fuel: 0.6, lights: false, hb: false, mapCanvas: null, navTitle: '', navLine: '' };
@@ -247,7 +247,7 @@ export function buildTaxiCockpit(rig, { mirrorFace, body = 0x19b82a }) {
     },
     setNight(on) { cluster.mat.emissiveIntensity = on ? 1.1 : 0.9; center.mat.emissiveIntensity = on ? 0.95 : 0.85; m.button.emissiveIntensity = on ? 0.6 : 0; },
   };
-  return { group: g, steering, eye, eyePitch: -0.04, cockpit, mirrors, dog };
+  return { group: g, steering, eye, eyePitch: -0.08, cockpit, mirrors, dog };
 }
 
 // =====================================================================
