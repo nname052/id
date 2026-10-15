@@ -5,7 +5,9 @@ import { TERMINAL } from '../world/Shibin.js';
 import { SHIBIN } from '../world/RoadNetwork.js';
 
 // خريطة الطرق: صغيرة في الركن (بتلف مع اتجاهك)، ولما تدوس عليها بتكبر لخريطة كاملة (الشمال لفوق).
-// الطرق بتترسم مرة واحدة في canvas جاهز، وكل فريم بنرسم فوقها: إنت، اللاعبين التانيين، المواقف، ووجهة الركاب.
+// الطرق بتترسم مرة واحدة في canvas جاهز، وكل فريم بنرسم فوقها: طريق الـ GPS، خط الميكروباص ومحطاته،
+// الزباين اللي بيشاوروا، الوجهة، اللاعبين التانيين، وإنت.
+// الخريطة الصغيرة من غير كلام (أسامي الطرق في الكبيرة بس). وكمان بترسم شاشة الخريطة اللي في التابلوه (navCanvas).
 
 const PX = 0.5; // بكسل لكل متر في الطبقة الجاهزة
 
@@ -23,6 +25,11 @@ export class MiniMap {
     el.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); this.toggle(); });
     this._bake();
     this._t = 0;
+    // شاشة الخريطة اللي في تابلوه التاكسي/الميكروباص
+    this.navCv = document.createElement('canvas');
+    this.navCv.width = 320; this.navCv.height = 200;
+    this.navCtx = this.navCv.getContext('2d');
+    this._navT = 0;
   }
 
   show() { this.el.classList.remove('hidden'); }
@@ -67,6 +74,10 @@ export class MiniMap {
     // الموقف
     x.fillStyle = '#ff9f43'; x.strokeStyle = '#5b5348'; x.lineWidth = 3;
     const [ta, tb] = P(TERMINAL.x0, TERMINAL.z0); x.fillRect(ta, tb, (TERMINAL.x1 - TERMINAL.x0) * PX, (TERMINAL.z1 - TERMINAL.z0) * PX); x.strokeRect(ta, tb, (TERMINAL.x1 - TERMINAL.x0) * PX, (TERMINAL.z1 - TERMINAL.z0) * PX);
+    // نسخة من غير كلام للخريطة الصغيرة وشاشة التابلوه، والأسامي للكبيرة بس
+    this.baseNL = document.createElement('canvas');
+    this.baseNL.width = c.width; this.baseNL.height = c.height;
+    this.baseNL.getContext('2d').drawImage(c, 0, 0);
     // أسامي الطرق: كلام غامق بحرف أبيض
     x.font = 'bold 14px Cairo, sans-serif'; x.textAlign = 'center'; x.direction = 'rtl'; x.lineJoin = 'round';
     const lbl = (t, wx, wz, size = 14) => { const [a, b] = P(wx, wz); x.font = `bold ${size}px Cairo, sans-serif`; x.lineWidth = 4; x.strokeStyle = '#fff'; x.strokeText(t, a, b); x.fillStyle = '#3a3128'; x.fillText(t, a, b); };
@@ -77,17 +88,24 @@ export class MiniMap {
   }
 
   update(dt) {
+    // شاشة التابلوه: 4 مرات في الثانية بس
+    this._navT -= dt;
+    if (this._navT <= 0) { this._navT = 0.25; this._draw(this.navCtx, this.navCv.width, this.navCv.height, { big: false, dpr: 1, zoom: 1.35, dash: true }); }
     if (this.el.classList.contains('hidden')) return;
     this._t -= dt;
     if (this._t > 0) return;
     this._t = 1 / 12;
-    const big = this.big;
     const cv = this.cv, dpr = Math.min(2, window.devicePixelRatio || 1);
     const W = Math.round(this.el.clientWidth * dpr), H = Math.round(this.el.clientHeight * dpr);
     if (!W || !H) return;
     if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
-    const x = this.ctx, ph = this.game.player.physics;
-    const scale = (big ? Math.min(W / (this.b.w * PX), H / (this.b.h * PX)) : 1.6 * dpr / (PX * 2)) ;
+    this._draw(this.ctx, W, H, { big: this.big, dpr, zoom: 1 });
+  }
+
+  _draw(x, W, H, { big, dpr, zoom, dash = false }) {
+    const ph = this.game.player.physics;
+    const base = big ? this.base : this.baseNL;
+    const scale = big ? Math.min(W / (this.b.w * PX), H / (this.b.h * PX)) : (1.6 * dpr / (PX * 2)) * zoom;
     x.setTransform(1, 0, 0, 1, 0, 0);
     x.fillStyle = '#9fd67a'; x.fillRect(0, 0, W, H);
     // التحويل: العالم → الشاشة
@@ -95,30 +113,59 @@ export class MiniMap {
     x.save();
     if (big) {
       x.translate(W / 2, H / 2); x.scale(scale, scale);
-      x.translate(-this.base.width / 2, -this.base.height / 2);
+      x.translate(-base.width / 2, -base.height / 2);
     } else {
       // بتلف مع العربية: قدامك لفوق
       const [px, pz] = toBase(ph.x, ph.z);
-      x.translate(W / 2, H * 0.62); x.rotate(ph.yaw); x.scale(scale, scale); x.translate(-px, -pz);
+      x.translate(W / 2, H * (dash ? 0.66 : 0.62)); x.rotate(ph.yaw); x.scale(scale, scale); x.translate(-px, -pz);
     }
-    x.drawImage(this.base, 0, 0);
+    x.drawImage(base, 0, 0);
     const k = 1 / scale; // حجم ثابت على الشاشة
     const dot = (wx, wz, r, col, stroke) => { const [a, b] = toBase(wx, wz); x.beginPath(); x.arc(a, b, r * k * dpr, 0, Math.PI * 2); x.fillStyle = col; x.fill(); if (stroke) { x.lineWidth = 2 * k * dpr; x.strokeStyle = stroke; x.stroke(); } };
     const text = (t, wx, wz, col = '#fff') => { const [a, b] = toBase(wx, wz); x.save(); x.translate(a, b); if (!big) x.rotate(-ph.yaw); x.scale(k * dpr, k * dpr); x.font = 'bold 12px Cairo, sans-serif'; x.textAlign = 'center'; x.direction = 'rtl'; x.lineWidth = 3.5; x.strokeStyle = '#fff'; x.strokeText(t, 0, -10); x.fillStyle = col === '#fff' ? '#3a3128' : col; x.fillText(t, 0, -10); x.restore(); };
-    // المواقف: أصفر = فيه ناس مستنية، أخضر = موقف نازل فيه حد معاك
-    const P = this.game.passengers;
+    const path = (pts, from, w, col, alpha = 1) => {
+      if (!pts || pts.length < 2) return;
+      x.globalAlpha = alpha; x.strokeStyle = col; x.lineWidth = w * k * dpr; x.lineCap = 'round'; x.lineJoin = 'round';
+      x.beginPath();
+      for (let i = from; i < pts.length; i++) { const [a, b] = toBase(pts[i].x, pts[i].z); if (i === from) x.moveTo(a, b); else x.lineTo(a, b); }
+      x.stroke(); x.globalAlpha = 1;
+    };
+    const pin = (wx, wz, col) => {
+      const [a, b] = toBase(wx, wz);
+      x.save(); x.translate(a, b); if (!big) x.rotate(-ph.yaw); x.scale(k * dpr, k * dpr);
+      x.beginPath(); x.moveTo(0, 0); x.bezierCurveTo(-9, -10, -9, -22, 0, -22); x.bezierCurveTo(9, -22, 9, -10, 0, 0);
+      x.fillStyle = col; x.fill(); x.lineWidth = 2; x.strokeStyle = '#fff'; x.stroke();
+      x.beginPath(); x.arc(0, -15, 3.2, 0, Math.PI * 2); x.fillStyle = '#fff'; x.fill();
+      x.restore();
+    };
+    const P = this.game.passengers, nav = this.game.nav;
+    // خط الميكروباص كله (بلونه) + محطاته
+    if (P?.mode === 'line' && P.linePath) {
+      path(P.linePath.pts, 0, 9, '#ffffff', 0.9);
+      path(P.linePath.pts, 0, 5.5, P.line?.color || '#e8711a', 0.95);
+      const next = P.nextStop;
+      for (const st of P.lineStops) dot(st.x, st.z, st === next ? 6.5 : 4.2, st === next ? '#ffffff' : (P.line?.color || '#e8711a'), '#3a3128');
+      if (next && (big || dash)) text(next.name, next.x, next.z, '#1f2937');
+    }
+    // طريق الـ GPS (من مكانك لحد الهدف)
+    if (nav?.route) {
+      const from = Math.max(0, nav._track?.i ?? 0);
+      path(nav.route.pts, from, 8, '#ffffff', 0.95);
+      path(nav.route.pts, from, 4.6, '#2b7cff', 1);
+    }
     if (P) {
+      // الزباين اللي بيشاوروا (تاكسي/توكتوك) + أماكن نزول الركاب
       const dests = new Set(P.onboard.map((o) => o.dest));
       for (const st of P.stops) {
-        const has = st.waiting.some((w) => w.state === 'wait');
-        const dest = dests.has(st);
-        if (!has && !dest) continue;
-        dot(st.x, st.z, dest ? 7 : 5.5, dest ? '#22c55e' : '#ffcc00', '#3a3128');
-        if (dest) text(st.name, st.x, st.z, '#15803d');
+        if (P.mode === 'line' && P.lineStops.includes(st)) continue;
+        const has = st.waiting.some((w) => w.state === 'wait') && st.kind !== 'terminal';
+        if (has && P.mode === 'trip' && !P.trip) dot(st.x, st.z, 5.5, '#ffcc00', '#3a3128');
+        else if (dests.has(st) && P.mode === 'line') dot(st.x, st.z, 6, '#22c55e', '#3a3128');
       }
     }
+    if (nav?.target) pin(nav.target.x, nav.target.z, P?.trip ? '#16a34a' : P?.mode === 'line' ? '#e8711a' : '#f59e0b');
     // اللاعبين التانيين
-    for (const o of this.game.mp?.positions() || []) { dot(o.x, o.z, 7, '#3b82f6', '#fff'); text(`${o.seat} ${o.name || ''}`, o.x, o.z, '#1e3a8a'); }
+    for (const o of this.game.mp?.positions() || []) { dot(o.x, o.z, 7, '#3b82f6', '#fff'); if (!dash) text(`${o.seat} ${o.name || ''}`, o.x, o.z, '#1e3a8a'); }
     // إنت: سهم
     {
       const [a, b] = toBase(ph.x, ph.z);
@@ -128,6 +175,6 @@ export class MiniMap {
       x.restore();
     }
     x.restore();
-    if (big) { x.fillStyle = 'rgba(0,0,0,0.6)'; x.fillRect(0, H - 26 * dpr, W, 26 * dpr); x.fillStyle = '#fff'; x.font = `${12 * dpr}px Cairo, sans-serif`; x.textAlign = 'center'; x.direction = 'rtl'; x.fillText('🟡 ناس مستنية · 🟢 مكان نزول راكب معاك · 🔵 لاعبين — دوس على الخريطة عشان تقفلها', W / 2, H - 9 * dpr); }
+    if (big) { x.fillStyle = 'rgba(0,0,0,0.6)'; x.fillRect(0, H - 26 * dpr, W, 26 * dpr); x.fillStyle = '#fff'; x.font = `${12 * dpr}px Cairo, sans-serif`; x.textAlign = 'center'; x.direction = 'rtl'; x.fillText('🔵 طريقك · 🟠 خط الميكروباص · 🟡 زبون بيشاور · 📍 الوجهة — دوس على الخريطة عشان تقفلها', W / 2, H - 9 * dpr); }
   }
 }

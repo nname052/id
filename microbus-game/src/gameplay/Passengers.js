@@ -7,9 +7,18 @@ import { crossingAt } from '../world/layout.js';
 import { nearJunction, ZONE_LABEL } from '../world/Route.js';
 import { GeoBuilder } from '../render/GeoBuilder.js';
 import { canvas, tex, rng } from '../render/textures.js';
+import { GRAPH, findRoute, trackRoute } from '../nav/RoadGraph.js';
+import { LINES, POIS, TRIP_RANGE, tripFare, payment } from './Jobs.js';
+import { fmtDist } from '../nav/Navigator.js';
 
-// الركاب: مواقف على الطريق، ناس مستنية بتشاور، بتركب من الباب الجرار لما تقف جنبهم،
-// وكل راكب رايح موقف معين وبينزل لما توقف عنده. الأجرة متسجلة (earnings) عشان نبني عليها بعدين.
+// الركاب: ناس مستنية بتشاور، بتركب من الباب لما تقف جنبهم في العلامة، وكل راكب رايح مكان معين.
+// نوعين شغل:
+//  - الميكروباص (line): خط ثابت من الموقف الكبير بمحطات لحد آخر الخط، والرجوع بالعكس. الناس بتركب في الموقف والمحطات بس.
+//  - التاكسي/التوكتوك (trip): زبون (أو مجموعة) بيشاور من الرصيف، رايح وجهة واضحة، والأجرة بالمسافة ويدفع وتديله الباقي.
+// الفلوس بتروح المحفظة (Wallet).
+const MODE = { microbus: 'line', taxi: 'trip', tuktuk: 'trip' };
+// الأماكن اللي ينفع التوكتوك يشتغل فيها (شوارع جوه البلد والقرى، مش الطرق السريعة)
+const TUK_KINDS = new Set(['city', 'residential', 'village', 'agri', 'shibin', 'side']);
 
 const CITY_LEN = 450;
 // s على المسار الكامل (المدينة 0→450 وبعدها الطريق الدائري)
@@ -59,15 +68,17 @@ function stopSign() {
 }
 
 export class Passengers {
-  constructor(scene, player, { hud, audio, settings } = {}) {
+  constructor(scene, player, { hud, audio, settings, wallet } = {}) {
     this.scene = scene;
     this.player = player;
-    this.hud = hud; this.audio = audio; this.settings = settings;
+    this.hud = hud; this.audio = audio; this.settings = settings; this.wallet = wallet;
+    this.mode = MODE[player.kind] || 'line';
+    this.lineIdx = 0; this.lineDir = 0; this.line = null; this.linePath = null; this.lineStops = []; this.lineS = 0; this.trips = 0;
+    this.trip = null;
     this.R = rng(4242);
     this.seats = (player.rig.paxSeats || []).map((p) => ({ ...p, pax: null }));
     this.capacity = this.seats.length;
     this.onboard = [];
-    this.earnings = 0;
     this.walkers = [];
     this.pool = [];
     this.stillTime = 0;
@@ -77,8 +88,6 @@ export class Passengers {
     scene.add(this.group);
     this._buildStops();
     this._buildMarkers();
-    try { this.total = +(localStorage.getItem('egy-microbus-money') || 0) || 0; } catch { this.total = 0; }
-    this.earnings = this.total;
     this._complainCd = 0;
     // الركاب القاعدين: Mesh واحد جوه العربية بيتبني من جديد لما حد يركب/ينزل
     this.seatedMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 });
@@ -89,9 +98,12 @@ export class Passengers {
       this.group.add(p.root);
       this.pool.push(p);
     }
+    this._resetJob();
   }
 
   get count() { return this.onboard.length; }
+  /** الرصيد (للتوافق مع الأجزاء القديمة: multiplayer/HUD) */
+  get earnings() { return this.wallet ? this.wallet.balance : 0; }
 
   /** العربية اتغيرت: كراسي جديدة، والركاب اللي كانوا راكبين بينزلوا */
   setPlayer(player) {
@@ -101,7 +113,130 @@ export class Passengers {
     this.capacity = this.seats.length;
     this.onboard = [];
     for (const w of this.walkers) if (w.state === 'toDoor') w.state = 'return';
+    this.mode = MODE[player.kind] || 'line';
+    this._resetJob();
     this._updateHud();
+  }
+
+  // =====================================================================
+  //  نوع الشغل
+  // =====================================================================
+  /** بداية من الأول: الناس المستنية بتمشي، ونجهّز الخط (ميكروباص) أو المشاوير (تاكسي/توكتوك) */
+  _resetJob() {
+    for (const st of this.stops) {
+      for (const w of [...st.waiting]) if (w.state === 'wait' || w.state === 'toDoor' || w.state === 'return') this._release(w);
+      st.waiting = [];
+      st.cooldown = 0;
+    }
+    this.stops = this.stops.filter((st) => st.terminalStop);
+    this.trip = null;
+    this.line = null; this.linePath = null; this.lineStops = [];
+    if (this.mode === 'line') this._setupLine();
+    this.hud?.setJob?.(this.jobInfo());
+  }
+
+  /** خط الميكروباص: المسار من محطة للي بعدها (أقصر طريق)، وكل محطة على الرصيف اللي على يمين اتجاه السير */
+  _setupLine(announce = true) {
+    // محطات الخط القديم بتتشال (والناس اللي مستنية فيها بتمشي)
+    for (const st of this.lineStops) {
+      if (st.terminalStop) continue;
+      for (const w of [...st.waiting]) if (w.state === 'wait') this._release(w);
+      const i = this.stops.indexOf(st); if (i >= 0) this.stops.splice(i, 1);
+    }
+    const L = LINES[this.lineIdx % LINES.length];
+    const wps = this.lineDir ? [...L.stops].reverse() : L.stops;
+    const path = { pts: [], cum: [], steps: [], length: 0 };
+    const stopS = [0];
+    let heading = this.lineDir ? null : [0, 1]; // من الموقف: طالع على شارع المحطة ناحية شارع باريس
+    for (let k = 0; k < wps.length - 1; k++) {
+      const a = wps[k], b = wps[k + 1];
+      const r = findRoute(a.x, a.z, b.x, b.z, heading ? heading[0] : 0, heading ? heading[1] : 0);
+      if (!r) { stopS.push(path.length); continue; }
+      const base = path.length;
+      r.pts.forEach((pt, i) => { if (i === 0 && path.pts.length) return; path.pts.push(pt); path.cum.push(base + r.cum[i]); });
+      for (const st of r.steps) path.steps.push({ ...st, s: st.s + base });
+      path.length = base + r.length;
+      stopS.push(path.length);
+      const n = r.pts.length, p1 = r.pts[n - 1], p0 = r.pts[Math.max(0, n - 4)], l = Math.hypot(p1.x - p0.x, p1.z - p0.z) || 1;
+      heading = [(p1.x - p0.x) / l, (p1.z - p0.z) / l];
+    }
+    const dirAt = (s) => {
+      let i = 0; while (i < path.pts.length - 2 && path.cum[i + 1] < s) i++;
+      const a = path.pts[Math.max(0, i - 2)], b = path.pts[Math.min(path.pts.length - 1, i + 3)], l = Math.hypot(b.x - a.x, b.z - a.z) || 1;
+      return [(b.x - a.x) / l, (b.z - a.z) / l];
+    };
+    const stops = [];
+    wps.forEach((wp, k) => {
+      const [dx, dz] = dirAt(stopS[k]);
+      let st = null;
+      if (wp.terminal) {
+        st = this.stops.filter((x) => x.terminalStop).sort((a, b) => (b.ax * dx + b.az * dz) - (a.ax * dx + a.az * dz))[0];
+      } else {
+        let best = null, bs = Infinity;
+        for (const c of this.cands) {
+          const d = Math.hypot(c.x - wp.x, c.z - wp.z);
+          if (d > 45 || c.ax * dx + c.az * dz < 0.6) continue;
+          const sc = d + (c.nearX < 18 ? 40 : 0);
+          if (sc < bs) { bs = sc; best = c; }
+        }
+        if (best) { st = { ...best, cand: best, waiting: [], cooldown: 0, fixed: true, line: true }; this.stops.push(st); }
+      }
+      if (!st) return;
+      st.name = wp.name; st.lineIdx = stops.length;
+      // مكانها على الخط = مكان العلامة نفسها (مش النقطة اللي اتعرّفت بيها)
+      const tr = trackRoute(path, st.mx, st.mz, {});
+      st.lineS = tr && tr.off < 30 ? tr.s : stopS[k];
+      stops.push(st);
+    });
+    this.line = L; this.linePath = path; this.lineStops = stops; this.lineS = 0; this._lineTrack = {};
+    // أول الخط (الموقف/المحطة اللي هنبدأ منها) فيه ناس مستنية من الأول — مش لازم نبعد عشان يظهروا
+    const first = stops[0];
+    if (first && !first.waiting.length) { first.cooldown = 0; this._spawnWaiting(first); }
+    if (announce) this.hud?.toast(`🚐 ${L.name}: ${wps[0].name} ← ${wps[wps.length - 1].name}`, 3.2);
+    this.hud?.setJob?.(this.jobInfo());
+  }
+
+  /** تغيير الخط (من الموقف وإنت فاضي بس) */
+  cycleLine() {
+    if (this.mode !== 'line') return false;
+    if (this.onboard.length) { this.hud?.toast('نزّل الركاب الأول قبل ما تغيّر الخط', 2.4); return false; }
+    this.lineIdx = (this.lineIdx + 1) % LINES.length; this.lineDir = 0;
+    this._setupLine();
+    return true;
+  }
+
+  /** المحطة الجاية على الخط (اللي لسه موصلتلهاش أو واقف فيها) */
+  get nextStop() {
+    if (this.mode !== 'line' || !this.lineStops.length) return null;
+    return this.lineStops.find((st) => st.lineS > this.lineS - 9) || this.lineStops[this.lineStops.length - 1];
+  }
+
+  /** وجهة الـ GPS */
+  navTarget(ph) {
+    if (this.mode === 'line') {
+      const st = this.nextStop;
+      return st ? { x: st.mx, z: st.mz, name: st.name } : null;
+    }
+    if (this.trip) return { x: this.trip.dest.mx, z: this.trip.dest.mz, name: this.trip.dest.name };
+    // فاضي: أقرب زبون بيشاور
+    let best = null, bd = 420;
+    for (const st of this.stops) {
+      if (st.kind === 'terminal' || !st.waiting.some((w) => w.state === 'wait')) continue;
+      const d = Math.hypot(st.x - ph.x, st.z - ph.z);
+      if (d < bd) { bd = d; best = st; }
+    }
+    return best ? { x: best.mx, z: best.mz, name: 'زبون بيشاور', pickup: true } : null;
+  }
+
+  /** بيانات لوحة الشغل في الـ HUD */
+  jobInfo() {
+    if (this.mode === 'line') {
+      const L = this.line, st = this.nextStop, last = this.lineStops[this.lineStops.length - 1];
+      return { mode: 'line', title: L ? L.name : '', color: L?.color, to: last?.name || '', next: st?.name || '', pax: this.onboard.length, cap: this.capacity, fare: L?.fare, canSwitch: !this.onboard.length };
+    }
+    const kind = this.player.kind;
+    if (this.trip) return { mode: 'trip', kind, dest: this.trip.dest.name, fare: this.trip.fare, meters: this.trip.meters, pax: this.onboard.length };
+    return { mode: 'trip', kind, dest: null, pax: 0 };
   }
 
   // ===== أماكن الركوب =====
@@ -165,8 +300,11 @@ export class Passengers {
     {
       const def = SIDE_STOPS.find((d) => d.kind === 'terminal');
       Object.assign(q, roadPointAt(def.road, def.frac));
-      for (const side of [1, -1]) this.stops.push({ ...mk(q, side, def.off, q.half - 1.15, def.name, 'terminal'), fixed: true, waiting: [], cooldown: 0 });
+      for (const side of [1, -1]) this.stops.push({ ...mk(q, side, def.off, q.half - 1.15, def.name, 'terminal'), fixed: true, terminalStop: true, waiting: [], cooldown: 0 });
     }
+    // بُعد كل مكان عن أقرب تقاطع (منقفش الزباين في نص التقاطع)
+    const xs = GRAPH.nodes.filter((n) => n.edges.length >= 3);
+    for (const c of this.cands) c.nearX = Math.min(...xs.map((n) => Math.hypot(n.x - c.mx, n.z - c.mz)));
   }
 
   _activate(c) {
@@ -177,8 +315,9 @@ export class Passengers {
     return n;
   }
 
-  /** كل شوية: نفعّل أماكن جديدة قدامك ونشيل البعيد */
+  /** كل شوية: نفعّل أماكن جديدة قدامك ونشيل البعيد (تاكسي/توكتوك بس — الميكروباص على خطه) */
   _manageStops(ph) {
+    if (this.mode === 'line') return;
     const density = this.settings ? +(this.settings.get('paxDensity') ?? 1) : 1;
     const [fx, fz] = ph.forward;
     // أماكن لازم تفضل: وجهة أي راكب (راكب أو لسه مستني على الرصيف)
@@ -191,7 +330,7 @@ export class Passengers {
       for (const w of [...st.waiting]) if (w.state === 'wait') this._release(w);
       return false;
     });
-    const want = Math.round(5 + 4 * density);
+    const want = Math.round(2 + 1.5 * density);
     // سقف: مايبقاش فيه أماكن كتير أوي مفعّلة (نشيل الأبعد اللي محدش محتاجه)
     const free = this.stops.filter((st) => !st.fixed && !needed.has(st) && !st.waiting.some((w) => w.state === 'toDoor'));
     if (free.length > want + 4) {
@@ -206,6 +345,7 @@ export class Passengers {
       const a = this.candGrid.get(`${Math.floor((ph.x + ux * d) / 60)},${Math.floor((ph.z + uz * d) / 60)}`);
       if (!a) continue;
       const c = a[Math.floor(this.R() * a.length)];
+      if (c.nearX < 18 || (this.player.kind === 'tuktuk' && !TUK_KINDS.has(c.kind))) continue;
       if (this.stops.some((st) => (st.x - c.x) ** 2 + (st.z - c.z) ** 2 < 70 * 70)) continue;
       this._activate(c);
       near++;
@@ -250,9 +390,10 @@ export class Passengers {
   _updateMarkers(ph, t) {
     const want = [];
     const dests = new Set(this.onboard.map((o) => o.dest));
+    const nextLine = this.nextStop;
     for (const st of this.stops) {
-      const has = st.waiting.some((w) => w.state === 'wait' || w.state === 'toDoor');
-      const dest = dests.has(st);
+      const has = st.waiting.some((w) => w.state === 'wait' || w.state === 'toDoor') && (this.mode === 'line' ? this.lineStops.includes(st) : st.kind !== 'terminal');
+      const dest = dests.has(st) || st === nextLine;
       if (!has && !dest) continue;
       const d2 = (st.mx - ph.x) ** 2 + (st.mz - ph.z) ** 2;
       if (d2 < 160 * 160) want.push([d2, st, dest]);
@@ -304,7 +445,6 @@ export class Passengers {
     if (ph.flip?.mode) this._complain('يا نهار أسود! العربية اتقلبت!', 0.5);
   }
 
-  _saveMoney() { try { localStorage.setItem('egy-microbus-money', String(Math.round(this.earnings * 10) / 10)); } catch { /* */ } }
 
   // ===== أدوات =====
   _take() { const p = this.pool.pop(); if (p) { p.root.visible = true; this.walkers.push(p); } return p; }
@@ -340,8 +480,25 @@ export class Passengers {
   _spawnWaiting(stop) {
     const density = this.settings ? +(this.settings.get('paxDensity') ?? 1) : 1;
     const terminal = stop.kind === 'terminal';
-    if (!terminal && this.R() > 0.7 + 0.3 * density) { stop.cooldown = 15; return; }
-    const n = terminal ? 8 + Math.floor(this.R() * 8 * density) : 2 + Math.floor(this.R() * (2 + 3 * density));
+    let n, group = null, dest = null;
+    if (this.mode === 'line') {
+      // الميكروباص: الموقف مليان ناس، والمحطات اللي على الخط فيها كام واحد، وآخر الخط محدش بيركب منه
+      const k = this.lineStops.indexOf(stop);
+      if (k < 0) { stop.cooldown = 12; if (!terminal) return; n = 4 + Math.floor(this.R() * 4); }
+      else if (k === this.lineStops.length - 1) { stop.cooldown = 20; return; }
+      else if (k === 0) n = 7 + Math.floor(this.R() * 5 * density);
+      else { if (this.R() > 0.55 + 0.35 * density) { stop.cooldown = 25; return; } n = 1 + Math.floor(this.R() * (1.5 + 2 * density)); }
+    } else if (terminal) {
+      n = 6 + Math.floor(this.R() * 6); // ناس الموقف مستنيين ميكروباص (مش هيركبوا تاكسي)
+    } else {
+      // تاكسي/توكتوك: زبون أو مجموعة صغيرة رايحين مكان واحد
+      if (this.R() > 0.75 + 0.25 * density) { stop.cooldown = 15; return; }
+      const d = this._tripDest(stop);
+      if (!d) { stop.cooldown = 20; return; }
+      dest = d.stop;
+      group = { meters: d.meters, name: d.name };
+      n = 1 + (this.R() < 0.35 ? 1 : 0) + (this.R() < 0.12 ? 1 : 0);
+    }
     for (let i = 0; i < n; i++) {
       const p = this._take();
       if (!p) break;
@@ -354,19 +511,42 @@ export class Passengers {
       p.style = ['wave', 'hail', 'beckon'][Math.floor(this.R() * 3)];
       p.phase = this.R() * 6;
       p.delay = 0;
-      p.dest = this._pickDest(stop);
+      p.group = group;
+      p.dest = this.mode === 'line' ? (this.lineStops.indexOf(stop) >= 0 ? this._lineDest(this.lineStops.indexOf(stop)) : null) : dest;
       stop.waiting.push(p);
     }
   }
 
-  _pickDest(from) {
-    // رايح مكان عشوائي بعيد شوية (250م - 1.4كم) على أي طريق
-    for (let i = 0; i < 40; i++) {
-      const c = this.cands[Math.floor(this.R() * this.cands.length)];
-      const d = Math.hypot(c.x - from.x, c.z - from.z);
-      if (d > 250 && d < 1400) return this._activate(c);
+  /** راكب الميكروباص نازل في محطة جاية على الخط (كتير منهم لآخر الخط) */
+  _lineDest(k) {
+    const last = this.lineStops.length - 1;
+    if (k >= last - 1 || this.R() < 0.45) return this.lineStops[last];
+    return this.lineStops[k + 1 + Math.floor(this.R() * (last - k - 1))];
+  }
+
+  /** مشوار تاكسي/توكتوك: مكان معروف على مسافة مناسبة، والنزول على الرصيف اللي على يمين اتجاه الوصول */
+  _tripDest(from) {
+    const kind = this.player.kind, [lo, hi] = TRIP_RANGE[kind] || TRIP_RANGE.taxi;
+    const pool = POIS.filter((p) => (kind !== 'tuktuk' || p.tuk) && Math.hypot(p.x - from.x, p.z - from.z) < hi && Math.hypot(p.x - from.x, p.z - from.z) > lo * 0.5);
+    for (let tries = 0; tries < 6 && pool.length; tries++) {
+      const poi = pool.splice(Math.floor(this.R() * pool.length), 1)[0];
+      const r = findRoute(from.mx, from.mz, poi.x, poi.z, from.ax, from.az);
+      if (!r || r.length < lo || r.length > hi) continue;
+      const n = r.pts.length, p1 = r.pts[n - 1], p0 = r.pts[Math.max(0, n - 5)], l = Math.hypot(p1.x - p0.x, p1.z - p0.z) || 1;
+      const dx = (p1.x - p0.x) / l, dz = (p1.z - p0.z) / l;
+      let best = null, bs = Infinity;
+      for (const c of this.cands) {
+        const d = Math.hypot(c.x - poi.x, c.z - poi.z);
+        if (d > 50 || c.ax * dx + c.az * dz < 0.5) continue;
+        const sc = d + (c.nearX < 18 ? 35 : 0);
+        if (sc < bs) { bs = sc; best = c; }
+      }
+      if (!best) continue;
+      const st = this._activate(best);
+      st.name = poi.name;
+      return { stop: st, meters: r.length, name: poi.name };
     }
-    return this._activate(this.cands[Math.floor(this.R() * this.cands.length)]);
+    return null;
   }
 
   // ===== الحلقة الأساسية =====
@@ -379,14 +559,25 @@ export class Passengers {
     const rx = -fz, rz = fx; // يمين العربية (ناحية الباب)
     const doorP = this._doorPoint(_v);
 
-    // --- أماكن الركوب العشوائية حواليك ---
+    // --- أماكن الركوب العشوائية حواليك (تاكسي/توكتوك) + مكانك على خط الميكروباص ---
     this._mgT = (this._mgT ?? 0) - dt;
-    if (this._mgT <= 0) { this._mgT = 0.7; this._manageStops(ph); }
+    if (this._mgT <= 0) {
+      this._mgT = 0.35;
+      this._manageStops(ph);
+      if (this.mode === 'line' && this.linePath) {
+        const tr = trackRoute(this.linePath, vx, vz, this._lineTrack);
+        // بنعتبر مكانك على الخط بس لما تكون ماشي عليه فعلًا (في الموقف/خارج الخط: المحطة الجاية بتفضل زي ما هي)
+        if (tr && tr.off < 12) this.lineS = Math.max(this.lineS - 30, tr.s);
+        this.hud?.setJob?.(this.jobInfo());
+      }
+    }
     // --- ظهور/اختفاء المستنيين ---
     for (const st of this.stops) {
       st.cooldown = Math.max(0, st.cooldown - dt);
       const d2 = (st.x - vx) ** 2 + (st.z - vz) ** 2;
-      if (!st.waiting.length && !st.cooldown && d2 < 380 * 380 && d2 > 45 * 45) this._spawnWaiting(st);
+      // الميكروباص: المحطات اللي عدّيناها خلاص مش محتاجة ناس (توفير للماشيين)
+      const behind = this.mode === 'line' && st.lineIdx !== undefined && st.lineS < this.lineS - 15 && this.lineStops.includes(st);
+      if (!st.waiting.length && !st.cooldown && !behind && d2 < 380 * 380 && d2 > 45 * 45) this._spawnWaiting(st);
       else if (st.waiting.length && d2 > 480 * 480) {
         for (const p of [...st.waiting]) if (p.state === 'wait') this._release(p);
         st.waiting = st.waiting.filter((p) => p.state && p.state !== 'wait');
@@ -399,6 +590,9 @@ export class Passengers {
       for (const st of this.stops) {
         const free = this.capacity - this.onboard.length - this.walkers.filter((p) => p.state === 'toDoor').length;
         if (!st.waiting.length) continue;
+        // الميكروباص بيحمّل من محطات خطه بس، والتاكسي زبون واحد (أو مجموعة) في المرة ومش من موقف الميكروباص
+        if (this.mode === 'line' && !this.lineStops.includes(st)) continue;
+        if (this.mode === 'trip' && (st.kind === 'terminal' || this.trip || this.onboard.length || this.walkers.some((p) => p.state === 'toDoor' && p.stop !== st))) continue;
         const sideOk = (st.x - vx) * rx + (st.z - vz) * rz > 0.5;
         if (!sideOk || !this._inMarker(st, ph)) {
           // واقف قريب بس مش في المكان المظبوط
@@ -407,8 +601,8 @@ export class Passengers {
         }
         let k = 0;
         for (const p of st.waiting) {
-          if (p.state !== 'wait') continue;
-          if (free - k <= 0) { if (!this._fullNote) { this.hud?.toast('الميكروباص كامل!', 2); this._fullNote = 1; } break; }
+          if (p.state !== 'wait' || (this.mode === 'line' && !p.dest)) continue;
+          if (free - k <= 0) { if (!this._fullNote) { this.hud?.toast(this.mode === 'line' ? 'الميكروباص كامل!' : 'العربية كاملة!', 2); this._fullNote = 1; } break; }
           p.state = 'toDoor'; p.delay = 0.3 + k * 0.8; k++;
         }
       }
@@ -417,7 +611,7 @@ export class Passengers {
         const sideOk = (st.x - vx) * rx + (st.z - vz) * rz > 0.5;
         if (!sideOk || !this._inMarker(st, ph)) continue;
         // اللي نازل هنا + اللي عدّينا محطته (بينزل في أي موقف بعدها)
-        const out = this.onboard.filter((p) => !p.leaving && ((p.dest && (p.dest === st || (p.dest.cand && p.dest.cand === st.cand) || (st.fixed && p.dest.fixed))) || p.missed));
+        const out = this.onboard.filter((p) => !p.leaving && ((p.dest && (p.dest === st || (p.dest.cand && p.dest.cand === st.cand) || (st.terminalStop && p.dest.terminalStop))) || (p.missed && this.mode === 'line')));
         out.forEach((p, i) => { p.leaving = true; p.leaveDelay = 0.4 + i * 0.9; p.leaveStop = st; });
       }
     }
@@ -429,7 +623,23 @@ export class Passengers {
       if (!p.dest || p.missed || p.leaving) continue;
       const d = Math.hypot(p.dest.mx - vx, p.dest.mz - vz);
       if (d < 18) p.near = true;
-      else if (p.near && d > 45) { p.missed = true; p.mood = Math.max(0.2, (p.mood ?? 1) - 0.3); this._complainCd = 0; this._complain(`يا أسطى عدّيت ${p.dest.name}! نزّلني في أي موقف`, 0); }
+      else if (p.near && d > 45) {
+        p.mood = Math.max(0.2, (p.mood ?? 1) - 0.3); this._complainCd = 0;
+        if (this.mode === 'line') { p.missed = true; this._complain(`يا أسطى عدّيت ${p.dest.name}! نزّلني في أي محطة`, 0); }
+        else { p.near = false; this._complain(`يا أسطى عدّيت ${p.dest.name}! ارجع`, 0); }
+      }
+    }
+    // --- آخر الخط: بعد ما الكل ينزل → رحلة الرجوع ---
+    if (this.mode === 'line' && this.lineStops.length && !this.onboard.length && this.stillTime > 1.2) {
+      const last = this.lineStops[this.lineStops.length - 1];
+      if (this._inMarker(last, ph) && !this.walkers.some((w) => w.state === 'toDoor')) {
+        this.trips++;
+        this.lineDir ^= 1;
+        this._setupLine(false);
+        const L = this.line, a = this.lineStops[0], b = this.lineStops[this.lineStops.length - 1];
+        this.hud?.toast(`✅ وصلت آخر الخط! ${this.lineDir ? 'رحلة الرجوع' : 'دور جديد'}: ${a?.name} ← ${b?.name}`, 3.5);
+        void L;
+      }
     }
 
     // --- الناس اللي بتنزل ---
@@ -454,13 +664,13 @@ export class Passengers {
       }
       // الأجرة على حسب السواقة: لو زعلان بيدفع أقل (وبيقولك)
       const mood = p.mood ?? 1;
-      const fare = Math.round(p.fare * (mood > 0.85 ? 1 : mood > 0.55 ? 0.75 : 0.5) * 2) / 2;
-      this.earnings += fare;
-      this._saveMoney();
-      this.hud?.setMoney?.(this.earnings);
-      this.audio?.coins?.();
-      const msg = mood > 0.85 ? `نزل راكب ودفع ${fare} ج 👍` : mood > 0.55 ? `دفع ${fare} ج بس — "سواقتك مش ولابد"` : `دفع ${fare} ج بالعافية — "مش دافع غير نص الأجرة!"`;
-      this.hud?.toast(msg, 2.6);
+      if (this.mode === 'line') {
+        const fare = Math.round(p.fare * (mood > 0.85 ? 1 : mood > 0.55 ? 0.75 : 0.5) * 2) / 2;
+        this.wallet?.add(fare, 'fare', `أجرة ميكروباص (${this.line?.name || ''})`);
+        this.audio?.coins?.();
+        const msg = mood > 0.85 ? `نزل راكب ودفع ${fare} ج 👍` : mood > 0.55 ? `دفع ${fare} ج بس — "سواقتك مش ولابد"` : `دفع ${fare} ج بالعافية — "مش دافع غير نص الأجرة!"`;
+        this.hud?.toast(msg, 2.6);
+      } else if (!this.onboard.length) this._settleTrip(mood);
       this._updateHud();
     }
 
@@ -478,7 +688,8 @@ export class Passengers {
         continue;
       }
       if (p.state === 'toDoor') {
-        if (!still || !door) { p.state = 'return'; continue; }
+        // العربية اتحركت (أو اترجعت للطريق بعيد): يرجع مكانه يستنى
+        if (!still || !door || Math.hypot(p.x - doorP.x, p.z - doorP.z) > 30) { p.state = 'return'; continue; }
         if ((p.delay -= dt) > 0) { this._pose(p, p.style, 0); continue; }
         busy = true;
         door.target = 1;
@@ -518,7 +729,7 @@ export class Passengers {
     for (const p of this.onboard) {
       if (p.warned || !p.dest) continue;
       const d = Math.hypot(p.dest.x - vx, p.dest.z - vz);
-      if (d < 140 && d > 25) { p.warned = true; this.hud?.toast(`على جنب يا أسطى! (نازل ${p.dest.name})`, 3); }
+      if (d < 140 && d > 25) { p.warned = true; this.hud?.toast(this.mode === 'line' ? `على جنب يا أسطى! (نازل ${p.dest.name})` : `قرّبنا من ${p.dest.name} — اركن في العلامة`, 3); }
     }
   }
 
@@ -527,19 +738,37 @@ export class Passengers {
     const free = this.seats.filter((s) => !s.pax);
     if (!free.length) { p.state = 'return'; return; }
     const seat = free[Math.floor(this.R() * free.length)];
-    const kindFare = { microbus: 1, taxi: 3, tuktuk: 1.4 }[this.player.kind] || 1;
-    const pax = { seed: Math.floor(this.R() * 1e6), dest: p.dest, fare: Math.round((5 + Math.floor(this.R() * 4) * 2.5) * kindFare * 2) / 2, seat, mood: 1 };
+    const pax = { seed: Math.floor(this.R() * 1e6), dest: p.dest, fare: this.mode === 'line' ? (this.line?.fare || 10) : 0, seat, mood: 1 };
     seat.pax = pax;
     this.onboard.push(pax);
     p.stop.waiting.splice(p.stop.waiting.indexOf(p), 1);
     if (!p.stop.waiting.length) p.stop.cooldown = p.stop.kind === 'terminal' ? 6 : 20;
+    if (this.mode === 'trip' && !this.trip && p.group) {
+      // أول واحد من المجموعة ركب: المشوار بدأ (الأجرة بالعداد على مسافة الطريق)
+      const fare = tripFare(this.player.kind, p.group.meters);
+      this.trip = { dest: p.dest, meters: p.group.meters, fare, t0: performance.now() };
+      this.hud?.toast(`🧍 ركب زبون · رايح ${p.dest.name} (${fmtDist(p.group.meters)}) · الأجرة ${fare} ج`, 3.2);
+    } else if (this.mode === 'line') this.hud?.toast(`ركب راكب · نازل ${pax.dest ? pax.dest.name : 'آخر الخط'}`, 2.2);
     this._release(p);
     this._rebuildSeated();
-    this.hud?.toast(`ركب راكب · نازل ${pax.dest ? pax.dest.name : 'قدام'}`, 2.2);
     this._updateHud();
   }
 
-  _updateHud() { this.hud?.setPassengers?.(this.onboard.length, this.capacity); }
+  /** وصلنا وجهة المشوار والكل نزل: الحساب (الأجرة، اللي دفعه، والباقي) → المحفظة */
+  _settleTrip(mood = 1) {
+    const t = this.trip;
+    this.trip = null;
+    if (!t) return;
+    const fare = Math.max(5, Math.round(t.fare * (mood > 0.85 ? 1 : mood > 0.55 ? 0.85 : 0.65)));
+    const pay = payment(fare, this.R);
+    const label = `${this.player.kind === 'taxi' ? 'تاكسي' : 'توكتوك'}: ${t.dest.name}`;
+    const credit = () => { this.wallet?.add(fare, 'fare', label); this.audio?.coins?.(); };
+    if (this.hud?.showPayment) this.hud.showPayment({ fare, paid: pay.paid, change: pay.change, dest: t.dest.name, full: t.fare, mood }, credit);
+    else { credit(); this.hud?.toast(`الأجرة ${fare} ج · دفع ${pay.paid} · الباقي ${pay.change}`, 3); }
+    this.hud?.setJob?.(this.jobInfo());
+  }
+
+  _updateHud() { this.hud?.setPassengers?.(this.onboard.length, this.capacity); this.hud?.setJob?.(this.jobInfo()); }
 
   /** بيمشي لنقطة، وبيرجع true لما يوصل */
   _walkTo(p, tx, tz, dt, tol) {

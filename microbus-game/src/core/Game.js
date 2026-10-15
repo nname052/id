@@ -30,6 +30,8 @@ import { Diagnostics } from '../ui/Diagnostics.js';
 import { Settings } from '../ui/Settings.js';
 import { MirrorInsets } from '../ui/MirrorInsets.js';
 import { Passengers } from '../gameplay/Passengers.js';
+import { Wallet } from '../gameplay/Wallet.js';
+import { Navigator, fmtDist } from '../nav/Navigator.js';
 import { Multiplayer } from '../net/Multiplayer.js';
 import { MiniMap } from '../ui/MiniMap.js';
 import { TouchControls, isTouchDevice } from '../ui/TouchControls.js';
@@ -150,9 +152,12 @@ export class Game {
     this.cams.settings = this.settings;
     this.cams.colliders = this._colliders;
     this.mirrorInsets = this.insets[this.player.kind] = new MirrorInsets(this.player, this.touch);
-    this.passengers = new Passengers(this.scene, this.player, { hud: this.hud, audio: this.audio, settings: this.settings });
+    this.wallet = new Wallet(this.hud);
+    this.nav = new Navigator();
+    this.passengers = new Passengers(this.scene, this.player, { hud: this.hud, audio: this.audio, settings: this.settings, wallet: this.wallet });
     this.passengers._updateHud();
-    this.hud.setMoney(this.passengers.earnings);
+    this.hud.setMoney(this.wallet.balance);
+    this.hud.onSwitchLine = () => this.passengers.cycleLine();
     this.mp = new Multiplayer(this);
     this.minimap = new MiniMap(this);
     // ميكروباصات راكنة في موقف شبين الكوم
@@ -563,6 +568,20 @@ export class Game {
     this.crowd.update(dt, this.camera.position, this.player.physics, this.camera.getWorldDirection(this._camDir || (this._camDir = new THREE.Vector3())));
     this.passengers.camPos = this.camera.position;
     if (this.started) this.passengers.update(dt, ph);
+    // الـ GPS: الهدف من الشغل (المحطة الجاية / الزبون / الوجهة)، والطريق بيتحسب ويتابع كل ربع ثانية
+    if (this.started) {
+      this._navT = (this._navT || 0) - dt;
+      if (this._navT <= 0) {
+        this._navT = 0.25;
+        this.nav.setTarget(this.passengers.navTarget(ph));
+        this.hud.setNav(this.nav.info);
+        const P = this.player, info = this.nav.info, job = this.passengers.jobInfo();
+        P.navCanvas = this.minimap.navCv;
+        P.navTitle = job.mode === 'line' ? job.title : job.dest ? `📍 ${job.dest}` : '';
+        P.navLine = job.mode === 'line' ? `المحطة الجاية: ${job.next}` : job.dest ? `${info ? fmtDist(info.remain) + ' · ' : ''}الأجرة ${job.fare} ج` : '';
+      }
+      this.nav.update(dt, ph);
+    }
     this.env.update(this.player.rig.root.position);
 
     // أقرب أعمدة نور بالليل
