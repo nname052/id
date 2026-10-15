@@ -665,9 +665,18 @@ export class Game {
     this.lampTimer -= dt;
     if (this.lampTimer <= 0 && this.env.preset.lampsOn) {
       this.lampTimer = 0.4;
-      const c = this.camera.position;
-      const near = [...LAMP_POSITIONS].sort((p1, p2) => p1.distanceToSquared(c) - p2.distanceToSquared(c)).slice(0, this.lampLights.length);
-      near.forEach((p, i) => this.lampLights[i].position.copy(p));
+      // أقرب N أعمدة (اختيار من غير ما نعمل مصفوفات جديدة كل مرة)
+      const c = this.camera.position, L = this.lampLights, n = L.length;
+      const best = (this._lampBest ||= new Array(n).fill(null)), bd = (this._lampD ||= new Float64Array(n));
+      bd.fill(Infinity);
+      for (const p of LAMP_POSITIONS) {
+        const d = p.distanceToSquared(c);
+        if (d >= bd[n - 1]) continue;
+        let k = n - 1;
+        while (k > 0 && bd[k - 1] > d) { bd[k] = bd[k - 1]; best[k] = best[k - 1]; k--; }
+        bd[k] = d; best[k] = p;
+      }
+      for (let i = 0; i < n; i++) if (best[i]) L[i].position.copy(best[i]);
     }
 
     this._adaptQuality(dt);

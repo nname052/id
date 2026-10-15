@@ -6,6 +6,8 @@ import { inCity } from '../world/ground.js';
 import { ROADS, nearestSide } from '../world/RoadNetwork.js';
 import { rng } from '../render/textures.js';
 import { CAR_COLORS } from '../vehicles/CarModels.js';
+import { buildSedan } from '../vehicles/SedanModel.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 // =====================================================================
 //  المرور (خفيف للموبايل):
@@ -39,6 +41,7 @@ export function loopAt(s, out = {}) {
   return out;
 }
 const _la = {}, _lb = {};
+const _pm = new THREE.Matrix4(), _pv = new THREE.Vector3(), _pq = new THREE.Quaternion(), _ps = new THREE.Vector3(), _pc = new THREE.Color(), _pY = new THREE.Vector3(0, 1, 0);
 
 /** إسقاط أي نقطة على المسار → { s, d } */
 export function loopProject(x, z) {
@@ -181,16 +184,27 @@ export class TrafficSystem {
   _spawnParked() {
     const R = rng(1234);
     this.parked = [];
+    const sedans = [];
     for (const sx of [-1, 1]) {
       for (const [zs, ze] of mainSegments(9)) {
         for (let z = zs - 3; z > ze + 3; z -= 5.6 + R() * 4) {
           if (R() < 0.35) { z -= 3; continue; }
           const type = ['sedan', 'boxy', 'taxi', 'sedan', 'boxy', 'microbus'][Math.floor(R() * 6)];
-          const rig = this.makeCar(type, CAR_COLORS[Math.floor(R() * CAR_COLORS.length)], { parked: true });
-          const len = rig.length || 4.4;
-          z -= len / 2;
+          const color = CAR_COLORS[Math.floor(R() * CAR_COLORS.length)];
           const x = sx * (ROAD.parkCenter + (R() - 0.5) * 0.3);
           const yaw = (sx > 0 ? 0 : Math.PI) + (R() - 0.5) * 0.06;
+          if (type !== 'microbus') {
+            // الملاكي والتاكسي: نفس شكل السيدان (BYD F3) — كلهم InstancedMesh (كام draw call لكل العربيات)
+            const len = 4.53;
+            z -= len / 2;
+            sedans.push({ x, z, yaw, taxi: type === 'taxi', color });
+            this.parked.push({ cx: x, cz: z, hx: 0.86, hz: len / 2, angle: yaw, restitution: 0.1, mass: 3000, kind: 'parked' });
+            z -= len / 2;
+            continue;
+          }
+          const rig = this.makeCar(type, color, { parked: true });
+          const len = rig.length || 4.4;
+          z -= len / 2;
           rig.root.position.set(x, 0, z);
           rig.root.rotation.y = yaw;
           rig.root.updateMatrixWorld(true);
@@ -200,6 +214,55 @@ export class TrafficSystem {
         }
       }
     }
+    this._buildParkedSedans(sedans);
+  }
+
+  /**
+   * السيدان المركونة (ملاكي + تاكسي): كل جزء = InstancedMesh واحدة (الصاج بلون مختلف لكل عربية عن طريق instanceColor،
+   * والتفاصيل المرسومة في الشيدر — الفوانيس والشبكة والشرايط — بتفضل بألوانها)
+   */
+  _buildParkedSedans(list) {
+    const g = new THREE.Group(); g.name = 'parked-sedans';
+    for (const taxi of [false, true]) {
+      const items = list.filter((c) => c.taxi === taxi);
+      if (!items.length) continue;
+      const tpl = buildSedan({ livery: taxi ? 'taxi' : 0xffffff, lod: 1, seeThrough: false, wheels: true });
+      tpl.root.updateMatrixWorld(true);
+      const byMat = new Map();
+      tpl.root.traverse((o) => {
+        if (!o.isMesh || o === tpl.shell) return;
+        const k = o.material;
+        if (!byMat.has(k)) byMat.set(k, []);
+        byMat.get(k).push(o);
+      });
+      const place = (mesh) => {
+        items.forEach((c, i) => { _pm.compose(_pv.set(c.x, 0, c.z), _pq.setFromAxisAngle(_pY, c.yaw), _ps.set(1, 1, 1)); mesh.setMatrixAt(i, _pm); });
+        mesh.instanceMatrix.needsUpdate = true;
+        mesh.frustumCulled = false;
+        g.add(mesh);
+        return mesh;
+      };
+      // الصاج + الإزاز (نفس الـ geometry بجروبين)
+      const shell = place(new THREE.InstancedMesh(tpl.shell.geometry.clone().applyMatrix4(tpl.shell.matrixWorld), tpl.shell.material, items.length));
+      shell.castShadow = true; shell.receiveShadow = true;
+      if (!taxi) { items.forEach((c, i) => shell.setColorAt(i, _pc.set(c.color))); shell.instanceColor.needsUpdate = true; }
+      // باقي الأجزاء: كل خامة → geometry واحدة مدموجة
+      for (const [mat, meshes] of byMat) {
+        const geos = meshes.map((o) => {
+          const gg = (o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone()).applyMatrix4(o.matrixWorld);
+          for (const k of Object.keys(gg.attributes)) if (!['position', 'normal', 'uv'].includes(k)) gg.deleteAttribute(k);
+          return gg;
+        });
+        const hasUv = geos.every((gg) => gg.attributes.uv);
+        if (!hasUv) geos.forEach((gg) => gg.deleteAttribute('uv'));
+        const merged = mergeGeometries(geos, false);
+        if (!merged) continue;
+        const im = place(new THREE.InstancedMesh(merged, mat, items.length));
+        im.castShadow = !mat.transparent;
+      }
+    }
+    this.scene.add(g);
+    this.parkedSedans = g;
   }
 
   /** دمج العربيات المركونة في عدد قليل من الـ Meshes */

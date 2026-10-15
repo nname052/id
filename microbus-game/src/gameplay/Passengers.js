@@ -618,8 +618,10 @@ export class Passengers {
 
     // --- ركوب: واقف جنب موقف والباب ناحيته ---
     if (this.stillTime > 0.35 && door) {
+      let toDoor = 0;
+      for (const w of this.walkers) if (w.state === 'toDoor') toDoor++;
       for (const st of this.stops) {
-        const free = this.capacity - this.onboard.length - this.walkers.filter((p) => p.state === 'toDoor').length;
+        const free = this.capacity - this.onboard.length - toDoor;
         if (!st.waiting.length) continue;
         // الميكروباص بيحمّل من محطات خطه بس، والتاكسي زبون واحد (أو مجموعة) في المرة ومش من موقف الميكروباص
         if (this.mode === 'line' && !this.lineStops.includes(st)) continue;
@@ -636,6 +638,7 @@ export class Passengers {
           if (free - k <= 0) { if (!this._fullNote) { this.hud?.toast(this.mode === 'line' ? 'الميكروباص كامل!' : 'العربية كاملة!', 2); this._fullNote = 1; } break; }
           p.state = 'toDoor'; p.delay = 0.3 + k * 0.8; k++;
         }
+        toDoor += k;
       }
       // --- نزول: حد نازل في الموقف ده ---
       for (const st of this.stops) {

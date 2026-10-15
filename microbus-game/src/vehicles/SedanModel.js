@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { buildWheel } from './wheel.js';
 import { vehicleMaterials } from '../render/materials.js';
 import { canvas, tex } from '../render/textures.js';
@@ -398,7 +399,8 @@ function partMats() {
   });
 }
 
-let _linerGeo = null, _plateGeo = null, _badgeGeo = null;
+let _linerGeo = null, _plateGeo = null, _badgeGeo = null, _linersMerged = null;
+const _lodWheel = {};
 
 /**
  * سيدان كاملة. opts:
@@ -423,7 +425,11 @@ export function buildSedan({ livery = 'taxi', lod = 0, seeThrough = false, wheel
   if (parts.dark) { const m = new THREE.Mesh(parts.dark, M.dark); m.userData.role = 'chrome'; body.add(m); }
   // بطانة أقواس العجل (سودا) عشان مايبانش فراغ جوه الرفرف
   _linerGeo ||= new THREE.CylinderGeometry(ARCH_R, ARCH_R, 0.3, 18, 1, true, -Math.PI / 2 - 1.2, 2.4 + Math.PI).rotateZ(Math.PI / 2);
-  for (const za of [SEDAN.axleF, SEDAN.axleR]) for (const sx of [-1, 1]) {
+  if (lod >= 1) {
+    // المرور: الأربع بطانات Mesh واحدة (draw call واحد، وبتستخبى في البعيد)
+    _linersMerged ||= mergeGeometries([SEDAN.axleF, SEDAN.axleF, SEDAN.axleR, SEDAN.axleR].map((za, i) => _linerGeo.clone().translate((i % 2 ? 1 : -1) * (SEDAN.halfWidth - 0.17), SEDAN.wheelR, za)));
+    const l = new THREE.Mesh(_linersMerged, M.liner); l.userData.role = 'chrome'; body.add(l);
+  } else for (const za of [SEDAN.axleF, SEDAN.axleR]) for (const sx of [-1, 1]) {
     const l = new THREE.Mesh(_linerGeo, M.liner); l.position.set(sx * (SEDAN.halfWidth - 0.17), SEDAN.wheelR, za); body.add(l);
   }
   // اللوحات + شعار BYD
@@ -431,7 +437,7 @@ export function buildSedan({ livery = 'taxi', lod = 0, seeThrough = false, wheel
   const pf = new THREE.Mesh(_plateGeo, M.plate); pf.position.set(0, 0.52, SEDAN.zFront - 0.012); pf.rotation.y = Math.PI; pf.userData.role = 'plate'; body.add(pf);
   const pr = new THREE.Mesh(_plateGeo, M.plate); pr.position.set(0, 0.62, SEDAN.zRear + 0.012); pr.userData.role = 'plate'; body.add(pr);
   _badgeGeo ||= new THREE.PlaneGeometry(0.15, 0.075);
-  const bd = new THREE.Mesh(_badgeGeo, M.badge); bd.position.set(0, 0.70, SEDAN.zFront + 0.035); bd.rotation.y = Math.PI; body.add(bd);
+  const bd = new THREE.Mesh(_badgeGeo, M.badge); bd.position.set(0, 0.70, SEDAN.zFront + 0.035); bd.rotation.y = Math.PI; bd.userData.role = 'plate'; body.add(bd);
   // الشرطة: كشاف سقف أحمر/أزرق
   let lightbar = null;
   if (livery === 'police') {
@@ -448,6 +454,27 @@ export function buildSedan({ livery = 'taxi', lod = 0, seeThrough = false, wheel
     const ids = ['FL', 'FR', 'RL', 'RR'];
     [[SEDAN.axleF, -1], [SEDAN.axleF, 1], [SEDAN.axleR, -1], [SEDAN.axleR, 1]].forEach(([za, sx], i) => {
       const w = buildWheel({ radius: SEDAN.wheelR, width: 0.2, rimRadius: 0.2, mats: wm, style: 'alloy6', side: sx });
+      if (lod >= 1) {
+        // المرور: الكاوتش والجنط Mesh واحدة بألوان (draw call واحد للعجلة بدل 3)
+        const key = sx > 0 ? 'R' : 'L';
+        if (!_lodWheel[key]) {
+          const geos = w.spin.children.map((m) => {
+            m.updateMatrix();
+            const gg = (m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone()).applyMatrix4(m.matrix);
+            const col = m.userData.role === 'tire' ? [0.03, 0.03, 0.032] : m.userData.role === 'rim' ? [0.5, 0.52, 0.55] : [0.38, 0.4, 0.43];
+            const arr = new Float32Array(gg.attributes.position.count * 3);
+            for (let k = 0; k < arr.length; k += 3) arr.set(col, k);
+            gg.setAttribute('color', new THREE.BufferAttribute(arr, 3));
+            for (const a of Object.keys(gg.attributes)) if (!['position', 'normal', 'color'].includes(a)) gg.deleteAttribute(a);
+            return gg;
+          });
+          _lodWheel[key] = mergeGeometries(geos);
+        }
+        for (const c of [...w.spin.children]) w.spin.remove(c);
+        const wmesh = new THREE.Mesh(_lodWheel[key], (_lodWheel.mat ||= new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.3 })));
+        wmesh.castShadow = true; wmesh.userData.role = 'tire';
+        w.spin.add(wmesh);
+      }
       w.group.position.set(sx * SEDAN.track / 2, SEDAN.wheelR, za);
       root.add(w.group);
       wheelList.push({ id: ids[i], front: i < 2, group: w.group, spin: w.spin });
