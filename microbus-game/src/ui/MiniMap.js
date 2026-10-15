@@ -3,6 +3,7 @@ import { ROADS } from '../world/RoadNetwork.js';
 import { ROAD, CROSSINGS } from '../world/layout.js';
 import { TERMINAL } from '../world/Shibin.js';
 import { SHIBIN } from '../world/RoadNetwork.js';
+import { STATION } from '../world/PetrolStation.js';
 
 // خريطة الطرق: صغيرة في الركن (بتلف مع اتجاهك)، ولما تدوس عليها بتكبر لخريطة كاملة (الشمال لفوق).
 // الطرق بتترسم مرة واحدة في canvas جاهز، وكل فريم بنرسم فوقها: طريق الـ GPS، خط الميكروباص ومحطاته،
@@ -74,6 +75,16 @@ export class MiniMap {
     // الموقف
     x.fillStyle = '#ff9f43'; x.strokeStyle = '#5b5348'; x.lineWidth = 3;
     const [ta, tb] = P(TERMINAL.x0, TERMINAL.z0); x.fillRect(ta, tb, (TERMINAL.x1 - TERMINAL.x0) * PX, (TERMINAL.z1 - TERMINAL.z0) * PX); x.strokeRect(ta, tb, (TERMINAL.x1 - TERMINAL.x0) * PX, (TERMINAL.z1 - TERMINAL.z0) * PX);
+    // البنزينة (أرضية + مظلة + علامة طلمبة)
+    {
+      const S = STATION, [a0, b0] = P(S.pad.x0, S.pad.z0);
+      x.fillStyle = '#8f8f94'; x.fillRect(a0, b0, (S.pad.x1 - S.pad.x0) * PX, (S.pad.z1 - S.pad.z0) * PX);
+      const [a1, b1] = P(S.canopy.x0, S.canopy.z0);
+      x.fillStyle = '#16a34a'; x.fillRect(a1, b1, (S.canopy.x1 - S.canopy.x0) * PX, (S.canopy.z1 - S.canopy.z0) * PX);
+      const [ia, ib] = P((S.canopy.x0 + S.canopy.x1) / 2, (S.canopy.z0 + S.canopy.z1) / 2);
+      x.fillStyle = '#fff'; x.beginPath(); x.arc(ia, ib, 7, 0, Math.PI * 2); x.fill();
+      x.fillStyle = '#16a34a'; x.fillRect(ia - 3, ib - 4, 5, 8); x.fillRect(ia + 2, ib - 2, 2, 5);
+    }
     // نسخة من غير كلام للخريطة الصغيرة وشاشة التابلوه، والأسامي للكبيرة بس
     this.baseNL = document.createElement('canvas');
     this.baseNL.width = c.width; this.baseNL.height = c.height;
@@ -85,6 +96,7 @@ export class MiniMap {
     lbl('وسط البلد', 0, ROAD.zMax - 60, 18);
     lbl('شبين الكوم', 220, 380, 18);
     lbl('🚐 موقف الميكروباص', (TERMINAL.x0 + TERMINAL.x1) / 2, TERMINAL.z1 + 16, 15);
+    lbl('⛽ بنزينة الترعة', (STATION.pad.x0 + STATION.pad.x1) / 2, STATION.pad.z1 + 14, 14);
   }
 
   update(dt) {

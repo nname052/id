@@ -1,0 +1,213 @@
+// =====================================================================
+//  كماين المرور: كمينين على الطرق (شارع باريس وطريق الترعة). الكمين مش دايمًا شغال: لما تقرب بيتقرر
+//  (نسبة)، ولو اتفتشت فيه بيقفل فترة. الظابط بيشاور تقف → بيفتش على رخصة القيادة ورخصة العربية:
+//  سليمة → "اتفضل". منتهية → "اركن على جنب" في مكان محدد → غرامة بتتخصم من المحفظة.
+//  لو مقفتش: غرامة هروب. عربية شرطة بكشاف أحمر/أزرق بيلمع (خامة واحدة مشتركة) + أقماع + ظابط.
+// =====================================================================
+import * as THREE from 'three';
+import { buildSedan } from '../vehicles/SedanModel.js';
+import { roadPointAt } from '../world/RoadNetwork.js';
+import { groundHeight } from '../world/ground.js';
+import { GeoBuilder } from '../render/GeoBuilder.js';
+import { canvas, tex } from '../render/textures.js';
+import { LICENSE } from './Licenses.js';
+
+const SPOTS = [
+  { road: 'S1', frac: 0.3, name: 'كمين شارع باريس' },
+  { road: 'R1', frac: 0.62, name: 'كمين طريق الترعة' },
+];
+const FINE = { driver: 500, vehicle: 400, flee: 1000 };
+const CHANCE = 0.6;        // احتمال إن الكمين يبقى شغال لما تقرب
+const COOL = 8 * 60;       // بعد التفتيش: الكمين ده بيرتاح 8 دقايق
+const M4 = (x = 0, y = 0, z = 0, ry = 0) => new THREE.Matrix4().makeRotationY(ry).setPosition(x, y, z);
+
+function signTexture() {
+  const c = canvas(256, 192), x = c.getContext('2d');
+  x.fillStyle = '#c81414'; x.fillRect(0, 0, 256, 192);
+  x.strokeStyle = '#fff'; x.lineWidth = 10; x.strokeRect(8, 8, 240, 176);
+  x.fillStyle = '#fff'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.direction = 'rtl';
+  x.font = 'bold 78px Cairo, sans-serif'; x.fillText('قف', 128, 72);
+  x.font = 'bold 34px Cairo, sans-serif'; x.fillText('كمين مرور', 128, 146);
+  return tex(c, { repeat: false });
+}
+
+/** ظابط مرور: بدلة بيضا وكاب، وإيده اليمين بتتحرك (إشارة قف) */
+function officer() {
+  const root = new THREE.Group();
+  const g = new GeoBuilder();
+  const M = (x, y, z, sx = 1, sy = 1, sz = 1) => new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion(), new THREE.Vector3(sx, sy, sz));
+  g.setColor([0.1, 0.1, 0.12]);
+  for (const sx of [-1, 1]) g.addGeometry(new THREE.CylinderGeometry(0.075, 0.065, 0.86, 8), M(sx * 0.1, 0.45, 0));
+  g.setColor([0.06, 0.06, 0.06]);
+  for (const sx of [-1, 1]) g.addGeometry(new THREE.BoxGeometry(0.11, 0.07, 0.24), M(sx * 0.1, 0.035, 0.03));
+  g.setColor([0.95, 0.95, 0.93]);
+  g.addGeometry(new THREE.CylinderGeometry(0.19, 0.16, 0.62, 10), M(0, 1.18, 0, 1, 1, 0.7));
+  g.setColor([0.12, 0.12, 0.14]); g.addGeometry(new THREE.CylinderGeometry(0.165, 0.165, 0.06, 10), M(0, 0.9, 0, 1, 1, 0.72)); // حزام
+  g.setColor([0.95, 0.95, 0.93]);
+  g.addGeometry(new THREE.CylinderGeometry(0.05, 0.045, 0.56, 6), M(-0.24, 1.18, 0));
+  g.setColor([0.62, 0.43, 0.3]);
+  g.addGeometry(new THREE.SphereGeometry(0.105, 10, 8), M(0, 1.64, 0, 0.92, 1.08, 1));
+  g.addGeometry(new THREE.SphereGeometry(0.045, 6, 5), M(-0.24, 0.87, 0));
+  g.setColor([0.95, 0.95, 0.95]); g.addGeometry(new THREE.CylinderGeometry(0.115, 0.12, 0.09, 12), M(0, 1.76, 0));
+  g.setColor([0.05, 0.05, 0.05]); g.addGeometry(new THREE.BoxGeometry(0.2, 0.015, 0.1), M(0, 1.72, 0.12));
+  const body = new THREE.Mesh(g.build(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.75 }));
+  body.castShadow = true;
+  root.add(body);
+  // الدراع اليمين (بيترفع ويشاور)
+  const arm = new THREE.Group(); arm.position.set(0.24, 1.44, 0);
+  const a = new GeoBuilder();
+  a.setColor([0.95, 0.95, 0.93]); a.addGeometry(new THREE.CylinderGeometry(0.05, 0.045, 0.56, 6), M(0, -0.28, 0));
+  a.setColor([0.62, 0.43, 0.3]); a.addGeometry(new THREE.BoxGeometry(0.09, 0.12, 0.03), M(0, -0.6, 0));
+  a.setColor([0.95, 0.95, 0.95]); a.addGeometry(new THREE.BoxGeometry(0.1, 0.05, 0.05), M(0, -0.57, 0)); // جوانتي أبيض
+  arm.add(new THREE.Mesh(a.build(), body.material));
+  root.add(arm);
+  root.userData.arm = arm;
+  return root;
+}
+
+export class Police {
+  constructor(scene, { hud, wallet, licenses } = {}) {
+    this.hud = hud; this.wallet = wallet; this.licenses = licenses;
+    this.cps = [];
+    const signMat = new THREE.MeshStandardMaterial({ map: signTexture(), roughness: 0.6 });
+    const coneMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6 });
+    for (const def of SPOTS) {
+      const q = roadPointAt(def.road, def.frac);
+      const road = q.half || 4;
+      const root = new THREE.Group(); root.name = def.name; root.visible = false;
+      const y0 = groundHeight(q.x, q.z);
+      const at = (along, side) => [q.x + q.dx * along + q.rx * side, q.z + q.dz * along + q.rz * side];
+      const yaw = Math.atan2(q.dx, q.dz);
+      // عربية الشرطة راكنة على الجنب (مايلة شوية)
+      const car = buildSedan({ livery: 'police', lod: 1, seeThrough: false });
+      const [cx, cz] = at(-9, road + 1.6);
+      car.root.position.set(cx, groundHeight(cx, cz), cz);
+      car.root.rotation.y = yaw + Math.PI + 0.25;
+      root.add(car.root);
+      // أقماع: بتضيّق الطريق من الناحيتين قدام الظابط
+      const cg = new GeoBuilder();
+      const cone = (x, z) => {
+        const y = groundHeight(x, z);
+        cg.setColor([1, 0.42, 0.05]); cg.addGeometry(new THREE.ConeGeometry(0.17, 0.62, 10), M4(x, y + 0.31, z));
+        cg.setColor([0.95, 0.95, 0.95]); cg.addGeometry(new THREE.CylinderGeometry(0.105, 0.125, 0.09, 10), M4(x, y + 0.36, z));
+        cg.setColor([0.08, 0.08, 0.08]); cg.addGeometry(new THREE.BoxGeometry(0.4, 0.04, 0.4), M4(x, y + 0.02, z));
+      };
+      for (const along of [-14, -10, -6, 6, 10, 14]) for (const side of [-1, 1]) { const [x, z] = at(along, side * (road - 0.4 - Math.max(0, 6 - Math.abs(along)) * 0.18)); cone(x, z); }
+      root.add(new THREE.Mesh(cg.build(), coneMat));
+      // يافطة "قف كمين" على حامل
+      const [sx, sz] = at(-15, road + 0.6);
+      const sg = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.9), signMat);
+      sg.position.set(sx, groundHeight(sx, sz) + 1.4, sz); sg.rotation.y = yaw + Math.PI;
+      root.add(sg);
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.0, 6), new THREE.MeshStandardMaterial({ color: 0x333333 }));
+      post.position.set(sx, groundHeight(sx, sz) + 0.5, sz); root.add(post);
+      // الظابط في نص الطريق عند الكمين
+      const off = officer();
+      off.position.set(q.x, y0, q.z);
+      root.add(off);
+      scene.add(root);
+      this.cps.push({ def, q: { x: q.x, z: q.z, dx: q.dx, dz: q.dz, rx: q.rx, rz: q.rz, half: road }, root, car, off, state: 'idle', cool: 0, rolled: false, t: 0 });
+    }
+    // مكان "اركن على جنب": علامة حمرا/زرقا على الأرض
+    const mk = new THREE.Mesh(new THREE.PlaneGeometry(2.8, 6).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x3b82f6, transparent: true, opacity: 0.6, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, toneMapped: false }));
+    mk.visible = false; mk.renderOrder = 2;
+    scene.add(mk);
+    this.marker = mk;
+    this.active = null;
+    this._flash = 0;
+  }
+
+  /** بيرجّع هدف للـ GPS لو لازم تركن على جنب */
+  navTarget() { return this.active?.state === 'pullover' ? { x: this.active.park.x, z: this.active.park.z, name: 'اركن على جنب' } : null; }
+  get busy() { return !!this.active && this.active.state !== 'idle'; }
+
+  update(dt, ph, kind, t) {
+    for (const c of this.cps) {
+      c.cool = Math.max(0, c.cool - dt);
+      const dx = ph.x - c.q.x, dz = ph.z - c.q.z, d = Math.hypot(dx, dz);
+      // التفعيل: لما تقرب (مرة لكل قربة)، ولو مش شغال يتخفي ومايترسمش خالص
+      if (c.state === 'idle') {
+        if (d < 260 && !c.rolled && c.cool <= 0) { c.rolled = true; c.on = Math.random() < CHANCE; c.root.visible = c.on; }
+        if (d > 320) { c.rolled = false; if (!this.active || this.active !== c) c.root.visible = false; }
+      }
+      if (c.state === 'done' && d > 120) c.state = 'idle';
+      if (!c.root.visible) continue;
+      // الظابط بيشاور لما تقرب
+      const arm = c.off.userData.arm;
+      const signal = c.on && c.state !== 'done' && d < 90;
+      arm.rotation.x += ((signal ? -2.6 + Math.sin(t * 6) * 0.25 : 0) - arm.rotation.x) * Math.min(1, dt * 6);
+      c.off.rotation.y = Math.atan2(dx, dz);
+      if (!c.on || c.cool > 0) continue;
+      const along = dx * c.q.dx + dz * c.q.dz, lat = dx * c.q.rx + dz * c.q.rz;
+      const onRoad = Math.abs(lat) < c.q.half + 2;
+      if (c.state === 'idle' && d < 85 && onRoad) {
+        // داخل على الكمين؟ (رايح ناحيته)
+        const toward = -(ph.forward[0] * dx + ph.forward[1] * dz) / Math.max(1, d) > 0.5;
+        if (toward) { c.state = 'signal'; c.dir = Math.sign(along) || 1; c.stopT = 0; this.active = c; this.hud?.toast('🚓 كمين! هدّي واقف عند الظابط', 3); }
+      }
+      if (c.state === 'signal') {
+        const inZone = Math.abs(along) < 16 && onRoad;
+        if (inZone && ph.speed < 0.7) { c.stopT += dt; if (c.stopT > 0.6) { c.state = 'check'; c.t = 1.4; this.hud?.toast('👮 رخصك يا أسطى؟', 2); } }
+        // عدّى الظابط من غير ما يقف
+        if (Math.sign(along) === -c.dir && Math.abs(along) > 8 && ph.speed > 3) this._flee(c);
+        else if (d > 140) { c.state = 'idle'; this.active = null; }
+      } else if (c.state === 'check') {
+        if (ph.speed > 2.5) { this._flee(c); continue; }
+        c.t -= dt;
+        if (c.t <= 0) {
+          const probs = this.licenses ? this.licenses.problems(kind) : [];
+          if (!probs.length) { this.hud?.toast('✅ اتفضل يا أسطى — الرخص سليمة', 2.6); this._done(c); }
+          else {
+            c.probs = probs;
+            // مكان الركنة: على يمينك بعد الكمين بـ 24م
+            const sgn = -c.dir, lane = c.q.half + 1.3;
+            const fx = c.q.dx * sgn, fz = c.q.dz * sgn, rx = -fz, rz = fx;
+            c.park = { x: c.q.x + fx * 24 + rx * lane, z: c.q.z + fz * 24 + rz * lane, ax: fx, az: fz };
+            this.marker.position.set(c.park.x, groundHeight(c.park.x, c.park.z) + 0.04, c.park.z);
+            this.marker.rotation.y = Math.atan2(fx, fz);
+            this.marker.visible = true;
+            c.state = 'pullover'; c.t = 60;
+            this.hud?.toast(`🚨 اركن على جنب! (${probs.map((k) => LICENSE[k === 'driver' ? 'driver' : kind].name + ' منتهية').join(' + ')})`, 4);
+          }
+        }
+      } else if (c.state === 'pullover') {
+        c.t -= dt;
+        const pd = Math.hypot(ph.x - c.park.x, ph.z - c.park.z);
+        if (pd < 3.2 && ph.speed < 0.6) { c.state = 'fine'; this._fine(c, kind); }
+        else if (c.t <= 0 || pd > 160) this._flee(c);
+      }
+    }
+    // كشاف الشرطة: أحمر/أزرق بالتبادل (خامة مشتركة لكل عربيات الشرطة)
+    this._flash += dt;
+    const lb = this.cps[0]?.car.lightbar;
+    if (lb) {
+      const ph2 = Math.floor(this._flash * 6) % 4;
+      lb.children[1].material.emissiveIntensity = ph2 < 2 ? (ph2 === 0 ? 3 : 0.3) : 0.15;
+      lb.children[2].material.emissiveIntensity = ph2 >= 2 ? (ph2 === 2 ? 3 : 0.3) : 0.15;
+    }
+  }
+
+  _fine(c, kind) {
+    const rows = c.probs.map((k) => [k === 'driver' ? 'رخصة القيادة منتهية' : `${LICENSE[kind]?.name || 'رخصة العربية'} منتهية`, `${k === 'driver' ? FINE.driver : FINE.vehicle} ج`]);
+    const total = rows.reduce((s, r) => s + parseInt(r[1], 10), 0);
+    const pay = () => {
+      this.wallet?.add(-total, 'fine', `غرامة كمين: ${rows.map((r) => r[0]).join(' + ')}`);
+      this.hud?.toast('👮 اتفضل — وجدّد الرخصة في أقرب وقت (🪪)', 3.5);
+      this._done(c);
+    };
+    this.hud?.showCard({ title: `🚓 ${c.def.name} — مخالفة`, rows: [...rows, ['الغرامة', `${total} ج`, 'pc-c']], note: 'الغرامة بتتخصم من المحفظة', tone: 'police danger', timeout: 12, def: pay, buttons: [{ label: 'ادفع الغرامة', onClick: pay }] });
+  }
+
+  _flee(c) {
+    this.wallet?.add(-FINE.flee, 'fine', `هروب من ${c.def.name}`);
+    this.hud?.toast(`📸 هروب من الكمين — غرامة ${FINE.flee} ج اتخصمت`, 4);
+    this._done(c);
+  }
+
+  _done(c) {
+    c.state = 'done'; c.cool = COOL; c.on = false;
+    this.marker.visible = false;
+    if (this.active === c) this.active = null;
+    // بيفضل ظاهر لحد ما تبعد (120م) وبعدين بيرجع idle ويستخبى لما تبعد أكتر
+  }
+}

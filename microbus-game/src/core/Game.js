@@ -31,6 +31,11 @@ import { Settings } from '../ui/Settings.js';
 import { MirrorInsets } from '../ui/MirrorInsets.js';
 import { Passengers } from '../gameplay/Passengers.js';
 import { Wallet } from '../gameplay/Wallet.js';
+import { FuelSystem } from '../gameplay/Fuel.js';
+import { Licenses } from '../gameplay/Licenses.js';
+import { Police } from '../gameplay/Police.js';
+import { buildPetrolStation, STATION, atPump } from '../world/PetrolStation.js';
+import { Docs } from '../ui/Docs.js';
 import { Navigator, fmtDist } from '../nav/Navigator.js';
 import { Multiplayer } from '../net/Multiplayer.js';
 import { MiniMap } from '../ui/MiniMap.js';
@@ -158,6 +163,14 @@ export class Game {
     this.passengers._updateHud();
     this.hud.setMoney(this.wallet.balance);
     this.hud.onSwitchLine = () => this.passengers.cycleLine();
+    // البنزين (تانك لكل عربية) + الرخص وأيام اللعبة + البنزينة + كماين المرور + لوحة المحفظة والرخص
+    this.fuel = new FuelSystem({ hud: this.hud, wallet: this.wallet });
+    this.fuel.attach(this.player);
+    this.licenses = new Licenses({ wallet: this.wallet, hud: this.hud });
+    this.station = buildPetrolStation(this.scene);
+    this.statics.push(...this.station.colliders);
+    this.police = new Police(this.scene, { hud: this.hud, wallet: this.wallet, licenses: this.licenses });
+    this.docs = new Docs(this, this.touch ? this.touch.root.querySelector('.t-top') : null);
     this.mp = new Multiplayer(this);
     this.minimap = new MiniMap(this);
     // ميكروباصات راكنة في موقف شبين الكوم
@@ -421,6 +434,7 @@ export class Game {
     this._night = night || p.elevation < 8;
     this.player.setNight(night || p.elevation < 8);
     this.traffic?.setNight(night || p.elevation < 8);
+    this.station?.setNight(night || p.elevation < 8);
     this.touch?.setLights(this.player.headOn);
     // الأنوار دايمًا visible (الشدة بس بتتغير) عشان مفيش إعادة بناء شيدرز
     for (const l of this.lampLights) l.intensity = !p.lampsOn ? 0 : p.night ? 90 : 25;
@@ -429,6 +443,55 @@ export class Game {
   }
 
   /** تغيير نوع العربية (ميكروباص / تاكسي / توكتوك) في نفس المكان */
+  /** البنزينة: واقف في حارة جنب طلمبة → كارت التفويل. والبنزين خالص في الطريق → كارت الجركن */
+  _stationUpdate(dt, ph) {
+    const at = atPump(ph.x, ph.z);
+    this._pumpT = at && ph.speed < 0.6 ? (this._pumpT || 0) + dt : 0;
+    if (this._pumpT > 0.7 && !this._fuelCard && !this.hud.cardOpen) this._openFuelCard();
+    if (this._fuelCard && (!at || ph.speed > 1.5) && !this.fuel.filling) {
+      if (this.hud.cardOpen && this.hud._pay?.fuel) this.hud.closeCard();
+      this._fuelCard = false;
+    }
+    // البنزين خلص: جركن طوارئ (مرة كل نص دقيقة لو قلت "استنى")
+    this._jerryCd = Math.max(0, (this._jerryCd || 0) - dt);
+    this._emptyT = this.fuel.empty && ph.speed < 0.3 ? (this._emptyT || 0) + dt : 0;
+    if (this._emptyT > 2 && !this._jerryCd && !this.hud.cardOpen && !at) {
+      this._jerryCd = 30;
+      const t = this.fuel.tank, liters = Math.min(5, t.capacity * 0.2), cost = Math.round(this.fuel.cost(liters) * 1.6 + 40);
+      this.hud.showCard({
+        title: '⛽ البنزين خلص!', tone: 'danger',
+        rows: [['جركن طوارئ', `${liters} لتر`], ['السعر (بالتوصيل)', `${cost} ج`, 'pc-c']],
+        note: 'يوصلك لأقرب بنزينة — بيتخصم حتى لو الرصيد مش مكفي',
+        buttons: [{ label: 'اطلب جركن', onClick: () => { const c = this.fuel.jerrycan(); this.hud.toast(`⛽ وصل الجركن — دفعت ${c} ج`, 3); } }, { label: 'استنى', cls: 'alt' }],
+      });
+    }
+  }
+
+  _openFuelCard() {
+    const F = this.fuel, t = F.tank, space = F.space(), bal = this.wallet.balance;
+    this._fuelCard = true;
+    if (space < 0.5) { this.hud.toast('⛽ التانك مليان', 2); return; }
+    const price = t.spec.price;
+    const small = Math.min(space, t.capacity >= 40 ? 10 : 2), by100 = Math.min(space, 100 / price);
+    const opts = [
+      { label: 'فوّل التانك', sub: `${space.toFixed(1)} لتر · ${Math.round(F.cost(space))} ج`, l: space },
+      { label: `${small} لتر`, sub: `${Math.round(F.cost(small))} ج`, l: small },
+      { label: 'بـ 100 ج', sub: `${by100.toFixed(1)} لتر`, l: by100 },
+    ];
+    this.hud.showCard({
+      title: `⛽ ${STATION.name} — ${t.spec.type} ${price} ج/لتر`, tone: 'fuel',
+      rows: [['في التانك', `${Math.round((t.level / t.capacity) * 100)}% · ${t.level.toFixed(1)}/${t.capacity} لتر`], ['رصيدك', `${Math.round(bal)} ج`]],
+      note: bal < F.cost(small) ? 'الفلوس مش مكفية — اشتغل الأول' : 'اختار وهو بيفوّل في ثواني',
+      buttons: opts.map((o) => ({ label: o.label, sub: o.sub, disabled: Math.round(F.cost(o.l)) > bal + 0.01, onClick: () => this._buyFuel(o.l) })),
+    });
+    if (this.hud._pay) this.hud._pay.fuel = true;
+  }
+
+  _buyFuel(liters) {
+    const got = this.fuel.buy(liters, (l, cost) => this.hud.toast(`✅ اتفوّل ${l.toFixed(1)} لتر — دفعت ${cost} ج`, 3));
+    this.hud.toast(got ? '⛽ بيفوّل...' : 'الفلوس مش مكفية', 2);
+  }
+
   setVehicle(kind) {
     if (!this.player || this.player.kind === kind) return;
     const o = this.player.physics, at = { x: o.x, z: o.z, yaw: o.yaw };
@@ -449,6 +512,7 @@ export class Game {
     this.mirrorInsets = this.insets[kind] ||= new MirrorInsets(next, this.touch);
     this.mirrorInsets.mode = this.settings.get('mirrorInsets');
     this.passengers.setPlayer(next);
+    this.fuel?.attach(next);
     if (this.touch) this.touch.maxWheel = next.physics.maxWheelAngle;
     for (const k of ['keySteer', 'mirrorQuality', 'seat', 'headlights']) this._applySetting(k, this.settings.get(k));
     next.setNight(!!this._night);
@@ -568,13 +632,26 @@ export class Game {
     this.crowd.update(dt, this.camera.position, this.player.physics, this.camera.getWorldDirection(this._camDir || (this._camDir = new THREE.Vector3())));
     this.passengers.camPos = this.camera.position;
     if (this.started) this.passengers.update(dt, ph);
+    // البنزين، الرخص، الكماين، والبنزينة
+    if (this.started) {
+      this.fuel.update(dt, ph);
+      this.licenses.update(dt);
+      this.police.update(dt, ph, this.player.kind, this.clock.elapsedTime);
+      this._stationUpdate(dt, ph);
+      this.docs.update(dt);
+    }
     // الـ GPS: الهدف من الشغل (المحطة الجاية / الزبون / الوجهة)، والطريق بيتحسب ويتابع كل ربع ثانية
+    // الأولوية: "اركن على جنب" في الكمين ← البنزين قليل (وإنت فاضي) ← الشغل
     if (this.started) {
       this._navT = (this._navT || 0) - dt;
       if (this._navT <= 0) {
         this._navT = 0.25;
-        this.nav.setTarget(this.passengers.navTarget(ph));
+        const pol = this.police.navTarget();
+        const lowFuel = this.fuel.frac < 0.15 && !this.passengers.trip && !this.passengers.onboard.length;
+        this.hud.navOverride = pol ? 'police' : lowFuel ? 'fuel' : null;
+        this.nav.setTarget(pol || (lowFuel ? STATION.nav : this.passengers.navTarget(ph)));
         this.hud.setNav(this.nav.info);
+        this.hud.setFuel(this.fuel.frac);
         const P = this.player, info = this.nav.info, job = this.passengers.jobInfo();
         P.navCanvas = this.minimap.navCv;
         P.navTitle = job.mode === 'line' ? job.title : job.dest ? `📍 ${job.dest}` : '';

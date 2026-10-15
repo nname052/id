@@ -230,6 +230,12 @@ export class VehiclePhysics {
     const u = this.forwardSpeed;
     let throttleIn = clamp(input.throttle || 0, 0, 1);
     let brakeIn = clamp(input.brake || 0, 0, 1);
+    // البنزين: آخر نقطة بتقطّع (الموتور بيكح)، ولما يخلص الموتور طافي (مفيش عزم خالص)
+    if (this.starve > 0) {
+      this._cutT = (this._cutT || 0) - dt;
+      if (this._cutT <= -0.35 && Math.random() < dt * 5) this._cutT = 0.12 + Math.random() * 0.25;
+      if (this._cutT > 0) throttleIn *= 0.08;
+    }
 
     // منطق الريوس: لو واقف ودايس فرامل → ريوس. لو في ريوس ودايس بنزين → قدام
     // منطق ألعاب الموبايل: فرامل لحد الوقوف → استمرار الضغط شوية → ريوس. والعكس بالبنزين.
@@ -253,10 +259,11 @@ export class VehiclePhysics {
     if (this.gear === 1 || this.gear === -1) rpm = Math.max(rpm, lerp(rpm, launch, clamp(1 - wheelRpm * total / 1800, 0, 1)));
     rpm = Math.max(rpm, s.idleRpm);
     if (this.shiftTimer > 0) rpm = lerp(rpm, s.idleRpm + throttleIn * 900, 0.3);
-    this.rpm += (rpm - this.rpm) * Math.min(1, dt * 12);
+    if (this.engineOff) { rpm = 0; throttleIn = 0; }
+    this.rpm += (rpm - this.rpm) * Math.min(1, dt * (this.engineOff ? 3 : 12));
 
     // تغيير السرعات أوتوماتيك
-    if (this.gear > 0 && this.shiftTimer <= 0) {
+    if (this.gear > 0 && this.shiftTimer <= 0 && !this.engineOff) {
       // نقط التغيير حسب نوع الموتور (ديزل الميكروباص بيغيّر بدري، البنزين والتوكتوك بيوصلوا لفات أعلى)
       const [upLo, upHi, down] = s.shift || [2300, 3800, 1250];
       const up = upLo + (upHi - upLo) * throttleIn;
@@ -265,7 +272,7 @@ export class VehiclePhysics {
     }
 
     let engineTorque = 0;
-    if (this.shiftTimer <= 0) {
+    if (this.shiftTimer <= 0 && !this.engineOff) {
       if (throttleIn > 0.01) {
         engineTorque = torqueAt(s.torqueCurve, this.rpm) * throttleIn;
         const limit = this.gear < 0 ? 1900 : s.maxRpm;

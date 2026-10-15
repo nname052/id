@@ -186,8 +186,38 @@ body.touch #navpill b { font-size: 15px; }
 #paycard .pc-r b { font-variant-numeric: tabular-nums; }
 #paycard .pc-c { border-top: 1px dashed rgba(255, 255, 255, 0.25); padding-top: 4px; color: #7ee39a; font-size: 17px; }
 #paycard .pc-n { font-size: 12px; opacity: 0.7; text-align: center; }
-#paycard .pc-ok { margin-top: 6px; font: 800 16px 'Cairo', sans-serif; padding: 8px; border: 0; border-radius: 10px; background: var(--accent); color: #1a1408; cursor: pointer; touch-action: none; }
+#paycard .pc-btns { display: grid; gap: 6px; margin-top: 6px; }
+#paycard .pc-btns.n2 { grid-template-columns: 1fr 1fr; }
+#paycard .pc-btns.n3 { grid-template-columns: 1fr 1fr 1fr; }
+#paycard .pc-ok { font: 800 15px/1.25 'Cairo', sans-serif; padding: 7px 4px; border: 0; border-radius: 10px; background: var(--accent); color: #1a1408; cursor: pointer; touch-action: none; }
+#paycard .pc-ok small { display: block; font-size: 11px; font-weight: 600; opacity: 0.8; }
+#paycard .pc-ok.alt { background: rgba(255, 255, 255, 0.14); color: #fff; }
+#paycard .pc-ok:disabled { opacity: 0.35; cursor: not-allowed; }
+#paycard.police { border-color: rgba(80, 140, 255, 0.8); }
+#paycard.police .pc-h { color: #8fb6ff; }
+#paycard.danger .pc-c { color: #ff7a6a; }
+#paycard.fuel { border-color: rgba(60, 200, 110, 0.7); width: min(340px, 86vw); }
+/* عداد البنزين في اللوحة */
+.fuel { display: flex; align-items: center; gap: 4px; font-size: 13px; }
+.fuel-bar { width: 46px; height: 7px; background: rgba(255, 255, 255, 0.14); border-radius: 4px; overflow: hidden; }
+.fuel-bar i { display: block; height: 100%; width: 50%; background: #4fd27a; transition: width 0.3s; }
+.fuel.low .fuel-bar i { background: #ff7a1a; }
+.fuel.low b { animation: blink 0.9s steps(2) infinite; }
+@keyframes blink { 50% { opacity: 0.2; } }
+body.touch .fuel-bar { width: 34px; }
 body.touch #paycard { top: calc(48px + env(safe-area-inset-top, 0px)); font-size: 13px; padding: 7px 12px 9px; width: min(250px, 60vw); }
 body.touch #paycard .pc-c { font-size: 15px; }
 body.touch #paycard .pc-ok { padding: 6px; font-size: 14px; }
 .money.neg { color: #ff6b5a; }
+/* ===== المحفظة والرخص ===== */
+.set-btn-fixed.docs-btn { top: 122px; }
+#docs { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; background: rgba(0, 0, 0, 0.35); padding: 16px; touch-action: auto; }
+#docs.hidden { display: none; }
+#docs .docs-body { display: grid; gap: 8px; }
+#docs .dx-sec { background: rgba(255, 255, 255, 0.05); border-radius: 10px; padding: 8px 10px; display: grid; gap: 4px; }
+#docs .dx-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 13px; }
+#docs .dx-row span small, #docs .dx-sec > small { display: block; font-size: 11px; opacity: 0.65; }
+#docs .dx-row.big { font-size: 17px; }
+#docs .dx-row b.neg { color: #ff7a6a; } #docs .dx-row b.pos { color: #7ee39a; }
+#docs .dx-renew { font: 700 12px 'Cairo', sans-serif; padding: 4px 10px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.25); background: rgba(255, 255, 255, 0.08); color: #fff; cursor: pointer; white-space: nowrap; }
+#docs .dx-renew.warn { background: #e5482f; border-color: transparent; }

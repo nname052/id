@@ -35,8 +35,12 @@ export class HUD {
     this.payEl = document.createElement('div');
     this.payEl.id = 'paycard'; this.payEl.className = 'hidden';
     document.body.appendChild(this.payEl);
-    this.payEl.addEventListener('pointerdown', (e) => { if (e.target.closest('.pc-ok')) { e.preventDefault(); this._payOk(); } });
-    window.addEventListener('keydown', (e) => { if (e.code === 'Enter' && this._pay) this._payOk(); });
+    this.payEl.addEventListener('pointerdown', (e) => { const b = e.target.closest('.pc-ok'); if (b) { e.preventDefault(); e.stopPropagation(); this._payOk(+b.dataset.i || 0); } });
+    window.addEventListener('keydown', (e) => {
+      if (!this._pay) return;
+      if (e.code === 'Enter') this._payOk(0);
+      const n = /^Digit([1-4])$/.exec(e.code); if (n) this._payOk(+n[1] - 1);
+    });
     this._job = null; this._nav = null; this._jobHtml = ['', ''];
   }
 
@@ -50,7 +54,9 @@ export class HUD {
     this.jobEl.classList.remove('hidden');
     const d = this._nav?.remain != null ? fmtDist(this._nav.remain) : '';
     let a, b;
-    if (j.mode === 'line') {
+    if (this.navOverride === 'police') { a = '🚨 <b>اركن على جنب</b>'; b = `العلامة الزرقا${d ? ` · ${d}` : ''}`; }
+    else if (this.navOverride === 'fuel') { a = '⛽ <b>البنزين قليل</b>'; b = `روح ${'بنزينة الترعة'}${d ? ` · ${d}` : ''}`; }
+    else if (j.mode === 'line') {
       a = `<i style="background:${esc(j.color)}"></i><b>${esc(j.title)}</b> <span>← ${esc(j.to)}</span>`;
       b = `المحطة الجاية: <b>${esc(j.next)}</b>${d ? ` · ${d}` : ''}`;
     } else if (j.dest) {
@@ -74,25 +80,54 @@ export class HUD {
     if (html !== this._navHtml) { this.navEl.innerHTML = html; this._navHtml = html; }
   }
 
-  // ===== كارت الحساب: الأجرة، الزبون دفع كام، والباقي =====
-  showPayment({ fare, paid, change, dest, full, mood }, onOk) {
-    if (this._pay) this._payOk(); // حساب قديم لسه مفتوح → يتقفل الأول
-    this._pay = { onOk, t: 9 };
-    const cut = full && fare < full ? `<div class="pc-n">${mood < 0.55 ? 'زعلان من السواقة — دفع أقل' : 'خصم عشان السواقة'} (${full} ج)</div>` : '';
-    this.payEl.innerHTML = `<div class="pc-h">💵 الحساب · ${esc(dest)}</div>
-      <div class="pc-r"><span>الأجرة</span><b>${fare} ج</b></div>
-      <div class="pc-r"><span>الزبون دفع</span><b>${paid} ج</b></div>
-      <div class="pc-r pc-c"><span>الباقي ليه</span><b>${change} ج</b></div>${cut}
-      <button class="pc-ok">${change ? 'ادّيله الباقي ✓' : 'تمام ✓'}</button>`;
-    this.payEl.classList.remove('hidden');
+  // ===== كارت عام (حساب المشوار، البنزينة، الغرامة، الجركن): كارت واحد بس في المرة =====
+  // buttons: [{ label, sub, onClick, disabled, cls }] — def: اللي بيحصل لو الكارت اتقفل لوحده/اتبدّل (زي تسجيل الأجرة)
+  showCard({ title, rows = [], note = '', buttons = [], timeout = 0, def = null, tone = '' }) {
+    if (this._pay) this._closeCard(true);
+    this._pay = { t: timeout || Infinity, def, buttons };
+    const rowsHtml = rows.map(([a, b, cls]) => `<div class="pc-r ${cls || ''}"><span>${esc(a)}</span><b>${esc(b)}</b></div>`).join('');
+    const btns = buttons.map((b, i) => `<button class="pc-ok ${b.cls || ''}" data-i="${i}" ${b.disabled ? 'disabled' : ''}>${esc(b.label)}${b.sub ? `<small>${esc(b.sub)}</small>` : ''}</button>`).join('');
+    this.payEl.className = tone;
+    this.payEl.innerHTML = `<div class="pc-h">${esc(title)}</div>${rowsHtml}${note ? `<div class="pc-n">${esc(note)}</div>` : ''}<div class="pc-btns n${buttons.length}">${btns}</div>`;
   }
-
-  _payOk() {
+  get cardOpen() { return !!this._pay; }
+  /** قفل الكارت: runDef = نفّذ الافتراضي (لو اتقفل من غير ما تختار) */
+  _closeCard(runDef = false) {
     const p = this._pay;
     if (!p) return;
     this._pay = null;
-    this.payEl.classList.add('hidden');
-    p.onOk?.();
+    this.payEl.className = 'hidden';
+    if (runDef) p.def?.();
+  }
+  closeCard() { this._closeCard(true); }
+  _payOk(i = 0) {
+    const p = this._pay;
+    if (!p) return;
+    const b = p.buttons[i];
+    if (!b || b.disabled) return;
+    this._pay = null;
+    this.payEl.className = 'hidden';
+    b.onClick?.();
+  }
+
+  /** حساب المشوار: الأجرة، الزبون دفع كام، والباقي */
+  showPayment({ fare, paid, change, dest, full, mood }, onOk) {
+    const note = full && fare < full ? `${mood < 0.55 ? 'زعلان من السواقة — دفع أقل' : 'خصم عشان السواقة'} (الأجرة كانت ${full} ج)` : '';
+    this.showCard({
+      title: `💵 الحساب · ${dest}`,
+      rows: [['الأجرة', `${fare} ج`], ['الزبون دفع', `${paid} ج`], ['الباقي ليه', `${change} ج`, 'pc-c']],
+      note, timeout: 9, def: onOk,
+      buttons: [{ label: change ? 'ادّيله الباقي ✓' : 'تمام ✓', onClick: onOk }],
+    });
+  }
+
+  // ===== عداد البنزين في اللوحة =====
+  setFuel(frac) {
+    const el = (this.fuelEl ||= document.getElementById('hud-fuel'));
+    if (!el) return;
+    const w = `${Math.round(Math.max(0, Math.min(1, frac)) * 100)}%`;
+    if (w !== this._fuelW) { el.style.width = w; this._fuelW = w; }
+    el.parentElement.parentElement.classList.toggle('low', frac < 0.15);
   }
 
   setMoney(v) {
@@ -130,7 +165,7 @@ export class HUD {
       const s = lights.state('main');
       this.signal.className = `sig ${s}`;
     }
-    if (this._pay && (this._pay.t -= dt) <= 0) this._payOk(); // لو مدستش: الحساب بيتقفل لوحده
+    if (this._pay && (this._pay.t -= dt) <= 0) this._closeCard(true); // لو مدستش: الكارت بيتقفل لوحده (بالاختيار الافتراضي)
     if (this.toastTimer > 0) {
       this.toastTimer -= dt;
       if (this.toastTimer <= 0) this.toastEl.classList.remove('show');

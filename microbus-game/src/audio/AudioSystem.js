@@ -477,7 +477,9 @@ export class AudioSystem {
     const rpm = ph.rpm, thr = ph.throttle;
     const camDist = camera.position.distanceTo(player.rig.root.position);
     const distAtt = inside ? 1 : Math.min(1, 6 / Math.max(3, camDist));
-    if (!(this._engineHold && t < this._engineHold)) set(e.out.gain, (inside ? 0.5 : 0.42) * distAtt * (0.75 + thr * 0.35) * (this.vol?.engine ?? 0.8) / 0.8);
+    // الموتور طافي (البنزين خلص): الصوت بيقع بالراحة
+    const run = ph.engineOff ? 0 : 1;
+    if (!(this._engineHold && t < this._engineHold)) set(e.out.gain, run * (inside ? 0.5 : 0.42) * distAtt * (0.75 + thr * 0.35) * (this.vol?.engine ?? 0.8) / 0.8, run ? 0.05 : 0.35);
     if (e.file) {
       set(e.file.playbackRate, 0.6 + rpm / 2200);
     } else if (e.diesel) {
