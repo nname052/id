@@ -79,13 +79,14 @@ function officer() {
 }
 
 export class Police {
-  constructor(scene, { hud, wallet, licenses } = {}) {
+  /** spots: أماكن الكماين للخريطة الحالية (افتراضيًا الخريطة القديمة). كل واحد {name, q:{x,z,dx,dz,rx,rz,half}} */
+  constructor(scene, { hud, wallet, licenses, spots = null } = {}) {
     this.hud = hud; this.wallet = wallet; this.licenses = licenses;
     this.cps = [];
     const signMat = new THREE.MeshStandardMaterial({ map: signTexture(), roughness: 0.6 });
     const coneMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6 });
-    for (const def of SPOTS) {
-      const q = roadPointAt(def.road, def.frac);
+    for (const def of spots || SPOTS) {
+      const q = def.q || roadPointAt(def.road, def.frac);
       const road = q.half || 4;
       const root = new THREE.Group(); root.name = def.name; root.visible = false;
       const y0 = groundHeight(q.x, q.z);

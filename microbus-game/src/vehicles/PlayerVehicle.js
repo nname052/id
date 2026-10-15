@@ -32,6 +32,9 @@ function deepClone(root) {
 }
 
 export class PlayerVehicle {
+  /** خريطة حقيقية (لو مختارة): مكان البداية والرجوع للطريق بيبقى منها */
+  static world = null;
+
   constructor(scene, assets, opts = {}) {
     this.scene = scene;
     this.lowPower = !!opts.lowPower;
@@ -257,10 +260,21 @@ export class PlayerVehicle {
   /** مقلوبة؟ → نعدلها مكانها (الضرر بيفضل). غير كده → نرجع للطريق ونصلّح */
   reset(initial = false) {
     const ph = this.physics;
-    if (initial) { ph.reset(PLAYER_START.x, PLAYER_START.z, PLAYER_START.yaw); this._savePrev(); return 'start'; }
+    const W = PlayerVehicle.world;
+    if (initial) {
+      const p = W ? W.spawnPose() : PLAYER_START;
+      ph.reset(p.x, p.z, p.yaw); this._savePrev(); return 'start';
+    }
     if (ph.flip.mode) { ph.recover(); this._savePrev(); return 'recover'; }
     this.damage?.repair();
     let { x, z } = ph;
+    if (W) {
+      // الخريطة الحقيقية: أقرب طريق، على الحارة اليمين في نفس اتجاهك
+      const [fx, fz] = ph.forward;
+      const p = W.roadPose(x, z, fx, fz) || W.spawnPose();
+      ph.reset(p.x, p.z, p.yaw); this._savePrev();
+      return 'road';
+    }
     // على طريق فرعي: نرجع لنص حارته في نفس الاتجاه
     const sr = nearestSide(x, z);
     if (sr && sr.dist < 20 && !(Math.abs(x) < 100 && z > ROAD.zMin && z < ROAD.zMax)) {

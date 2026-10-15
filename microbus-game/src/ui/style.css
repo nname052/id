@@ -131,6 +131,10 @@ body.touch #toast { top: 8px; }
 .pick button.on { border-color: var(--accent); background: rgba(242, 179, 48, 0.16); }
 .pick.maps { grid-template-columns: repeat(2, 1fr); }
 .pick.maps button:disabled { opacity: 0.45; cursor: not-allowed; }
+.osm-attr { margin: 6px 0 0; font-size: 11px; opacity: 0.7; text-align: center; }
+.osm-attr a { color: inherit; }
+#osm-ingame { position: fixed; left: 6px; bottom: 4px; z-index: 6; font: 10px 'Cairo', sans-serif; color: rgba(255, 255, 255, 0.75); text-shadow: 0 1px 2px #000; pointer-events: auto; direction: ltr; }
+#osm-ingame a { color: inherit; }
 @media (max-height: 420px) { .pick button { padding: 5px 4px; } .pick button b { font-size: 20px; } #start h1 { font-size: 34px; } #start .sub { margin-bottom: 8px; } }
 
 .money { display: flex; align-items: center; gap: 3px; font: 700 15px 'Cairo', sans-serif; font-variant-numeric: tabular-nums; color: #9ff0b5; }

@@ -68,8 +68,12 @@ function stopSign() {
 }
 
 export class Passengers {
-  constructor(scene, player, { hud, audio, settings, wallet } = {}) {
+  /** world (اختياري): خريطة تانية بتدّي أماكن الركوب والخطوط وأماكن المشاوير بتاعتها (شبين الحقيقية) */
+  constructor(scene, player, { hud, audio, settings, wallet, world = null } = {}) {
     this.scene = scene;
+    this.world = world;
+    this.LINES = world?.lines || LINES;
+    this.POIS = world?.pois || POIS;
     this.player = player;
     this.hud = hud; this.audio = audio; this.settings = settings; this.wallet = wallet;
     this.mode = MODE[player.kind] || 'line';
@@ -144,11 +148,11 @@ export class Passengers {
       for (const w of [...st.waiting]) if (w.state === 'wait') this._release(w);
       const i = this.stops.indexOf(st); if (i >= 0) this.stops.splice(i, 1);
     }
-    const L = LINES[this.lineIdx % LINES.length];
+    const L = this.LINES[this.lineIdx % this.LINES.length];
     const wps = this.lineDir ? [...L.stops].reverse() : L.stops;
     const path = { pts: [], cum: [], steps: [], length: 0 };
     const stopS = [0];
-    let heading = this.lineDir ? null : [0, 1]; // من الموقف: طالع على شارع المحطة ناحية شارع باريس
+    let heading = this.lineDir || this.world ? null : [0, 1]; // من الموقف: طالع على شارع المحطة ناحية شارع باريس
     for (let k = 0; k < wps.length - 1; k++) {
       const a = wps[k], b = wps[k + 1];
       const r = findRoute(a.x, a.z, b.x, b.z, heading ? heading[0] : 0, heading ? heading[1] : 0);
@@ -201,7 +205,7 @@ export class Passengers {
   cycleLine() {
     if (this.mode !== 'line') return false;
     if (this.onboard.length) { this.hud?.toast('نزّل الركاب الأول قبل ما تغيّر الخط', 2.4); return false; }
-    this.lineIdx = (this.lineIdx + 1) % LINES.length; this.lineDir = 0;
+    this.lineIdx = (this.lineIdx + 1) % this.LINES.length; this.lineDir = 0;
     this._setupLine();
     return true;
   }
@@ -248,6 +252,12 @@ export class Passengers {
     this.stops = [];
     this.cands = [];
     this.candGrid = new Map();
+    if (this.world) {
+      // الخريطة الحقيقية: الأماكن جاهزة (على الأرصفة الحقيقية، مع بُعدها عن التقاطعات)
+      const W = this.world.stopCandidates();
+      this.cands = W.cands; this.candGrid = W.grid;
+      return;
+    }
     const q = {};
     const mk = (base, side, edge, laneD, name, kind) => {
       const d = side * edge;
@@ -559,7 +569,7 @@ export class Passengers {
   /** مشوار تاكسي/توكتوك: مكان معروف على مسافة مناسبة، والنزول على الرصيف اللي على يمين اتجاه الوصول */
   _tripDest(from) {
     const kind = this.player.kind, [lo, hi] = TRIP_RANGE[kind] || TRIP_RANGE.taxi;
-    const pool = POIS.filter((p) => (kind !== 'tuktuk' || p.tuk) && Math.hypot(p.x - from.x, p.z - from.z) < hi && Math.hypot(p.x - from.x, p.z - from.z) > lo * 0.5);
+    const pool = this.POIS.filter((p) => (kind !== 'tuktuk' || p.tuk) && Math.hypot(p.x - from.x, p.z - from.z) < hi && Math.hypot(p.x - from.x, p.z - from.z) > lo * 0.5);
     for (let tries = 0; tries < 6 && pool.length; tries++) {
       const poi = pool.splice(Math.floor(this.R() * pool.length), 1)[0];
       const r = findRoute(from.mx, from.mz, poi.x, poi.z, from.ax, from.az);

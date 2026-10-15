@@ -160,7 +160,35 @@ function build() {
   return { nodes, edges, grid, CELL, key, lines };
 }
 
-export const GRAPH = build();
+/** الشبكة الحالية (الخريطة القديمة افتراضيًا). خريطة تانية (شبين الحقيقية) بتبدّلها بـ setGraph بنفس الشكل:
+ *  { nodes:[{id,x,z,edges}], edges:[{id,from,to,pts:[{x,z,name}],cum,length,name, oneway?, closed?}], grid, CELL, key } */
+export let GRAPH = build();
+export function setGraph(g) { GRAPH = g; }
+
+/** طابور أولويات بسيط (binary heap) للبحث في الشبكات الكبيرة */
+class Heap {
+  constructor() { this.k = []; this.v = []; }
+  get size() { return this.k.length; }
+  push(key, val) {
+    const K = this.k, V = this.v; let i = K.length; K.push(key); V.push(val);
+    while (i > 0) { const p = (i - 1) >> 1; if (K[p] <= key) break; K[i] = K[p]; V[i] = V[p]; i = p; }
+    K[i] = key; V[i] = val;
+  }
+  pop() {
+    const K = this.k, V = this.v, top = V[0], lk = K.pop(), lv = V.pop(), n = K.length;
+    if (n) {
+      let i = 0;
+      for (;;) {
+        let c = 2 * i + 1; if (c >= n) break;
+        if (c + 1 < n && K[c + 1] < K[c]) c++;
+        if (K[c] >= lk) break;
+        K[i] = K[c]; V[i] = V[c]; i = c;
+      }
+      K[i] = lk; V[i] = lv;
+    }
+    return top;
+  }
+}
 
 /** أقرب نقطة على أي طريق: { e, i, t, s (من أول الوصلة), x, z, d } */
 export function projectToGraph(x, z, maxR = 200) {
@@ -173,7 +201,9 @@ export function projectToGraph(x, z, maxR = 200) {
       const arr = grid.get(key(cx + ox, cz + oz));
       if (!arr) continue;
       for (let k = 0; k < arr.length; k += 2) {
-        const e = arr[k], i = arr[k + 1], a = e.pts[i], b = e.pts[i + 1];
+        const e = arr[k], i = arr[k + 1];
+        if (e.closed) continue;
+        const a = e.pts[i], b = e.pts[i + 1];
         const ex = b.x - a.x, ez = b.z - a.z, l2 = ex * ex + ez * ez || 1e-9;
         let t = ((x - a.x) * ex + (z - a.z) * ez) / l2; t = Math.max(0, Math.min(1, t));
         const px = a.x + ex * t, pz = a.z + ez * t, d = Math.hypot(x - px, z - pz);
@@ -211,27 +241,31 @@ export function findRoute(x, z, tx, tz, fx = 0, fz = 0) {
   // تكلفة اللفة للخلف في الأول (لو الطريق عكس اتجاهك): الدائري/الرئيسي فيه جزيرة → أغلى
   const back = (dirx, dirz) => (fx || fz) && dirx * fx + dirz * fz < -0.3 ? (A.e.line === 'LOOP' ? 160 : 35) : 0;
   const dist = new Float64Array(nodes.length).fill(Infinity), prev = new Array(nodes.length).fill(null), done = new Uint8Array(nodes.length);
-  const start = [[A.e.from, A.s + back(-A.dx, -A.dz)], [A.e.to, A.e.length - A.s + back(A.dx, A.dz)]];
-  for (const [n, c] of start) if (c < dist[n.id]) { dist[n.id] = c; prev[n.id] = { start: true }; }
-  for (;;) {
-    let u = -1, du = Infinity;
-    for (let i = 0; i < nodes.length; i++) if (!done[i] && dist[i] < du) { du = dist[i]; u = i; }
-    if (u < 0) break;
+  // الاتجاه الواحد: على وصلة one-way مينفعش تمشي ناحية from
+  const start = A.e.oneway ? [[A.e.to, A.e.length - A.s]] : [[A.e.from, A.s + back(-A.dx, -A.dz)], [A.e.to, A.e.length - A.s + back(A.dx, A.dz)]];
+  const H = new Heap();
+  for (const [n, c] of start) if (c < dist[n.id]) { dist[n.id] = c; prev[n.id] = { start: true }; H.push(c, n.id); }
+  while (H.size) {
+    const u = H.pop();
+    if (done[u]) continue;
     done[u] = 1;
+    const du = dist[u];
     for (const e of nodes[u].edges) {
+      if (e.closed) continue;
+      if (e.oneway && e.from.id !== u) continue;
       const v = e.from.id === u ? e.to : e.from;
-      const nd = du + e.length;
-      if (nd < dist[v.id]) { dist[v.id] = nd; prev[v.id] = { e, from: nodes[u] }; }
+      const nd = du + (e.cost ?? e.length);
+      if (nd < dist[v.id]) { dist[v.id] = nd; prev[v.id] = { e, from: nodes[u] }; H.push(nd, v.id); }
     }
   }
   // النهاية: من طرفين الوصلة اللي فيها الوجهة
   let best = null;
-  for (const [n, extra] of [[B.e.from, B.s], [B.e.to, B.e.length - B.s]]) {
+  for (const [n, extra] of B.e.oneway ? [[B.e.from, B.s]] : [[B.e.from, B.s], [B.e.to, B.e.length - B.s]]) {
     const c = dist[n.id] + extra;
     if (!best || c < best.c) best = { c, n };
   }
   // نفس الوصلة: يمكن الأقصر نمشي عليها على طول
-  if (A.e === B.e) {
+  if (A.e === B.e && !(A.e.oneway && B.s < A.s)) {
     const dir = B.s >= A.s ? 1 : -1, c = Math.abs(B.s - A.s) + back(A.dx * dir, A.dz * dir);
     if (!best || c <= best.c) return finish(edgePart(A.e, A.s, B.s), fx, fz);
   }

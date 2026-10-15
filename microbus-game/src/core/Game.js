@@ -43,6 +43,12 @@ import { Docs } from '../ui/Docs.js';
 import { Navigator, fmtDist } from '../nav/Navigator.js';
 import { Multiplayer } from '../net/Multiplayer.js';
 import { MiniMap } from '../ui/MiniMap.js';
+import { setGroundProvider } from '../world/ground.js';
+import { setGraph, findRoute } from '../nav/RoadGraph.js';
+import { ShibinWorld } from '../world/shibin/ShibinWorld.js';
+import { ShibinTraffic } from '../world/shibin/ShibinTraffic.js';
+import { ShibinCrowd } from '../world/shibin/ShibinCrowd.js';
+import { attachJobs } from '../world/shibin/ShibinJobs.js';
 import { TouchControls, isTouchDevice } from '../ui/TouchControls.js';
 
 const FIXED_DT = 1 / 120;
@@ -53,14 +59,17 @@ const nextFrame = () => new Promise((r) => requestAnimationFrame(() => r()));
 if (import.meta.env.DEV) window.__THREE = THREE; // للتجربة بس
 
 export class Game {
-  constructor(container, status) {
+  constructor(container, status, { map = 'current' } = {}) {
     this.container = container;
     this.status = status;
     this.started = false;
+    // الخريطة: 'current' = الخريطة القديمة، 'shibin' = شبين الكوم الحقيقية (OpenStreetMap)
+    this.mapId = map === 'shibin' ? 'shibin' : 'current';
   }
 
   async init() {
     const S = this.status;
+    this._initT0 = performance.now();
     this.diag = new Diagnostics();
     S('تحميل الخطوط العربية...', 0.05);
     await Promise.all(['Lalezar', 'Rakkas', 'Lemonada', 'El Messiri', 'Aref Ruqaa', 'Cairo'].map((f) => document.fonts.load(`40px "${f}"`).catch(() => {})));
@@ -98,23 +107,38 @@ export class Game {
       const c = this.env.sun.shadow.camera; c.left = c.bottom = -38; c.right = c.top = 38; c.updateProjectionMatrix();
     }
 
-    S('بناء الشارع...', 0.5);
-    await nextFrame();
-    this.scene.add(buildStreet(this.M));
-    S('بناء العمارات والمحلات...', 0.6);
-    await nextFrame();
-    this.scene.add(buildBuildings(this.M, { low: this.mobile }));
-    this.scene.add(buildProps(this.M));
-    S('بناء الطرق: كوبري، ريف، قرية، صحرا، جبل...', 0.66);
-    await nextFrame();
-    this.route = new RouteWorld(this.M, { low: this.mobile });
-    this.scene.add(this.route.group);
-    this.route._mosque(104, 0, -168, -Math.PI / 2); // جامع آخر الشارع الشعبي
-    // حلبة السباق (غرب البلد)
-    this.raceTrack = buildRaceTrack(this.M);
-    this.scene.add(this.raceTrack.group);
-    this.lights = new TrafficLights();
-    this.scene.add(this.lights.group);
+    if (this.mapId === 'shibin') {
+      // ===== شبين الكوم الحقيقية: المربعات بتتحمل حوالين اللاعب، والأرض والـ GPS من نفس البيانات =====
+      const t0 = performance.now();
+      this.world = await new ShibinWorld(this.M, { low: this.mobile }).init(S);
+      this.scene.add(this.world.group);
+      this.route = this.world;
+      setGroundProvider(this.world);
+      setGraph(this.world.graph);
+      attachJobs(this.world, findRoute);
+      PlayerVehicle.world = this.world;
+      this.raceTrack = null;
+      this.lights = new TrafficLights(); // (الإشارات بتاعة الخريطة القديمة مش بتترسم هنا)
+      this.loadInfo = { worldMs: Math.round(performance.now() - t0) };
+    } else {
+      S('بناء الشارع...', 0.5);
+      await nextFrame();
+      this.scene.add(buildStreet(this.M));
+      S('بناء العمارات والمحلات...', 0.6);
+      await nextFrame();
+      this.scene.add(buildBuildings(this.M, { low: this.mobile }));
+      this.scene.add(buildProps(this.M));
+      S('بناء الطرق: كوبري، ريف، قرية، صحرا، جبل...', 0.66);
+      await nextFrame();
+      this.route = new RouteWorld(this.M, { low: this.mobile });
+      this.scene.add(this.route.group);
+      this.route._mosque(104, 0, -168, -Math.PI / 2); // جامع آخر الشارع الشعبي
+      // حلبة السباق (غرب البلد)
+      this.raceTrack = buildRaceTrack(this.M);
+      this.scene.add(this.raceTrack.group);
+      this.lights = new TrafficLights();
+      this.scene.add(this.lights.group);
+    }
 
     S('تجهيز الميكروباص...', 0.72);
     await nextFrame();
@@ -139,15 +163,23 @@ export class Game {
 
     S('المرور والمشاة...', 0.82);
     await nextFrame();
-    this.traffic = new TrafficSystem(this.scene, this.lights, (type, color, o) => this._makeCar(type, color, o), this.audio, { perLane: this.mobile ? 11 : 16, sideMul: this.mobile ? 1.5 : 1 });
-    this.traffic.viewDist = this.mobile ? 190 : 260;
-    this.crowdBase = this.mobile ? 80 : 160;
-    this.crowd = new Crowd(this.scene, { count: this.crowdBase, assets: this.assets });
-    this.statics = staticColliders();
-    // كوبري مشاة فوق الشارع الرئيسي
-    { const fb = buildFootbridge(); this.scene.add(fb.group); this.statics.push(...fb.colliders); }
-    // أعمدة النور والشجر والأكشاك في المدينة
-    for (const p of PROP_COLLIDERS) this.statics.push({ cx: p.x, cz: p.z, hx: p.hx ?? p.r * 0.85, hz: p.hz ?? p.r * 0.85, angle: 0, restitution: 0.1, kind: p.kind || 'prop' });
+    if (this.world) {
+      this.traffic = new ShibinTraffic(this.scene, (type, color, o) => this._makeCar(type, color, o), this.audio, this.world, { count: this.mobile ? 16 : 26 });
+      this.traffic.viewDist = this.mobile ? 150 : 190;
+      this.crowdBase = this.mobile ? 70 : 130;
+      this.crowd = new ShibinCrowd(this.scene, this.world, { count: this.crowdBase });
+      this.statics = [];
+    } else {
+      this.traffic = new TrafficSystem(this.scene, this.lights, (type, color, o) => this._makeCar(type, color, o), this.audio, { perLane: this.mobile ? 11 : 16, sideMul: this.mobile ? 1.5 : 1 });
+      this.traffic.viewDist = this.mobile ? 190 : 260;
+      this.crowdBase = this.mobile ? 80 : 160;
+      this.crowd = new Crowd(this.scene, { count: this.crowdBase, assets: this.assets });
+      this.statics = staticColliders();
+      // كوبري مشاة فوق الشارع الرئيسي
+      { const fb = buildFootbridge(); this.scene.add(fb.group); this.statics.push(...fb.colliders); }
+      // أعمدة النور والشجر والأكشاك في المدينة
+      for (const p of PROP_COLLIDERS) this.statics.push({ cx: p.x, cz: p.z, hx: p.hx ?? p.r * 0.85, hz: p.hz ?? p.r * 0.85, angle: 0, restitution: 0.1, kind: p.kind || 'prop' });
+    }
     const colOut = [];
     this._colliders = (box) => {
       const out = colOut; out.length = 0; // نفس المصفوفة كل مرة (مفيش garbage كل خطوة فيزيا)
@@ -172,7 +204,7 @@ export class Game {
     this.mirrorInsets = this.insets[this.player.kind] = new MirrorInsets(this.player, this.touch);
     this.wallet = new Wallet(this.hud);
     this.nav = new Navigator();
-    this.passengers = new Passengers(this.scene, this.player, { hud: this.hud, audio: this.audio, settings: this.settings, wallet: this.wallet });
+    this.passengers = new Passengers(this.scene, this.player, { hud: this.hud, audio: this.audio, settings: this.settings, wallet: this.wallet, world: this.world || null });
     this.passengers._updateHud();
     this.hud.setMoney(this.wallet.balance);
     this.hud.onSwitchLine = () => this.passengers.cycleLine();
@@ -180,18 +212,19 @@ export class Game {
     this.fuel = new FuelSystem({ hud: this.hud, wallet: this.wallet });
     this.fuel.attach(this.player);
     this.licenses = new Licenses({ wallet: this.wallet, hud: this.hud });
-    this.station = buildPetrolStation(this.scene);
-    this.statics.push(...this.station.colliders);
-    this.police = new Police(this.scene, { hud: this.hud, wallet: this.wallet, licenses: this.licenses });
+    // البنزينة بتاعة الخريطة القديمة (مفيش بنزينة مؤكدة في بيانات شبين → البنزين بالجركن بس هناك)
+    this.station = this.world ? null : buildPetrolStation(this.scene);
+    if (this.station) this.statics.push(...this.station.colliders);
+    this.police = new Police(this.scene, { hud: this.hud, wallet: this.wallet, licenses: this.licenses, spots: this.world ? this.world.policeSpots : null });
     this.incidents = new Incidents(this.scene, { hud: this.hud, wallet: this.wallet, licenses: this.licenses, passengers: this.passengers, audio: this.audio });
-    this.race = new Race(this);
+    this.race = this.raceTrack ? new Race(this) : null;
     this.docs = new Docs(this, this.touch ? this.touch.root.querySelector('.t-top') : null);
     this.mp = new Multiplayer(this);
     this.minimap = new MiniMap(this);
     // ميكروباصات راكنة في موقف شبين الكوم
     {
       const a = this.assets.get('microbus_traffic');
-      if (a) for (const v of TERMINAL_VANS) {
+      if (a && !this.world) for (const v of TERMINAL_VANS) {
         const r = buildTrafficHiace(a);
         r.root.position.set(v.x, groundHeight(v.x, v.z), v.z); r.root.rotation.y = v.yaw;
         this.scene.add(r.root);
@@ -201,6 +234,7 @@ export class Game {
     this.settings.onChange((k, v) => this._applySetting(k, v));
     if (this.player.damage) this.player.damage.onBreak = () => this.audio.glass();
     this.cams.mode = 3; // سينمائية ورا شاشة البداية
+    if (this.world) this.cams.cinePoints = this.world.cinePoints();
 
     // أنوار الشارع بالليل: عدد صغير من الأنوار بنحركها لأقرب أعمدة (أداء)
     this.lampLights = [];
@@ -255,7 +289,19 @@ export class Game {
     await warm(this.player);
     warmRT.dispose();
     // تسخين: نلف الكاميرا على كل المناطق مرة (بالضلال) عشان مفيش تقطيع أول ما تشوف حاجة جديدة
-    {
+    if (this.world) {
+      // شبين: نحمّل المربعات اللي حوالين البداية كاملة قبل ما نبدأ (ومن غير تقطيع بعد كده)
+      const sp = this.world.spawnPose(), cam = this.camera;
+      cam.position.set(sp.x + 12, 10, sp.z + 12); cam.lookAt(sp.x, 0, sp.z); cam.updateMatrixWorld();
+      for (let k = 0; k < 400 && (this.world.queue.length || this.world.stats.tilesLoaded < 4 || k < 3); k++) {
+        S('تحميل شوارع شبين حواليك...', 0.92 + Math.min(0.07, k * 0.002));
+        this.world.updateVisibility(cam.position, this.viewDist || 560);
+        this.world.update(0.016);
+        await nextFrame();
+      }
+      renderer.render(this.scene, cam);
+      this.loadInfo.readyMs = Math.round(performance.now() - this._initT0);
+    } else {
       const spots = [100, 300, 600, 900, 1150, 1400, 1700, 1950, 2200, 2400, 2700, 3000];
       const cam = this.camera, q = {};
       for (let i = 0; i < spots.length; i++) {
@@ -456,6 +502,7 @@ export class Game {
     this.player.setNight(night || p.elevation < 8);
     this.traffic?.setNight(night || p.elevation < 8);
     this.station?.setNight(night || p.elevation < 8);
+    this.world?.setNight(night || p.elevation < 8);
     this.touch?.setLights(this.player.headOn);
     // الأنوار دايمًا visible (الشدة بس بتتغير) عشان مفيش إعادة بناء شيدرز
     for (const l of this.lampLights) l.intensity = !p.lampsOn ? 0 : p.night ? 90 : 25;
@@ -466,7 +513,7 @@ export class Game {
   /** تغيير نوع العربية (ميكروباص / تاكسي / توكتوك) في نفس المكان */
   /** البنزينة: واقف في حارة جنب طلمبة → كارت التفويل. والبنزين خالص في الطريق → كارت الجركن */
   _stationUpdate(dt, ph) {
-    const at = atPump(ph.x, ph.z);
+    const at = this.station ? atPump(ph.x, ph.z) : null;
     this._pumpT = at && ph.speed < 0.6 ? (this._pumpT || 0) + dt : 0;
     if (this._pumpT > 0.7 && !this._fuelCard && !this.hud.cardOpen) this._openFuelCard();
     if (this._fuelCard && (!at || ph.speed > 1.5) && !this.fuel.filling) {
@@ -609,6 +656,7 @@ export class Game {
     let steps = 0;
     const ph = this.player.physics;
     while (this.acc >= FIXED_DT && steps < 8) {
+      if (this.world) this.world.refY = ph.heave - ph.spec.cgHeight;
       this.player.beforeStep();
       ph.step(FIXED_DT, input, this._colliders);
       this.acc -= FIXED_DT;
@@ -640,8 +688,13 @@ export class Game {
       this._visTimer = 0.25;
       this.route.updateVisibility(this.camera.position, this.viewDist || (this.mobile ? 380 : 560));
       // الحلبة بعيدة (غرب البلد): بتترسم بس لما تقرب منها
-      { const c = this.camera.position; this.raceTrack.group.visible = Math.hypot(c.x + 410, c.z - 65) < 250 + (this.viewDist || 400) * 0.5; }
+      if (this.raceTrack) { const c = this.camera.position; this.raceTrack.group.visible = Math.hypot(c.x + 410, c.z - 65) < 250 + (this.viewDist || 400) * 0.5; }
       this.player.surface = surfaceAt(ph.x, ph.z);
+      if (this.world) {
+        // اسم الشارع الحقيقي (من OSM) لما تدخله — الشارع اللي مالوش اسم مش بيطلع له اسم
+        const st = this.world.streetAt(ph.x, ph.z);
+        if (st && st.name && st.name !== this._zone && this.started) { this.hud.toast(st.name, 1.6, true); this._zone = st.name; }
+      } else {
       // اسم المنطقة لما تدخلها
       // على طريق فرعي: اسمه، غير كده اسم المنطقة على الطريق الرئيسي
       const side = sideRoadAt(ph.x, ph.z);
@@ -650,6 +703,7 @@ export class Game {
       const zone = side ? `road:${side.id}` : pr && pr.d !== undefined && Math.abs(pr.d) > 25 ? this._zone : pr ? (pr.s < 450 ? 'city' : sampleZoneName(pr.s)) : null;
       const label = side ? side.name : ZONE_LABEL[zone] || zone;
       if (zone && zone !== this._zone && this.started) { if (this._zone) this.hud.toast(label, 1.6, true); this._zone = zone; }
+      }
     }
     this.player.syncVisuals(dt, this.acc / FIXED_DT);
     this.cams.update(dt, input);
@@ -665,7 +719,7 @@ export class Game {
       this.licenses.update(dt);
       this.police.update(dt, ph, this.player.kind, this.clock.elapsedTime);
       this.incidents.update(dt, ph);
-      this.race.update(dt, ph);
+      this.race?.update(dt, ph);
       this._stationUpdate(dt, ph);
       this.docs.update(dt);
     }
@@ -678,7 +732,7 @@ export class Game {
         const pol = this.police.navTarget() || this.incidents.navTarget?.();
         const lowFuel = this.fuel.frac < 0.15 && !this.passengers.trip && !this.passengers.onboard.length;
         this.hud.navOverride = pol ? 'police' : lowFuel ? 'fuel' : null;
-        this.nav.setTarget(pol || (lowFuel ? STATION.nav : this.passengers.navTarget(ph)));
+        this.nav.setTarget(pol || (lowFuel && this.station ? STATION.nav : this.passengers.navTarget(ph)));
         this.hud.setNav(this.nav.info);
         this.hud.setFuel(this.fuel.frac);
         const P = this.player, info = this.nav.info, job = this.passengers.jobInfo();

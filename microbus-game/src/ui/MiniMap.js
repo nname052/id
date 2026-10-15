@@ -25,7 +25,8 @@ export class MiniMap {
     this.cv = el.querySelector('canvas');
     this.ctx = this.cv.getContext('2d');
     el.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); this.toggle(); });
-    this._bake();
+    this.PX = PX;
+    if (game.world?.minimapData) this._bakeWorld(game.world); else this._bake();
     this._t = 0;
     // شاشة الخريطة اللي في تابلوه التاكسي/الميكروباص
     this.navCv = document.createElement('canvas');
@@ -104,6 +105,45 @@ export class MiniMap {
     lbl('⛽ بنزينة الترعة', (STATION.pad.x0 + STATION.pad.x1) / 2, STATION.pad.z1 + 14, 14);
   }
 
+  /** خريطة منطقة حقيقية (شبين الكوم من OSM): الطرق الحقيقية + الترع + السكة + المعالم + بوابات التوسع */
+  _bakeWorld(W) {
+    const D = W.minimapData();
+    const PXw = (this.PX = W.low ? 0.32 : 0.4);
+    const [bx0, bz0, bx1, bz1] = D.bbox;
+    const x0 = bx0 - 80, z0 = bz0 - 80;
+    this.b = { x0, z0, w: bx1 - bx0 + 160, h: bz1 - bz0 + 160 };
+    const c = (this.base = document.createElement('canvas'));
+    c.width = Math.ceil(this.b.w * PXw); c.height = Math.ceil(this.b.h * PXw);
+    const x = c.getContext('2d');
+    x.fillStyle = '#9fd67a'; x.fillRect(0, 0, c.width, c.height);
+    const P = (wx, wz) => [(wx - x0) * PXw, (wz - z0) * PXw];
+    const poly = (flat, w, col, dash) => {
+      x.strokeStyle = col; x.lineWidth = Math.max(1, w * PXw); x.lineCap = 'round'; x.lineJoin = 'round';
+      x.setLineDash(dash || []);
+      x.beginPath();
+      for (let i = 0; i < flat.length; i += 2) { const [a, b] = P(flat[i], flat[i + 1]); if (i) x.lineTo(a, b); else x.moveTo(a, b); }
+      x.stroke(); x.setLineDash([]);
+    };
+    // المدينة: نسيج مباني فاتح حوالين كل الشوارع
+    for (const r of D.roads) poly(r.p, 46, '#efe0c2');
+    for (const w of D.water) poly(w.p, Math.max(6, w.w), '#4fb3ea');
+    for (const r of D.rail) poly(r.p, 4, '#6b5b4b', [10, 6]);
+    for (const r of D.roads) poly(r.p, r.w + 6, '#5b5348');
+    for (const r of D.roads) poly(r.p, r.w + 1, r.major ? '#ffd34d' : '#ffffff');
+    // بوابات التوسع (حدود المنطقة)
+    for (const g of D.gates) { const [a, b] = P(g.x, g.z); x.fillStyle = '#d62828'; x.fillRect(a - 4, b - 4, 8, 8); }
+    // حدود المنطقة
+    x.strokeStyle = 'rgba(214,40,40,0.6)'; x.lineWidth = 3; x.setLineDash([14, 8]);
+    x.beginPath(); D.boundary.forEach(([wx, wz], i) => { const [a, b] = P(wx, wz); if (i) x.lineTo(a, b); else x.moveTo(a, b); }); x.stroke(); x.setLineDash([]);
+    this.baseNL = document.createElement('canvas');
+    this.baseNL.width = c.width; this.baseNL.height = c.height;
+    this.baseNL.getContext('2d').drawImage(c, 0, 0);
+    x.textAlign = 'center'; x.direction = 'rtl'; x.lineJoin = 'round';
+    const lbl = (t, wx, wz, size = 13, col = '#3a3128') => { const [a, b] = P(wx, wz); x.font = `bold ${size}px Cairo, sans-serif`; x.lineWidth = 4; x.strokeStyle = '#fff'; x.strokeText(t, a, b); x.fillStyle = col; x.fillText(t, a, b); };
+    for (const s of D.streetLabels) lbl(s.name, s.x, s.z, 12);
+    for (const l of D.landmarks) lbl(`📍 ${l.name}`, l.x, l.z - 8, 14, '#0d4f8c');
+  }
+
   update(dt) {
     // شاشة التابلوه: 4 مرات في الثانية بس
     this._navT -= dt;
@@ -122,6 +162,7 @@ export class MiniMap {
   _draw(x, W, H, { big, dpr, zoom, dash = false }) {
     const ph = this.game.player.physics;
     const base = big ? this.base : this.baseNL;
+    const PX = this.PX;
     const scale = big ? Math.min(W / (this.b.w * PX), H / (this.b.h * PX)) : (1.6 * dpr / (PX * 2)) * zoom;
     x.setTransform(1, 0, 0, 1, 0, 0);
     x.fillStyle = '#9fd67a'; x.fillRect(0, 0, W, H);

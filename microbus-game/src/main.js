@@ -6,10 +6,18 @@ const bar = document.getElementById('bar');
 const go = document.getElementById('go');
 const start = document.getElementById('start');
 
+// الخريطة المختارة (لازم تتعرف قبل البناء): ?map=shibin في اللينك أو آخر اختيار محفوظ
+const MAPS = ['current', 'shibin'];
+let mapPick = (() => {
+  const q = new URLSearchParams(location.search).get('map');
+  if (MAPS.includes(q)) return q;
+  try { const v = localStorage.getItem('egy-map'); return MAPS.includes(v) ? v : 'current'; } catch { return 'current'; }
+})();
+
 const game = new Game(document.getElementById('app'), (text, p) => {
   statusEl.textContent = text;
   bar.style.width = `${Math.round(p * 100)}%`;
-});
+}, { map: mapPick });
 window.game = game; // للتجربة من الـ Console
 
 // اختيار العربية من شاشة البداية (بيتحفظ في الإعدادات)
@@ -24,16 +32,28 @@ pick.addEventListener('click', (e) => {
   game.mp?.setMe({ kind: picked });
 });
 
-// اختيار الخريطة من شاشة البداية (الحالية متاحة دلوقتي، والكاملة لسه متبنتش فمتقفلة)
+// اختيار الخريطة من شاشة البداية: كل خريطة عالم كامل لوحده، فالتبديل بيعيد تحميل الصفحة
+// (أنضف حاجة: مفيش بواقي من الخريطة التانية في الذاكرة)
 const maps = document.getElementById('maps');
-let mapPick = (() => { try { return localStorage.getItem('egy-map') || 'current'; } catch { return 'current'; } })();
 const syncMap = () => { for (const b of maps.children) b.classList.toggle('on', b.dataset.m === mapPick); };
 syncMap();
 maps.addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (!b || b.disabled) return;
-  mapPick = b.dataset.m; syncMap();
-  try { localStorage.setItem('egy-map', mapPick); } catch { /* مفيش تخزين */ }
+  const m = b.dataset.m;
+  if (m === mapPick) return;
+  try { localStorage.setItem('egy-map', m); } catch { /* مفيش تخزين */ }
+  mapPick = m; syncMap();
+  go.disabled = true;
+  statusEl.textContent = m === 'shibin' ? 'بنحمّل شبين الكوم الحقيقية...' : 'بنحمّل الخريطة...';
+  const u = new URL(location.href); u.searchParams.delete('map');
+  location.replace(u.toString());
 });
+if (mapPick === 'shibin') {
+  // حقوق بيانات الخريطة جوه اللعبة كمان
+  const a = document.createElement('div'); a.id = 'osm-ingame';
+  a.innerHTML = '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors';
+  document.body.appendChild(a);
+}
 
 game.init().then(() => {
   game.settings.set('vehicle', picked);
