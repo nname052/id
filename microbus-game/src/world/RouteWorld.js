@@ -803,7 +803,7 @@ export class RouteWorld {
             const d = sx * (a.half + 0.2);
             j.quad(P(a, d, 0.03), P(b, d, 0.03), P(b, d, 0.75), P(a, d, 0.75));
             j.quad(P(b, d, 0.03), P(a, d, 0.03), P(a, d, 0.75), P(b, d, 0.75));
-            this._sideCols.push({ cx: (a.x + b.x) / 2 + a.rx * d, cz: (a.z + b.z) / 2 + a.rz * d, hx: 0.15, hz: STEP_SIDE / 2 + 0.1, angle: Math.atan2(-a.dx, -a.dz), restitution: 0.15, kind: 'wall' });
+            this._sideCols.push({ cx: (a.x + b.x) / 2 + a.rx * d, cz: (a.z + b.z) / 2 + a.rz * d, hx: 0.3, hz: STEP_SIDE / 2 + 0.1, angle: Math.atan2(-a.dx, -a.dz), restitution: 0.15, kind: 'wall' });
           }
         }
         // شوية نخل على الجناب

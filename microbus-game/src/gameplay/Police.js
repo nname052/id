@@ -122,14 +122,14 @@ export class Police {
             bg.addGeometry(new THREE.BoxGeometry(0.05, 0.98, 0.05).translate(e * (len / 2 - 0.08), 0.49, 0), m);
             bg.addGeometry(new THREE.BoxGeometry(0.08, 0.04, 0.5).translate(e * (len / 2 - 0.08), 0.02, 0), m);
           }
-          colliders.push({ cx: x, cz: z, hx: len / 2, hz: 0.12, angle: yaw, restitution: 0.2, kind: 'prop' });
+          colliders.push({ cx: x, cz: z, hx: len / 2, hz: 0.35, angle: yaw, restitution: 0.2, kind: 'prop' });
         };
         // (الشوارع اللي فيها جزيرة في النص: الحواجز على الجناب بس عشان العربية تعدي)
         const blvd = ROADS.find((r) => r.id === def.road)?.boulevard;
-        const L = blvd ? 1.1 : Math.max(1.6, road - 1.9);
+        // الحواجز على الأطراف بس: الحارات نفسها فاضية (العربيات بتعدي من غير ما تخش فيها)
+        const L = blvd ? 1.1 : Math.max(0.6, road - 3.2);
         for (const along of [-10, -6]) B(along, -1, L);
         for (const along of [6, 10]) B(along, 1, L);
-        if (!blvd) { B(-2.5, 1, L * 0.55); B(2.5, -1, L * 0.55); }
         const pm = new THREE.MeshStandardMaterial({ map: barrierTexture(), roughness: 0.5 });
         const pmesh = new THREE.Mesh(plank.build(), pm); pmesh.castShadow = true; root.add(pmesh);
         const bmesh = new THREE.Mesh(bg.build(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7 })); root.add(bmesh);
@@ -142,8 +142,9 @@ export class Police {
       const post = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.0, 6), new THREE.MeshStandardMaterial({ color: 0x333333 }));
       post.position.set(sx, groundHeight(sx, sz) + 0.5, sz); root.add(post);
       // الظابط في نص الطريق عند الكمين
+      // الظابط واقف على حرف الطريق (مش في نصه — العربيات كانت بتعدي من جواه)
       const off = officer();
-      off.position.set(q.x, y0, q.z);
+      { const [ox, oz] = at(-2, road + 0.6); off.position.set(ox, groundHeight(ox, oz), oz); }
       root.add(off);
       scene.add(root);
       this.cps.push({ def, q: { x: q.x, z: q.z, dx: q.dx, dz: q.dz, rx: q.rx, rz: q.rz, half: road }, root, car, off, colliders, state: 'idle', cool: 0, rolled: false, t: 0 });

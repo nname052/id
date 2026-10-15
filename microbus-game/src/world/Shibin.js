@@ -143,7 +143,7 @@ export function buildShibin(world) {
         const fc = [P(a, d, -1.7), P(b, d, -1.7), P(b, d, top), P(a, d, top)];
         g.quad(...(sx > 0 ? [fc[1], fc[0], fc[3], fc[2]] : fc));
         const mx = (a.x + b.x) / 2 + a.rx * (d - sx * 0.17), mz = (a.z + b.z) / 2 + a.rz * (d - sx * 0.17);
-        box(mx, mz, 0.2, 1.05, Math.atan2(a.dx, a.dz), 'wall');
+        box(mx, mz, 0.4, 1.05, Math.atan2(a.dx, a.dz), 'wall');
         if (i % 6 === 0) lamps.push(P(a, d - sx * 0.17, top + 1.05));
       }
     }
@@ -344,7 +344,8 @@ export function buildShibin(world) {
       g.setColor([0.13, 0.38, 0.27]);
       if (along) { for (let x = x0; x < x1; x += 0.3) g.box(x, y + 0.7, (z0 + z1) / 2 - 0.02, x + 0.035, y + 1.6, (z0 + z1) / 2 + 0.02); g.box(x0, y + 1.56, (z0 + z1) / 2 - 0.04, x1, y + 1.64, (z0 + z1) / 2 + 0.04); }
       else { for (let z = z0; z < z1; z += 0.3) g.box((x0 + x1) / 2 - 0.02, y + 0.7, z, (x0 + x1) / 2 + 0.02, y + 1.6, z + 0.035); g.box((x0 + x1) / 2 - 0.04, y + 1.56, z0, (x0 + x1) / 2 + 0.04, y + 1.64, z1); }
-      box((x0 + x1) / 2, (z0 + z1) / 2, (x1 - x0) / 2, (z1 - z0) / 2, 0, 'wall');
+      // جسم التصادم أتخن من الحيطة (0.8م) عشان العربية السريعة ماتعديش منها
+      box((x0 + x1) / 2, (z0 + z1) / 2, Math.max(0.4, (x1 - x0) / 2), Math.max(0.4, (z1 - z0) / 2), 0, 'wall');
     };
     const t = 0.25;
     wall(T.x0, T.z0 - t, T.x1, T.z0);           // القبلي
