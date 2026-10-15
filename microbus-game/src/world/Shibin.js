@@ -396,7 +396,7 @@ export function buildShibin(world) {
     }
     // ناس كتير مستنية تحت المظلة وجنب الدكك والكشك (ثابتين — أخف من الماشيين)
     {
-      const hv = humanVariants(8, 2626), hg = new GeoBuilder();
+      const hv = humanVariants(8, 2626, true), hg = new GeoBuilder();
       let k = 0;
       for (let z = T.z0 + 3; z < T.z1 - 3; z += 1.6) for (const x of [T.x1 - 3.0, T.x1 - 7.7, T.x1 - 9.6]) {
         if (R() < 0.35) continue;
