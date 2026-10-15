@@ -186,7 +186,7 @@ export class TrafficSystem {
         for (let z = zs - 3; z > ze + 3; z -= 5.6 + R() * 4) {
           if (R() < 0.35) { z -= 3; continue; }
           const type = ['sedan', 'boxy', 'taxi', 'sedan', 'boxy', 'microbus'][Math.floor(R() * 6)];
-          const rig = this.makeCar(type, CAR_COLORS[Math.floor(R() * CAR_COLORS.length)]);
+          const rig = this.makeCar(type, CAR_COLORS[Math.floor(R() * CAR_COLORS.length)], { parked: true });
           const len = rig.length || 4.4;
           z -= len / 2;
           const x = sx * (ROAD.parkCenter + (R() - 0.5) * 0.3);

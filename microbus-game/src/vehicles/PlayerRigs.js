@@ -6,6 +6,8 @@ import { canvas, tex, makeGauge2, makeSeatFabric } from '../render/textures.js';
 import { buildCar, contactShadow } from './CarModels.js';
 import { buildWheel } from './wheel.js';
 import { fitModelToRig, tuktukColors } from './ModelFit.js';
+import { buildSedan, SEDAN } from './SedanModel.js';
+import { buildTaxiCockpit } from './Cockpits.js';
 
 // عربيات اللاعب التانية (غير الميكروباص): تاكسي وتوكتوك.
 // كل واحدة بترجع "rig" بنفس شكل rig الهاي إس عشان PlayerVehicle والكاميرا والمرايات والركاب يشتغلوا عليها:
@@ -69,149 +71,37 @@ function mirrorFace(w, h) {
 // =====================================================================
 //  التاكسي (سيدان أبيض بشريط شطرنج — نفس شكل تاكسي المرور)
 // =====================================================================
-export function buildTaxiRig(spec, assets = null) {
+export function buildTaxiRig(spec) {
+  // تاكسي شبين الكوم (سيدان BYD F3 بنفس ألوان الصورة) + كابينة سيدان حديثة (الصورة المرجعية)
   const rig = baseRig(spec);
-  const car = buildCar('taxi', 0xf2f2ee, { profile: 'sedan' });
-  const P = car.profile;
-  const shift = P.axleF - spec.cgToFront;            // مركز الثقل قدام نص العربية شوية
-  car.body.position.z = shift;
-  rig.shell.add(car.body);
-  rig.mats = car.mats;
-  // زجاج: باين من برا وشفاف كفاية من جوه
-  // FrontSide: الأسطح وشها لبره، فمن جوه الكابينة مش بتترسم (رؤية صافية) ومن برا الزجاج باين
-  car.mats.glass.opacity = 0.55; car.mats.glass.color.set(0x24333a); car.mats.glass.side = THREE.FrontSide;
-  // الموديل الخارجي صاج "مصمت": بنفتح الكابينة من فوق عشان الصالون يبان (نشيل غطا الجسم جوه الكابينة)
-  const cabF0 = P.cabin[0][0] + 0.02, cabF1 = P.cabin[3][0] - 0.05, hw = P.width / 2 - 0.05;
-  car.body.traverse((o) => {
-    if (!o.isMesh || o.userData.role !== 'paint') return;
-    clipTris(o.geometry, (x, y, z) => Math.abs(x) < hw && y > 0.55 && -z < cabF0 && -z > cabF1);
-  });
-  // أعمدة A و C (الموديل فيه عمود نص بس)
-  {
-    const pm = car.mats.paint, [a0, a1, c0, c1] = [P.cabin[0], P.cabin[1], P.cabin[2], P.cabin[3]];
-    for (const sx of [-1, 1]) for (const [p0, p1] of [[a0, a1], [c0, c1]]) {
-      const A = new THREE.Vector3(sx * (P.width / 2 - 0.1), p0[1], -p0[0]), B = new THREE.Vector3(sx * (P.width / 2 - 0.12), p1[1], -p1[0]);
-      const m = new THREE.Mesh(new THREE.BoxGeometry(0.07, A.distanceTo(B), 0.08), pm);
-      m.position.copy(A).add(B).multiplyScalar(0.5);
-      m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), B.clone().sub(A).normalize());
-      m.castShadow = true;
-      car.body.add(m);
-    }
-  }
-  const zf = (f) => -(f - shift);                     // f على طول العربية → z في shell
-  // العجل: نفس عجل الموديل بس متوصلة بالفيزياء
-  const t = spec.track / 2;
-  const ids = ['FL', 'FR', 'RL', 'RR'];
-  car.wheels.forEach((w, i) => {
-    w.group.removeFromParent();
-    const rf = i < 2 ? spec.cgToFront : -(spec.wheelBase - spec.cgToFront);
-    w.group.position.set(i % 2 ? t : -t, spec.wheelRadius, -rf);
-    rig.root.add(w.group);
-    rig.wheels.push({ id: ids[i], front: i < 2, group: w.group, spin: w.spin });
-  });
-  // الضل
-  car.root.traverse((o) => { if (o.userData.role === 'shadow') rig.contactShadow = o; });
-  if (rig.contactShadow) { rig.contactShadow.removeFromParent(); rig.contactShadow.position.z = shift; rig.root.add(rig.contactShadow); }
-
-  // ===== الصالون =====
-  const mats = {
-    dash: new THREE.MeshStandardMaterial({ color: 0x232427, roughness: 0.8 }),
-    seat: new THREE.MeshStandardMaterial({ map: makeSeatFabric(), roughness: 0.95, color: 0x9a9a9a }),
-    trim: new THREE.MeshStandardMaterial({ color: 0x5a5852, roughness: 0.9 }),
-    chrome: car.mats.chrome,
+  const car = buildSedan({ livery: 'taxi', lod: 0, seeThrough: true, uniqueMat: true });
+  // محاور السيدان متظبطة على الفيزياء (العجل القدام على -cgToFront)
+  const shift = -spec.cgToFront - SEDAN.axleF;
+  for (const o of [...car.body.children]) { o.position.z += shift; rig.shell.add(o); }
+  car.wheels.forEach((w) => { w.group.removeFromParent(); w.group.position.z += shift; rig.root.add(w.group); rig.wheels.push(w); });
+  const sh = car.root.children.find((o) => o.userData.role === 'shadow' || o.material?.transparent);
+  if (sh) { sh.removeFromParent(); sh.position.z += shift; rig.root.add(sh); rig.contactShadow = sh; }
+  const U = car.U;
+  rig.mats = { paint: car.paint };
+  rig.lights = {
+    head: { set emissiveIntensity(v) { U.uHead.value = v > 0.1 ? 1 : 0; } },
+    tail: { set emissiveIntensity(v) { U.uBrake.value = v > 2 ? 1 : 0; U.uTail.value = v > 0.5 ? 0.6 : 0.12; } },
+    fog: null,
   };
-  const g = new THREE.Group(); g.name = 'taxi-interior';
-  rig.shell.add(g);
-  const IW = P.width / 2 - 0.1;
-  const add = (geo, mat, m) => { const mesh = new THREE.Mesh(geo, mat); if (m) mesh.applyMatrix4(m); mesh.receiveShadow = true; g.add(mesh); return mesh; };
-  // أرضية + تابلوه
-  add(new THREE.BoxGeometry(IW * 2, 0.04, 3.0), mats.trim, M4(0, 0.3, zf(-0.3)));
-  const dashMain = add(new RoundedBoxGeometry(IW * 2, 0.3, 0.55, 3, 0.06), mats.dash, M4(0, 0.78, zf(0.68)));
-  const dashTray = add(new RoundedBoxGeometry(IW * 2 - 0.02, 0.06, 0.4, 2, 0.03), mats.dash, M4(0, 0.93, zf(0.78), -0.18));
-  // عدادات
-  const gauges = {};
-  for (const [kind, dx, r] of [['rpm', -0.09, 0.045], ['speed', 0.06, 0.055]]) {
-    const { h, g: gg } = gauge(kind, r, mats.chrome);
-    h.position.set(-0.37 + dx, 0.93, zf(0.52)); h.rotation.x = -0.35;
-    g.add(h); gauges[kind] = gg;
-  }
-  add(new RoundedBoxGeometry(0.3, 0.12, 0.12, 2, 0.04), mats.dash, M4(-0.37, 0.95, zf(0.56), -0.35));
-  rig.gauges = gauges;
-  // الدركسيون
-  const swTilt = new THREE.Group();
-  swTilt.position.set(-0.37, 0.88, zf(0.36)); swTilt.rotation.x = -1.2;
-  const steering = new THREE.Group(); swTilt.add(steering); g.add(swTilt);
-  const swMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1c, roughness: 0.6 });
-  steering.add(new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.016, 12, 48), swMat));
-  const hub = new THREE.Mesh(new RoundedBoxGeometry(0.12, 0.1, 0.05, 3, 0.02), swMat); hub.position.z = 0.02; steering.add(hub);
-  for (const a of [0, 2.1, -2.1]) { const sp = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.17, 0.016), swMat); sp.position.set(Math.sin(a) * 0.09, -Math.cos(a) * 0.09, 0.01); sp.rotation.z = a; steering.add(sp); }
-  const col = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.04, 0.3, 10).rotateX(Math.PI / 2), mats.dash); col.position.z = -0.16; swTilt.add(col);
-  rig.steering = steering;
-  // كراسي
-  const seat = (x, f, w) => {
-    add(new RoundedBoxGeometry(w, 0.11, 0.5, 3, 0.04), mats.seat, M4(x, 0.46, zf(f)));
-    add(new RoundedBoxGeometry(w, 0.58, 0.1, 3, 0.04), mats.seat, M4(x, 0.78, zf(f - 0.27), 0.15));
-  };
-  seat(-0.37, -0.28, 0.5); seat(0.37, -0.28, 0.5); seat(0, -1.12, IW * 2 - 0.08);
-  // فرامل يد + فتيس
-  const hb = new THREE.Group(); hb.position.set(0, 0.5, zf(-0.05));
-  hb.add(new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 0.22).translate(0, 0, -0.11), mats.dash));
-  g.add(hb); rig.handbrake = hb;
-  // مراية جوه + سبحة
-  {
-    const { holder, face } = mirrorFace(0.22, 0.06);
-    holder.position.set(0, 1.27, zf(0.42));
-    const house = new THREE.Mesh(new RoundedBoxGeometry(0.24, 0.075, 0.025, 2, 0.01), mats.dash); house.position.z = -0.015; holder.add(house);
-    face.position.z = 0.002;
-    g.add(holder);
-    rig.mirrors.push({ holder, face, side: 0, aspect: 0.22 / 0.06, fov: 13 });
-    const sebha = new THREE.Group(); sebha.position.set(0.02, 1.22, zf(0.42));
-    const bg = new GeoBuilder(); bg.setColor([0.1, 0.3, 0.7]);
-    for (let i = 0; i < 18; i++) { const a = (i / 18) * Math.PI * 2; bg.addGeometry(new THREE.SphereGeometry(0.006, 6, 4), M4(Math.sin(a) * 0.022, -0.04 - 0.04 * (1 - Math.cos(a)), 0)); }
-    sebha.add(new THREE.Mesh(bg.build(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.4 })));
-    g.add(sebha); rig.hangers.push({ obj: sebha, L: 0.15 });
-  }
-  // المرايات الجانبية (على مكان جراب المراية في الموديل)
-  for (const sx of [-1, 1]) {
-    const { holder, face } = mirrorFace(0.14, 0.09);
-    holder.position.set(sx * (P.width / 2 + 0.04), 1.0, zf(P.cabin[0][0] - 0.23));
-    rig.shell.add(holder);
-    rig.mirrors.push({ holder, face, side: sx, aspect: 0.14 / 0.09, fov: 26 });
-  }
-  // عين السواق
-  const eye = new THREE.Object3D(); eye.position.set(-0.37, 1.12, zf(-0.36)); g.add(eye);
-  rig.eye = eye; rig.eyePitch = -0.12; rig.eyeBase = eye.position.clone();
-  // الأنوار
-  rig.lights = { head: car.mats.headlight, tail: car.mats.taillight, fog: null };
-  // الأبعاد (زي الهاي إس: rearF بالسالب)
-  const fF = P.lower[1][0], fR = P.lower[P.lower.length - 2][0];
-  rig.dims = { HW: P.width / 2, frontF: fF - shift, rearF: fR - shift, roofY: 1.43 };
-  // الركاب: قدام جنب السواق + 3 ورا
-  rig.paxSeats = [{ x: 0.37, y: 0.5, z: zf(-0.28) }, ...[-0.4, 0, 0.4].map((x) => ({ x, y: 0.5, z: zf(-1.12) }))];
-  rig.slidingDoor = fakeDoor(new THREE.Vector3(P.width / 2, 0.8, zf(-0.8)));
+  rig.setReverse = (v) => { U.uRev.value = v; };
+  rig.lamps = { head: car.lamps.head.map(([x, y, z]) => [x, y, z + shift]), tail: car.lamps.tail.map(([x, y, z]) => [x, y, z + shift]) };
+  const ck = buildTaxiCockpit(rig, { mirrorFace });
+  ck.group.position.z += shift;
+  for (const mm of ck.mirrors) if (mm.side) mm.holder.position.z += shift;
+  rig.steering = ck.steering; rig.mirrors = ck.mirrors; rig.cockpit = ck.cockpit;
+  rig.eye = ck.eye; rig.eyePitch = ck.eyePitch; rig.eyeBase = ck.eye.position.clone();
+  rig.gauges = null;
+  rig.dims = { HW: SEDAN.halfWidth, frontF: -(SEDAN.zFront + shift), rearF: -(SEDAN.zRear + shift), roofY: SEDAN.roof };
+  // الركاب: جنب السواق + 3 ورا (الكراسي في الكابينة)
+  rig.paxSeats = [{ x: 0.37, y: 0.52, z: -0.05 + shift }, ...[-0.42, 0, 0.42].map((x) => ({ x, y: 0.52, z: 0.86 + shift }))];
+  rig.slidingDoor = fakeDoor(new THREE.Vector3(SEDAN.halfWidth, 0.8, 0.45 + shift));
   rig.kind = 'taxi';
-  rig.root.traverse((o) => { if (o.isMesh && o.userData.role !== 'glass' && o.userData.role !== 'shadow') o.castShadow = true; });
-  // موديل التاكسي الحقيقي (BYD Seal) لو موجود: بيبقى هو شكل العربية من برا، والصالون الإجرائي جواه
-  const a = assets?.get('car_taxi');
-  if (a && fitModelToRig(rig, spec, a, { wheelRe: /tyre|tire|rim|disk/i })) {
-    car.body.visible = false;
-    // التابلوه أقصر شوية عشان مايطلعش من الكابوت (كابوت الـ BYD أوطى)
-    dashMain.geometry.dispose(); dashMain.geometry = new RoundedBoxGeometry(IW * 2 - 0.06, 0.26, 0.36, 3, 0.06);
-    dashMain.position.set(0, 0.76, zf(0.58));
-    dashTray.geometry.dispose(); dashTray.geometry = new RoundedBoxGeometry(IW * 2 - 0.08, 0.05, 0.26, 2, 0.03);
-    dashTray.position.set(0, 0.9, zf(0.62));
-    // المرايات الجانبية: الموديل فيه مراياته؛ بنخفي الإجرائية (الكاميرا بتاعتها بتفضل شغالة للمرايات اللي على الشاشة)
-    for (const m of rig.mirrors) if (m.side) m.holder.traverse((o) => { if (o.isMesh) o.visible = false; });
-    // سقف الـ BYD أوطى: المراية اللي جوه والسبحة تنزل شوية عشان ماتطلعش من السقف
-    for (const m of rig.mirrors) if (!m.side) m.holder.position.y -= 0.12;
-    for (const h of rig.hangers) h.obj.position.y -= 0.12;
-    // فوانيس الفرامل من الموديل
-    rig.model.traverse((o) => {
-      if (!o.isMesh) return;
-      if (/red_emis|tail_light/i.test(o.material.name || '')) { o.material = o.material.clone(); o.material.emissive = new THREE.Color(0xff1a10); o.material.emissiveIntensity = 0.15; rig.lights.tail = o.material; }
-      if (/glass/i.test(o.material.name || '') && o.material.transparent !== true) { o.material = o.material.clone(); o.material.transparent = true; o.material.opacity = 0.45; o.material.depthWrite = false; o.material.side = THREE.FrontSide; }
-    });
-  }
+  rig.root.traverse((o) => { if (o.isMesh && o.userData.role !== 'glass' && o.userData.role !== 'shadow' && !o.material?.transparent) o.castShadow = true; });
   return rig;
 }
 

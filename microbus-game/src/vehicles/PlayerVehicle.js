@@ -42,7 +42,7 @@ export class PlayerVehicle {
     if (this.kind === 'taxi' || this.kind === 'tuktuk') {
       const spec = { ...MICROBUS_SPEC, ...(this.kind === 'taxi' ? TAXI_SPEC_BASE : TUKTUK_SPEC_BASE) };
       this.physics = new VehiclePhysics(spec, groundHeight);
-      this.rig = this.kind === 'taxi' ? buildTaxiRig(spec, assets) : buildTuktukRig(spec, assets);
+      this.rig = this.kind === 'taxi' ? buildTaxiRig(spec) : buildTuktukRig(spec, assets);
       scene.add(this.rig.root);
     } else {
       this.physics = new VehiclePhysics(MICROBUS_SPEC, groundHeight);
@@ -173,23 +173,29 @@ export class PlayerVehicle {
   }
 
   _setupHeadlights() {
-    // الكشافات دايمًا "visible" وبنغير الشدة بس → مفيش إعادة بناء شيدرز (تقطيع) لما تولّعها
+    // الكشافات: 2 SpotLight بالظبط لكل عربية (نفس العدد في كل العربيات → التبديل مايعيدش بناء الشيدرز)،
+    // طالعين من مكان الفانوس الحقيقي (rig.lamps) ومتوصّلين بجسم العربية فبيلفوا معاها.
+    // دايمًا visible وبنغيّر الشدة بس (مفيش تقطيع لما تولّعها)
     this.headlights = [];
     const sp = this.physics.spec, D = this.rig.dims, front = D ? D.frontF : 2.55, rear = D ? -D.rearF : 2.4;
-    for (const sx of [-0.72, 0.72]) {
+    const heads = this.rig.lamps?.head || [[-0.62, 0.92, -front + 0.05], [0.62, 0.92, -front + 0.05]];
+    const pair = heads.length === 1 ? [[heads[0][0] - 0.05, heads[0][1], heads[0][2]], [heads[0][0] + 0.05, heads[0][1], heads[0][2]]] : heads;
+    for (const [x, y, z] of pair) {
       const l = new THREE.SpotLight(0xfff0d6, 0, 95, 0.46, 0.65, 1.25);
-      l.position.set(sx * (D ? 0.85 : 1), 0.8 - sp.cgHeight, -front + 0.05);
-      l.target.position.set(sx * 1.2, -sp.cgHeight, -32);
+      l.position.set(x, y - sp.cgHeight, z - 0.05);
+      l.target.position.set(x * 1.6, -sp.cgHeight, z - 32);
       this.rig.body.add(l, l.target);
       this.headlights.push(l);
     }
-    // نور الريوس: لمبتين بيض ورا (+ إضاءة خفيفة على الأرض على الكمبيوتر)
-    const rmat = new THREE.MeshStandardMaterial({ color: 0x777777, emissive: 0xffffff, emissiveIntensity: 0, transparent: true, opacity: 0.9, depthWrite: false });
-    this.reverseMat = rmat;
-    if (D) for (const sx of [-1, 1]) {
-      const m = new THREE.Mesh(new THREE.PlaneGeometry(0.1, 0.07), rmat);
-      m.position.set(sx * (D.HW - 0.07), 0.6, rear + 0.014);
-      this.rig.shell.add(m);
+    // نور الريوس: العربيات اللي ليها فوانيس مرسومة (التاكسي) بتولّع الفانوس نفسه؛ الميكروباص ليه لمبتين
+    if (!this.rig.setReverse && this.kind === 'microbus' && D) {
+      const rmat = new THREE.MeshStandardMaterial({ color: 0x777777, emissive: 0xffffff, emissiveIntensity: 0, transparent: true, opacity: 0.9, depthWrite: false });
+      this.reverseMat = rmat;
+      for (const sx of [-1, 1]) {
+        const m = new THREE.Mesh(new THREE.PlaneGeometry(0.1, 0.07), rmat);
+        m.position.set(sx * (D.HW - 0.07), 0.6, rear + 0.014);
+        this.rig.shell.add(m);
+      }
     }
     if (!this.lowPower) {
       const rl = new THREE.SpotLight(0xffffff, 0, 18, 0.9, 0.8, 1.5);
@@ -205,6 +211,7 @@ export class PlayerVehicle {
     this._night = on;
     if (this.rig.gauges) for (const g of Object.values(this.rig.gauges)) g.mat.emissiveIntensity = on ? 0.55 : 0.0;
     if (this.rig.screen) this.rig.screen.emissiveIntensity = on ? 0.9 : 0.35;
+    this.rig.cockpit?.setNight?.(on);
     this.setHeadlights(on);
   }
 
@@ -329,14 +336,18 @@ export class PlayerVehicle {
     rig.lights.tail.emissiveIntensity = ph.brake > 0.05 || ph.handbrake > 0.1 ? 4 : this._night || this.headOn ? 1.2 : 0.15;
     const rev = ph.gearMode === 'R' ? 1 : 0;
     if (this.reverseMat) this.reverseMat.emissiveIntensity = rev * 2.5;
+    rig.setReverse?.(rev);
     if (this.reverseLight) this.reverseLight.intensity = rev * (this._night ? 60 : 15);
-    if (!rig.gauges) return;
-    // العدادات
-    const a0 = Math.PI * 0.75, a1 = Math.PI * 2.25;
-    const needle = (t) => -(a0 + (a1 - a0) * THREE.MathUtils.clamp(t, 0, 1)) - Math.PI / 2;
-    rig.gauges.speed.pivot.rotation.z = needle((ph.speed * 3.6) / (rig.gauges.fuel ? 180 : 160));
-    rig.gauges.rpm.pivot.rotation.z = needle(ph.rpm / 5000);
-    if (rig.gauges.fuel) rig.gauges.fuel.pivot.rotation.z = needle(0.68);
+    // الكابينة (عدادات ديجيتال/شاشات/جادون...) لو العربية ليها كابينة جديدة
+    rig.cockpit?.update?.(dt, ph, this);
+    // العدادات بالإبر
+    if (rig.gauges) {
+      const a0 = Math.PI * 0.75, a1 = Math.PI * 2.25;
+      const needle = (t) => -(a0 + (a1 - a0) * THREE.MathUtils.clamp(t, 0, 1)) - Math.PI / 2;
+      rig.gauges.speed.pivot.rotation.z = needle((ph.speed * 3.6) / (rig.gauges.fuel ? 180 : 160));
+      rig.gauges.rpm.pivot.rotation.z = needle(ph.rpm / 5000);
+      if (rig.gauges.fuel) rig.gauges.fuel.pivot.rotation.z = needle(this.fuel ? this.fuel.level / this.fuel.capacity : 0.68);
+    }
     // الدواسات
     const k = Math.min(1, dt * 14);
     const P = rig.pedals || { gas: { rotation: {} }, brake: { rotation: {} } };

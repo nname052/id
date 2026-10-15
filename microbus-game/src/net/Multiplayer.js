@@ -147,7 +147,7 @@ export class Multiplayer {
       rig.body.position.y = spec.cgHeight; // الـ shell متظبط على مركز الثقل
       rig.baseBodyY = spec.cgHeight;
       rig.brake = rig.lights.tail;
-    } else rig = g.assets.get('car_taxi') ? g._makeCar('taxi', 0xf2f2ee) : buildCar('taxi', 0xf2f2ee, { profile: 'sedan' });
+    } else rig = g._makeCar('taxi', 0xf2f2ee); // نفس تاكسي شبين (السيدان)
     rig.baseBodyY ??= 0;
     // سواق: التوكتوك عنده مكان عين السواق؛ الباقي في _makeCar أو مكان ثابت
     if (kind === 'tuktuk' && rig.eye) addDriver(rig.eye.parent, rig.eye.position.x, rig.eye.position.y - 0.78, rig.eye.position.z + 0.1, seat);

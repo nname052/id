@@ -9,6 +9,7 @@ import { Crowd } from '../world/Crowd.js';
 import { addDriver } from '../world/Pedestrians.js';
 import { applyLivery } from '../vehicles/Livery.js';
 import { bakeTrafficVersion } from '../vehicles/ModelFit.js';
+import { buildSedan } from '../vehicles/SedanModel.js';
 import { staticColliders } from '../world/layout.js';
 import { PlayerVehicle } from '../vehicles/PlayerVehicle.js';
 import { buildCar } from '../vehicles/CarModels.js';
@@ -124,7 +125,7 @@ export class Game {
 
     S('المرور والمشاة...', 0.82);
     await nextFrame();
-    this.traffic = new TrafficSystem(this.scene, this.lights, (type, color) => this._makeCar(type, color), this.audio, { perLane: this.mobile ? 11 : 16, sideMul: this.mobile ? 1.5 : 1 });
+    this.traffic = new TrafficSystem(this.scene, this.lights, (type, color, o) => this._makeCar(type, color, o), this.audio, { perLane: this.mobile ? 11 : 16, sideMul: this.mobile ? 1.5 : 1 });
     this.traffic.viewDist = this.mobile ? 190 : 260;
     this.crowdBase = this.mobile ? 80 : 160;
     this.crowd = new Crowd(this.scene, { count: this.crowdBase, assets: this.assets });
@@ -278,17 +279,30 @@ export class Game {
     };
   }
 
-  _makeCar(type, color) {
-    const rig = this._makeCarBody(type, color);
+  _makeCar(type, color, opts = {}) {
+    // المركونة: نسخة "مخبوزة" خفيفة (من غير سواق)
+    if (opts.parked) return this._makeCarBody(type === 'taxi' || type === 'sedan' ? 'boxy' : type, color, opts);
+    const rig = this._makeCarBody(type, color, opts);
     // كل عربية فيها سواق (قاعد على الشمال زي مصر)
     this._driverSeed = (this._driverSeed || 0) + 1;
     // (موديل الهاي إس بتاع المرور دركسيونه يمين، فالسواق قاعد قدامه)
-    const seat = type === 'microbus' ? [0.45, 0.92, -1.28] : [-0.37, 0.42, -0.05];
+    const seat = type === 'microbus' ? [0.45, 0.92, -1.28] : rig.driverSeat || [-0.37, 0.42, -0.05];
     addDriver(rig.body || rig.root, ...seat, this._driverSeed);
     return rig;
   }
 
-  _makeCarBody(type, color) {
+  _makeCarBody(type, color, opts = {}) {
+    // التاكسي والملاكي: نفس شكل السيدان (BYD F3) — التاكسي بألوان شبين، والملاكي بألوان مختلفة.
+    // geometry وشيدر مشتركين؛ كل عربية ليها خامة (نفس البرنامج) عشان فوانيس الفرامل بتاعتها لوحدها
+    if ((type === 'taxi' || type === 'sedan') && !opts.parked) {
+      const car = buildSedan({ livery: type === 'taxi' ? 'taxi' : color, lod: 1, seeThrough: false, uniqueMat: true });
+      const U = car.U;
+      car.brake = { set emissiveIntensity(v) { U.uBrake.value = v > 2 ? 1 : 0; U.uTail.value = v > 0.5 ? 0.6 : 0.12; } };
+      car.lights = { head: { set emissiveIntensity(v) { U.uHead.value = v > 0.1 ? 1 : 0; } } };
+      car.wheelRadius = 0.31;
+      car.driverSeat = [-0.36, 0.5, -0.12];
+      return car;
+    }
     const map = { sedan: 'car_sedan', boxy: 'car_old', taxi: 'car_taxi', microbus: 'microbus_traffic' };
     const a = this.assets.get(map[type]);
     if (a && a.cfg.trafficHiace) return buildTrafficHiace(a);
