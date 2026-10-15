@@ -9,7 +9,7 @@ const TIRE_K = 230000, TIRE_C = 900, WHEEL_M = 55; // كاوتش + كتلة ال
 // تاكسي سيدان (1.6 بنزين)
 export const TAXI_SPEC_BASE = {
   mass: 1180, inertiaYaw: 1850, inertiaPitch: 1750, inertiaRoll: 470, cgHeight: 0.52,
-  wheelBase: 2.64, cgToFront: 1.25, track: 1.44, wheelRadius: 0.31,
+  wheelBase: 2.64, cgToFront: 1.25, track: 1.44, wheelRadius: 0.315, // نص قطر كاوتش موديل الـ Seal بعد التحجيم (عشان العجلة متغطسش في الأرض)
   springK: 27000, damperBump: 2100, damperRebound: 2800, maxCompression: 0.12,
   tireMu: 1.0, tireB: 8.5, tireC: 1.45, rearLatGrip: 1.0, slideMu: 0.75, rollingResistance: 0.013,
   dragCoef: 0.53, brakeForce: 11500, brakeBiasFront: 0.65, handbrakeForce: 4200, // شيال السقف + سيدان قديمة
@@ -24,7 +24,7 @@ export const TAXI_SPEC_BASE = {
 // توكتوك (باجاج 200 سي سي، 3 عجلات)
 export const TUKTUK_SPEC_BASE = {
   mass: 430, inertiaYaw: 280, inertiaPitch: 300, inertiaRoll: 110, cgHeight: 0.52,
-  wheelBase: 2.0, cgToFront: 1.32, track: 1.14, trackFront: 0.06, wheelRadius: 0.22, // نفس مقاس موديل التوكتوك الحقيقي (أعرض شوية)
+  wheelBase: 2.0, cgToFront: 1.32, track: 1.14, trackFront: 0.06, wheelRadius: 0.225, // نفس مقاس موديل التوكتوك الحقيقي (أعرض شوية)
   // توجيه خفيف وهادي: الجادون بيتابع صباعك أبطأ، وزاوية العجلة بتقل بسرعة مع السرعة (عشان مايتقلبش)
   steerFollow: 20, steerRate: 13, steerFade: 0.013, steerMin: 0.2,
   springK: 9500, damperBump: 750, damperRebound: 1000, maxCompression: 0.09,

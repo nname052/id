@@ -101,10 +101,14 @@ export class PlayerVehicle {
     const w0 = this.kind === 'microbus' ? 0.34 : 0.28, rr = this.kind === 'microbus' ? R + 0.12 : R + 0.07;
     for (const w of rig.wheels) {
       if (!w.group || !w.group.parent || w.group.children.length === 0) continue;
-      const geo = new THREE.CylinderGeometry(rr, rr, w0, 22, 1, true, -Math.PI * 0.12, Math.PI * 1.24).rotateZ(Math.PI / 2);
+      // الميكروباص: رفرف الموديل بيقفل فوق خط نص العجلة بشوية، فالبطانة نص دايرة بس (لو نزلت أكتر بتطلع برا الجسم تحت كحلقة سودا طايرة)
+      const a0 = this.kind === 'microbus' ? -Math.PI * 0.02 : -Math.PI * 0.12, aL = Math.PI - 2 * a0;
+      // البطانة جوه عرض الجسم بس (لو أعرض بتخرق الصاج من الجنب وتبان حلقة سودا على الدهان)
+      const ax = Math.abs(w.group.position.x), inner = ax - w0 / 2, outer = Math.min(ax + w0 / 2, (rig.dims?.HW || 9) - 0.03);
+      const geo = new THREE.CylinderGeometry(rr, rr, outer - inner, 22, 1, true, a0, aL).rotateZ(Math.PI / 2);
       const m = new THREE.Mesh(geo, mat);
       // shell أصله على الأرض: مركز العجلة على ارتفاع R
-      m.position.set(w.group.position.x, R + 0.01, w.group.position.z);
+      m.position.set(Math.sign(w.group.position.x) * (inner + outer) / 2, R + 0.01, w.group.position.z);
       m.receiveShadow = true;
       m.userData.role = 'liner';
       rig.shell.add(m);

@@ -24,7 +24,9 @@ export function toFloat(geo) {
 function collectWheelTris(root, re) {
   const parts = [];
   root.updateMatrixWorld(true);
-  const inv = new THREE.Matrix4().copy(root.matrixWorld).invert();
+  // إحداثيات أبو الموديل (يعني شاملة تحجيم الموديل نفسه): لو قسنا جوه الموديل كان التحجيم بيتلغي
+  // والعجل كان بيطلع أكبر من الجسم بنسبة 1/k ومكانه مزحزح عن الرفارف
+  const inv = root.parent ? new THREE.Matrix4().copy(root.parent.matrixWorld).invert() : new THREE.Matrix4();
   root.traverse((o) => {
     if (!o.isMesh || !re.test(o.name)) return;
     const m = new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld);
@@ -96,6 +98,8 @@ export function fitModelToRig(rig, spec, asset, { wheelRe }) {
   const fC = axle('F'), yC = fC.reduce((s, v) => s + v.c.y, 0) / fC.length;
   const dz = zF - avgZ('F'), dy = spec.wheelRadius - yC;
   model.position.z += dz; model.position.y += dy;
+  // للفحص: مكان ونص قطر كل عجلة في الموديل (بعد التحجيم والتحريك) — في إحداثيات الـ shell
+  rig.fitInfo = { scale: k, pos: model.position.toArray(), wheels: Object.fromEntries(Object.entries(centers).map(([key, v]) => [key, { x: v.c.x, y: v.c.y + dy, z: v.c.z + dz, r: v.r }])) };
   // 4) العجل: كل مجموعة مثلثات → Mesh متمركزة على نص العجلة، جوه الجزء اللي بيلف من عجلة الفيزياء
   const targetFor = (key) => {
     const front = key[0] === 'F';

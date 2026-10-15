@@ -57,6 +57,9 @@ function mirrorFace(w, h) {
   return { holder, face };
 }
 
+/** مكان جسم الـ Seal اللي اتظبطت عليه الكابينة والفوانيس (قبل تصليح التحجيم) */
+const SEAL_POS_LEGACY = new THREE.Vector3(0, -0.0251, 0.2074);
+
 /** ألوان تاكسي شبين على الـ Seal: أخضر + شريطة صفرا مايلة قدام وورا على الجناب + دايرة سودا على الباب */
 function sealShibinLivery(o, shell) {
   shell.updateMatrixWorld(true);
@@ -128,6 +131,11 @@ export function buildTaxiRig(spec, assets = null) {
     if (fitModelToRig(rig, spec, a, { wheelRe: /tyre|tire|rim|disk/i })) {
       for (const o of sedanParts) o.visible = false;
       rig.contactShadow && (rig.contactShadow.visible = true);
+      // الكابينة والفوانيس واليافطة اتظبطوا على مكان الجسم القديم (قبل تصليح تحجيم العجل في fitModelToRig):
+      // بنحركهم بنفس فرق مكان الجسم عشان يفضلوا في مكانهم بالنسبة للعربية
+      const d = rig.model.position.clone().sub(SEAL_POS_LEGACY);
+      ck.group.position.add(d);
+      for (const mm of ck.mirrors) if (mm.side) mm.holder.position.add(d);
       // فوانيس الموديل نفسه: الفرامل/الوقوف (أحمر) والكشافات
       const tailMats = [], headMats = [];
       rig.model.traverse((o) => {
@@ -147,7 +155,10 @@ export function buildTaxiRig(spec, assets = null) {
       };
       rig.setReverse = () => {};
       rig.lamps = { head: [[-0.62, 0.64, -1.78], [0.62, 0.64, -1.78]], tail: [[-0.66, 0.8, 2.25], [0.66, 0.8, 2.25]] };
-      rig.dims = { HW: 0.96, frontF: 1.95, rearF: -2.36, roofY: 1.29 };
+      for (const l of [...rig.lamps.head, ...rig.lamps.tail]) { l[1] += d.y; l[2] += d.z; }
+      rig.dims = { HW: 0.96, frontF: 1.95 - d.z, rearF: -2.36 - d.z, roofY: 1.29 + d.y };
+      for (const p of rig.paxSeats) { p.y += d.y; p.z += d.z; }
+      rig.slidingDoor.center.add(d);
       // يافطة تاكسي صغيرة على السقف (منورة بالليل)
       {
         const c = canvas(256, 64), x = c.getContext('2d');
@@ -156,7 +167,7 @@ export function buildTaxiRig(spec, assets = null) {
         x.fillText('تاكسي', 128, 34);
         const tm = new THREE.MeshStandardMaterial({ map: tex(c, { repeat: false }), emissive: 0xffffff, roughness: 0.4 });
         tm.emissiveMap = tm.map; tm.emissiveIntensity = 0.15;
-        const sign = new THREE.Group(); sign.position.set(0, 1.29, 0.45);
+        const sign = new THREE.Group(); sign.position.set(0, 1.29, 0.45).add(d);
         const box = new THREE.Mesh(new RoundedBoxGeometry(0.5, 0.13, 0.16, 2, 0.03), new THREE.MeshStandardMaterial({ color: 0xf7d21c, roughness: 0.4 }));
         box.position.y = 0.07; box.castShadow = true; sign.add(box);
         for (const sz of [-1, 1]) { const f = new THREE.Mesh(new THREE.PlaneGeometry(0.46, 0.11), tm); f.position.set(0, 0.07, sz * 0.081); if (sz < 0) f.rotation.y = Math.PI; sign.add(f); }
