@@ -6,6 +6,9 @@ import { FBXLoader } from "three/addons/loaders/FBXLoader.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RGBELoader } from "three/addons/loaders/RGBELoader.js";
 import * as SkeletonUtils from "three/addons/utils/SkeletonUtils.js";
+import { setupRig, buildPerformance, applyPose, BODY } from "./rig.js";
+import { cameraAt as directorCamera, anchors, drawEmote, drawFx } from "./director.js";
+
 
 const W = 1080, H = 1920;
 const A = "/assets/3d/";
@@ -450,6 +453,7 @@ async function extras(scene, look, seed, n, far = false) {
 // ---------- المشهد ----------
 // sc.scene3d = { set, character, actions: [{anim, cue_word}], camera, time, facing, speaking }
 export async function createScene3D(sc, el, ctx) {
+  if (sc.scene3d && sc.scene3d.performance) return createDirectedScene(sc, el, ctx); // إخراج حر (الجديد)
   const s3 = sc.scene3d, look = (ctx.look || s3.look) === "anime" ? "anime" : "soft", time = s3.time || "day";
   const seed = [...(sc.id || "s")].reduce((n, c) => n + c.charCodeAt(0), 0);
   const r = engine();
@@ -557,4 +561,148 @@ export async function createScene3D(sc, el, ctx) {
     r.render(scene, cam);
     g2.drawImage(r.domElement, 0, 0);
   };
+}
+
+// ======================================================================
+// مشهد بإخراج حر (Claude هو المخرج): الأداء وضعيات بيحسبها rig.js، والكاميرا لقطات بيحسبها director.js.
+// sc.scene3d = { set, character, time, speaking, blocking: {x, z, face},
+//   performance: [{at_word|at, body, head, l_arm, r_arm, l_hand, r_hand, motion, move_to:[x,z], face, emote, fx, ease, dur}],
+//   shots: [{at_word|at, type, angle, height, move, lens, dutch}] }
+
+const INDOOR_BOUNDS = { x0: -2.75, x1: 2.75, z0: -2.45, z1: 9, y0: 0.15, y1: 2.9 };
+
+async function createDirectedScene(sc, el, ctx) {
+  const s3 = sc.scene3d, look = (ctx.look || s3.look) === "anime" ? "anime" : "soft", time = s3.time || "day";
+  const seed = [...(sc.id || "s")].reduce((n, c) => n + c.charCodeAt(0), 0);
+  const r = engine();
+  const scene = new THREE.Scene();
+  (window.__scenes3d ??= []).push(scene);
+  const setInfo = await buildSet(scene, s3.set, look, time, ctx.palette || {}, seed);
+  lights(scene, setInfo, time, look, ctx.palette || {});
+  const name = s3.character in CHAR ? s3.character : "Aj";
+  const ch = await character(name, CHAR[name][1], look);
+  scene.add(ch.root);
+  ch.root.position.set(0, 0, 0); ch.root.rotation.y = 0; ch.root.updateMatrixWorld(true);
+  const R = setupRig(ch);
+  const k = R.k, PACE = ctx.pace || 1;
+
+  // التوقيت: كل وضعية مع كلمتها، أو بالثواني، أو بالتساوي
+  const T = (x, i, n) => {
+    if (x.at_word) { const c = ctx.cue(x.at_word); if (c > 0 || i === 0) return Math.max(0, c - 0.12); } // الحركة بتبدأ قبل الكلمة بشوية (anticipation)
+    if (typeof x.at === "number") return x.at;
+    return (ctx.duration * i) / Math.max(1, n);
+  };
+  const perf = (s3.performance && s3.performance.length ? s3.performance : [{ body: "upright", head: "camera", l_arm: "rest", r_arm: "rest" }])
+    .map((x, i, a) => ({ ...x, t: i === 0 ? 0 : T(x, i, a.length) }));
+  perf.sort((a, b) => a.t - b.t);
+  for (let i = 1; i < perf.length; i++) perf[i].t = Math.max(perf[i].t, perf[i - 1].t + 0.25);
+  const poseAt = buildPerformance(perf, k, PACE);
+
+  // التحرّك في المكان (blocking): من مكان لمكان بالمشي، والوش بيلف ناحية الاتجاه
+  const B0 = s3.blocking || {};
+  const start = new THREE.Vector3(B0.x || 0, 0, B0.z || 0);
+  let face0 = (B0.face || 0) * Math.PI / 180;
+  const segs = []; let pos = start.clone();
+  for (const x of perf) {
+    if (x.move_to) {
+      const to = new THREE.Vector3(x.move_to[0], 0, x.move_to[1]), dist = to.distanceTo(pos);
+      if (dist > 0.05) { const dur = dist / (1.05 * k); segs.push({ t0: x.t, t1: x.t + dur, from: pos.clone(), to, dist }); pos = to; }
+    }
+  }
+  const faces = perf.filter((x) => typeof x.face === "number").map((x) => ({ t: x.t, f: x.face * Math.PI / 180 }));
+  const rootAt = (t) => {
+    let p = start.clone(), walk = null, travel = 0, f = face0, moving = null;
+    for (const s of segs) {
+      if (t >= s.t1) { p = s.to.clone(); travel += s.dist; }
+      else if (t >= s.t0) { const u = (t - s.t0) / (s.t1 - s.t0); p = s.from.clone().lerp(s.to, u); travel += s.dist * u; moving = s; }
+    }
+    for (const x of faces) if (t >= x.t) f = x.f;
+    if (moving) {
+      const dir = Math.atan2(moving.to.x - moving.from.x, moving.to.z - moving.from.z);
+      const ramp = Math.min(clamp((t - moving.t0) / 0.3), clamp((moving.t1 - t) / 0.3));
+      f = f + (((dir - f + Math.PI * 3) % (Math.PI * 2)) - Math.PI) * clamp((t - moving.t0) / 0.3);
+      walk = { phase: travel / (0.31 * k), amt: Math.max(0.25, ramp) };
+    } else {
+      // بعد الوصول: بيلف بنعومة للاتجاه المطلوب
+      const last = [...segs].reverse().find((s) => t >= s.t1);
+      if (last && !faces.some((x) => x.t > last.t0 && x.t <= t)) {
+        const dir = Math.atan2(last.to.x - last.from.x, last.to.z - last.from.z), u = smooth01((t - last.t1) / 0.45);
+        f = dir + (((f - dir + Math.PI * 3) % (Math.PI * 2)) - Math.PI) * u;
+      }
+    }
+    return { p, f, walk };
+  };
+
+  // الكرسي: لو فيه قعدة، بيتحط مكان القعدة بالظبط (والوسط بينزل عليه)
+  const sitKey = perf.find((x) => (BODY[x.body] || {}).sit);
+  let seat = null;
+  if (sitKey) {
+    const rs = rootAt(sitKey.t + 0.01), seatH = 0.46 * k;
+    const fwd = new THREE.Vector3(Math.sin(rs.f), 0, Math.cos(rs.f));
+    // الكرسي خطوة ورا مكان الوقوف: واقف قدامه، وبيرجع يقعد عليه
+    const c = rs.p.clone().add(fwd.clone().multiplyScalar(-0.46 * k));
+    const chairFile = s3.set === "living" ? KF + "armchair.gltf" : s3.set === "cafe" || s3.set === "kitchen" ? KR + "chair_A.gltf" : KF + "chair_A.gltf";
+    await prop(scene, look, { f: chairFile, p: [c.x, c.z], r: rs.f / D2R, h: seatH / 0.5 });
+    seat = { h: seatH, back: 0.44 * k };
+  }
+  // المساحة اللي الشخصية بتتحرك فيها فاضية من الأثاث
+  const pts = [start, ...segs.map((s) => s.to)];
+  clearArea(scene, setInfo.placed, { x0: Math.min(...pts.map((p) => p.x)) - 0.6, x1: Math.max(...pts.map((p) => p.x)) + 0.6,
+                                     z0: Math.min(...pts.map((p) => p.z)) - 0.6, z1: Math.max(...pts.map((p) => p.z)) + 0.6 });
+
+  const mouth = s3.speaking ? addMouth(ch) : null;
+  const lips = mouth ? lipTrack(ctx.words || []) : null;
+  const wordPulse = (t) => s3.speaking ? (ctx.words || []).reduce((m, w) => Math.max(m, Math.exp(-Math.pow((t - w.start - 0.05) / 0.09, 2))), 0) : 0;
+  const crowd = ["street", "park"].includes(s3.set) ? await extras(scene, look, seed, 2, s3.set === "street") : null;
+  const shots = (s3.shots && s3.shots.length ? s3.shots : [{ type: "medium", move: "push_in" }])
+    .map((x, i, a) => ({ ...x, t: i === 0 ? 0 : T(x, i, a.length) })).sort((a, b) => a.t - b.t);
+  const bounds = setInfo.set.indoor ? INDOOR_BOUNDS : null;
+
+  await settled();
+  const cam = new THREE.PerspectiveCamera(42, W / H, 0.05, 300);
+  const canvas = document.createElement("canvas"); canvas.width = W; canvas.height = H; canvas.className = "c3d";
+  el.prepend(canvas);
+  const g2 = canvas.getContext("2d");
+
+  return (t) => {
+    const { P, key } = poseAt(t);
+    const rs = rootAt(t);
+    const fxNow = perf.filter((x) => x.fx && t >= x.t && t < x.t + 1);
+    const shake = fxNow.some((x) => x.fx === "shake") ? Math.max(...fxNow.filter((x) => x.fx === "shake").map((x) => 1 - (t - x.t) / 0.5), 0) : 0;
+    // مرتين: الأول بتقدير للكاميرا، وبعدين الكاميرا بتتحسب من مكان الراس والصدر الحقيقي (بعد الميلان والقعدة)، والراس بتبص لها
+    const st = { P, t, rootPos: rs.p, face: rs.f, walk: rs.walk, speaking: !!s3.speaking, wordPulse: wordPulse(t), seat };
+    const A0 = anchors(rs.p, rs.f, ch.height, P.body.sit, P.body.crouch, P.body.lean);
+    applyPose(R, { ...st, camPos: directorCamera(shots, t, ctx.duration, A0, rs.f, bounds, 0).pos });
+    const A = realAnchors(R, rs.f, A0);
+    const c = directorCamera(shots, t, ctx.duration, A, rs.f, bounds, shake);
+    applyPose(R, { ...st, camPos: c.pos });
+    if (mouth) setMouth(mouth, lips(t));
+    if (crowd) crowd(t);
+    cam.fov = c.fov; cam.updateProjectionMatrix();
+    cam.position.copy(c.pos); cam.up.set(0, 1, 0); cam.lookAt(c.look);
+    if (c.roll) cam.rotateZ(c.roll);
+    r.toneMapping = look === "anime" ? THREE.NoToneMapping : THREE.ACESFilmicToneMapping;
+    r.render(scene, cam);
+    g2.drawImage(r.domElement, 0, 0);
+    // لمسات الأنيمي: رمز المشاعر فوق الراس + خطوط السرعة/التركيز/الفلاش
+    for (const x of perf) {
+      if (x.emote && t >= x.t && t < x.t + 1.6 && ch.head) {
+        const hp = ch.head.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 0.28 * k, 0)).project(cam);
+        if (hp.z < 1) drawEmote(g2, x.emote, (hp.x + 1) / 2 * W + 90, (1 - hp.y) / 2 * H - 40, t - x.t, clamp(1.4 / Math.max(0.3, cam.position.distanceTo(A.head)), 0.6, 1.6));
+      }
+      if (x.fx && x.fx !== "shake") drawFx(g2, x.fx, t - x.t, W, H, seed);
+    }
+    void key;
+  };
+}
+const D2R = Math.PI / 180;
+const smooth01 = (x) => { x = clamp(x); return x * x * (3 - 2 * x); };
+
+// أماكن الجسم الحقيقية من العضم (بعد الوضعية)
+function realAnchors(R, face, est) {
+  const wp = (b) => b.getWorldPosition(new THREE.Vector3());
+  const k = R.k, f = new THREE.Vector3(Math.sin(face), 0, Math.cos(face));
+  const head = R.head ? wp(R.head).add(new THREE.Vector3(0, 0.07 * k, 0)) : est.head;
+  return { hips: wp(R.hips), chest: wp(R.spine[R.spine.length - 1]), neck: R.neck ? wp(R.neck) : est.neck, head,
+           face: head.clone().add(f.clone().multiplyScalar(0.06 * k)).add(new THREE.Vector3(0, -0.01 * k, 0)), forward: f };
 }

@@ -266,7 +266,7 @@
     async scene3d(sc, el) {
       const { createScene3D } = await import("/player/player3d.js?v=1");
       const sw = sceneWords(sc);
-      const ctx = { duration: sc.end - sc.start, palette: ID.palette, look: ID.look3d,
+      const ctx = { duration: sc.end - sc.start, palette: ID.palette, look: ID.look3d, pace: PACE,
                     words: sw.map((w) => ({ word: w.word, start: w.start - sc.start, end: w.end - sc.start })),
                     cue: (word) => { const w = sw.find((x) => norm(x.word) === norm(word)); return w ? Math.max(0, w.start - sc.start) : 0; } };
       const draw = await createScene3D(sc, el, ctx);

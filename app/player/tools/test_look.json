@@ -1,0 +1,9 @@
+{"duration": 6, "look": "anime", "ts": [0.8, 2.3, 3.8, 5.3],
+ "palette": {"bg": "#20222e", "surface": "#e9dccb", "accent": "#ff7a45", "accent2": "#5cc8b4"},
+ "scene3d": {"set": "kitchen", "character": "Aj", "time": "day", "speaking": true, "blocking": {"x": 0, "z": 0, "face": 0},
+  "performance": [{"at": 0, "body": "proud", "head": "camera", "l_arm": "hip", "r_arm": "point_self"},
+                  {"at": 1.5, "body": "lean_forward", "head": "camera", "l_arm": "rest", "r_arm": "head"},
+                  {"at": 3.0, "body": "lean_forward", "head": "camera", "l_arm": "hip", "r_arm": "point_forward", "emote": "?"},
+                  {"at": 4.5, "body": "sit_lean", "head": "camera", "l_arm": "hands_on_knees", "r_arm": "explain"}],
+  "shots": [{"at": 0, "type": "medium", "angle": 0, "height": "low", "move": "static"}, {"at": 1.5, "type": "close", "angle": 10, "height": "eye", "move": "push_in"},
+            {"at": 3.0, "type": "extreme_close", "angle": 0, "height": "eye", "move": "static"}, {"at": 4.5, "type": "medium_close", "angle": -20, "height": "high", "move": "static"}]}}

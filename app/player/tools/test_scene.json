@@ -1,0 +1,24 @@
+{
+  "duration": 12, "look": "soft", "ts": [0.6, 2.0, 3.6, 5.2, 6.6, 8.2, 9.6, 11.2],
+  "palette": {"bg": "#20222e", "surface": "#e9dccb", "accent": "#ff7a45", "accent2": "#5cc8b4"},
+  "scene3d": {
+    "set": "living", "character": "Claire", "time": "day", "speaking": false,
+    "blocking": {"x": 0, "z": 0, "face": 0},
+    "performance": [
+      {"at": 0, "body": "upright", "head": "down_left", "l_arm": "rest", "r_arm": "chin", "motion": "none"},
+      {"at": 1.5, "body": "lean_back", "head": "camera", "l_arm": "open_out", "r_arm": "open_out", "emote": "!", "ease": "snap", "fx": "speedlines"},
+      {"at": 3.0, "body": "lean_forward", "head": "camera", "l_arm": "hip", "r_arm": "point_forward", "ease": "overshoot"},
+      {"at": 4.6, "body": "shrug", "head": "tilt_left", "l_arm": "shrug", "r_arm": "shrug", "emote": "sweat"},
+      {"at": 6.0, "body": "proud", "head": "camera", "l_arm": "cross", "r_arm": "cross", "motion": "nod"},
+      {"at": 7.4, "body": "upright", "head": "forward", "l_arm": "rest", "r_arm": "wave", "move_to": [1.2, 0.8]},
+      {"at": 9.2, "body": "upright", "head": "camera", "l_arm": "raise", "r_arm": "raise", "motion": "bounce", "emote": "sparkle", "face": 0}
+    ],
+    "shots": [
+      {"at": 0, "type": "medium_close", "angle": 20, "height": "eye", "move": "push_in"},
+      {"at": 1.5, "type": "close", "angle": -10, "height": "low", "move": "static", "dutch": true},
+      {"at": 3.0, "type": "medium", "angle": 30, "height": "eye", "move": "orbit_left"},
+      {"at": 6.0, "type": "full", "angle": 0, "height": "high", "move": "pull_out"},
+      {"at": 9.2, "type": "wide", "angle": -25, "height": "low", "move": "crane_up"}
+    ]
+  }
+}

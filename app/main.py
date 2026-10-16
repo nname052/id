@@ -120,6 +120,7 @@ def usage():
 class NewProject(BaseModel):
     prompt: str
     direction: str = ""
+    user_script: str = ""
     settings: dict = {}
 
 
@@ -131,7 +132,7 @@ def create(body: NewProject):
     allowed["duration"] = max(10, min(60, int(allowed.get("duration", 30))))
     if allowed.get("video_type") not in VIDEO_TYPES:
         allowed["video_type"] = "regular"
-    p = store.create(body.prompt, allowed, body.direction)
+    p = store.create(body.prompt, allowed, body.direction, body.user_script)
     worker.enqueue(p["id"], "script")
     worker.learn(body.prompt, "فكرة فيديو جديد")
     if body.direction.strip():
@@ -248,6 +249,47 @@ def reopen_audio(pid: str):
 def audio_sentence(pid: str, sid: int):
     _get(pid)
     worker.enqueue(pid, "audio_sentence", sid=sid)
+    return {"ok": True}
+
+
+# ---------- تعديل جزء من الفيديو ----------
+class ScriptEditBody(BaseModel):
+    sentences: list[dict]
+
+
+class TtsEditBody(BaseModel):
+    lines: list[dict]
+
+
+@app.post("/api/projects/{pid}/edit/script")
+def edit_script_part(pid: str, body: ScriptEditBody):
+    _get(pid)
+    worker.enqueue(pid, "edit_script", sentences=body.sentences)
+    return {"ok": True}
+
+
+@app.post("/api/projects/{pid}/edit/tts")
+def edit_tts_part(pid: str, body: TtsEditBody):
+    _get(pid)
+    if not (store.project_dir(pid) / "audio" / "voice.mp3").exists():
+        # لسه مفيش صوت: الحفظ على طول (من غير طابور)
+        from .pipeline import edits
+        try:
+            edits.tts_lines(pid, body.lines)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+        return {"ok": True, "sync": True}
+    worker.enqueue(pid, "edit_tts", lines=body.lines)
+    return {"ok": True}
+
+
+@app.post("/api/projects/{pid}/edit/scene/{scene_id}")
+def edit_scene_part(pid: str, scene_id: str, body: Instruction):
+    _get(pid)
+    if not (body.instruction or "").strip():
+        raise HTTPException(400, "اكتب التعديل اللي عاوزه")
+    worker.enqueue(pid, "edit_scene", scene_id=scene_id, instruction=body.instruction.strip())
+    worker.learn(body.instruction, "تعديل مشهد")
     return {"ok": True}
 
 

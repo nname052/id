@@ -79,5 +79,21 @@ def catalog() -> str:
     st = "، ".join(f"{k} ({v})" for k, v in SETS.items())
     cam = "، ".join(f"{k} ({v})" for k, v in CAMERAS.items())
     lk = "، ".join(f"{k} ({v})" for k, v in LOOKS.items())
-    return (f"- الشخصيات 3D: {ch}\n- الحركات: {an}\n- الأماكن: {st}\n- حركات الكاميرا: {cam}\n- الشكل: {lk}\n"
-            "- مفيش حركة شفايف ولا تعبيرات وش: الشخصية بتمثّل بجسمها، والراوي بيحكي.")
+    return (f"- الشخصيات 3D: {ch}\n- الأماكن: {st}\n- الشكل: {lk}\n"
+            "- الحركة **حرة** (مش حركات متسجلة): إحنا اللي بنحرّك كل عضمة: وضعيات الجسم والدراعين والإيدين والراس، والقعدة والمشي، "
+            "ورموز أنيمي فوق الراس (! ? عرق، عصبية، لمعة، فكرة…) وخطوط سرعة وتركيز.\n"
+            "- الكاميرا حرة: أي لقطة (من واسعة جدًا لقريبة جدًا ومن ورا الكتف)، وأي زاوية وارتفاع، وحركات (تقريب، لف، كرين، كاميرا محمولة، لفّة سريعة)، وقطع جوه المشهد.\n"
+            "- مفيش تعبيرات وش (البق بيتحرك مع الكلام للشخصيات اللي بتتكلم بس).")
+
+
+# ---------- مفردات الإخراج الحر (نفس اللي في app/player/rig.js و director.js) ----------
+ARM_POSES = ['rest', 'hip', 'chin', 'head', 'scratch_head', 'facepalm', 'cover_mouth', 'chest', 'point_forward', 'point_side', 'point_up', 'point_self', 'wave', 'raise', 'fist_pump', 'open_out', 'explain', 'offer', 'stop', 'cross', 'shrug', 'thumbs_up', 'fist_shake', 'phone_ear', 'phone_front', 'hands_together', 'behind_back', 'typing', 'hold_cup', 'reach_up', 'hands_on_knees']
+BODY_POSES = ['upright', 'lean_forward', 'lean_back', 'slump', 'proud', 'crouch', 'sit', 'sit_lean', 'sit_slump', 'twist_left', 'twist_right', 'tilt_left', 'tilt_right', 'shrug', 'sneak']
+HEAD_POSES = ['camera', 'forward', 'down', 'up', 'left', 'right', 'tilt_left', 'tilt_right', 'down_left', 'down_right', 'away']
+MOTIONS = ['none', 'nod', 'shake', 'bounce', 'laugh', 'cry', 'tremble', 'breathe_heavy', 'talk', 'look_around', 'sway', 'wave', 'pump', 'beat', 'type', 'scratch']
+EMOTES = ["!", "?", "sweat", "anger", "sparkle", "heart", "idea", "gloom", "zzz", "music"]
+FX = ["speedlines", "focus", "flash", "shake"]
+SHOT_TYPES = ['extreme_wide', 'wide', 'full', 'medium', 'medium_close', 'close', 'extreme_close', 'over_shoulder']
+SHOT_HEIGHTS = ['eye', 'low', 'ground', 'high', 'top']
+CAMERA_MOVES = ['static', 'push_in', 'pull_out', 'orbit_left', 'orbit_right', 'crane_up', 'crane_down', 'truck_left', 'truck_right', 'handheld', 'whip_in', 'slow_zoom']
+EASES = ["smooth", "snap", "overshoot", "slow"]

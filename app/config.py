@@ -27,7 +27,7 @@ ENV = load_env()
 ELEVEN_KEY = ENV.get("ELEVENLABS_API_KEY", "")
 DEFAULT_VOICE = ENV.get("ELEVENLABS_VOICE_ID") or "ihycSANIrpHfhWoaq1g3"  # Ahmad (مصري)
 LLM_MODEL = ENV.get("LLM_MODEL", "opus")
-TTS_MODEL = "eleven_v3"
+TTS_MODEL = "eleven_v4"
 DEFAULT_STABILITY = 0.5  # الكلام العادي (القسم 5.3 في التصميم)
 
 W, H, FPS = 1080, 1920, 30

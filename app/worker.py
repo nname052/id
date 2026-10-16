@@ -7,14 +7,17 @@ import traceback
 
 from . import prefs, store
 from .llm.claude_code import LimitReached
-from .pipeline import audio, brief, render, scenes, script, tts_prep
+from .pipeline import audio, brief, edits, render, scenes, script, tts_prep
 
 _q: queue.Queue = queue.Queue()
 PORT = 8000
-REVIEW = {"script", "brief", "scenes", "audio"}       # بعدهم بنستنى موافقتك
-NEXT = {"script": "brief", "brief": "scenes", "scenes": "tts", "tts": "audio", "audio": "render"}
-SUB = {"audio_sentence": "audio", "audio_review": "audio"}  # مهام صغيرة جوه مرحلة الصوت
-DOWNSTREAM = {"script": ["brief", "scenes", "tts", "audio", "render"], "brief": ["scenes", "render"], "scenes": ["render"], "tts": ["audio", "render"], "audio": ["render"]}
+REVIEW = {"script", "tts", "brief", "scenes", "audio"}       # بعدهم بنستنى موافقتك
+# الترتيب: السكريبت ← نص النطق بالإحساس (تشوفه وتعدّله) ← الرؤية ← المشاهد ← الصوت ← التصدير
+NEXT = {"script": "tts", "tts": "brief", "brief": "scenes", "scenes": "audio", "audio": "render"}
+SUB = {"audio_sentence": "audio", "audio_review": "audio",  # مهام صغيرة جوه مرحلة الصوت
+       "edit_script": "script", "edit_tts": "tts", "edit_scene": "scenes"}  # تعديل جزء من غير ما الباقي يتعاد
+EDITS = {"edit_script", "edit_tts", "edit_scene"}
+DOWNSTREAM = {"script": ["tts", "brief", "scenes", "audio", "render"], "tts": ["audio", "render"], "brief": ["scenes", "render"], "scenes": ["render"], "audio": ["render"]}
 
 
 def learn(text: str, source: str) -> None:
@@ -24,6 +27,9 @@ def learn(text: str, source: str) -> None:
 
 def enqueue(pid: str, job: str, **kw) -> None:
     stage = SUB.get(job, job)
+    if job in SUB:  # الحالة قبل ما نعلّم المهمة "في الطابور" (علشان نرجّعلها بعد المهام الصغيرة)
+        cur = store.load(pid)
+        kw["_snap"] = (cur["status"], {k: dict(v) for k, v in cur["stages"].items()})
 
     def mark(p):
         p["stages"][stage] = {**p["stages"].get(stage, {}), "status": "queued", "error": None, "job": job}
@@ -44,8 +50,10 @@ def mark_stale(pid: str, stage: str) -> None:
 def _run(pid: str, job: str, kw: dict) -> None:
     stage = SUB.get(job, job)
     if job in SUB:  # مهمة صغيرة اختيارية: لو فشلت، المشروع يرجع زي ما كان مع رسالة (مش "فشل")
-        snap = store.load(pid)
-        prev = (snap["status"], {k: dict(v) for k, v in snap["stages"].items()})
+        prev = kw.pop("_snap", None)
+        if not prev:
+            snap = store.load(pid)
+            prev = (snap["status"], {k: dict(v) for k, v in snap["stages"].items()})
     store.update(pid, lambda p: (p["stages"][stage].update(status="running", started=time.time(), progress=None, job=job), p.update(status="running", notice=None)))
     store.log(pid, f"▶ {job}")
     try:
@@ -58,6 +66,8 @@ def _run(pid: str, job: str, kw: dict) -> None:
         elif job == "tts":
             tts_prep.run(pid, kw.get("instruction"))
         elif job == "audio":
+            if not (store.project_dir(pid) / "tts.json").exists():  # مشاريع قديمة (الترتيب القديم): نجهّز النص الأول
+                tts_prep.run(pid)
             audio.run(pid, kw.get("approved_credits", False))
         elif job == "render":
             render.run(pid, PORT)
@@ -65,6 +75,12 @@ def _run(pid: str, job: str, kw: dict) -> None:
             audio.regen_sentence(pid, kw["sid"])
         elif job == "audio_review":
             audio.review(pid)
+        elif job == "edit_script":
+            edits.script(pid, kw["sentences"])
+        elif job == "edit_tts":
+            edits.tts_lines(pid, kw["lines"])
+        elif job == "edit_scene":
+            edits.scene(pid, kw["scene_id"], kw["instruction"])
     except LimitReached as e:
         store.update(pid, lambda p: (p["stages"][stage].update(status="waiting_limit", error=str(e)), p.update(status="waiting_limit", resets_at=e.resets_at)))
         store.log(pid, f"⏸ {stage}: {e}")
@@ -87,6 +103,17 @@ def _run(pid: str, job: str, kw: dict) -> None:
     store.log(pid, f"✓ {job}")
     if job == "audio_review":  # المراجعة ما بتغيّرش الصوت: نرجّع الحالة زي ما كانت
         store.update(pid, lambda p: p.update(status=prev[0], stages=prev[1]))
+        return
+    if job in EDITS:
+        # التعديل لمس جزء بس: كل المراحل ترجع زي ما كانت، والتصدير بس هو اللي محتاج يتعاد (لو كان اتعمل)
+        def after_edit(p):
+            p["stages"] = prev[1]
+            if p["stages"]["render"]["status"] == "approved":
+                p["stages"]["render"]["status"] = "stale"
+                p.update(status="awaiting_review", notice="✓ اتعدّل الجزء ده بس. صدّر الفيديو تاني علشان التعديل يظهر فيه.")
+            else:
+                p.update(status=prev[0], notice="✓ اتعدّل الجزء ده بس.")
+        store.update(pid, after_edit)
         return
     mark_stale(pid, stage)
     if stage in REVIEW:

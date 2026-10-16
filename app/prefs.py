@@ -68,7 +68,8 @@ def apply_pronunciations(tts: str, display: str) -> str:
     d = pronunciations()
     if not d:
         return tts
-    toks, disp = tts.split(), display.split()
+    from .pipeline.common import tokens
+    toks, disp = tokens(tts), display.split()  # الـ tag اللي فيه مسافة ([short pause]) حتة واحدة
     k = 0
     for i, tok in enumerate(toks):
         if tok.startswith("["):

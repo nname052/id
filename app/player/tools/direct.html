@@ -1,0 +1,23 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Direct</title>
+<!-- أداة تطوير: مشهد 3D بإخراج حر من ملف JSON (?f=اسم الملف في tools/) في كذا لحظة -->
+<script type="importmap">{ "imports": { "three": "/assets/vendor/three/three.module.js", "three/addons/": "/assets/vendor/three/addons/" } }</script>
+<style>body{margin:0;background:#222;display:flex;flex-wrap:wrap;gap:4px;width:1500px}.b{width:180px}canvas.c3d{width:180px;height:320px;display:block}div.l{color:#fff;font:12px sans-serif;text-align:center}</style>
+</head><body>
+<script type="module">
+import { createScene3D } from "/player/player3d.js";
+const q = new URLSearchParams(location.search);
+window.ready = (async () => {
+  const spec = await (await fetch(`/player/tools/${q.get("f") || "test_scene.json"}?v=${Date.now()}`)).json();
+  const ts = (q.get("ts") || spec.ts.join(",")).split(",").map(Number);
+  const words = spec.words || [];
+  for (const t of ts) {
+    const box = document.createElement("div"); box.className = "b"; document.body.appendChild(box);
+    const sc = { id: "t1", scene3d: { ...spec.scene3d, character: q.get("c") || spec.scene3d.character } };
+    const draw = await createScene3D(sc, box, { duration: spec.duration, palette: spec.palette, look: q.get("look") || spec.look, words,
+      cue: (w) => { const x = words.find((y) => y.word === w); return x ? x.start : 0; } });
+    draw(t);
+    box.insertAdjacentHTML("beforeend", `<div class="l">${spec.names ? spec.names[ts.indexOf(t)] : "t=" + t}</div>`);
+  }
+})();
+</script></body></html>

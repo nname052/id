@@ -100,3 +100,16 @@ details.log pre { white-space: pre-wrap; font-size: 12px; color: var(--muted); m
 .types .type b { font-size: 17px; } .types .type span { font-size: 13px; opacity: .75; line-height: 1.6; }
 .types .type.on { border-color: var(--accent, #d9622b); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #d9622b) 18%, transparent); }
 @media (max-width: 640px) { .types { grid-template-columns: 1fr; } }
+
+/* المراحل بقت زراير: تفتح أي مرحلة خلصت علشان تعدّلها */
+button.stage { font: inherit; cursor: pointer; border: 0; }
+.stage.open { outline: 3px solid var(--accent, #d9622b); outline-offset: 1px; }
+button.mini { padding: 3px 9px; font-size: 13px; }
+.sentences .s .mini { align-self: center; opacity: .55; }
+.sentences .s:hover .mini { opacity: 1; }
+.tts-edit .tts-view { line-height: 2; margin-bottom: 4px; }
+.tts-edit textarea.tts { width: 100%; font-size: 14px; opacity: .8; }
+.tag { display: inline-block; direction: ltr; padding: 0 8px; margin: 0 2px; border-radius: 999px; font-size: 12.5px; line-height: 1.7;
+       background: color-mix(in srgb, var(--accent, #d9622b) 15%, transparent); color: var(--accent, #d9622b); font-weight: 700; }
+.topline { display: grid; grid-template-columns: 1fr 1.4fr; gap: 14px; }
+@media (max-width: 700px) { .topline { grid-template-columns: 1fr; } }

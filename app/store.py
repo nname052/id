@@ -11,7 +11,7 @@ from pathlib import Path
 
 from .config import DEFAULT_SETTINGS, VIDEOS
 
-STAGES = ["script", "brief", "scenes", "tts", "audio", "render"]
+STAGES = ["script", "tts", "brief", "scenes", "audio", "render"]
 _lock = threading.Lock()
 
 
@@ -36,7 +36,7 @@ def read_json(path: Path, default=None):
         return default
 
 
-def create(prompt: str, settings: dict, direction: str = "") -> dict:
+def create(prompt: str, settings: dict, direction: str = "", user_script: str = "") -> dict:
     slug = re.sub(r"[^\w]+", "-", prompt.strip())[:24].strip("-") or "video"
     pid = f"{datetime.now():%Y-%m-%d}_{secrets.token_hex(3)}"
     proj = {
@@ -45,6 +45,7 @@ def create(prompt: str, settings: dict, direction: str = "") -> dict:
         "title": "",
         "prompt": prompt.strip(),
         "direction": direction.strip(),  # طلب الإخراج (اختياري)
+        "user_script": user_script.strip(),  # سكريبت كتبه صاحب الفيديو بنفسه (اختياري)
         "settings": {**DEFAULT_SETTINGS, **settings},
         "created": datetime.now().isoformat(timespec="seconds"),
         "status": "queued",

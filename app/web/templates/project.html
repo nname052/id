@@ -17,14 +17,17 @@
 <script>
   const PID = "{{ pid }}";
   let P = null, lastKey = "", dirty = false, phoneKey = "";
+  let VIEW = null; // مرحلة فاتحها بإيدك علشان تعدّلها (غير المرحلة الحالية)
 
   const busy = (txt) => `<div class="row"><span class="spinner"></span><b>${esc(txt)}</b></div>`;
   const RUNNING_TEXT = { script: "Claude بيكتب السكريبت…", scenes: "Claude بيخطط المشاهد وبيدوّر في المكتبات…", tts: "بنجهّز النص للنطق…",
-    audio: "ElevenLabs بيولّد الصوت…", render: "بنصدّر الفيديو…", audio_sentence: "بنعيد الجملة…", audio_review: "بنراجع النطق…" };
+    audio: "ElevenLabs بيولّد الصوت…", render: "بنصدّر الفيديو…", audio_sentence: "بنعيد الجملة…", audio_review: "بنراجع النطق…",
+    brief: "Claude بيكتب الرؤية الإخراجية…", edit_script: "بنعدّل الجزء اللي غيّرته بس (النطق، والصوت، والمشاهد)…",
+    edit_tts: "بنعيد صوت الجمل اللي عدّلتها بس…", edit_scene: "Claude بيعدّل المشهد ده بس…" };
 
   // المرحلة اللي محتاجة انتباهك دلوقتي
   function current(p) {
-    const order = ["script", "brief", "scenes", "tts", "audio", "render"];
+    const order = ["script", "tts", "brief", "scenes", "audio", "render"];
     return order.find((s) => ["running", "queued", "review", "failed", "waiting_limit", "needs_credits"].includes(p.stages[s].status))
       || (p.status === "done" ? "done" : order.find((s) => p.stages[s].status !== "approved") || "done");
   }
@@ -34,7 +37,8 @@
     const TYPE = { whiteboard: "✍️ سبورة بيضاء", regular: "📱 فيديو عادي", "3d": "🎬 3D" }[p.settings.video_type || "regular"];
     $("#sub").textContent = `${TYPE} · ${p.prompt} · ${p.settings.duration} ثانية · ${p.settings.voice_name || ""}`;
     $("#stages").innerHTML = Object.entries(STAGE_NAMES).map(([k, n]) => {
-      const st = p.stages[k].status; return `<span class="stage ${st}">${n}${STATUS_NAMES[st] ? " · " + STATUS_NAMES[st] : ""}</span>`; }).join("");
+      const st = p.stages[k].status, open = VIEW === k ? " open" : "";
+      return `<button type="button" class="stage ${st}${open}" data-view="${k}" title="افتح المرحلة دي علشان تشوفها أو تعدّلها">${n}${STATUS_NAMES[st] ? " · " + STATUS_NAMES[st] : ""}</button>`; }).join("");
     const u = p.usage || {}, el = u.elevenlabs || {};
     $("#usage").innerHTML = `طلبات Claude: ${u.claude_calls || 0} (${Object.entries(u.claude_by_stage || {}).map(([k, v]) => `${k}: ${v}`).join("، ")})` +
       (el.actual != null ? ` · ElevenLabs: متوقع ${el.expected}، فعلي ${el.actual}، متبقي ${el.left}` : "");
@@ -61,9 +65,14 @@
   }
 
   function panel(p) {
-    const s = current(p), st = p.stages[s] || {};
-    const k = `${s}:${st.status}:${p.has_video}:${JSON.stringify(st.progress || "")}:${p.notice || ""}:${JSON.stringify(p.review || "")}:${p.can_undo}`;
-    if (k === lastKey || (dirty && st.status === "review")) return;
+    const cur = current(p);
+    // لو فيه شغل شغال، بنعرضه هو. غير كده لو فاتح مرحلة بإيدك بنعرضها للتعديل
+    const busyNow = ["running", "queued"].includes((p.stages[cur] || {}).status);
+    if (busyNow) VIEW = null;
+    const s = VIEW && p.stages[VIEW] && p.stages[VIEW].status !== "pending" ? VIEW : cur, st = p.stages[s] || {};
+    const EDIT = s !== cur && ["approved", "stale"].includes(st.status);
+    const k = `${s}:${EDIT}:${st.status}:${p.has_video}:${JSON.stringify(st.progress || "")}:${p.notice || ""}:${JSON.stringify(p.review || "")}:${p.can_undo}`;
+    if (k === lastKey || (dirty && (st.status === "review" || EDIT))) return;
     lastKey = k; dirty = false;
     const el = $("#panel");
     const notice = p.notice ? `<div class="note warn">${esc(p.notice)}</div>` : "";
@@ -77,23 +86,47 @@
       el.innerHTML = `<h2>${STAGE_NAMES[s]}</h2>` + busy(RUNNING_TEXT[st.job] || RUNNING_TEXT[s]) + extra;
       return;
     }
-    if (s === "script") el.innerHTML = scriptHTML(p);
-    else if (s === "brief") el.innerHTML = briefHTML(p);
-    else if (s === "scenes") el.innerHTML = scenesHTML(p);
+    const back = EDIT ? `<div class="note">بتعدّل مرحلة خلصت: هيتعدّل الجزء اللي غيّرته بس، والباقي زي ما هو. <button data-act="close-view">↩ رجوع</button></div>` : "";
+    if (s === "script") el.innerHTML = back + scriptHTML(p, EDIT);
+    else if (s === "tts") el.innerHTML = back + ttsHTML(p, EDIT);
+    else if (s === "brief") el.innerHTML = back + briefHTML(p);
+    else if (s === "scenes") el.innerHTML = back + scenesHTML(p, EDIT);
     else if (s === "audio") el.innerHTML = notice + audioHTML(p);
+    else if (s === "render") el.innerHTML = notice + `<h2>${STAGE_NAMES.render}</h2><div class="muted">${st.status === "stale" ? "فيه تعديلات لسه ما ظهرتش في الفيديو." : ""}</div>
+      <div class="actions"><button class="primary" data-act="regen" data-stage="render">⬇ صدّر الفيديو</button></div>`;
     else el.innerHTML = `<h2>${STAGE_NAMES[s]}</h2><div class="actions"><button class="primary" data-act="approve" data-stage="${s}">كمّل</button></div>`;
   }
 
-  function scriptHTML(p) {
+  const sentRow = (s, i) => `<div class="s" data-id="${s.id ?? ""}"><span class="n">${i + 1}</span><textarea rows="1" class="sent">${esc(s.text)}</textarea>
+    <button class="mini" data-act="add-sent" title="جملة جديدة بعد دي">＋</button><button class="mini" data-act="del-sent" title="شيل الجملة">✕</button></div>`;
+  function scriptHTML(p, edit) {
     const sc = p.script || { sentences: [] };
     const words = sc.sentences.reduce((n, s) => n + s.text.split(/\s+/).length, 0);
-    return `<h2>${STAGE_NAMES.script}</h2>
-      <div class="muted">${sc.sentences.length} جملة · ${words} كلمة · حوالي ${Math.round(words / 2.2)} ثانية. عدّل أي جملة براحتك.</div>
-      <div class="sentences" style="margin-top:12px">${sc.sentences.map((s, i) => `<div class="s"><span class="n">${i + 1}</span><textarea rows="1" class="sent">${esc(s.text)}</textarea></div>`).join("")}</div>
-      <div class="actions">
-        <button class="primary" data-act="approve" data-stage="script">✓ موافق، كمّل للمشاهد</button>
+    const notes = (sc.notes || []).length ? `<div class="note ok">ظبطت سكريبتك: ${sc.notes.map(esc).join("، ")}</div>` : "";
+    return `<h2>${STAGE_NAMES.script}</h2>${notes}
+      <div class="muted">${sc.sentences.length} جملة · ${words} كلمة · حوالي ${Math.round(words / 2.2)} ثانية. عدّل أي كلمة، أو زوّد/شيل جملة.</div>
+      <div class="sentences" style="margin-top:12px">${sc.sentences.map(sentRow).join("")}</div>
+      <div class="actions">${edit
+        ? `<button class="primary" data-act="save-script">💾 احفظ (هيتعدّل اللي غيّرته بس)</button>`
+        : `<button class="primary" data-act="approve" data-stage="script">✓ موافق، جهّز الإحساس والنطق</button>
         <input type="text" id="instr" class="grow" placeholder="أو اطلب تعديل: خليه أقصر، الهوك أقوى، أكتر هزار…">
-        <button data-act="regen" data-stage="script">↻ اكتب تاني</button>
+        <button data-act="regen" data-stage="script">↻ اكتب تاني</button>`}
+      </div>`;
+  }
+  // نص النطق: الكلام زي ما هيتقال بالـ tags والترقيم (زي Enhance في ElevenLabs). تقدر تعدّل أي tag أو تضيف همس/ضحكة…
+  function ttsHTML(p, edit) {
+    const lines = (p.tts || { lines: [] }).lines;
+    const show = (t) => esc(t).replace(/\[([^\]]+)\]/g, '<span class="tag">$1</span>');
+    return `<h2>${STAGE_NAMES.tts}</h2>
+      <div class="muted">ده الكلام زي ما الصوت هيقوله: الإحساس بين [ ] بالإنجليزي (زي [whispers] همس، [laughs] ضحكة، [curious] سؤال)، و "?" للسؤال، و "..." للتردد، و "," علشان الكلام يفضل متواصل. عدّل أي سطر براحتك (من غير ما تغيّر الكلمات).</div>
+      <div class="sentences tts-edit" style="margin-top:12px">${lines.map((l, i) => `<div class="s" data-id="${l.id}"><span class="n">${i + 1}</span>
+        <div class="grow"><div class="tts-view">${show(l.tts)}</div><textarea rows="1" class="tts" dir="rtl">${esc(l.tts)}</textarea>
+        ${Object.keys(l.pronounce || {}).length ? `<div class="muted">نطق: ${Object.entries(l.pronounce).map(([w, s]) => `${esc(w)} ← ${esc(s)}`).join("، ")}</div>` : ""}</div></div>`).join("")}</div>
+      <div class="actions">${edit
+        ? `<button class="primary" data-act="save-tts">💾 احفظ (${p.has_audio ? "وهيتعاد صوت الجمل اللي اتغيّرت بس" : "قبل الصوت"})</button>`
+        : `<button class="primary" data-act="approve" data-stage="tts">✓ موافق، كمّل للرؤية الإخراجية</button>
+        <input type="text" id="instr" class="grow" placeholder="اطلب تعديل: إحساس أكتر، همس في الجملة التالتة، ضحكة في الآخر…">
+        <button data-act="regen" data-stage="tts">↻ جهّز تاني</button>`}
       </div>`;
   }
 
@@ -143,7 +176,7 @@
       · خط <b>${esc(id.font_heading)}</b> · خلفية ${esc(id.background)} · انتقال ${esc(id.transition)}</div>`;
   }
 
-  function scenesHTML(p) {
+  function scenesHTML(p, edit) {
     const plan = p.plan || { scenes: [] }, sents = (p.script || { sentences: [] }).sentences;
     return `<h2>${STAGE_NAMES.scenes}</h2>
       <div class="muted">شغّل المعاينة على الشمال (من غير صوت، والتوقيت تقريبي لحد ما الصوت يتعمل).</div>${identityHTML(plan)}
@@ -153,12 +186,16 @@
         <span class="badge">${KIND[sc.layout || sc.kind] || sc.layout || sc.kind}</span>
         ${[...(sc.visuals || []), ...(sc.items || []).map((it) => it.visual).filter(Boolean), ...(sc.asset_name ? [sc] : [])].map((v) => `<span class="badge" dir="ltr">${esc(v.asset_name || "")}</span>`).join(" ")}
         ${sc.board ? `<div class="muted">✍️ ${sc.board.map((x) => esc(x.text || x.value || (x.visual && x.visual.asset_name) || x.kind)).join(" ← ")}</div>` : ""}
-        ${sc.scene3d ? `<div class="muted">🎬 ${esc(sc.scene3d.character)} · ${esc(sc.scene3d.set)} · ${sc.scene3d.actions.map((a) => esc(a.anim)).join(" ← ")} · كاميرا ${esc(sc.scene3d.camera)} · ${esc(sc.scene3d.time)}${sc.scene3d.speaking ? " · 🗣 بتتكلم" : ""}</div>` : ""}
-        ${sc.custom_brief && sc.layout === "custom" ? `<div class="muted">✦ ${esc(sc.custom_brief)}</div>` : ""}</div></div>`).join("")}</div>
-      <div class="actions">
+        ${sc.scene3d ? `<div class="muted">🎬 ${esc(sc.scene3d.character)} · ${esc(sc.scene3d.set)} · ${esc(sc.scene3d.time)}${sc.scene3d.speaking ? " · 🗣 بتتكلم" : ""}<br>
+          ${sc.scene3d.performance ? "🎭 " + sc.scene3d.performance.map((x) => `${esc(x.at_word || "")}: ${esc(x.r_arm)}${x.emote ? " " + esc(x.emote) : ""}`).join(" ← ")
+            + "<br>🎥 " + (sc.scene3d.shots || []).map((x) => `${esc(x.type)} ${esc(x.height)} ${esc(x.move)}`).join(" | ")
+            : (sc.scene3d.actions || []).map((a) => esc(a.anim)).join(" ← ") + " · كاميرا " + esc(sc.scene3d.camera || "")}</div>` : ""}
+        ${sc.custom_brief && sc.layout === "custom" ? `<div class="muted">✦ ${esc(sc.custom_brief)}</div>` : ""}
+        <div class="row" style="margin-top:6px"><button class="mini" data-act="edit-scene" data-scene="${sc.id}">✎ عدّل المشهد ده بس</button></div></div></div>`).join("")}</div>
+      <div class="actions">${edit ? "" : `
         <button class="primary" data-act="approve" data-stage="scenes">✓ موافق، اعمل الصوت</button>
-        <input type="text" id="instr" class="grow" placeholder="اطلب تعديل: المشهد التالت أيقونة بدل رسمة، ألوان أهدى…">
-        <button data-act="regen" data-stage="scenes">↻ خطط تاني</button>
+        <input type="text" id="instr" class="grow" placeholder="اطلب تعديل للخطة كلها: ألوان أهدى، مشاهد أسرع…">
+        <button data-act="regen" data-stage="scenes">↻ خطط تاني</button>`}
       </div>`;
   }
 
@@ -208,14 +245,35 @@
     const v = $("#voice"); v.currentTime = +b.dataset.a; v.play();
     clearInterval(segStop); segStop = setInterval(() => { if (v.currentTime >= +b.dataset.b + 0.15) { v.pause(); clearInterval(segStop); } }, 50);
   });
-  $("#panel").addEventListener("input", (e) => { if (e.target.classList.contains("sent")) dirty = true; });
+  $("#panel").addEventListener("input", (e) => { if (e.target.matches(".sent, .tts")) dirty = true; });
+  // فتح أي مرحلة خلصت علشان تعدّلها
+  $("#stages").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-view]"); if (!b || !P) return;
+    if (P.stages[b.dataset.view].status === "pending") return;
+    VIEW = VIEW === b.dataset.view ? null : b.dataset.view; dirty = false; lastKey = ""; header(P); panel(P);
+  });
   $("#panel").addEventListener("click", async (e) => {
     const b = e.target.closest("button[data-act]");
     if (!b) return;
+    // أزرار محلية (من غير سيرفر)
+    if (b.dataset.act === "add-sent") { const row = b.closest(".s"); row.insertAdjacentHTML("afterend", sentRow({ id: "", text: "" }, 0)); row.nextElementSibling.querySelector("textarea").focus(); dirty = true; return; }
+    if (b.dataset.act === "del-sent") { b.closest(".s").remove(); dirty = true; return; }
+    if (b.dataset.act === "close-view") { VIEW = null; dirty = false; lastKey = ""; header(P); panel(P); return; }
     b.disabled = true;
     try {
       const stage = b.dataset.stage;
-      if (b.dataset.act === "approve" && stage === "script" && dirty) await api(`/api/projects/${PID}/script`, { method: "PUT", body: { sentences: $$(".sent").map((t) => t.value) } });
+      const scriptRows = () => $$(".sentences .s").map((r) => ({ id: r.dataset.id === "" ? null : +r.dataset.id, text: r.querySelector(".sent").value }));
+      if (b.dataset.act === "save-script") { await api(`/api/projects/${PID}/edit/script`, { method: "POST", body: { sentences: scriptRows() } }); VIEW = null; }
+      if (b.dataset.act === "save-tts" || (b.dataset.act === "approve" && stage === "tts" && dirty)) {
+        await api(`/api/projects/${PID}/edit/tts`, { method: "POST", body: { lines: $$(".tts-edit .s").map((r) => ({ id: +r.dataset.id, tts: r.querySelector(".tts").value })) } });
+        VIEW = null;
+      }
+      if (b.dataset.act === "edit-scene") {
+        const ins = prompt("عاوز تغيّر إيه في المشهد ده؟ (مثلًا: الشخصية تبقى قاعدة، الكاميرا من تحت، رسمة بدل أيقونة)");
+        if (!ins) { b.disabled = false; return; }
+        await api(`/api/projects/${PID}/edit/scene/${b.dataset.scene}`, { method: "POST", body: { instruction: ins } }); VIEW = null;
+      }
+      if (b.dataset.act === "approve" && stage === "script" && dirty) await api(`/api/projects/${PID}/script`, { method: "PUT", body: { sentences: $$(".sent").map((t) => t.value).filter((x) => x.trim()) } });
       if (b.dataset.act === "approve") await api(`/api/projects/${PID}/stages/${stage}/approve`, { method: "POST" });
       if (b.dataset.act === "regen") await api(`/api/projects/${PID}/stages/${stage}/regenerate`, { method: "POST", body: { instruction: ($("#instr") || {}).value || null } });
       if (b.dataset.act === "resume") await api(`/api/projects/${PID}/resume`, { method: "POST" });

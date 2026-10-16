@@ -2,9 +2,13 @@
 {% block title %}فيديو جديد{% endblock %}
 {% block body %}
 <h1>فيديو جديد</h1>
-<div class="card" style="max-width: 760px">
-  <label class="field" for="prompt">فكرة الفيديو</label>
-  <textarea id="prompt" rows="3" placeholder="مثلًا: فيديو عن الخوف من الفشل، وإزاي التأجيل بيضيّع الفرص"></textarea>
+<div class="card" style="max-width: 980px">
+  <div class="topline">
+    <div><label class="field" for="prompt">موضوع الفيديو</label>
+      <textarea id="prompt" rows="5" placeholder="مثلًا: فيديو عن الخوف من الفشل، وإزاي التأجيل بيضيّع الفرص"></textarea></div>
+    <div><label class="field" for="uscript">السكريبت <span class="muted">(اختياري: اكتبه بنفسك)</span></label>
+      <textarea id="uscript" rows="5" placeholder="اكتب الكلام اللي عاوزه يتقال… Claude هيظبطه وينسّقه ويضيف الإحساس (همس، سؤال، ضحكة…) ويوريهولك قبل أي حاجة. لو سبته فاضي، Claude هيكتبه."></textarea></div>
+  </div>
 
   <label class="field">نوع الفيديو</label>
   <div class="types" id="vtype">
@@ -128,7 +132,7 @@
     if (prompt.length < 3) { $("#msg").innerHTML = `<div class="note err">اكتب فكرة الفيديو الأول</div>`; return; }
     $("#go").disabled = true;
     try {
-      const r = await api("/api/projects", { method: "POST", body: { prompt, direction: $("#direction").value.trim(), settings: {
+      const r = await api("/api/projects", { method: "POST", body: { prompt, direction: $("#direction").value.trim(), user_script: $("#uscript").value.trim(), settings: {
         duration: +$("#duration").value, dialect: dialect(), mood: mood(), voice_id: voice.voice_id, voice_name: voice.name,
         subtitles: $("#subs").checked, stability: +stability(), video_type: vtype(), voice_gender: voice.gender || "" } } });
       location.href = `/p/${r.id}`;

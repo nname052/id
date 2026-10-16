@@ -175,8 +175,9 @@ def undo_sentence(pid: str) -> bool:
     return True
 
 
-def regen_sentence(pid: str, sid: int) -> None:
-    """بيولّد صوت جملة واحدة (وسط الجمل اللي حواليها) ويركّبه مكانها في الصوت الكامل، وبيزحزح توقيت اللي بعدها."""
+def regen_sentence(pid: str, sid: int, insert: bool = False) -> None:
+    """بيولّد صوت جملة واحدة (وسط الجمل اللي حواليها) ويركّبه مكانها في الصوت الكامل، وبيزحزح توقيت اللي بعدها.
+    insert=True: جملة جديدة اتضافت للسكريبت (مالهاش صوت): بتتحط في مكانها بين اللي قبلها واللي بعدها."""
     import shutil
     import subprocess
     import tempfile
@@ -195,12 +196,20 @@ def regen_sentence(pid: str, sid: int) -> None:
     line = lines[idx]
     W = store.read_json(d / "words.json")
     words = W["words"]
+    order = {ln["id"]: i for i, ln in enumerate(lines)}
     mine = [w for w in words if w["sid"] == sid]
-    before = [w for w in words if words.index(w) < words.index(mine[0])]
-    after = [w for w in words if words.index(w) > words.index(mine[-1])]
-    # الحتة القديمة اللي هتتشال من الصوت الكامل
-    a = max(before[-1]["end"] + 0.02 if before else 0.0, mine[0]["start"] - 0.05)
-    b = min(after[0]["start"] - 0.02 if after else W["duration"], mine[-1]["end"] + 0.12)
+    if insert or not mine:
+        # جملة جديدة: مكانها بعد آخر كلمة في الجمل اللي قبلها
+        before = [w for w in words if order.get(w["sid"], -1) < idx]
+        after = [w for w in words if order.get(w["sid"], -1) > idx]
+        a = b = (before[-1]["end"] + 0.06) if before else 0.0
+        mine = []
+    else:
+        before = [w for w in words if words.index(w) < words.index(mine[0])]
+        after = [w for w in words if words.index(w) > words.index(mine[-1])]
+        # الحتة القديمة اللي هتتشال من الصوت الكامل
+        a = max(before[-1]["end"] + 0.02 if before else 0.0, mine[0]["start"] - 0.05)
+        b = min(after[0]["start"] - 0.02 if after else W["duration"], mine[-1]["end"] + 0.12)
 
     # الجملة وسط سياقها في طلب واحد، وبعدين نقص جملتنا من الصوت الجديد
     ctx = _context(lines, idx)
@@ -225,7 +234,8 @@ def regen_sentence(pid: str, sid: int) -> None:
         tmp = Path(tmp)
         (tmp / "new.mp3").write_bytes(base64.b64decode(data["audio_base64"]))
         # نفس علو صوت الجملة القديمة
-        old_db, new_db = _mean_db(voice, a, b - a), _mean_db(tmp / "new.mp3", ca, dur)
+        ref = (a, b - a) if b - a > 0.3 else ((before[0]["start"], before[-1]["end"] - before[0]["start"]) if before else (0, 2))
+        old_db, new_db = _mean_db(voice, *ref), _mean_db(tmp / "new.mp3", ca, dur)
         gain = max(-8.0, min(8.0, old_db - new_db)) if old_db is not None and new_db is not None else 0.0
         run = lambda *args: subprocess.run(["ffmpeg", "-y", "-loglevel", "error", *args], check=True)
         fade = "afade=t=in:d=0.02,areverse,afade=t=in:d=0.04,areverse"
@@ -284,3 +294,42 @@ def review(pid: str) -> None:
                 continue  # فرق بسيط في الكتابة مش في النطق
             flags.setdefault(str(words[i]["sid"]), []).append({"i": words[i]["i"], "word": words[i]["word"], "heard": heard_as})
     store.write_json(d / "audio" / "review.json", {"flags": flags, "heard": " ".join(heard)})
+
+
+def remove_sentence(pid: str, sid: int) -> None:
+    """جملة اتشالت من السكريبت: بنشيل صوتها ونقرّب اللي بعدها (وبنسيب سكتة طبيعية بين الجملتين)."""
+    import shutil
+    import subprocess
+    import tempfile
+    from pathlib import Path
+
+    d = store.project_dir(pid)
+    W = store.read_json(d / "words.json")
+    words = W["words"]
+    mine = [w for w in words if w["sid"] == sid]
+    if not mine:
+        return
+    before = [w for w in words if w["end"] <= mine[0]["start"] and w["sid"] != sid]
+    after = [w for w in words if w["start"] >= mine[-1]["end"] and w["sid"] != sid]
+    a = mine[0]["start"] - 0.05 if before else 0.0
+    b = after[0]["start"] - 0.05 if after else W["duration"]
+    voice = d / "audio" / "voice.mp3"
+    u = d / "audio" / "undo"
+    u.mkdir(exist_ok=True)
+    shutil.copy(voice, u / "voice.mp3")
+    shutil.copy(d / "words.json", u / "words.json")
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        run = lambda *args: subprocess.run(["ffmpeg", "-y", "-loglevel", "error", *args], check=True)
+        run("-i", str(voice), "-t", f"{max(a, 0.01):.3f}", "-ar", "44100", "-ac", "1", str(tmp / "p1.wav"))
+        run("-ss", f"{b:.3f}", "-i", str(voice), "-ar", "44100", "-ac", "1", str(tmp / "p3.wav"))
+        (tmp / "list.txt").write_text("file 'p1.wav'\nfile 'p3.wav'\n")
+        run("-f", "concat", "-safe", "0", "-i", str(tmp / "list.txt"), "-c:a", "libmp3lame", "-b:a", "128k", str(tmp / "out.mp3"))
+        voice.write_bytes((tmp / "out.mp3").read_bytes())
+    shift = a - b
+    for w in after:
+        w["start"], w["end"] = round(w["start"] + shift, 3), round(w["end"] + shift, 3)
+    out = before + after
+    for i, w in enumerate(out):
+        w["i"] = i
+    store.write_json(d / "words.json", {"source": "elevenlabs", "duration": round(W["duration"] + shift, 3), "words": out})
