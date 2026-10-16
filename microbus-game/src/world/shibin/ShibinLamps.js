@@ -49,8 +49,10 @@ export class ShibinLamps {
         if ((dFrom < 10 && e.from.edges.length > 2) || (dTo < 10 && e.to.edges.length > 2)) continue;
         const nx = -q.dz, nz = q.dx;
         for (const side of both ? [1, -1] : [k % 2 ? 1 : -1]) {
-          const off = e.elevated ? e.half - 0.25 : e.half + 0.55;
+          // على الكوبري: فوق الدروة نفسها (برا الأسفلت)؛ على الأرض: على حرف الرصيف — ومش تحت كوبري
+          const off = e.elevated ? e.half + 0.1 : e.half + 0.55;
           const x = q.x + nx * side * off, z = q.z + nz * side * off;
+          if (!e.elevated && W._underDeck?.(x, z)) continue;
           const key = `${Math.round(x / 8)},${Math.round(z / 8)}`;
           if (seen.has(key)) continue;
           seen.add(key);
@@ -121,7 +123,8 @@ export class ShibinLamps {
           L.ok = Math.abs(W.height(L.x, L.z, 0) - 0.15) < 0.01;
         }
         if (!L.ok) continue;
-        if (!L.col) { L.col = true; W._addCollider({ cx: L.x, cz: L.z, hx: 0.16, hz: 0.16, angle: 0, restitution: 0.1, kind: 'prop', yMin: L.y - 1.5, yMax: L.y + 1.5 }, null); }
+        // (اللي على الكوبري مالوش collider: الدروة نفسها بتمنع)
+        if (!L.col && !L.elevated) { L.col = true; W._addCollider({ cx: L.x, cz: L.z, hx: 0.16, hz: 0.16, angle: 0, restitution: 0.1, kind: 'prop', yMin: L.y - 1.5, yMax: L.y + 1.0 }, null); }
         L.d2 = d2; pick.push(L);
       }
     }
