@@ -146,9 +146,30 @@ export function fitModelToRig(rig, spec, asset, { wheelRe }) {
   }
   for (const p of parts) { p.mesh.visible = false; p.geo.dispose(); }
   model.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  polishMaterials(model);
   rig.shell.add(model);
   rig.model = model;
   return model;
+}
+
+/**
+ * تشطيب الخامات (من غير ما نلمس أي لون): كاوتش مطفي، زجاج لامع، كروم/جنوط معدن، بلاستيك نص مطفي.
+ * الموديلات جاية بقيم غلط (كاوتش معدني 0.37، زجاج التوكتوك خشن 1.0، جنط التوكتوك 0.98) → بيبان بلاستيك/رمادي.
+ */
+export function polishMaterials(root) {
+  const done = new Set();
+  root.traverse((o) => {
+    const m = o.isMesh && o.material;
+    if (!m || done.has(m) || !('roughness' in m)) return;
+    done.add(m);
+    const n = m.name || '';
+    if (/^(tire|tyre|llanta)$/i.test(n)) { m.metalness = 0; m.roughness = Math.max(m.roughness, 0.88); m.envMapIntensity = 0.35; }
+    else if (/^(glass\d*|gls)$/i.test(n)) { m.roughness = 0.04; m.metalness = 0; m.envMapIntensity = 1.4; }
+    else if (/^metal_rin$/i.test(n)) { m.roughness = 0.38; m.envMapIntensity = 1.0; }
+    else if (/chrome/i.test(n)) { m.metalness = Math.max(m.metalness, 0.9); m.roughness = Math.min(m.roughness, 0.14); m.envMapIntensity = 1.15; }
+    else if (/plas|^under$/i.test(n)) { m.metalness = Math.min(m.metalness, 0.1); m.roughness = Math.max(m.roughness, 0.55); }
+    m.needsUpdate = true;
+  });
 }
 
 /**
