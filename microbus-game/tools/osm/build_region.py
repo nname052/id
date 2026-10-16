@@ -28,15 +28,20 @@ from shapely import prepared
 import mapbox_earcut as earcut
 import numpy as np
 
-GEN_VERSION = 1
+GEN_VERSION = 2  # v2: عرض الطرق الـ one-way على قد حاراتها + خطوط حافة/حارات
 
 # ===================== جداول الطرق =====================
 DRIVE = ['motorway', 'trunk', 'primary', 'secondary', 'tertiary', 'unclassified', 'residential', 'living_street', 'service', 'road', 'track',
          'motorway_link', 'trunk_link', 'primary_link', 'secondary_link', 'tertiary_link']
 FOOT = ['footway', 'path', 'pedestrian', 'steps', 'cycleway']
-WIDTH = {'motorway': 14, 'trunk': 12, 'primary': 12, 'secondary': 10, 'tertiary': 8, 'unclassified': 6.5, 'residential': 6, 'living_street': 5,
+# عرض الطريق باتجاهين (للعب: الطرق الرئيسية أعرض شوية من v1 والحواري زي ما هي تقريبًا)
+WIDTH = {'motorway': 15, 'trunk': 14, 'primary': 14, 'secondary': 11, 'tertiary': 9, 'unclassified': 7, 'residential': 6.5, 'living_street': 5,
          'service': 4.5, 'road': 6, 'track': 3.5, 'motorway_link': 7, 'trunk_link': 7, 'primary_link': 6.5, 'secondary_link': 6.5, 'tertiary_link': 6,
          'footway': 2.2, 'path': 2.0, 'pedestrian': 4, 'steps': 2, 'cycleway': 2}
+# نص طريق مزدوج (one-way): العرض والحارات
+ONEWAY_W = {'motorway': 7.5, 'trunk': 7.5, 'primary': 7.5, 'secondary': 7, 'tertiary': 6.5, 'unclassified': 5.5, 'residential': 5, 'living_street': 4.5,
+            'service': 4, 'road': 5, 'track': 3.5}
+ONEWAY_LANES = {'motorway': 2, 'trunk': 2, 'primary': 2, 'secondary': 2, 'tertiary': 2}
 LANES = {'motorway': 4, 'trunk': 4, 'primary': 4, 'secondary': 2, 'tertiary': 2, 'unclassified': 2, 'residential': 2, 'living_street': 1,
          'service': 1, 'road': 2, 'track': 1}
 SIDEWALK = {'motorway': 0, 'trunk': 2, 'primary': 3, 'secondary': 2.5, 'tertiary': 2, 'unclassified': 1.5, 'residential': 1.2, 'road': 1.2}
@@ -209,13 +214,20 @@ def main():
         o = t.get('oneway')
         if o in ('yes', '1', 'true') or t.get('junction') in ('roundabout', 'circular'): ow = 1
         elif o == '-1': ow = 1; xy = xy[::-1]; ids = ids[::-1]
-        lanes = num(t.get('lanes'))
-        width = num(t.get('width'))
-        if width is None or width < 2 or width > 40:
-            width = WIDTH.get(hw, 5)
-            if lanes and k == 'drive': width = max(width, lanes * 3.1 if not ow else lanes * 3.3)
-        if not lanes: lanes = (LANES.get(hw.replace('_link', ''), 1) if not hw.endswith('_link') else 1) if k == 'drive' else 0
-        if ow and not t.get('lanes') and lanes > 1 and hw in ('primary', 'trunk'): lanes = 2
+        # العرض والحارات: من OSM لو موجودين (width/lanes)، غير كده تقدير على حسب نوع الطريق —
+        # والطريق الـ one-way (نص طريق مزدوج) عرضه على قد حاراته بس (مش عرض الطريق كله باتجاهين)
+        tag_lanes = num(t.get('lanes'))
+        tag_w = num(t.get('width'))
+        if tag_w is not None and not (2 <= tag_w <= 40): tag_w = None
+        base = hw.replace('_link', '')
+        if k != 'drive':
+            lanes, width = 0, tag_w or WIDTH.get(hw, 2)
+        elif ow:
+            lanes = tag_lanes or ONEWAY_LANES.get(base, 1)
+            width = tag_w or max(ONEWAY_W.get(base, 4.5), lanes * 3.3)
+        else:
+            lanes = tag_lanes or (LANES.get(base, 1) if not hw.endswith('_link') else 2)
+            width = tag_w or max(WIDTH.get(hw, 5), (tag_lanes or 0) * 3.3)
         layer = int(num(t.get('layer')) or 0)
         roads[wid] = dict(id=wid, hw=hw, k=k, ids=ids, xy=xy, ow=ow, lanes=int(lanes), w=r1(width), hwid=r2(width / 2),
                           sw=0 if k == 'foot' else SIDEWALK.get(hw, 0), name=t.get('name'), name_en=t.get('name:en'),
@@ -348,7 +360,7 @@ def main():
             seen.add(e['id']); chain.append(e)
             for n in (e['a'], e['b']):
                 for f in adj[n]:
-                    if f['id'] not in seen and roads[f['way']]['bridge'] and f['k'] == 'drive' and roads[f['way']]['layer'] == roads[e0['way']]['layer']:
+                    if f['id'] not in seen and roads[f['way']]['bridge'] and f['k'] == 'drive':  # كل الكباري المتوصلة سلسلة واحدة (الارتفاع يتطابق عند العقد المشتركة)
                         stack.append(f)
         geom = unary_union([LineString(e['pts']) for e in chain])
         crosses = False
@@ -356,7 +368,8 @@ def main():
             g = under_geoms[gi]
             if g.crosses(geom) or (g.intersects(geom) and not g.touches(geom)):
                 crosses = True; break
-        H = OVERPASS_H if crosses else SMALL_BRIDGE_H
+        # كوبري على ترعة: الحدبة على قد طوله (كوبري 15م → ~40سم بس، مش متر = منحدر 13%)
+        H = OVERPASS_H if crosses else min(SMALL_BRIDGE_H, max(0.25, dist_total(chain) * 0.025))
         name = roads[e0['way']]['name']
         bridge_info.append(dict(name=name, edges=[e['id'] for e in chain], H=H, overpass=crosses))
         # المسافة على السلسلة من أقرب طرف "على الأرض"
@@ -373,9 +386,9 @@ def main():
                     if name and roads[f['way']]['name'] == name:
                         ramp_edges.append((n, f))
         for e in chain:
-            e['pts'] = densify(e['pts'], 8)
+            e['pts'] = densify(e['pts'], 4 if crosses else 2)  # نقط كفاية عشان الحدبة تبقى ناعمة (مش خيمة بـ 3 نقط)
         for n, f in ramp_edges:
-            f['pts'] = densify(f['pts'], 8)
+            f['pts'] = densify(f['pts'], 4)
         # distances: Dijkstra من الأطراف الأرضية (أطراف السلسلة أو أطراف المطالع البعيدة)
         sub = chain + [f for _, f in ramp_edges]
         sadj = collections.defaultdict(list)
@@ -530,8 +543,19 @@ def main():
         sub_ = substring(line, ta, L - tb)
         if sub_ is None: continue
         c = [(r1(x), r1(z)) for x, z in sub_.coords]
+        major = r['hw'] in ('primary', 'trunk', 'secondary', 'tertiary', 'motorway')
+        # خطوط الحافة (الطرق الرئيسية): بتوضّح عرض الطريق
+        if major and r['w'] >= 6:
+            for sd in (-1, 1):
+                o = line_offset(sub_, sd * (r['hwid'] - 0.3))
+                if o is not None: markings.append(dict(t='e', pts=[(r1(x), r1(z)) for x, z in o.coords], solid=True))
         if not r['ow']:
             markings.append(dict(t='c', pts=c, solid=r['hw'] in ('primary', 'trunk')))
+            # 4 حارات أو أكتر: خط متقطع بين الحارتين في كل اتجاه
+            if r['lanes'] >= 4:
+                for sd in (-1, 1):
+                    o = line_offset(sub_, sd * r['hwid'] / 2)
+                    if o is not None: markings.append(dict(t='l', pts=[(r1(x), r1(z)) for x, z in o.coords], solid=False))
         elif r['lanes'] >= 2:
             # خطوط بين الحارات في الاتجاه الواحد
             n = r['lanes']

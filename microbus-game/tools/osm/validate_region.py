@@ -155,6 +155,13 @@ def main():
                           duplicate_edges=sum(1 for v in pairs.values() if v > 1), routing_samples=400, routing_ok=ok, routing_failed=len(fails),
                           note='small components / routing failures come from the OSM source data (oneway dead-ends, isolated ways); nothing is invented to "fix" them')
 
+    # 5b) الارتفاع عند كل عقدة لازم يبقى واحد من كل الوصلات اللي فيها (غير كده = عتبة/قفزة في الكوبري)
+    NH = collections.defaultdict(list)
+    for e in G['edges']:
+        h = e[11]
+        NH[e[0]].append(h[0] if h else 0.0); NH[e[1]].append(h[-1] if h else 0.0)
+    rep['network']['node_height_mismatches'] = sum(1 for v in NH.values() if max(v) - min(v) > 0.05)
+
     # 6) البوابات
     bnd = LineString(REG['polygon'])
     gate_bad = []
@@ -165,7 +172,7 @@ def main():
     rep['gates'] = dict(count=len(REG['gates']), invalid=len(gate_bad), invalid_list=gate_bad[:10])
 
     ok_all = rep['conversion']['max_point_error_m'] < 0.2 and not rep['names']['mismatched'] and not rep['landmarks']['invalid'] \
-        and not rep['buildings']['on_road'] and not rep['buildings']['on_water'] and not rep['buildings']['on_rail'] and not rep['gates']['invalid']
+        and not rep['buildings']['on_road'] and not rep['buildings']['on_water'] and not rep['buildings']['on_rail'] and not rep['gates']['invalid'] and not rep['network']['node_height_mismatches']
     rep['PASS'] = ok_all
     out = f'{D}/metadata/validation.json'
     json.dump(rep, open(out, 'w', encoding='utf-8'), ensure_ascii=False, indent=1)

@@ -3,14 +3,14 @@
  "name": "شبين الكوم",
  "name_en": "Shebin El Kom",
  "governorate": "المنوفية",
- "generator_version": 1,
+ "generator_version": 2,
  "source": {
   "file": "minufiyya-2026-10-14.osm.pbf",
   "note": "BBBike extract of OpenStreetMap (Minufiyya area), downloaded 2026-10-14",
   "sha1": "59550603bc2a7b97a862ed25dc306029792b5c75",
   "osm_header_bbox": null
  },
- "extracted_at": "2026-10-15T23:19:04Z",
+ "extracted_at": "2026-10-16T02:45:18Z",
  "license": {
   "data": "Open Database License (ODbL) 1.0",
   "attribution": "© OpenStreetMap contributors",
@@ -229,7 +229,8 @@
    "roads"
   ],
   "t_-2_-7": [
-   "roads"
+   "roads",
+   "buildings"
   ],
   "t_-2_-6": [
    "roads",
@@ -600,7 +601,7 @@
   "graph_edges": 5756,
   "named_streets": 1006,
   "gates": 99,
-  "buildings_generated": 36150,
+  "buildings_generated": 35743,
   "buildings_real": 13,
   "bridges": 18,
   "canals": 9,
@@ -634,7 +635,7 @@
   },
   {
    "name": "شارع جمال عبد الناصر",
-   "H": 1.0,
+   "H": 0.9222813259050074,
    "overpass": false,
    "edges": [
     407
@@ -677,7 +678,7 @@
   },
   {
    "name": "شارع مساكن موظفي غزل شبين الكوم",
-   "H": 1.0,
+   "H": 0.703902142044389,
    "overpass": false,
    "edges": [
     3695
@@ -685,7 +686,7 @@
   },
   {
    "name": null,
-   "H": 1.0,
+   "H": 0.5027948407856142,
    "overpass": false,
    "edges": [
     3719
@@ -693,7 +694,7 @@
   },
   {
    "name": null,
-   "H": 1.0,
+   "H": 0.3047418838205376,
    "overpass": false,
    "edges": [
     3826
@@ -709,7 +710,7 @@
   },
   {
    "name": null,
-   "H": 1.0,
+   "H": 0.3222263864315922,
    "overpass": false,
    "edges": [
     4143
@@ -717,7 +718,7 @@
   },
   {
    "name": null,
-   "H": 1.0,
+   "H": 0.3173185736917687,
    "overpass": false,
    "edges": [
     4144
@@ -725,7 +726,7 @@
   },
   {
    "name": null,
-   "H": 1.0,
+   "H": 0.37042820666666526,
    "overpass": false,
    "edges": [
     4145
@@ -733,7 +734,7 @@
   },
   {
    "name": null,
-   "H": 1.0,
+   "H": 0.3183798425557406,
    "overpass": false,
    "edges": [
     4146
@@ -741,7 +742,7 @@
   },
   {
    "name": null,
-   "H": 1.0,
+   "H": 0.4502036832766879,
    "overpass": false,
    "edges": [
     4356
@@ -749,7 +750,7 @@
   },
   {
    "name": null,
-   "H": 1.0,
+   "H": 0.2737088466978424,
    "overpass": false,
    "edges": [
     4542
@@ -762,5 +763,5 @@
   "widths": "road width/lanes from OSM tags when present, otherwise class defaults (see tools/osm/build_region.py WIDTH/LANES)",
   "sidewalks": "sidewalk widths by road class (not in OSM)"
  },
- "build_seconds": 46.3
+ "build_seconds": 44.9
 }

@@ -517,6 +517,8 @@ export class Game {
     const inp = { throttle: 0, brake: 0, steer: 0, handbrake: 0, actions: {}, ...input };
     const n = Math.round(seconds / FIXED_DT);
     for (let i = 0; i < n; i++) {
+      const ph = this.player.physics;
+      if (this.world) this.world.refY = ph.heave - ph.spec.cgHeight; // زي اللعب الحقيقي بالظبط
       this.player.beforeStep();
       this.player.physics.step(FIXED_DT, inp, this._colliders);
       if (i % 4 === 0) { this.lights.update(FIXED_DT * 4); this.traffic.update(FIXED_DT * 4, this.player, this.camera.position); }

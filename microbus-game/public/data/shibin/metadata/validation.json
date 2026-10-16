@@ -25,7 +25,7 @@
   ]
  },
  "buildings": {
-  "generated": 36150,
+  "generated": 35743,
   "on_road": 0,
   "worst_overlap_m2": 0.0,
   "on_water": 0,
@@ -45,7 +45,8 @@
   "routing_samples": 400,
   "routing_ok": 399,
   "routing_failed": 1,
-  "note": "small components / routing failures come from the OSM source data (oneway dead-ends, isolated ways); nothing is invented to \"fix\" them"
+  "note": "small components / routing failures come from the OSM source data (oneway dead-ends, isolated ways); nothing is invented to \"fix\" them",
+  "node_height_mismatches": 0
  },
  "gates": {
   "count": 99,

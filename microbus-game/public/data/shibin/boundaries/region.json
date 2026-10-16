@@ -42,7 +42,7 @@
    "osm_way": 88217296,
    "road_class": "secondary",
    "road_name": "شارع حسنى مبارك",
-   "road_width": 10.0
+   "road_width": 7.0
   },
   {
    "id": "exit_93987456_0_1",
@@ -57,7 +57,7 @@
    "osm_way": 93987456,
    "road_class": "secondary",
    "road_name": null,
-   "road_width": 10.0
+   "road_width": 11.0
   },
   {
    "id": "exit_94172939_0_0",
@@ -72,7 +72,7 @@
    "osm_way": 94172939,
    "road_class": "tertiary",
    "road_name": "طريق طنطا, القاهرة",
-   "road_width": 8.0
+   "road_width": 9.0
   },
   {
    "id": "exit_393886996_0_1",
@@ -87,7 +87,7 @@
    "osm_way": 393886996,
    "road_class": "secondary",
    "road_name": "شارع مصطفى كامل",
-   "road_width": 10.0
+   "road_width": 11.0
   },
   {
    "id": "exit_394233985_0_1",
@@ -102,7 +102,7 @@
    "osm_way": 394233985,
    "road_class": "tertiary",
    "road_name": "طريق موقف الباجور الماى",
-   "road_width": 8.0
+   "road_width": 9.0
   },
   {
    "id": "exit_394233988_0_1",
@@ -117,7 +117,7 @@
    "osm_way": 394233988,
    "road_class": "tertiary",
    "road_name": "طريق الماى القديم",
-   "road_width": 8.0
+   "road_width": 9.0
   },
   {
    "id": "exit_394502742_0_0",
@@ -132,7 +132,7 @@
    "osm_way": 394502742,
    "road_class": "unclassified",
    "road_name": null,
-   "road_width": 6.5
+   "road_width": 7.0
   },
   {
    "id": "exit_394502742_0_1",
@@ -147,7 +147,7 @@
    "osm_way": 394502742,
    "road_class": "unclassified",
    "road_name": null,
-   "road_width": 6.5
+   "road_width": 7.0
   },
   {
    "id": "exit_645638266_0_0",
@@ -162,7 +162,7 @@
    "osm_way": 645638266,
    "road_class": "residential",
    "road_name": null,
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_645646585_0_0",
@@ -177,7 +177,7 @@
    "osm_way": 645646585,
    "road_class": "residential",
    "road_name": null,
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_645646585_0_1",
@@ -192,7 +192,7 @@
    "osm_way": 645646585,
    "road_class": "residential",
    "road_name": null,
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_645646585_1_0",
@@ -207,7 +207,7 @@
    "osm_way": 645646585,
    "road_class": "residential",
    "road_name": null,
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_735157678_0_0",
@@ -222,7 +222,7 @@
    "osm_way": 735157678,
    "road_class": "residential",
    "road_name": "شارع السكة التحتانيه",
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_735196911_0_1",
@@ -237,7 +237,7 @@
    "osm_way": 735196911,
    "road_class": "residential",
    "road_name": null,
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_735196916_0_1",
@@ -252,7 +252,7 @@
    "osm_way": 735196916,
    "road_class": "residential",
    "road_name": "امتداد شارع ذكى شبانه",
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_735233044_0_1",
@@ -267,7 +267,7 @@
    "osm_way": 735233044,
    "road_class": "residential",
    "road_name": "امتداد شارع محمود شاهين",
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_738199612_0_1",
@@ -282,7 +282,7 @@
    "osm_way": 738199612,
    "road_class": "residential",
    "road_name": "شارع مسجد الصحابه",
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_738230242_0_0",
@@ -297,7 +297,7 @@
    "osm_way": 738230242,
    "road_class": "residential",
    "road_name": "شارع مسجد عبد الله بن المبارك",
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_738247727_0_0",
@@ -312,7 +312,7 @@
    "osm_way": 738247727,
    "road_class": "residential",
    "road_name": "شارع المنحر",
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_738247727_0_1",
@@ -327,7 +327,7 @@
    "osm_way": 738247727,
    "road_class": "residential",
    "road_name": "شارع المنحر",
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_738247752_0_0",
@@ -342,7 +342,7 @@
    "osm_way": 738247752,
    "road_class": "residential",
    "road_name": "شارع ايمن احمد الحاج",
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_738247754_0_0",
@@ -357,7 +357,7 @@
    "osm_way": 738247754,
    "road_class": "residential",
    "road_name": "شارع عبد الحميد عمارة",
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_738247756_0_0",
@@ -372,7 +372,7 @@
    "osm_way": 738247756,
    "road_class": "residential",
    "road_name": null,
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_738247757_0_0",
@@ -387,7 +387,7 @@
    "osm_way": 738247757,
    "road_class": "residential",
    "road_name": "شارع عطا لله",
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_738247758_0_0",
@@ -402,7 +402,7 @@
    "osm_way": 738247758,
    "road_class": "residential",
    "road_name": "شارع الدكتور محمد نبيل عطا الله",
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_738254912_0_0",
@@ -417,7 +417,7 @@
    "osm_way": 738254912,
    "road_class": "residential",
    "road_name": "شارع المنحر",
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_738254912_0_1",
@@ -432,7 +432,7 @@
    "osm_way": 738254912,
    "road_class": "residential",
    "road_name": "شارع المنحر",
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_738254912_1_0",
@@ -447,7 +447,7 @@
    "osm_way": 738254912,
    "road_class": "residential",
    "road_name": "شارع المنحر",
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_738254913_0_0",
@@ -462,7 +462,7 @@
    "osm_way": 738254913,
    "road_class": "residential",
    "road_name": null,
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_738254914_0_0",
@@ -477,7 +477,7 @@
    "osm_way": 738254914,
    "road_class": "residential",
    "road_name": "شارع محمد عبد الله",
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_738254915_0_0",
@@ -492,7 +492,7 @@
    "osm_way": 738254915,
    "road_class": "residential",
    "road_name": null,
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_738254916_0_0",
@@ -507,7 +507,7 @@
    "osm_way": 738254916,
    "road_class": "residential",
    "road_name": "شارع احمد شوقى",
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_738254917_0_0",
@@ -522,7 +522,7 @@
    "osm_way": 738254917,
    "road_class": "residential",
    "road_name": "شارع قنديل",
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_738254919_0_0",
@@ -537,7 +537,7 @@
    "osm_way": 738254919,
    "road_class": "residential",
    "road_name": "شارع ابراهيم حجازي",
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_738254920_0_0",
@@ -552,7 +552,7 @@
    "osm_way": 738254920,
    "road_class": "residential",
    "road_name": "شارع سميح كوادى",
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_738254921_0_0",
@@ -567,7 +567,7 @@
    "osm_way": 738254921,
    "road_class": "residential",
    "road_name": "شارع على عيسي",
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_738254923_0_0",
@@ -582,7 +582,7 @@
    "osm_way": 738254923,
    "road_class": "residential",
    "road_name": "شارع العبور",
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_738261673_0_1",
@@ -597,7 +597,7 @@
    "osm_way": 738261673,
    "road_class": "residential",
    "road_name": null,
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_738261674_0_1",
@@ -612,7 +612,7 @@
    "osm_way": 738261674,
    "road_class": "residential",
    "road_name": "شارع المنحر",
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_738261674_1_0",
@@ -627,7 +627,7 @@
    "osm_way": 738261674,
    "road_class": "residential",
    "road_name": "شارع المنحر",
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_738261678_0_0",
@@ -642,7 +642,7 @@
    "osm_way": 738261678,
    "road_class": "residential",
    "road_name": "شارع الحسن البصري",
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_738289411_0_1",
@@ -657,7 +657,7 @@
    "osm_way": 738289411,
    "road_class": "residential",
    "road_name": "شارع سكة العرب",
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_739874242_0_1",
@@ -672,7 +672,7 @@
    "osm_way": 739874242,
    "road_class": "unclassified",
    "road_name": null,
-   "road_width": 6.5
+   "road_width": 7.0
   },
   {
    "id": "exit_739874243_0_1",
@@ -687,7 +687,7 @@
    "osm_way": 739874243,
    "road_class": "residential",
    "road_name": null,
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_739886709_0_1",
@@ -702,7 +702,7 @@
    "osm_way": 739886709,
    "road_class": "residential",
    "road_name": null,
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_740241227_0_1",
@@ -717,7 +717,7 @@
    "osm_way": 740241227,
    "road_class": "residential",
    "road_name": "شارع البساتين",
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_740423992_0_0",
@@ -732,7 +732,7 @@
    "osm_way": 740423992,
    "road_class": "tertiary",
    "road_name": null,
-   "road_width": 8.0
+   "road_width": 9.0
   },
   {
    "id": "exit_741312164_0_0",
@@ -747,7 +747,7 @@
    "osm_way": 741312164,
    "road_class": "secondary",
    "road_name": null,
-   "road_width": 10.0
+   "road_width": 7.0
   },
   {
    "id": "exit_741312166_0_1",
@@ -762,7 +762,7 @@
    "osm_way": 741312166,
    "road_class": "secondary",
    "road_name": null,
-   "road_width": 10.0
+   "road_width": 7.0
   },
   {
    "id": "exit_742134029_0_1",
@@ -777,7 +777,7 @@
    "osm_way": 742134029,
    "road_class": "unclassified",
    "road_name": null,
-   "road_width": 6.5
+   "road_width": 7.0
   },
   {
    "id": "exit_742158168_0_0",
@@ -792,7 +792,7 @@
    "osm_way": 742158168,
    "road_class": "residential",
    "road_name": null,
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_742182460_0_1",
@@ -807,7 +807,7 @@
    "osm_way": 742182460,
    "road_class": "residential",
    "road_name": null,
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_747819225_0_0",
@@ -822,7 +822,7 @@
    "osm_way": 747819225,
    "road_class": "residential",
    "road_name": null,
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_747830681_0_0",
@@ -837,7 +837,7 @@
    "osm_way": 747830681,
    "road_class": "residential",
    "road_name": null,
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_748688698_0_0",
@@ -852,7 +852,7 @@
    "osm_way": 748688698,
    "road_class": "residential",
    "road_name": null,
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_748688703_0_0",
@@ -867,7 +867,7 @@
    "osm_way": 748688703,
    "road_class": "residential",
    "road_name": null,
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_749397517_0_0",
@@ -882,7 +882,7 @@
    "osm_way": 749397517,
    "road_class": "residential",
    "road_name": null,
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_749403434_0_1",
@@ -897,7 +897,7 @@
    "osm_way": 749403434,
    "road_class": "residential",
    "road_name": null,
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_749407834_0_0",
@@ -912,7 +912,7 @@
    "osm_way": 749407834,
    "road_class": "residential",
    "road_name": null,
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_749407837_0_1",
@@ -927,7 +927,7 @@
    "osm_way": 749407837,
    "road_class": "residential",
    "road_name": null,
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_749442735_0_1",
@@ -942,7 +942,7 @@
    "osm_way": 749442735,
    "road_class": "residential",
    "road_name": null,
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_749442741_0_1",
@@ -957,7 +957,7 @@
    "osm_way": 749442741,
    "road_class": "residential",
    "road_name": null,
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_749455638_0_1",
@@ -972,7 +972,7 @@
    "osm_way": 749455638,
    "road_class": "residential",
    "road_name": null,
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_749513164_0_0",
@@ -987,7 +987,7 @@
    "osm_way": 749513164,
    "road_class": "residential",
    "road_name": null,
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_749553626_0_0",
@@ -1002,7 +1002,7 @@
    "osm_way": 749553626,
    "road_class": "residential",
    "road_name": null,
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_749553628_0_0",
@@ -1017,7 +1017,7 @@
    "osm_way": 749553628,
    "road_class": "residential",
    "road_name": null,
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_749730894_0_1",
@@ -1032,7 +1032,7 @@
    "osm_way": 749730894,
    "road_class": "residential",
    "road_name": null,
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_749799226_0_1",
@@ -1047,7 +1047,7 @@
    "osm_way": 749799226,
    "road_class": "residential",
    "road_name": null,
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_749802590_0_1",
@@ -1062,7 +1062,7 @@
    "osm_way": 749802590,
    "road_class": "unclassified",
    "road_name": null,
-   "road_width": 6.5
+   "road_width": 7.0
   },
   {
    "id": "exit_749804198_0_1",
@@ -1077,7 +1077,7 @@
    "osm_way": 749804198,
    "road_class": "residential",
    "road_name": null,
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_749821116_0_0",
@@ -1092,7 +1092,7 @@
    "osm_way": 749821116,
    "road_class": "residential",
    "road_name": null,
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_756882994_0_1",
@@ -1107,7 +1107,7 @@
    "osm_way": 756882994,
    "road_class": "residential",
    "road_name": null,
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_762237735_0_1",
@@ -1122,7 +1122,7 @@
    "osm_way": 762237735,
    "road_class": "residential",
    "road_name": "شارع مصطفى النجار",
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_762242164_0_1",
@@ -1137,7 +1137,7 @@
    "osm_way": 762242164,
    "road_class": "residential",
    "road_name": "شارع فوزي زين",
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_762242165_0_1",
@@ -1152,7 +1152,7 @@
    "osm_way": 762242165,
    "road_class": "residential",
    "road_name": "شارع شوقى خالد",
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_762242168_0_0",
@@ -1167,7 +1167,7 @@
    "osm_way": 762242168,
    "road_class": "residential",
    "road_name": "شارع الشهيد موسى العزب",
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_762254858_0_0",
@@ -1182,7 +1182,7 @@
    "osm_way": 762254858,
    "road_class": "residential",
    "road_name": "طريق خلف الجامعه",
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_762254873_0_0",
@@ -1197,7 +1197,7 @@
    "osm_way": 762254873,
    "road_class": "residential",
    "road_name": null,
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_762259107_0_1",
@@ -1212,7 +1212,7 @@
    "osm_way": 762259107,
    "road_class": "residential",
    "road_name": null,
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_768493631_0_1",
@@ -1227,7 +1227,7 @@
    "osm_way": 768493631,
    "road_class": "residential",
    "road_name": null,
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_768493634_0_0",
@@ -1242,7 +1242,7 @@
    "osm_way": 768493634,
    "road_class": "residential",
    "road_name": null,
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_769863969_0_0",
@@ -1272,7 +1272,7 @@
    "osm_way": 796438673,
    "road_class": "residential",
    "road_name": null,
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_796438674_0_0",
@@ -1287,7 +1287,7 @@
    "osm_way": 796438674,
    "road_class": "residential",
    "road_name": null,
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_796894288_0_1",
@@ -1302,7 +1302,7 @@
    "osm_way": 796894288,
    "road_class": "secondary",
    "road_name": "شارع حسنى مبارك",
-   "road_width": 10.0
+   "road_width": 7.0
   },
   {
    "id": "exit_796971014_0_1",
@@ -1317,7 +1317,7 @@
    "osm_way": 796971014,
    "road_class": "residential",
    "road_name": null,
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_797029212_0_0",
@@ -1332,7 +1332,7 @@
    "osm_way": 797029212,
    "road_class": "tertiary",
    "road_name": "شارع السكة الحديد",
-   "road_width": 8.0
+   "road_width": 9.0
   },
   {
    "id": "exit_797196152_0_0",
@@ -1347,7 +1347,7 @@
    "osm_way": 797196152,
    "road_class": "primary",
    "road_name": "شارع جمال عبد الناصر",
-   "road_width": 12.0
+   "road_width": 7.5
   },
   {
    "id": "exit_797196153_0_1",
@@ -1362,7 +1362,7 @@
    "osm_way": 797196153,
    "road_class": "primary",
    "road_name": "شارع جمال عبد الناصر",
-   "road_width": 12.0
+   "road_width": 7.5
   },
   {
    "id": "exit_797398982_0_0",
@@ -1377,7 +1377,7 @@
    "osm_way": 797398982,
    "road_class": "primary",
    "road_name": null,
-   "road_width": 12.0
+   "road_width": 14.0
   },
   {
    "id": "exit_798375771_0_0",
@@ -1392,7 +1392,7 @@
    "osm_way": 798375771,
    "road_class": "tertiary",
    "road_name": "شارع الشهيد العقيد عاصم فرج",
-   "road_width": 8.0
+   "road_width": 9.0
   },
   {
    "id": "exit_954622216_0_1",
@@ -1452,7 +1452,7 @@
    "osm_way": 1170788342,
    "road_class": "secondary",
    "road_name": "طريق جنزور",
-   "road_width": 10.0
+   "road_width": 11.0
   },
   {
    "id": "exit_1210690218_0_0",
@@ -1467,7 +1467,7 @@
    "osm_way": 1210690218,
    "road_class": "secondary",
    "road_name": "طريق شبرا باص",
-   "road_width": 10.0
+   "road_width": 11.0
   },
   {
    "id": "exit_1220623064_0_1",
@@ -1482,7 +1482,7 @@
    "osm_way": 1220623064,
    "road_class": "residential",
    "road_name": null,
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_1238668703_0_1",
@@ -1497,7 +1497,7 @@
    "osm_way": 1238668703,
    "road_class": "residential",
    "road_name": null,
-   "road_width": 6.0
+   "road_width": 6.5
   },
   {
    "id": "exit_1497648135_0_1",

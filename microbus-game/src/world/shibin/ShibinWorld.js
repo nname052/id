@@ -52,6 +52,7 @@ export class ShibinWorld {
       else for (const r of d.lines || []) if (r.kind !== 'disused') this._mmRail.push(r);
     }
     this._materials();
+    this._buildRamps();
     this._ground();
     this._gates();
     this._landmarkSigns();
@@ -69,15 +70,101 @@ export class ShibinWorld {
     const bank = new THREE.MeshStandardMaterial({ color: 0x6b5d45, roughness: 1, side: DS });
     // حرف الرصيف: نفس خامة الخريطة القديمة بس بالوشين (اتجاه حلقات المضلعات مش ثابت)
     const curb = M.curb.clone(); curb.side = DS;
+    // دهان الخطوط: نفس خامة الخريطة القديمة بالوشين (اتجاه الأشرطة بيتحدد من اتجاه الخط)
+    const paint = M.paint.clone(); paint.side = DS;
     const foot = new THREE.MeshStandardMaterial({ color: 0xa89878, roughness: 1 });
     const plain = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 });
     const concrete = new THREE.MeshStandardMaterial({ color: 0x9c9890, roughness: 0.9, side: DS });
     const pitch = new THREE.MeshStandardMaterial({ color: 0x3f8f3a, roughness: 0.95 });
-    this.mats = { water, ballast, rail, bank, foot, plain, concrete, pitch, curb, bld: buildingMaterial(M), bldLow: buildingMaterial(M, { low: true }) };
+    this.mats = { water, ballast, rail, bank, foot, plain, concrete, pitch, curb, paint, bld: buildingMaterial(M), bldLow: buildingMaterial(M, { low: true }) };
   }
 
   setNight(on) {
     for (const m of [this.mats.bld, this.mats.bldLow]) m.userData.U.uNight.value = on ? 1 : 0;
+  }
+
+  /**
+   * الكباري للفيزيا: كل وصلة عالية في الشبكة بخطها الكامل (الارتفاع بيبدأ من صفر بالراحة) — نفس الارتفاعات
+   * اللي المرور ماشي عليها. + رسم الجزء الواطي من المطلع (أقل من 45سم) اللي ملف المربعات مكانش بيرسمه
+   */
+  _buildRamps() {
+    const pos = [], col = [], uv = [], idx = [];
+    for (const e of this.graph.edges) {
+      if (!e.elevated) continue;
+      const P = e.pts, hw = e.half;
+      for (let i = 0; i < P.length - 1; i++) {
+        const a = P[i], b = P[i + 1];
+        const sgm = { ax: a.x, ay: a.y, az: a.z, bx: b.x, by: b.y, bz: b.z, hw: hw + 0.3, edge: e.src, e };
+        const x0 = Math.floor((Math.min(a.x, b.x) - hw - 1) / 20), x1 = Math.floor((Math.max(a.x, b.x) + hw + 1) / 20);
+        const z0 = Math.floor((Math.min(a.z, b.z) - hw - 1) / 20), z1 = Math.floor((Math.max(a.z, b.z) + hw + 1) / 20);
+        for (let gi = x0; gi <= x1; gi++) for (let gj = z0; gj <= z1; gj++) {
+          const k = gi * 100003 + gj; let arr = this.deckGrid.get(k); if (!arr) this.deckGrid.set(k, (arr = [])); arr.push(sgm);
+        }
+        // الرسم: الجزء الواطي بس (العالي متبني في المربع)
+        if (Math.max(a.y, b.y) > 0.45 || Math.max(a.y, b.y) < 0.005) continue;
+        const dx = b.x - a.x, dz = b.z - a.z, L = Math.hypot(dx, dz) || 1, rx = -dz / L * hw, rz = dx / L * hw;
+        const k = pos.length / 3;
+        pos.push(a.x - rx, a.y + 0.012, a.z - rz, a.x + rx, a.y + 0.012, a.z + rz, b.x + rx, b.y + 0.012, b.z + rz, b.x - rx, b.y + 0.012, b.z - rz);
+        for (let q = 0; q < 4; q++) col.push(0.92, 0.92, 0.92);
+        uv.push((a.x - rx) / 7, (a.z - rz) / 7, (a.x + rx) / 7, (a.z + rz) / 7, (b.x + rx) / 7, (b.z + rz) / 7, (b.x - rx) / 7, (b.z - rz) / 7);
+        const cr = (2 * rx) * ((b.z + rz) - (a.z - rz)) - (2 * rz) * ((b.x + rx) - (a.x - rx));
+        if (cr > 0) idx.push(k, k + 2, k + 1, k, k + 3, k + 2); else idx.push(k, k + 1, k + 2, k, k + 2, k + 3);
+      }
+    }
+    if (!idx.length) return;
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    g.setIndex(idx); g.computeVertexNormals();
+    const m = new THREE.Mesh(g, this.M.asphalt); m.receiveShadow = true; m.name = 'ramps';
+    this.group.add(m);
+  }
+
+  /** فيه طريق على الأرض (مش كوبري) خطه أقرب من d للنقطة دي، والنقطة جوه عرضه؟ (نادر: بيتنادى عند أطراف المطالع بس) */
+  _groundRoadNearer(x, z, d, deck) {
+    const G = this.graph, C = G.CELL, cx = Math.floor(x / C), cz = Math.floor(z / C);
+    for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
+      const arr = G.grid.get(`${cx + i},${cz + j}`);
+      if (!arr) continue;
+      for (let k = 0; k < arr.length; k += 2) {
+        const e = arr[k];
+        if (e.elevated || e.closed) continue;
+        // الطريق اللي بيكمّل الكوبري نفسه (متوصل بيه) مش "شارع موازي"
+        if (deck && (e.from === deck.from || e.from === deck.to || e.to === deck.from || e.to === deck.to)) continue;
+        const a = e.pts[arr[k + 1]], b = e.pts[arr[k + 1] + 1];
+        const ex = b.x - a.x, ez = b.z - a.z, l2 = ex * ex + ez * ez || 1e-9;
+        const t = Math.max(0, Math.min(1, ((x - a.x) * ex + (z - a.z) * ez) / l2));
+        const dd = Math.hypot(x - (a.x + ex * t), z - (a.z + ez * t));
+        if (dd < d && dd < e.half - (d === Infinity ? 0.3 : 0)) return true;
+      }
+    }
+    return false;
+  }
+
+  /** النقطة دي تحت (أو على) سطح أي كوبري؟ */
+  _underDeck(x, z) {
+    const segs = this.deckGrid.get(Math.floor(x / 20) * 100003 + Math.floor(z / 20));
+    if (!segs) return false;
+    for (const s of segs) {
+      const ex = s.bx - s.ax, ez = s.bz - s.az, l2 = ex * ex + ez * ez || 1e-9;
+      const t = Math.max(0, Math.min(1, ((x - s.ax) * ex + (z - s.az) * ez) / l2));
+      if (Math.hypot(x - (s.ax + ex * t), z - (s.az + ez * t)) < s.hw + 0.5) return true;
+    }
+    return false;
+  }
+
+  /** النقطة دي على سطح كوبري تاني (غير edge) في نفس الارتفاع تقريبًا؟ */
+  _insideOtherDeck(x, z, y, edgeId) {
+    const segs = this.deckGrid.get(Math.floor(x / 20) * 100003 + Math.floor(z / 20));
+    if (!segs) return false;
+    for (const s of segs) {
+      if (s.edge === edgeId) continue;
+      const ex = s.bx - s.ax, ez = s.bz - s.az, l2 = ex * ex + ez * ez || 1e-9;
+      const t = Math.max(0, Math.min(1, ((x - s.ax) * ex + (z - s.az) * ez) / l2));
+      if (Math.hypot(x - (s.ax + ex * t), z - (s.az + ez * t)) < s.hw + 0.2 && Math.abs(s.ay + (s.by - s.ay) * t - y) < 1.6) return true;
+    }
+    return false;
   }
 
   // أرض المنطقة كلها: تراب/أرض (الغيطان والفراغات بين البيوت)
@@ -230,16 +317,33 @@ export class ShibinWorld {
     // الكباري: أعلى سطح تحت العربية (أو على مستوى طلعتها)
     const segs = this.deckGrid.get(Math.floor(x / 20) * 100003 + Math.floor(z / 20));
     if (segs) {
-      let best = g;
+      // أقرب سطح كوبري (بالمسافة من خطه) من اللي العربية ممكن تكون عليهم — مش "الأعلى":
+      // الأعلى كان بيلقط الكوبري اللي جنبك أو طرف قطعة ممدود قبل بدايتها = قفزة/انقلاب
+      let bestD = Infinity, bh = null, bestE = null;
+      const cand = this._cand || (this._cand = []); cand.length = 0;
       for (const s of segs) {
         const ex = s.bx - s.ax, ez = s.bz - s.az, l2 = ex * ex + ez * ez || 1e-9;
         const t = Math.max(0, Math.min(1, ((x - s.ax) * ex + (z - s.az) * ez) / l2));
         const d = Math.hypot(x - (s.ax + ex * t), z - (s.az + ez * t));
         if (d > s.hw) continue;
-        const h = s.ay + (s.by - s.ay) * t;
-        if (h <= ref + 1.3 && h > best) best = h;
+        let h = s.ay + (s.by - s.ay) * t;
+        // أول المطلع (واطي): حرفه الجانبي منحدر ناعم مش عتبة (لو حارة شارع جنبه بتلمسه)
+        if (h < 0.5) h *= Math.min(1, (s.hw - d) / 3);
+        // بنفضل على السطح اللي العربية عليه: بس الأسطح القريبة من ارتفاعها (±0.8م) — مطلع جنب كوبري
+        // أعلى/أوطى منه مايشقلبش العربية — ومن بينهم الأقرب لخطه (عشان التفريعة تمشي مع اللي ماشي عليها)
+        if (Math.abs(h - ref) > 0.8 || h < g - 0.05) continue;
+        cand.push(d, h);
+        if (d < bestD) { bestD = d; bh = h; bestE = s.e; }
       }
-      g = best;
+      // تنعيم عند انحناءات الخط: متوسط موزون للقطع القريبة (وزن بينزل لصفر خطيًا) — مفيش عتبات عند الكوع
+      if (cand.length > 2) {
+        let sw = 0, sh = 0;
+        for (let k = 0; k < cand.length; k += 2) { const w = Math.max(0, bestD + 0.8 - cand[k]); sw += w; sh += w * cand[k + 1]; }
+        if (sw > 0) bh = sh / sw;
+      }
+      // أول/آخر المطلع (واطي) جنب شارع على الأرض موازي ليه: لو العربية أقرب لخط الشارع، فهي على الشارع
+      if (bh !== null && bh < 1.2 && (ref < bh - 0.25 ? this._groundRoadNearer(x, z, Infinity, null) : bh < 0.8 && this._groundRoadNearer(x, z, bestD, bestE))) bh = null;
+      if (bh !== null) g = bh;
     }
     return g;
   }
@@ -353,7 +457,7 @@ export class ShibinWorld {
     }
     if (R.marks?.length) {
       const g = marksGeo(R.marks);
-      if (g) { const m = new THREE.Mesh(g, M.paint); m.renderOrder = 1; T.detail.add(m); }
+      if (g) { const m = new THREE.Mesh(g, this.mats.paint); m.renderOrder = 1; T.detail.add(m); }
     }
     if (R.decks?.length) this._buildDecks(T, R.decks);
   }
@@ -375,13 +479,14 @@ export class ShibinWorld {
           const s = { ax: x, ay: y, az: z, bx: p[(i + 1) * 3], by: p[(i + 1) * 3 + 1], bz: p[(i + 1) * 3 + 2], hw: hw + 0.3 };
           const xs = [Math.floor((Math.min(s.ax, s.bx) - hw) / 20), Math.floor((Math.max(s.ax, s.bx) + hw) / 20)];
           const zs = [Math.floor((Math.min(s.az, s.bz) - hw) / 20), Math.floor((Math.max(s.az, s.bz) + hw) / 20)];
-          for (let gi = xs[0]; gi <= xs[1]; gi++) for (let gj = zs[0]; gj <= zs[1]; gj++) {
-            const k = gi * 100003 + gj; let a2 = this.deckGrid.get(k); if (!a2) this.deckGrid.set(k, (a2 = [])); a2.push(s); T.deckKeys.push([k, s]);
-          }
+          void xs; void zs; // (ارتفاع الكباري للفيزيا بقى من خط الشبكة نفسه — _buildRamps)
           // سور الكوبري (تصادم للي فوقه بس)
           const segL = Math.hypot(s.bx - s.ax, s.bz - s.az), ang = Math.atan2(s.bx - s.ax, s.bz - s.az), ym = Math.min(s.ay, s.by);
           if (ym > 0.6) for (const sd of [-1, 1]) {
-            this._addCollider({ cx: (s.ax + s.bx) / 2 + rx * (hw + 0.15) * sd, cz: (s.az + s.bz) / 2 + rz * (hw + 0.15) * sd, hx: 0.15, hz: segL / 2 + 0.2, angle: ang, restitution: 0.2, kind: 'edge', yMin: ym - 0.9 }, T);
+            // السور ده جوه سطح كوبري تاني (اتجاهين قريبين من بعض في OSM)؟ → مايتحطش (كان بيقفل الحارة)
+            const px = (s.ax + s.bx) / 2 + rx * (hw + 0.15) * sd, pz = (s.az + s.bz) / 2 + rz * (hw + 0.15) * sd;
+            if (this._insideOtherDeck(px, pz, ym, D.edge)) continue;
+            this._addCollider({ cx: (s.ax + s.bx) / 2 + rx * (hw + 0.15) * sd, cz: (s.az + s.bz) / 2 + rz * (hw + 0.15) * sd, hx: 0.15, hz: segL / 2 + 0.2, angle: ang, restitution: 0.2, kind: 'edge', yMin: ym - 0.9, yMax: Math.max(s.ay, s.by) + 1.2 }, T);
           }
         }
       }
@@ -400,16 +505,20 @@ export class ShibinWorld {
         const sx = r0[0] - l0[0], sz = r0[2] - l0[2], sl = Math.hypot(sx, sz) || 1;
         const nl = [-sx / sl, 0, -sz / sl], nr = [sx / sl, 0, sz / sl];
         if (Math.max(l0[1], l1[1]) > 0.4) {
-          pushQuad(cpos, cnor, cidx, dn(l1, -0.9), dn(l0, -0.9), dn(l0, 0.95), dn(l1, 0.95), nl);
-          pushQuad(cpos, cnor, cidx, dn(r0, -0.9), dn(r1, -0.9), dn(r1, 0.95), dn(r0, 0.95), nr);
+          // السور اللي جوه سطح كوبري تاني (مطلع بيتفرّع/بيعدّي جنبه) مايتبنيش — كان بيخرق الكوبري التاني
+          const ym = (l0[1] + l1[1]) / 2;
+          const inL = this._insideOtherDeck((l0[0] + l1[0]) / 2, (l0[2] + l1[2]) / 2, ym, D.edge);
+          const inR = this._insideOtherDeck((r0[0] + r1[0]) / 2, (r0[2] + r1[2]) / 2, ym, D.edge);
+          if (!inL) pushQuad(cpos, cnor, cidx, dn(l1, -0.9), dn(l0, -0.9), dn(l0, 0.95), dn(l1, 0.95), nl);
+          if (!inR) pushQuad(cpos, cnor, cidx, dn(r0, -0.9), dn(r1, -0.9), dn(r1, 0.95), dn(r0, 0.95), nr);
           pushQuad(cpos, cnor, cidx, dn(l0, -0.9), dn(l1, -0.9), dn(r1, -0.9), dn(r0, -0.9), [0, -1, 0]);
           // جوه السور (ناحية الأسفلت)
           const il0 = [l0[0] + nr[0] * 0.25, l0[1], l0[2] + nr[2] * 0.25], il1 = [l1[0] + nr[0] * 0.25, l1[1], l1[2] + nr[2] * 0.25];
           const ir0 = [r0[0] + nl[0] * 0.25, r0[1], r0[2] + nl[2] * 0.25], ir1 = [r1[0] + nl[0] * 0.25, r1[1], r1[2] + nl[2] * 0.25];
-          pushQuad(cpos, cnor, cidx, dn(il0, 0), dn(il1, 0), dn(il1, 0.95), dn(il0, 0.95), nr);
-          pushQuad(cpos, cnor, cidx, dn(ir1, 0), dn(ir0, 0), dn(ir0, 0.95), dn(ir1, 0.95), nl);
-          pushQuad(cpos, cnor, cidx, dn(l0, 0.95), dn(il0, 0.95), dn(il1, 0.95), dn(l1, 0.95), [0, 1, 0]);
-          pushQuad(cpos, cnor, cidx, dn(ir0, 0.95), dn(r0, 0.95), dn(r1, 0.95), dn(ir1, 0.95), [0, 1, 0]);
+          if (!inL) pushQuad(cpos, cnor, cidx, dn(il0, 0), dn(il1, 0), dn(il1, 0.95), dn(il0, 0.95), nr);
+          if (!inR) pushQuad(cpos, cnor, cidx, dn(ir1, 0), dn(ir0, 0), dn(ir0, 0.95), dn(ir1, 0.95), nl);
+          if (!inL) pushQuad(cpos, cnor, cidx, dn(l0, 0.95), dn(il0, 0.95), dn(il1, 0.95), dn(l1, 0.95), [0, 1, 0]);
+          if (!inR) pushQuad(cpos, cnor, cidx, dn(ir0, 0.95), dn(r0, 0.95), dn(r1, 0.95), dn(ir1, 0.95), [0, 1, 0]);
         }
       }
       // عواميد تحت الكوبري كل ~24م
@@ -456,7 +565,13 @@ export class ShibinWorld {
           const ax = ring[i], az = ring[i + 1], bx = ring[i + 2], bz = ring[i + 3];
           if (onTileEdge(ax, az, bx, bz, T, this.TS)) continue;
           const L = Math.hypot(bx - ax, bz - az); if (L < 0.3) continue;
-          this._addCollider({ cx: (ax + bx) / 2, cz: (az + bz) / 2, hx: 0.2, hz: L / 2 + 0.1, angle: Math.atan2(bx - ax, bz - az), restitution: 0.2, kind: 'edge', yMax: 0.45 }, T);
+          // نقسمها حتت 2م، والحتة اللي تحت كوبري مالهاش حاجز (العربية فوقها بتعدي على الكوبري)
+          const n = Math.max(1, Math.ceil(L / 2)), ang = Math.atan2(bx - ax, bz - az);
+          for (let k = 0; k < n; k++) {
+            const cx = ax + (bx - ax) * (k + 0.5) / n, cz = az + (bz - az) * (k + 0.5) / n;
+            if (this._underDeck(cx, cz)) continue;
+            this._addCollider({ cx, cz, hx: 0.2, hz: L / n / 2 + 0.05, angle: ang, restitution: 0.2, kind: 'edge', yMax: 0.45 }, T);
+          }
         }
       }
     }
@@ -735,6 +850,8 @@ function triGrid(v, ix, C) {
   const grid = new Map();
   for (let k = 0; k < ix.length; k += 3) {
     const a = ix[k] * 2, b = ix[k + 1] * 2, c = ix[k + 2] * 2;
+    // مثلث مساحته صفر (شريحة من التقريب): كان بيتحسب "جوه" لأي نقطة على خطه = مطب مخفي 15سم في نص الحارة
+    if (Math.abs((v[b] - v[a]) * (v[c + 1] - v[a + 1]) - (v[b + 1] - v[a + 1]) * (v[c] - v[a])) < 0.02) continue;
     const x0 = Math.floor(Math.min(v[a], v[b], v[c]) / C), x1 = Math.floor(Math.max(v[a], v[b], v[c]) / C);
     const z0 = Math.floor(Math.min(v[a + 1], v[b + 1], v[c + 1]) / C), z1 = Math.floor(Math.max(v[a + 1], v[b + 1], v[c + 1]) / C);
     for (let i = x0; i <= x1; i++) for (let j = z0; j <= z1; j++) {

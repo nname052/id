@@ -44,7 +44,11 @@ export class ShibinTraffic {
 
   /** حارة العربية على الوصلة: يمين اتجاه السير */
   _laneOff(e) {
-    if (!e.oneway) return Math.max(1.0, Math.min(2.2, e.half * 0.5));
+    if (!e.oneway) {
+      // باتجاهين: 4 حارات أو أكتر → يا الحارة الجوانية يا البرانية في اتجاهك
+      if ((e.lanes || 2) >= 4) return (this.R() < 0.5 ? 0.25 : 0.75) * e.half;
+      return Math.max(1.0, Math.min(2.2, e.half * 0.5));
+    }
     const n = Math.max(1, e.lanes || 1);
     if (n === 1) return 0;
     const k = Math.floor(this.R() * n);
