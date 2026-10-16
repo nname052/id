@@ -170,7 +170,7 @@ export class Game {
     S('المرور والمشاة...', 0.82);
     await nextFrame();
     if (this.world) {
-      this.traffic = new ShibinTraffic(this.scene, (type, color, o) => this._makeCar(type, color, o), this.audio, this.world, { count: this.mobile ? 16 : 26 });
+      this.traffic = new ShibinTraffic(this.scene, (type, color, o) => this._makeCar(type, color, o), this.audio, this.world, { count: this.tier === 'low' ? 14 : this.mobile ? 20 : 32, parked: this.tier === 'low' ? 6 : this.mobile ? 10 : 18 });
       this.traffic.viewDist = this.mobile ? 150 : 190;
       this.crowdBase = this.mobile ? 70 : 130;
       this.crowd = new ShibinCrowd(this.scene, this.world, { count: this.crowdBase });
@@ -222,6 +222,10 @@ export class Game {
     this.station = this.world ? null : buildPetrolStation(this.scene);
     if (this.station) this.statics.push(...this.station.colliders);
     this.police = new Police(this.scene, { hud: this.hud, wallet: this.wallet, licenses: this.licenses, spots: this.world ? this.world.policeSpots : null });
+    // أماكن محجوزة (محطات ركوب + كماين): مفيش عربيات مركونة فيها
+    if (this.world) this.world.nearReserved = (x, z, r) =>
+      this.passengers.stops.some((st) => (st.mx ?? st.x) - x < r + 8 && x - (st.mx ?? st.x) < r + 8 && Math.hypot((st.mx ?? st.x) - x, (st.mz ?? st.z) - z) < r + 8) ||
+      (this.world.policeSpots || []).some((sp) => Math.hypot(sp.q.x - x, sp.q.z - z) < r + 40);
     this.incidents = new Incidents(this.scene, { hud: this.hud, wallet: this.wallet, licenses: this.licenses, passengers: this.passengers, audio: this.audio });
     this.race = this.raceTrack ? new Race(this) : null;
     this.docs = new Docs(this, this.touch ? this.touch.root.querySelector('.t-top') : null);

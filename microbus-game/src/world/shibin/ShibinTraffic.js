@@ -16,7 +16,7 @@ const _a = {}, _b = {};
 function rng(seed) { let s = seed >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
 
 export class ShibinTraffic {
-  constructor(scene, makeCar, audio, world, { count = 26 } = {}) {
+  constructor(scene, makeCar, audio, world, { count = 26, parked = 14 } = {}) {
     this.scene = scene; this.makeCar = makeCar; this.audio = audio; this.world = world; this.graph = world.graph;
     this.R = rng(9091);
     this.cars = [];
@@ -35,6 +35,73 @@ export class ShibinTraffic {
         e: null, dir: 1, s: 0, v: 0, acc: 0, vMul: 0.85 + this.R() * 0.3, lane: 0, next: null, turn: null, hold: null,
         x: 0, y: 0, z: 0, yaw: 0, spin: 0, bumped: 0, kox: 0, koz: 0, honk: 3 + this.R() * 5, waitPlayer: 0, visible: false, stuck: 0,
       });
+    }
+    // عربيات مركونة على جنب الشارع (نسخة مخبوزة خفيفة، ثابتة) — بس في الشوارع اللي فيها مكان جنب حارة المرور
+    const PT = ['sedan', 'boxy', 'taxi', 'boxy', 'microbus', 'sedan'];
+    for (let i = 0; i < parked; i++) {
+      const type = PT[i % PT.length];
+      const rig = makeCar(type, CAR_COLORS[Math.floor(this.R() * CAR_COLORS.length)], { parked: true });
+      rig.root.visible = false;
+      rig.root.traverse((o) => { if (o.isMesh) o.castShadow = false; });
+      scene.add(rig.root);
+      const len = type === 'microbus' ? 4.9 : rig.length || 4.4, width = type === 'microbus' ? 1.9 : rig.width || 1.8;
+      this.parked.push({ rig, type, on: false, len, width, x: 0, y: 0, z: 0, yaw: 0,
+        col: { cx: 0, cz: 0, hx: width / 2, hz: len / 2, angle: 0, mass: 2200, restitution: 0.12, vx: 0, vz: 0, kind: 'car' } });
+    }
+  }
+
+  /** مكان ركنة على الوصلة دي (إزاحة من النص) أو null لو الشارع ضيق (العربية المركونة هتقفل حارة المرور) */
+  _parkOff(e) {
+    if (e.closed || e.elevated || e.bridge || e.noAccess) return null;
+    const cls = e.cls.replace('_link', '');
+    if (!['primary', 'secondary', 'tertiary', 'unclassified', 'residential'].includes(cls)) return null;
+    let laneEdge; // أبعد نقطة بتوصلها عربيات المرور ناحية اليمين
+    if (!e.oneway) laneEdge = (e.lanes || 2) >= 4 ? 0.75 * e.half + 1.0 : Math.max(1.0, Math.min(2.2, e.half * 0.5)) + 1.0;
+    else { const n = Math.max(1, e.lanes || 1); laneEdge = n === 1 ? 1.0 : e.half; }
+    const off = e.half - 1.05;
+    return off - 0.95 > laneEdge + 0.25 ? off : null;
+  }
+
+  _spawnParked(q, px, pz, fx, fz, first) {
+    for (let t = 0; t < 10; t++) {
+      const ang = this.R() * Math.PI * 2, d = (first ? 20 : 60) + this.R() * 110;
+      const ux = Math.cos(ang), uz = Math.sin(ang);
+      if (!first && d < this.viewDist + 10 && ux * fx + uz * fz > -0.3) continue; // مايظهرش قدام عينك
+      const near = edgesNear(this.graph, px + ux * d, pz + uz * d, 25, this._near || (this._near = []));
+      if (!near.length) continue;
+      const e = near[Math.floor(this.R() * near.length)];
+      const off = this._parkOff(e);
+      if (off === null || e.length < 30) continue;
+      const s = 12 + this.R() * (e.length - 24), side = e.oneway ? 1 : this.R() < 0.5 ? 1 : -1;
+      const dir = side;
+      this._at(e, dir, dir > 0 ? s : e.length - s, off, _a);
+      // مفيش عربية مركونة/موقف/كمين قريب
+      if (!first && this._inView(_a.x, _a.z)) continue;
+      if (this.parked.some((o) => o.on && o !== q && (o.x - _a.x) ** 2 + (o.z - _a.z) ** 2 < 7 * 7)) continue;
+      if (this.world.nearReserved?.(_a.x, _a.z, 14)) continue;
+      const h = this.world.height(_a.x, _a.z, 0);
+      if (Math.abs(h) > 0.05) continue; // لازم أسفلت (مش رصيف/ترعة/كوبري)
+      q.x = _a.x; q.z = _a.z; q.y = h; q.yaw = Math.atan2(-_a.dx, -_a.dz) + (this.R() - 0.5) * 0.05;
+      q.on = true;
+      const r = q.rig.root; r.position.set(q.x, q.y, q.z); r.rotation.set(0, q.yaw, 0); r.updateMatrixWorld(true);
+      q.col.cx = q.x; q.col.cz = q.z; q.col.angle = q.yaw;
+      return true;
+    }
+    return false;
+  }
+
+  _updateParked(px, pz, fx, fz, cx, cz) {
+    const first = !this._parkedInit; this._parkedInit = true;
+    let n = 0;
+    const far2 = this.viewDist * this.viewDist;
+    for (const q of this.parked) {
+      if (q.off) { if (q.on) { q.on = false; q.rig.root.visible = false; } continue; }
+      if (q.on) {
+        const d2 = (q.x - px) ** 2 + (q.z - pz) ** 2;
+        // بتتشال بس لما تبقى بعيدة جدًا (برا مدى الرؤية) → مفيش اختفا قدام عينك
+        if (d2 > 240 * 240) { q.on = false; q.rig.root.visible = false; continue; }
+        q.rig.root.visible = (q.x - cx) ** 2 + (q.z - cz) ** 2 < far2;
+      } else if (n++ < (first ? 99 : 1)) this._spawnParked(q, px, pz, fx, fz, first);
     }
   }
 
@@ -104,8 +171,9 @@ export class ShibinTraffic {
     for (let t = 0; t < 12; t++) {
       const ang = this.R() * Math.PI * 2, d = SPAWN_MIN + this.R() * (ACTIVE_R - SPAWN_MIN);
       const ux = Math.cos(ang), uz = Math.sin(ang);
-      // قدامك وقريب = لأ (منظر عربية بتظهر فجأة)
-      if (d < 140 && ux * fx + uz * fz > 0.2) continue;
+      // مفيش ظهور جوه مدى الرؤية قدامك: يا برا مدى الرؤية خالص، يا وراك (أول ملي للدنيا بس مسموح في أي حتة)
+      if (!this._first && d < this.viewDist + 15 && ux * fx + uz * fz > -0.35) continue;
+      if (this._first && d < 25) continue;
       const near = edgesNear(this.graph, px + ux * d, pz + uz * d, 30, this._near || (this._near = []));
       const cand = near.filter((e) => !e.closed && !e.noAccess && e.length > 12 && (CLASS_W[e.cls.replace('_link', '')] || 0) >= 0.4);
       if (!cand.length) continue;
@@ -114,7 +182,11 @@ export class ShibinTraffic {
       const s = 4 + this.R() * (e.length - 8);
       // مفيش عربية قريبة على نفس الوصلة
       if (this.cars.some((o) => o.on && o.e === e && o.dir === dir && Math.abs(o.s - s) < 14)) continue;
-      c.e = e; c.dir = dir; c.s = s; c.lane = this._laneOff(e); c.turn = null; c.next = null; c.hold = null;
+      // مش فوق عربية مركونة، ومش قدام عينك
+      this._at(e, dir, s, 0, _b);
+      if (!this._first && this._inView(_b.x, _b.z)) continue;
+      if (this.parked.some((q) => q.on && (q.x - _b.x) ** 2 + (q.z - _b.z) ** 2 < 8 * 8)) continue;
+      c.e = e; c.dir = dir; c.s = s; c.lane = this._laneOff(e); c.turn = null; c.next = null; c.hold = null; c.deadEnd = false;
       c.v = Math.min(8, (e.speed / 3.6) * 0.6); c.on = true; c.bumped = 0; c.kox = c.koz = 0; c.stuck = 0;
       this._at(e, dir, s, c.lane, _a);
       c.lastDx = _a.dx; c.lastDz = _a.dz;
@@ -122,6 +194,14 @@ export class ShibinTraffic {
       return true;
     }
     return false;
+  }
+
+  /** المكان ده هيبان للكاميرا؟ (جوه مدى الرؤية ومش ورا) → مينفعش نظهر فيه عربية */
+  _inView(x, z) {
+    const C = this._cam, dx = x - C.x, dz = z - C.z, d = Math.hypot(dx, dz);
+    if (d > this.viewDist + 15) return false;
+    if (d < 30) return true; // قريب أوي: حتى لو ورا ممكن يبان في المراية/اللفة
+    return (dx * C.fx + dz * C.fz) / d > -0.35;
   }
 
   _release(c) {
@@ -170,6 +250,7 @@ export class ShibinTraffic {
       if (Math.abs(c.x - box.cx) > r || Math.abs(c.z - box.cz) > r || Math.abs(c.y - (this._py || 0)) > 2.5) continue;
       out.push(this._collider(c));
     }
+    for (const q of this.parked) if (q.on && Math.abs(q.x - box.cx) < r && Math.abs(q.z - box.cz) < r && Math.abs(q.y - (this._py || 0)) < 2.5) out.push(q.col);
   }
 
   _collider(c) {
@@ -198,10 +279,14 @@ export class ShibinTraffic {
     const pBox = pl.getBox();
     let n = 0;
     const fr = (this._frame = (this._frame || 0) + 1);
+    this._first = fr === 1;
+    const C = this._cam || (this._cam = {});
+    C.x = camPos ? camPos.x : px; C.z = camPos ? camPos.z : pz; C.fx = fx; C.fz = fz;
+    this._updateParked(px, pz, fx, fz, camPos ? camPos.x : px, camPos ? camPos.z : pz);
     for (let i = 0; i < this.cars.length; i++) {
       const c = this.cars[i];
       if (c.off) continue;
-      if (!c.on) { if (n++ < 2) this._spawn(c, px, pz, fx, fz); continue; }
+      if (!c.on) { if (n++ < (this._first ? 99 : 2)) this._spawn(c, px, pz, fx, fz); continue; }
       const d2 = (c.x - px) ** 2 + (c.z - pz) ** 2;
       if (d2 > DESPAWN_R * DESPAWN_R) { this._release(c); c.on = false; c.rig.root.visible = false; continue; }
       // البعيد بيتحدّث كل 3 فريمات (بنفس الوقت الكلي) — القريب كل فريم
@@ -255,6 +340,15 @@ export class ShibinTraffic {
       const g = lon - (o.len + c.len) / 2;
       if (g < gap) { gap = g; vLead = (o.lastDx * hx + o.lastDz * hz) * o.v; }
     }
+    for (const q of this.parked) {
+      if (!q.on) continue;
+      const dx = q.x - c.x, dz = q.z - c.z;
+      if (Math.abs(dx) > 30 || Math.abs(dz) > 30) continue;
+      const lon = dx * hx + dz * hz; if (lon <= 0) continue;
+      if (Math.abs(dx * -hz + dz * hx) > (q.width + c.width) / 2 + 0.2) continue;
+      const g = lon - (q.len + c.len) / 2;
+      if (g < gap) { gap = g; vLead = 0; }
+    }
     {
       const dx = pl.x - c.x, dz = pl.z - c.z;
       const lon = dx * hx + dz * hz, lat = Math.abs(dx * -hz + dz * hx);
@@ -269,7 +363,12 @@ export class ShibinTraffic {
       const rem = L - c.s;
       if (!c.next && rem < 40) {
         c.next = this._pickNext(c);
-        if (!c.next) { this._release(c); c.on = false; c.rig.root.visible = false; return; }
+        if (!c.next) c.deadEnd = true;
+      }
+      if (c.deadEnd) {
+        // طريق مقفول (اتجاه واحد/بوابة): تقف على مهلها وتتشال لما تبقى برا عينك
+        target = Math.min(target, Math.sqrt(2 * 2.5 * Math.max(0, rem - 3)));
+        if (!c.visible) { c.deadEnd = false; this._release(c); c.on = false; c.rig.root.visible = false; return; }
       }
       if (c.next) {
         const node = this._endNode(c);
@@ -327,6 +426,8 @@ export class ShibinTraffic {
 
   setDensity(k) {
     this.active = Math.round(this.max * k);
+    const np = Math.round(this.parked.length * Math.min(1, k * 1.2));
+    this.parked.forEach((q, i) => { q.off = i >= np; });
     this.cars.forEach((c, i) => {
       const off = i >= this.active;
       if (off && c.on) { this._release(c); c.on = false; }
@@ -359,6 +460,9 @@ export class ShibinTraffic {
       const a = on[i], b = on[j];
       if (Math.hypot(a.x - b.x, a.z - b.z) < 1.6 && Math.abs(a.y - b.y) < 1) overlaps++;
     }
-    return { active: on.length, overlaps, moving: on.filter((c) => c.v > 1).length };
+    let parkedHit = 0;
+    const pk = this.parked.filter((q) => q.on);
+    for (const a of on) for (const q of pk) if (Math.hypot(a.x - q.x, a.z - q.z) < 1.8) parkedHit++;
+    return { active: on.length, overlaps, moving: on.filter((c) => c.v > 1).length, parked: pk.length, parkedHit };
   }
 }

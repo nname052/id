@@ -68,6 +68,11 @@ export class ShibinCrowd {
       p.lat = p.lo + this.R() * (p.hi - p.lo);
       p.s = a + this.R() * (b - a);
       this._pos(p);
+      // المكان الفعلي (الوصلة ممكن تبقى طويلة): مايظهرش قدام عينك جوه مدى الرؤية
+      if (rMin > 5) {
+        const qx = p.x - cx, qz = p.z - cz, qd = Math.hypot(qx, qz);
+        if (qd < rMin || (qd < VIEW + 5 && (qx * fx + qz * fz) / qd > -0.35)) continue;
+      }
       if (!this._ok(p.x, p.z)) continue;
       p.standing = this.R() < 0.3;
       p.dir = this.R() < 0.5 ? 1 : -1;

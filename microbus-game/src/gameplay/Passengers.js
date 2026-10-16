@@ -55,7 +55,7 @@ const SIDE_STOPS = [
 const URBAN = new Set(['city', 'market', 'residential']);
 // على الموبايل عدد أقل (كل واحد ماشي = كذا قطعة بتترسم)
 const MAX_WALKERS = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches ? 30 : 44;
-const WALK = 1.45, _v = new THREE.Vector3(), _w = new THREE.Vector3();
+const WALK = 1.45, _v = new THREE.Vector3(), _w = new THREE.Vector3(), _in = new THREE.Vector3();
 
 function stopSign() {
   const c = canvas(256, 160), x = c.getContext('2d');
@@ -117,7 +117,7 @@ export class Passengers {
     this.seats = (player.rig.paxSeats || []).map((p) => ({ ...p, pax: null }));
     this.capacity = this.seats.length;
     this.onboard = [];
-    for (const w of this.walkers) if (w.state === 'toDoor') w.state = 'return';
+    for (const w of this.walkers) if ((w.state === 'toDoor' || w.state === 'enter')) w.state = 'return';
     this.mode = MODE[player.kind] || 'line';
     this._resetJob();
     this._updateHud();
@@ -129,7 +129,7 @@ export class Passengers {
   /** بداية من الأول: الناس المستنية بتمشي، ونجهّز الخط (ميكروباص) أو المشاوير (تاكسي/توكتوك) */
   _resetJob() {
     for (const st of this.stops) {
-      for (const w of [...st.waiting]) if (w.state === 'wait' || w.state === 'toDoor' || w.state === 'return') this._release(w);
+      for (const w of [...st.waiting]) if (w.state === 'wait' || w.state === 'toDoor' || w.state === 'enter' || w.state === 'return') this._release(w);
       st.waiting = [];
       st.cooldown = 0;
     }
@@ -337,13 +337,13 @@ export class Passengers {
     this.stops = this.stops.filter((st) => {
       if (st.fixed || needed.has(st)) return true;
       const d2 = (st.x - ph.x) ** 2 + (st.z - ph.z) ** 2;
-      if (d2 < 470 * 470 || st.waiting.some((w) => w.state === 'toDoor')) return true;
+      if (d2 < 470 * 470 || st.waiting.some((w) => (w.state === 'toDoor' || w.state === 'enter'))) return true;
       for (const w of [...st.waiting]) if (w.state === 'wait') this._release(w);
       return false;
     });
     const want = Math.round(2 + 1.5 * density);
     // سقف: مايبقاش فيه أماكن كتير أوي مفعّلة (نشيل الأبعد اللي محدش محتاجه)
-    const free = this.stops.filter((st) => !st.fixed && !needed.has(st) && !st.waiting.some((w) => w.state === 'toDoor'));
+    const free = this.stops.filter((st) => !st.fixed && !needed.has(st) && !st.waiting.some((w) => (w.state === 'toDoor' || w.state === 'enter')));
     if (free.length > want + 4) {
       free.sort((a, b) => ((b.x - ph.x) ** 2 + (b.z - ph.z) ** 2) - ((a.x - ph.x) ** 2 + (a.z - ph.z) ** 2));
       for (const st of free.slice(0, free.length - want - 4)) { for (const w of [...st.waiting]) if (w.state === 'wait') this._release(w); this.stops.splice(this.stops.indexOf(st), 1); }
@@ -403,7 +403,7 @@ export class Passengers {
     const dests = new Set(this.onboard.map((o) => o.dest));
     const nextLine = this.nextStop;
     for (const st of this.stops) {
-      const has = st.waiting.some((w) => w.state === 'wait' || w.state === 'toDoor') && (this.mode === 'line' ? this.lineStops.includes(st) : st.kind !== 'terminal');
+      const has = st.waiting.some((w) => w.state === 'wait' || w.state === 'toDoor' || w.state === 'enter') && (this.mode === 'line' ? this.lineStops.includes(st) : st.kind !== 'terminal');
       const dest = dests.has(st) || st === nextLine;
       if (!has && !dest) continue;
       const d2 = (st.mx - ph.x) ** 2 + (st.mz - ph.z) ** 2;
@@ -630,13 +630,13 @@ export class Passengers {
     // --- ركوب: واقف جنب موقف والباب ناحيته ---
     if (this.stillTime > 0.35 && door) {
       let toDoor = 0;
-      for (const w of this.walkers) if (w.state === 'toDoor') toDoor++;
+      for (const w of this.walkers) if ((w.state === 'toDoor' || w.state === 'enter')) toDoor++;
       for (const st of this.stops) {
         const free = this.capacity - this.onboard.length - toDoor;
         if (!st.waiting.length) continue;
         // الميكروباص بيحمّل من محطات خطه بس، والتاكسي زبون واحد (أو مجموعة) في المرة ومش من موقف الميكروباص
         if (this.mode === 'line' && !this.lineStops.includes(st)) continue;
-        if (this.mode === 'trip' && (st.kind === 'terminal' || this.trip || this.onboard.length || this.walkers.some((p) => p.state === 'toDoor' && p.stop !== st))) continue;
+        if (this.mode === 'trip' && (st.kind === 'terminal' || this.trip || this.onboard.length || this.walkers.some((p) => (p.state === 'toDoor' || p.state === 'enter') && p.stop !== st))) continue;
         const sideOk = (st.x - vx) * rx + (st.z - vz) * rz > 0.5;
         if (!sideOk || !this._inMarker(st, ph)) {
           // واقف قريب بس مش في المكان المظبوط
@@ -677,7 +677,7 @@ export class Passengers {
     // --- آخر الخط: بعد ما الكل ينزل → رحلة الرجوع ---
     if (this.mode === 'line' && this.lineStops.length && !this.onboard.length && this.stillTime > 1.2) {
       const last = this.lineStops[this.lineStops.length - 1];
-      if (this._inMarker(last, ph) && !this.walkers.some((w) => w.state === 'toDoor')) {
+      if (this._inMarker(last, ph) && !this.walkers.some((w) => (w.state === 'toDoor' || w.state === 'enter'))) {
         this.trips++;
         this.lineDir ^= 1;
         this._setupLine(false);
@@ -702,7 +702,8 @@ export class Passengers {
       p.seat.pax = null;
       this._rebuildSeated();
       if (w) {
-        w.state = 'alight'; w.x = doorP.x; w.z = doorP.z;
+        const inP = this._doorPoint(_in, -0.45);
+        w.state = 'exit'; w.enterT = 0; w.ex = w.x = inP.x; w.ez = w.z = inP.z; w.tx = doorP.x; w.tz = doorP.z; w.heading = Math.atan2(doorP.x - inP.x, doorP.z - inP.z);
         const st = p.leaveStop;
         w.target = [st.x + st.ax * (this.R() - 0.5) * 2, st.z + st.az * (this.R() - 0.5) * 2];
         w.timer = 0;
@@ -738,9 +739,48 @@ export class Passengers {
         if ((p.delay -= dt) > 0) { this._pose(p, p.style, 0); continue; }
         busy = true;
         door.target = 1;
-        if (this._walkTo(p, doorP.x, doorP.z, dt, door.open > 0.6 ? 0.25 : 0.9)) {
-          if (door.open > 0.85) this._board(p);
+        // مستني أكتر من اللازم (الباب مقفول/مكان مسدود): يرجع مكانه بدل ما يفضل متعلق
+        p.doorT = (p.doorT || 0) + dt;
+        if (p.doorT > 20) { p.doorT = 0; p.state = 'return'; continue; }
+        if (this._walkTo(p, doorP.x, doorP.z, dt, door.open > 0.6 ? 0.25 : 0.9) && door.open > 0.85) {
+          // عند الباب: يلف ناحية جوه العربية ويطلع خطوة لجوه (مش بيختفي وهو مدي ضهره/جنبه للباب)
+          p.state = 'enter'; p.enterT = 0; p.ex = p.x; p.ez = p.z; p.moving = false; p.yaw0 = undefined;
         }
+        continue;
+      }
+      if (p.state === 'enter') {
+        busy = true; door.target = 1;
+        if (!still) { p.state = 'return'; continue; }
+        const inP = this._doorPoint(_in, -0.45);
+        // أول 0.3ث: يلف مكانه لحد ما وشه يبقى ناحية جوه العربية (عمودي على الباب)، وبعدين يطلع
+        p.enterT += dt;
+        const yaw = Math.atan2(inP.x - doorP.x, inP.z - doorP.z);
+        if (p.enterT < 0.3) {
+          if (p.yaw0 === undefined) p.yaw0 = p.heading ?? yaw;
+          const k = p.enterT / 0.3, dy = Math.atan2(Math.sin(yaw - p.yaw0), Math.cos(yaw - p.yaw0));
+          p.heading = p.yaw0 + dy * k;
+          this._pose(p, 'idle', 0);
+          continue;
+        }
+        p.yaw0 = undefined; p.moving = true;
+        const u = Math.min(1, (p.enterT - 0.3) / 0.75);
+        p.x = p.ex + (inP.x - p.ex) * u; p.z = p.ez + (inP.z - p.ez) * u;
+        p.heading = yaw;
+        this._pose(p, 'walk', WALK * 0.6);
+        p.root.position.y += Math.min(1, u * 2) * (this.player.rig.floorY ?? 0.25);
+        if (u >= 1) { p.doorT = 0; p.moving = false; this._board(p); }
+        continue;
+      }
+      if (p.state === 'exit') {
+        // نازل: من جوه الباب لبرا، وشه لبرا
+        busy = true; door.target = 1;
+        p.enterT += dt / 0.7;
+        const u = Math.min(1, p.enterT);
+        p.x = p.ex + (p.tx - p.ex) * u; p.z = p.ez + (p.tz - p.ez) * u;
+        p.heading = Math.atan2(p.tx - p.ex, p.tz - p.ez);
+        this._pose(p, 'walk', WALK * 0.6);
+        p.root.position.y += Math.max(0, 1 - u * 2) * (this.player.rig.floorY ?? 0.25);
+        if (u >= 1) p.state = 'alight';
         continue;
       }
       if (p.state === 'return') {
@@ -802,7 +842,7 @@ export class Passengers {
     }
     this.onboard.length = 0;
     this.trip = null;
-    for (const w of this.walkers) if (w.state === 'toDoor') w.state = 'return';
+    for (const w of this.walkers) if (w.state === 'toDoor' || w.state === 'enter') w.state = 'return';
     this._rebuildSeated();
     this._updateHud();
     this.audio?.chatterBurst?.();
