@@ -27,25 +27,33 @@ for (const C of CONFIGS) {
   await p.waitForTimeout(1500);
   await p.evaluate(() => document.querySelector('#linepick .lp-close')?.click());
   const r = await p.evaluate(async () => {
-    const g = game, W = g.world, sp = W.spawnPose();
-    g.player.physics.reset(sp.x, sp.z, sp.yaw); g.player._savePrev(); g.cams.mode = 0;
-    await new Promise((r) => setTimeout(r, 5000));
-    // وقت الـ CPU للفريم (من غير الـ GPU): نقيس _tick نفسه
-    const cpu = []; const orig = g._tick.bind(g);
-    g._tick = (t) => { const a = performance.now(); orig(t); cpu.push(performance.now() - a); };
-    const t = []; let last = performance.now();
-    await new Promise((res) => { let n = 0; const f = () => { const now = performance.now(); t.push(now - last); last = now; if (++n < 60) requestAnimationFrame(f); else res(); }; requestAnimationFrame(f); });
-    g._tick = orig;
-    cpu.sort((a, b) => a - b); t.sort((a, b) => a - b);
-    window.gc?.();
+    const g = game, W = g.world, sp = W.spawnPose(), ph = g.player.physics;
+    ph.reset(sp.x, sp.z, sp.yaw); g.player._savePrev(); g.cams.mode = 0;
+    g.renderer.setAnimationLoop(null);
+    // محاكاة 10 ثواني (المرور/المشاة/الـ streaming) — وقت الـ CPU للأنظمة دي لكل فريم
+    const dt = 1 / 30, cpu = [];
+    for (let i = 0; i < 300; i++) {
+      const a = performance.now();
+      if (i % 8 === 0) W.updateVisibility(g.camera.position, g.viewDist || 560);
+      W.update(dt);
+      g.traffic.update(dt, g.player, g.camera.position);
+      g.crowd.update(dt, g.camera.position, ph, g.camera.getWorldDirection(new window.__THREE.Vector3()));
+      g.player.syncVisuals(dt, 1); g.cams.update(dt);
+      cpu.push(performance.now() - a);
+      if (i % 30 === 0) await new Promise((r) => setTimeout(r, 0));
+    }
+    cpu.sort((a, b) => a - b);
+    // رسمة واحدة للمشهد الأساسي → عدد الـ draw calls والمثلثات
+    g.renderer.render(g.scene, g.camera);
     const info = g.renderer.info, cv = g.renderer.domElement;
-    let lights = 0; g.scene.traverse((o) => { if (o.isLight && !o.isAmbientLight && !o.isHemisphereLight && o.visible) lights++; });
+    window.gc?.();
+    let lights = 0; g.scene.traverse((o) => { if ((o.isPointLight || o.isSpotLight) && o.visible) lights++; });
     return {
-      tier: g.tier, level: g._q?.level, canvas: `${cv.width}x${cv.height}`, pixelRatio: +g.renderer.getPixelRatio().toFixed(2), fpsCap: g.fpsCap,
-      drawCalls: info.render.calls, triangles: info.render.triangles, lights, shadows: g.renderer.shadowMap.enabled,
+      tier: g.tier, canvas: `${cv.width}x${cv.height}`, pixelRatio: +g.renderer.getPixelRatio().toFixed(2), fpsCap: g.fpsCap, antialias: g.renderer.getContext().getContextAttributes().antialias,
+      drawCalls: info.render.calls, triangles: info.render.triangles, pointSpotLights: lights, shadowType: g.renderer.shadowMap.type, shadowEvery: g.shadowEvery,
       geometries: info.memory.geometries, textures: info.memory.textures, heapMB: performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) : null,
       traffic: g.traffic.debugStats().active, parked: g.traffic.debugStats().parked, pedestrians: g.crowd.debugOnRoad().people, lamps: W.lamps?.visibleCount,
-      tilesLoaded: W.stats.tilesLoaded, frameMsMedian: +t[t.length >> 1].toFixed(1), cpuMsMedian: +(cpu[cpu.length >> 1] || 0).toFixed(2), cpuMsP95: +(cpu[Math.floor(cpu.length * 0.95)] || 0).toFixed(2),
+      tilesLoaded: W.stats.tilesLoaded, simCpuMsMedian: +cpu[cpu.length >> 1].toFixed(2), simCpuMsP95: +cpu[Math.floor(cpu.length * 0.95)].toFixed(2),
     };
   });
   res.push({ config: C.name, ...r, errors: errs.length });

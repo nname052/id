@@ -280,6 +280,7 @@ export class ShibinTraffic {
     const pBox = pl.getBox();
     let n = 0;
     const fr = (this._frame = (this._frame || 0) + 1);
+    this._simT = (this._simT || 0) + dt;
     this._first = fr === 1;
     const C = this._cam || (this._cam = {});
     C.x = camPos ? camPos.x : px; C.z = camPos ? camPos.z : pz; C.fx = fx; C.fz = fz;
@@ -393,12 +394,12 @@ export class ShibinTraffic {
         // حجز التقاطع (تقاطع حقيقي بس = 3 وصلات أو أكتر)
         if (node.edges.length >= 3 && rem < T1 + 14) {
           if (!c.hold || c.hold !== node) {
-            const busy = node.res && node.res !== c && node.res.on && (performance.now() - node.resT) < 6000;
+            const R = node.res, busy = R && R !== c && R.on && ((this._simT - node.resT) < 6 || ((this._simT - node.resT) < 15 && (R.x - node.x) ** 2 + (R.z - node.z) ** 2 < 10 * 10)); // (وقت اللعبة مش وقت الساعة) + لو اللي حاجزه لسه جوه التقاطع
             const playerIn = (pl.x - node.x) ** 2 + (pl.z - node.z) ** 2 < 11 * 11 && Math.abs(this._py - (c.y)) < 2.5;
             if (busy || playerIn) {
               const g = rem - T1 - 2.5;
               if (g < gap) { gap = Math.max(0.1, g); vLead = 0; }
-            } else { this._release(c); node.res = c; node.resT = performance.now(); c.hold = node; }
+            } else { this._release(c); node.res = c; node.resT = this._simT; c.hold = node; }
           }
         }
         if (rem <= T1 + 0.05 && (c.hold === this._endNode(c) || node.edges.length < 3)) this._beginTurn(c);

@@ -14,7 +14,7 @@ for t in $TESTS; do
   echo "===== $t"
   case $t in
     wheel:*) node tools/tests/wheel-integrity.mjs "${t#wheel:}" "$B" 2>&1 | tail -3 ;;
-    *) node tools/tests/$t.mjs "$B" 2>&1 | tail -40 ;;
+    *) node tools/tests/$t.mjs "$B" 2>&1 | tail -${TAIL:-40} ;;
   esac
 done
 [ -n "$OWN" ] && kill $OWN
