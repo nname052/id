@@ -272,7 +272,8 @@ def player_data(pid: str):
     if not words:
         words = audio_stage.estimated_words(pid)
     has_audio = (d / "audio" / "voice.mp3").exists() and words.get("source") == "elevenlabs"
-    return {"plan": plan, "words": words, "settings": p["settings"],
+    script = store.read_json(d / "script.json") or {"sentences": []}
+    return {"plan": plan, "words": words, "settings": p["settings"], "script": script["sentences"],
             "audio": f"/files/{pid}/audio/voice.mp3?v={int((d / 'audio' / 'voice.mp3').stat().st_mtime)}" if has_audio else None}
 
 

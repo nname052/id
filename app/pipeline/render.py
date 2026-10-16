@@ -84,6 +84,8 @@ def run(pid: str, port: int) -> None:
     plan = store.read_json(d / "scenes" / "plan.json", {})
     if plan.get("credits"):
         (out / "credits.txt").write_text("\n".join(plan["credits"]) + "\n", encoding="utf-8")
+    else:
+        (out / "credits.txt").unlink(missing_ok=True)  # مايفضلش ملف حقوق قديم من خطة فاتت
     shutil.rmtree(rdir, ignore_errors=True)  # الدفعات خلصت شغلها
 
     def done(p):

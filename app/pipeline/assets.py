@@ -95,6 +95,33 @@ def _score(item: dict, query: list[str]) -> float:
     return s + item.get("rank", 0)
 
 
+def candidates(kind: str, terms: list[str], exclude: set | None = None, k: int = 6) -> list[dict]:
+    """أحسن k نتايج (مش واحدة بس)، علشان نقدر نختار من غير ما نكرر نفس الرسمة في كل فيديو."""
+    query = _words(" ".join(terms))
+    scored = []
+    for it in _load()["items"]:
+        if it["kind"] != kind or (exclude and it["file"] in exclude):
+            continue
+        sc = _score(it, query)
+        if sc >= 2:
+            scored.append((sc, it))
+    scored.sort(key=lambda x: -x[0])
+    return [{k2: v for k2, v in it.items() if k2 != "words"} | {"score": sc} for sc, it in scored[:k]]
+
+
+def pick(kind: str, terms: list[str], used: set, recent: set, seed: int) -> dict | None:
+    """بيختار من أحسن النتايج: اللي ما اتستخدمش في الفيديو ده ولا في آخر فيديوهات، وبتنوّع ثابت حسب الفيديو."""
+    import random
+    cands = candidates(kind, terms, used, k=8)
+    fresh = [c for c in cands if c["file"] not in recent] or cands
+    if not fresh:
+        return search(kind, terms, used) if kind == "icon" else None  # أيقونة من Iconify لو مفيش محلي
+    top = fresh[0]["score"]
+    good = [c for c in fresh if c["score"] >= top - 1.5][:4]  # النتايج القريبة من الأحسن بس
+    choice = random.Random(seed).choice(good)
+    return ensure_local(choice)
+
+
 def search(kind: str, terms: list[str], exclude: set | None = None) -> dict | None:
     """أحسن عنصر من النوع ده للكلمات دي (أو None). exclude = ملفات اتستخدمت في نفس الفيديو."""
     query = _words(" ".join(terms))

@@ -95,22 +95,36 @@
       </div>`;
   }
 
+  // صورة مصغّرة للمشهد (خطة نسخة 2: visuals و items، والقديمة: kind و asset)
   function thumb(sc) {
-    if ((sc.kind === "illustration" || sc.kind === "icon") && sc.asset) return `<img src="/assets/${esc(sc.asset)}">`;
-    if (sc.kind === "emoji") return "🎞";
-    if (sc.kind === "number") return esc(sc.number_value || "#");
+    const v = (sc.visuals || [])[0] || ((sc.items || []).find((it) => it.visual) || {}).visual || (sc.asset ? { kind: sc.kind, asset: sc.asset } : null);
+    if (v && v.kind === "character") return "🧍";
+    if (v && v.asset && !String(v.asset).endsWith(".json")) return `<img src="/assets/${esc(v.asset)}">`;
+    if (sc.layout === "custom" || sc.kind === "emoji") return "✦";
+    if (sc.layout === "stat" || sc.kind === "number") return esc(sc.number_value || "#");
+    if (sc.layout === "question") return "؟";
     return "Aa";
   }
-  const KIND = { illustration: "رسمة", icon: "أيقونة", emoji: "إيموجي متحرك", number: "رقم", text: "كلمة كبيرة" };
+  const KIND = { illustration: "رسمة", icon: "أيقونة", emoji: "إيموجي", number: "رقم", text: "كلمة كبيرة",
+    hero: "صورة كبيرة", kinetic: "كلام متحرك", split: "نص ونص", stat: "رقم", list: "قايمة", versus: "مقارنة", quote: "اقتباس",
+    question: "سؤال", icon_row: "صف أيقونات", card: "كارت", character: "شخصية", custom: "مشهد مبتكر ✦" };
+  function identityHTML(plan) {
+    const id = plan.identity;
+    if (!id) return "";
+    return `<div class="muted" style="margin-top:8px">هوية الفيديو: ${Object.values(id.palette).map((c) => `<span class="swatch" style="background:${c}"></span>`).join("")}
+      · خط <b>${esc(id.font_heading)}</b> · خلفية ${esc(id.background)} · انتقال ${esc(id.transition)}</div>`;
+  }
 
   function scenesHTML(p) {
     const plan = p.plan || { scenes: [] }, sents = (p.script || { sentences: [] }).sentences;
     return `<h2>${STAGE_NAMES.scenes}</h2>
-      <div class="muted">شغّل المعاينة على الشمال (من غير صوت، والتوقيت تقريبي لحد ما الصوت يتعمل).</div>
+      <div class="muted">شغّل المعاينة على الشمال (من غير صوت، والتوقيت تقريبي لحد ما الصوت يتعمل).</div>${identityHTML(plan)}
       <div class="scenes" style="margin-top:12px">${plan.scenes.map((sc, i) => `<div class="scene-card"><div class="thumb">${thumb(sc)}</div>
         <div class="grow"><div class="hd">${i + 1}. ${esc(sc.headline)}</div>
         <div class="muted">${sc.sentence_ids.map((id) => esc((sents.find((s) => s.id === id) || {}).text || "")).join(" ")}</div>
-        <span class="badge">${KIND[sc.kind] || sc.kind}</span> ${sc.asset_name ? `<span class="badge" dir="ltr">${esc(sc.asset_name)}</span>` : ""} ${sc.fetched ? `<span class="badge">اتنزّلت جديد</span>` : ""}</div></div>`).join("")}</div>
+        <span class="badge">${KIND[sc.layout || sc.kind] || sc.layout || sc.kind}</span>
+        ${[...(sc.visuals || []), ...(sc.items || []).map((it) => it.visual).filter(Boolean), ...(sc.asset_name ? [sc] : [])].map((v) => `<span class="badge" dir="ltr">${esc(v.asset_name || "")}</span>`).join(" ")}
+        ${sc.custom_brief && sc.layout === "custom" ? `<div class="muted">✦ ${esc(sc.custom_brief)}</div>` : ""}</div></div>`).join("")}</div>
       <div class="actions">
         <button class="primary" data-act="approve" data-stage="scenes">✓ موافق، اعمل الصوت</button>
         <input type="text" id="instr" class="grow" placeholder="اطلب تعديل: المشهد التالت أيقونة بدل رسمة، ألوان أهدى…">
