@@ -111,6 +111,7 @@ export function fitModelToRig(rig, spec, asset, { wheelRe }) {
   const byKey = {};
   for (const [pi, i, key] of cl.tris) ((byKey[key] ||= {})[pi] ||= []).push(i);
   const hidden = new Set();
+  const built = [];
   for (const [key, perPart] of Object.entries(byKey)) {
     const w = targetFor(key);
     if (!w) continue;
@@ -128,14 +129,61 @@ export function fitModelToRig(rig, spec, asset, { wheelRe }) {
       out.translate(-c.x, -c.y, -c.z);
       const mesh = new THREE.Mesh(out, parts[pi].mesh.material);
       mesh.castShadow = true;
+      mesh.userData.ring = ringCenter(out);
       w.spin.add(mesh);
+      built.push(mesh);
     }
+    // كل أجزاء العجلة على نفس المحور: مركز دايرة كل جزء (مش الـ bbox) يتظبط على مركز الكاوتش.
+    // في موديل التاكسي وش الجنط (rim_map) معمول مزحزح ~2سم → بيترقّص على الجنط وهو بيلف ("الكاوتش منفصل")
+    // التصحيح للإزاحات الصغيرة بس (أقل من 3.5سم): الأجزاء اللي برا المحور بقصد (زي الكاليبر) مابتتلمسش
+    const ref = built.reduce((m, o) => (!m || o.userData.ring.r > m.userData.ring.r ? o : m), null);
+    if (ref) for (const o of built) {
+      if (o === ref) continue;
+      const dy = o.userData.ring.y - ref.userData.ring.y, dz = o.userData.ring.z - ref.userData.ring.z, off = Math.hypot(dy, dz);
+      if (off > 0.002 && off < 0.035 && o.userData.ring.rms < 0.03) o.geometry.translate(0, -dy, -dz);
+    }
+    built.length = 0;
   }
   for (const p of parts) { p.mesh.visible = false; p.geo.dispose(); }
   model.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   rig.shell.add(model);
   rig.model = model;
   return model;
+}
+
+/**
+ * مركز دايرة الجزء في مستوى العجلة (y,z): fit دايرة بالمربعات الصغرى (Kasa) على نقط الحافة الخارجية، مرتين.
+ * بيرجّع كمان مدى "دايرية" الجزء (rms/R): الأجزاء اللي مش دايرة (كاليبر الفرامل) مابتتظبطش.
+ */
+function ringCenter(geo) {
+  const P = geo.attributes.position, n = P.count;
+  let cy = 0, cz = 0, R = 0, rms = 1;
+  for (let pass = 0; pass < 2; pass++) {
+    let rmax = 0;
+    for (let i = 0; i < n; i++) rmax = Math.max(rmax, Math.hypot(P.getY(i) - cy, P.getZ(i) - cz));
+    // x² + y² + D x + E y + F = 0
+    let a11 = 0, a12 = 0, a13 = 0, a22 = 0, a23 = 0, a33 = 0, b1 = 0, b2 = 0, b3 = 0, m = 0;
+    for (let i = 0; i < n; i++) {
+      const y = P.getY(i), z = P.getZ(i);
+      const r = Math.hypot(y - cy, z - cz);
+      if (pass === 0 ? r < rmax * 0.88 : Math.abs(r - R) > R * 0.08) continue;
+      const q = -(y * y + z * z);
+      a11 += y * y; a12 += y * z; a13 += y; a22 += z * z; a23 += z; a33 += 1; b1 += y * q; b2 += z * q; b3 += q; m++;
+    }
+    if (m < 6) break;
+    const M = [[a11, a12, a13, b1], [a12, a22, a23, b2], [a13, a23, a33, b3]];
+    for (let i = 0; i < 3; i++) {
+      let pv = i; for (let r = i + 1; r < 3; r++) if (Math.abs(M[r][i]) > Math.abs(M[pv][i])) pv = r;
+      [M[i], M[pv]] = [M[pv], M[i]];
+      for (let r = 0; r < 3; r++) if (r !== i) { const f = M[r][i] / M[i][i]; for (let c = i; c < 4; c++) M[r][c] -= f * M[i][c]; }
+    }
+    const D = M[0][3] / M[0][0], E = M[1][3] / M[1][1], F = M[2][3] / M[2][2];
+    cy = -D / 2; cz = -E / 2; R = Math.sqrt(Math.max(0, cy * cy + cz * cz - F));
+    let s2 = 0, k = 0;
+    for (let i = 0; i < n; i++) { const r = Math.hypot(P.getY(i) - cy, P.getZ(i) - cz); if (Math.abs(r - R) < R * 0.08) { s2 += (r - R) ** 2; k++; } }
+    rms = k ? Math.sqrt(s2 / k) / (R || 1) : 1;
+  }
+  return { y: cy, z: cz, r: R, rms };
 }
 
 /** التوكتوك المصري (زي الصورة): جسم أسود، والجزء اللي فوق قدام (حوالين الزجاج) أصفر */
