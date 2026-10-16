@@ -5,7 +5,7 @@
 //  كمان بيقدّم ارتفاع الأرض للفيزيا (رصيف/ترعة/كوبري بمستويين)، وأماكن البداية والرجوع للطريق.
 // =====================================================================
 import * as THREE from 'three';
-import { REGION_BASE, loadJSON, buildGraph, edgePoint, edgesNear } from './ShibinData.js';
+import { REGION_BASE, loadJSON, dropCache, buildGraph, edgePoint, edgesNear } from './ShibinData.js';
 import { buildingMaterial, buildTileBuildings, buildRealBuilding } from './ShibinBuildings.js';
 import { canvas, tex } from '../../render/textures.js';
 
@@ -316,6 +316,8 @@ export class ShibinWorld {
 
   _unloadTile(T) {
     T.dead = true;
+    // ملفات المربع مش محتاجينها في الذاكرة بعد ما اتشال (لو رجعنا بنحمّلها تاني — الكاش بتاع المتصفح بيخليها سريعة)
+    for (const L of this.meta.tiles[T.name] || []) dropCache(`${this.base}${L}/${T.name}.json`);
     this._removeTileColliders(T);
     for (const [k, s] of T.deckKeys) { const a = this.deckGrid.get(k); if (a) { const j = a.indexOf(s); if (j >= 0) a.splice(j, 1); if (!a.length) this.deckGrid.delete(k); } }
     T.group.removeFromParent();

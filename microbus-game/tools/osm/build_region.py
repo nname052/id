@@ -501,7 +501,9 @@ def main():
     excl_all = unary_union(excl) if excl else Polygon()
 
     # ===================== توليد المباني (OSM مفيهوش مباني تقريبًا في المدينة) =====================
-    buildings = generate_buildings(edges, roads, gnodes, asphalt_all, side_all, foot_all, water_all, rail_buf, excl_all, real_bldg, REGION, t0)
+    # الكباري (سطحها مش جزء من أسفلت الأرض): ممنوع تتبني تحتها أو عليها
+    deck_foot = unary_union([LineString(d['pts']).buffer(d['w'] / 2 + 1.0, cap_style='flat') for d in deck_list]) if deck_list else Polygon()
+    buildings = generate_buildings(edges, roads, gnodes, asphalt_all.union(deck_foot), side_all, foot_all, water_all, rail_buf, excl_all, real_bldg, REGION, t0)
     print(f'  buildings: generated {len(buildings)}, real {len(real_bldg)}  ({time.time() - t0:.1f}s)')
 
     # ===================== علامات الطريق =====================
