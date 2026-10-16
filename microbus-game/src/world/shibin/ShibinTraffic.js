@@ -193,11 +193,18 @@ export class ShibinTraffic {
     const px = pl.x, pz = pl.z;
     const pBox = pl.getBox();
     let n = 0;
-    for (const c of this.cars) {
+    const fr = (this._frame = (this._frame || 0) + 1);
+    for (let i = 0; i < this.cars.length; i++) {
+      const c = this.cars[i];
       if (c.off) continue;
       if (!c.on) { if (n++ < 2) this._spawn(c, px, pz, fx, fz); continue; }
-      if ((c.x - px) ** 2 + (c.z - pz) ** 2 > DESPAWN_R * DESPAWN_R) { this._release(c); c.on = false; c.rig.root.visible = false; continue; }
-      this._drive(c, dt, pl, pBox);
+      const d2 = (c.x - px) ** 2 + (c.z - pz) ** 2;
+      if (d2 > DESPAWN_R * DESPAWN_R) { this._release(c); c.on = false; c.rig.root.visible = false; continue; }
+      // البعيد بيتحدّث كل 3 فريمات (بنفس الوقت الكلي) — القريب كل فريم
+      c._dtAcc = (c._dtAcc || 0) + dt;
+      if (d2 > 110 * 110 && (fr + i) % 3) continue;
+      this._drive(c, Math.min(0.2, c._dtAcc), pl, pBox);
+      c._dtAcc = 0;
     }
     // المرئيات
     const cx = camPos ? camPos.x : px, cz = camPos ? camPos.z : pz;

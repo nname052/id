@@ -52,6 +52,8 @@ import { attachJobs } from '../world/shibin/ShibinJobs.js';
 import { TouchControls, isTouchDevice } from '../ui/TouchControls.js';
 
 const FIXED_DT = 1 / 120;
+/** مستوى الجودة من الإعدادات المحفوظة: التلقائي = متوسطة على الموبايل وعالية على الكمبيوتر */
+function resolveTier(v, mobile) { return ['low', 'med', 'high', 'ultra'].includes(v) ? v : mobile ? 'med' : 'high'; }
 import { sampleAt } from '../world/Route.js';
 const sampleZoneName = (s) => sampleAt(s - 450).zone;
 const nextFrame = () => new Promise((r) => requestAnimationFrame(() => r()));
@@ -79,15 +81,19 @@ export class Game {
     await this.assets.loadAll();
 
     // ===== الرندر =====
-    const renderer = (this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' }));
+    // مستوى الجودة بيتحدد قبل إنشاء الرندر (الـ MSAA ونوع الضل مينفعش يتغيروا بعد كده)
     this.mobile = isTouchDevice();
-    this.basePR = Math.min(window.devicePixelRatio, this.mobile ? 1.5 : 1.5);
+    const saved = (() => { try { return JSON.parse(localStorage.getItem('egy-microbus-settings-v1') || '{}'); } catch { return {}; } })();
+    this.tier = resolveTier(saved.graphics, this.mobile);
+    // الموبايل: من غير MSAA في الواطية/المتوسطة (أكبر توفير لحرارة كارت الشاشة بعد الدقة)
+    const renderer = (this.renderer = new THREE.WebGLRenderer({ antialias: !this.mobile || this.tier === 'high' || this.tier === 'ultra', powerPreference: this.mobile ? 'default' : 'high-performance' }));
+    this.basePR = Math.min(window.devicePixelRatio, this.mobile ? 1.25 : 1.5);
     renderer.setPixelRatio(this.basePR);
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.shadowMap.type = this.mobile ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
     this.container.appendChild(renderer.domElement);
 
     this.scene = new THREE.Scene();
@@ -237,8 +243,11 @@ export class Game {
     if (this.world) this.cams.cinePoints = this.world.cinePoints();
 
     // أنوار الشارع بالليل: عدد صغير من الأنوار بنحركها لأقرب أعمدة (أداء)
+    // كل PointLight بيتحسب في كل بكسل لكل الخامات (حتى وهو مطفي بالنهار) → عدد قليل على حسب الجهاز.
+    // شبين: النور الرئيسي مزيّف (لمبات منوّرة + بقع نور) والأنوار الحقيقية قليلة جنبك بس
     this.lampLights = [];
-    for (let i = 0; i < 6; i++) {
+    const nLamps = this.tier === 'low' ? 0 : this.mobile ? (this.world ? 0 : 2) : this.world ? 3 : 6;
+    for (let i = 0; i < nLamps; i++) {
       const l = new THREE.PointLight(0xffd8a0, 0, 26, 1.6);
       this.scene.add(l);
       this.lampLights.push(l);
@@ -323,7 +332,7 @@ export class Game {
     this.clock = new THREE.Clock();
     this.acc = 0;
     this.lampTimer = 0;
-    renderer.setAnimationLoop(() => this._frame());
+    renderer.setAnimationLoop((t) => this._tick(t));
     S('جاهز!', 1);
   }
 
@@ -415,23 +424,47 @@ export class Game {
     this.incidents.start(this.player.physics);
   }
 
+  /** سقف الفريمات: على الموبايل 60/120 فريم = كارت شاشة شغال على الآخر = سخونية. الافتراضي 45 (أو 30 في الواطية) */
+  get fpsCap() {
+    const v = this.settings?.get('fpsCap') ?? 'auto';
+    if (v === 'max') return 0;
+    if (v !== 'auto') return +v;
+    if (!this.mobile) return 0;
+    const L = this._q?.level ?? 2;
+    return L >= 3 ? 30 : L >= 1 ? 45 : 60;
+  }
+
+  _tick(t) {
+    const cap = this.fpsCap;
+    if (cap) {
+      const iv = 1000 / cap, last = this._tickT ?? t - iv;
+      // تراكم: لو الشاشة 60 والسقف 45 بنرسم 3 من كل 4 بانتظام (مش متقطع)
+      this._tickAcc = Math.min(iv * 2, (this._tickAcc || 0) + (t - last));
+      this._tickT = t;
+      if (this._tickAcc < iv - 1.5) return;
+      this._tickAcc -= iv;
+    } else this._tickT = t;
+    this._frame();
+  }
+
   /** جودة ديناميكية: لو الـ FPS نزل نقلل الدقة/الضلال/المرايات/مسافة الرؤية، ولو علي نرجّعها */
   _adaptQuality(dt) {
     if (!this.started) return;
     if (this.settings && this.settings.get('graphics') !== 'auto') { this.fps = this._fpsMeasure(dt) ?? this.fps; return; }
-    const q = (this._q ||= { t: 0, frames: 0, level: 0, good: 0, cooldown: 3 });
+    const q = (this._q ||= { t: 0, frames: 0, level: this.mobile ? 2 : 0, good: 0, cooldown: 3 });
     q.t += dt; q.frames++; q.cooldown -= dt;
     if (q.t < 1.5) return;
     const fps = q.frames / q.t;
     q.t = 0; q.frames = 0;
     this.fps = fps;
-    const max = 4;
-    if (q.cooldown <= 0 && q.level < max && (fps < 26 || (fps < 45 && q.level < 2))) {
+    // الهدف = سقف الفريمات (لو فيه) — مش 60 على طول
+    const target = this.fpsCap || 60, max = 4, min = this.mobile ? 1 : -1;
+    if (q.cooldown <= 0 && q.level < max && (fps < target * 0.6 || (fps < target * 0.82 && q.level < 2))) {
       q.level++; q.cooldown = 3; q.good = 0; this._applyQuality(q.level, fps);
-    } else if (fps > 57) {
+    } else if (fps > target * 0.95) {
       q.good += 1.5;
-      // الجهاز قوي ومستقر فوق 57 FPS → نطلع لحد ألترا
-      if (q.good > 8 && q.level > -1) { q.level--; q.good = 0; q.cooldown = 4; this._applyQuality(q.level, fps); }
+      // مستقر على الهدف فترة طويلة → نطلع درجة (الموبايل مش أعلى من "عالية")
+      if (q.good > (this.mobile ? 20 : 8) && q.level > min) { q.level--; q.good = 0; q.cooldown = 4; this._applyQuality(q.level, fps); }
     } else q.good = 0;
   }
 
@@ -447,7 +480,11 @@ export class Game {
     // ألترا (-1): دقة الشاشة الكاملة + ضل عالي الدقة
     // الدقة آخر حاجة بتقل (وعمرها ما تنزل عن دقة الشاشة العادية): الجرافيك المبكسل أوحش من ضل أقل أو مسافة رؤية أقصر
     const floor = Math.min(1, window.devicePixelRatio || 1);
-    const pr = level < 0 ? Math.min(window.devicePixelRatio, 2) : Math.max(floor, [base, base, base * 0.9, base * 0.8, base * 0.72][level]);
+    // الموبايل: الدقة بسقف ثابت لكل مستوى (شاشات 3x بترسم 9 أضعاف البكسلات من غير فرق واضح)
+    const MPR = [1.5, 1.35, 1.2, 1.0, 0.85];
+    const pr = this.mobile
+      ? Math.min(window.devicePixelRatio, level < 0 ? 1.75 : MPR[level])
+      : level < 0 ? Math.min(window.devicePixelRatio, 2) : Math.max(floor, [base, base, base * 0.9, base * 0.8, base * 0.72][level]);
     this.renderer.setPixelRatio(pr);
     this._resize();
     const sh = level < 0 ? (this.mobile ? 2048 : 4096) : level >= 4 ? 512 : level >= 2 ? 1024 : this.mobile ? 1024 : 2048;
@@ -455,7 +492,7 @@ export class Game {
     // الضل بيتقفل/يتفتح من الإعدادات بس (تغييره بيعيد بناء كل الشيدرز = تهنيج).
     // الجودة الواطية بتقلل الدقة وبتحدّث الضل كل كام فريم بدل كل فريم
     this.env.sun.castShadow = this.settings?.get('shadows') !== 'off';
-    this.shadowEvery = level >= 4 ? 3 : level >= 3 ? 2 : 1;
+    this.shadowEvery = level >= 4 ? 3 : level >= 3 ? 2 : this.mobile && level >= 1 ? 2 : 1;
     const L = Math.max(0, level), far = level < 0 ? 1.25 : [1, 0.95, 0.85, 0.75, 0.65][L];
     this.player.mirrorSkip = [0, 1, 2, 3, 5][L];
     this._qCrowd = [1, 0.9, 0.75, 0.6, 0.5][L];
@@ -612,9 +649,9 @@ export class Game {
       case 'livery': for (const P of Object.values(this.vehicles || {})) this._applyLivery(P, v); break;
       case 'graphics': {
         const fixed = { low: 3, med: 2, high: 0, ultra: -1 }[v];
-        const q = (this._q ||= { t: 0, frames: 0, level: 0, good: 0, cooldown: 3 });
+        const q = (this._q ||= { t: 0, frames: 0, level: this.mobile ? 2 : 0, good: 0, cooldown: 3 });
         if (fixed !== undefined) { q.level = fixed; this._applyQuality(fixed, this.fps || 0); }
-        else q.cooldown = 2;
+        else { q.level = this.mobile ? 2 : 0; q.cooldown = 2; this._applyQuality(q.level, this.fps || 0); }
         break;
       }
       case 'shadows': this._applyQuality(this._q?.level || 0, this.fps || 0); break;

@@ -98,12 +98,17 @@ export class ShibinCrowd {
     p.scared = 1.2; p.standing = false; p.speed ||= 1.2;
   }
 
-  update(dt, cam, ph, camDir) {
+  update(dt0, cam, ph, camDir) {
     const cx = cam.x, cz = cam.z;
     const fl = Math.hypot(camDir.x, camDir.z) || 1, fx = camDir.x / fl, fz = camDir.z / fl;
     let budget = this._first === false ? 6 : 1e9;
+    const fr = (this._fr = (this._fr || 0) + 1);
     for (let i = 0; i < this.count; i++) {
       const p = this.people[i];
+      // البعيد (أكتر من 45م) بيمشي كل فريمين بضعف الخطوة
+      p._dt = (p._dt || 0) + dt0;
+      if (p.on && (fr + i) & 1 && (p.x - cx) ** 2 + (p.z - cz) ** 2 > 45 * 45) continue;
+      const dt = p._dt; p._dt = 0;
       if (!p.on) { if (budget-- > 0) this._spawn(p, cx, cz, fx, fz, this._first === false ? SPAWN_MIN : 4, SPAWN_MAX); continue; }
       const d2 = (p.x - cx) ** 2 + (p.z - cz) ** 2;
       if (d2 > RECYCLE * RECYCLE) { p.on = false; continue; }

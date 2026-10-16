@@ -286,8 +286,9 @@ export class ShibinWorld {
       if (d > UNLOAD_R) { this._unloadTile(T); this.tiles.delete(k); continue; }
       if (!T.ready) continue;
       // LOD: التفاصيل (علامات/حرف الرصيف/قضبان) قريب بس، والعمارات البعيدة بخامة من غير صور
-      T.detail.visible = d < DETAIL_R;
-      if (T.bld) T.bld.material = d < LOWMAT_R ? this.mats.bld : this.mats.bldLow;
+      // الموبايل: التفاصيل والواجهات الكاملة لمسافة أقصر (الشيدر الكامل أغلى حاجة في البكسل)
+      T.detail.visible = d < (this.low ? 260 : DETAIL_R);
+      if (T.bld) T.bld.material = d < (this.low ? 170 : LOWMAT_R) ? this.mats.bld : this.mats.bldLow;
       T.group.visible = d < viewDist + 200;
     }
     this.stats.tilesLoaded = [...this.tiles.values()].filter((t) => t.ready).length;
