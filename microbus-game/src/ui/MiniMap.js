@@ -24,7 +24,53 @@ export class MiniMap {
     document.body.appendChild(el);
     this.cv = el.querySelector('canvas');
     this.ctx = this.cv.getContext('2d');
-    el.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); this.toggle(); });
+    // الصغيرة: دوسة = تفتح الكبيرة. الكبيرة: سحب = تحريك، عجلة/قرصة/أزرار = زوم، دوسة على مكان = "اذهب إلى هنا"
+    el.insertAdjacentHTML('beforeend', '<div class="mm-ui"><button class="mm-close" aria-label="قفل">✕</button><div class="mm-zoom"><button data-z="1.5" aria-label="تكبير">+</button><button data-z="0.667" aria-label="تصغير">−</button><button data-z="me" aria-label="مكاني">◎</button></div><div class="mm-panel hidden"><div class="mm-pname"></div><div class="mm-pbtns"><button class="mm-go">🧭 اذهب إلى هنا</button><button class="mm-cancel">إلغاء</button></div></div></div>');
+    this.ui = el.querySelector('.mm-ui');
+    this.panel = el.querySelector('.mm-panel');
+    this.ui.addEventListener('pointerdown', (e) => e.stopPropagation());
+    this.ui.querySelector('.mm-close').onclick = () => this.toggle();
+    this.ui.querySelectorAll('.mm-zoom button').forEach((b) => (b.onclick = () => {
+      if (b.dataset.z === 'me') { const ph = this.game.player.physics; this.view.cx = ph.x; this.view.cz = ph.z; this.view.zoom = Math.max(this.view.zoom, 3); }
+      else this._zoomAt(+b.dataset.z);
+      this._t = 0;
+    }));
+    this.ui.querySelector('.mm-go').onclick = () => { if (this.sel) this.game.setUserTarget?.(this.sel); this.sel = null; this.panel.classList.add('hidden'); this.toggle(); };
+    this.ui.querySelector('.mm-cancel').onclick = () => { this.sel = null; this.panel.classList.add('hidden'); this._t = 0; };
+    this.view = { cx: 0, cz: 0, zoom: 1 };
+    this._ptrs = new Map();
+    el.addEventListener('pointerdown', (e) => {
+      e.preventDefault(); e.stopPropagation();
+      if (!this.big) { this.toggle(); return; }
+      el.setPointerCapture?.(e.pointerId);
+      this._ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY });
+      this._moved = false;
+    });
+    el.addEventListener('pointermove', (e) => {
+      const q = this._ptrs.get(e.pointerId);
+      if (!this.big || !q) return;
+      const k = this._worldPerCss();
+      if (this._ptrs.size === 1) {
+        this.view.cx -= (e.clientX - q.x) * k; this.view.cz -= (e.clientY - q.y) * k;
+      } else if (this._ptrs.size === 2) {
+        const [a, b] = [...this._ptrs.values()];
+        const d0 = Math.hypot(a.x - b.x, a.y - b.y);
+        q.x = e.clientX; q.y = e.clientY;
+        const d1 = Math.hypot(a.x - b.x, a.y - b.y);
+        if (d0 > 10) this._zoomAt(d1 / d0);
+      }
+      q.x = e.clientX; q.y = e.clientY;
+      if (Math.hypot(q.x - q.x0, q.y - q.y0) > 7) this._moved = true;
+      this._t = 0;
+    });
+    const up = (e) => {
+      if (!this._ptrs.has(e.pointerId)) return;
+      this._ptrs.delete(e.pointerId);
+      if (this.big && !this._moved && !this._ptrs.size) this._tap(e.clientX, e.clientY);
+    };
+    el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', (e) => this._ptrs.delete(e.pointerId));
+    el.addEventListener('wheel', (e) => { if (!this.big) return; e.preventDefault(); this._zoomAt(e.deltaY < 0 ? 1.25 : 0.8); this._t = 0; }, { passive: false });
     this.PX = PX;
     if (game.world?.minimapData) this._bakeWorld(game.world); else this._bake();
     this._t = 0;
@@ -36,7 +82,52 @@ export class MiniMap {
   }
 
   show() { this.el.classList.remove('hidden'); }
-  toggle() { this.big = !this.big; this.el.classList.toggle('big', this.big); this._t = 0; }
+  toggle() {
+    this.big = !this.big; this.el.classList.toggle('big', this.big); this._t = 0;
+    this.sel = null; this.panel?.classList.add('hidden'); this._ptrs?.clear();
+    // بتفتح على مكانك، متكبرة شوية
+    if (this.big) { const ph = this.game.player.physics; this.view.cx = ph.x; this.view.cz = ph.z; this.view.zoom = 2.5; }
+  }
+
+  _fitScale(W, H) { return Math.min(W / (this.b.w * this.PX), H / (this.b.h * this.PX)); }
+  /** كام متر في كل بكسل CSS (للسحب) */
+  _worldPerCss() {
+    const dpr = Math.min(2, window.devicePixelRatio || 1), W = this.el.clientWidth * dpr, H = this.el.clientHeight * dpr;
+    return dpr / (this._fitScale(W, H) * this.view.zoom * this.PX);
+  }
+  _zoomAt(f) { this.view.zoom = Math.max(1, Math.min(14, this.view.zoom * f)); }
+  _screenToWorld(cx, cy) {
+    const r = this.el.getBoundingClientRect(), k = this._worldPerCss();
+    return [this.view.cx + (cx - r.left - r.width / 2) * k, this.view.cz + (cy - r.top - r.height / 2) * k];
+  }
+
+  /** أماكن حقيقية من البيانات (OSM) — مفيش أماكن متألفة */
+  _pois() {
+    if (this._poiList) return this._poiList;
+    const ICON = { rail_station: '🚉', rail_halt: '🚉', hospital: '🏥', university: '🎓', stadium: '🏟', post: '📮', bridge: '🌉', street: '🛣', canal: '💧' };
+    const W = this.game.world, out = [];
+    for (const l of W?.landmarkPoints || []) out.push({ name: l.name, x: l.rx, z: l.rz, icon: ICON[l.kind] || '📍' });
+    for (const sp of W?.policeSpots || []) out.push({ name: sp.name, x: sp.q.x, z: sp.q.z, icon: '👮' });
+    return (this._poiList = out);
+  }
+
+  _tap(cx, cy) {
+    const [wx, wz] = this._screenToWorld(cx, cy), k = this._worldPerCss();
+    // أقرب مكان معروف في حدود ~22 بكسل
+    let best = null, bd = 22 * k;
+    for (const p of this._pois()) { const d = Math.hypot(p.x - wx, p.z - wz); if (d < bd) { bd = d; best = p; } }
+    if (!best) {
+      // أي نقطة: بنلزقها على أقرب شارع (والاسم من OSM لو موجود)
+      const W = this.game.world, r = W?.nearestRoad?.(wx, wz, Math.max(40, 30 * k));
+      if (!r) { this.sel = null; this.panel.classList.add('hidden'); return; }
+      const cls = r.e.cls.replace('_link', '');
+      best = { x: r.x ?? wx, z: r.z ?? wz, name: r.e.name || (['primary', 'trunk', 'secondary'].includes(cls) ? 'طريق رئيسي (مالوش اسم مسجّل)' : 'شارع جانبي'), icon: '📍' };
+    }
+    this.sel = best;
+    this.panel.querySelector('.mm-pname').textContent = `${best.icon} ${best.name}`;
+    this.panel.classList.remove('hidden');
+    this._t = 0;
+  }
 
   // ===== الطبقة الثابتة: كل الطرق =====
   _bake() {
@@ -163,15 +254,16 @@ export class MiniMap {
     const ph = this.game.player.physics;
     const base = big ? this.base : this.baseNL;
     const PX = this.PX;
-    const scale = big ? Math.min(W / (this.b.w * PX), H / (this.b.h * PX)) : (1.6 * dpr / (PX * 2)) * zoom;
+    const scale = big ? this._fitScale(W, H) * this.view.zoom : (1.6 * dpr / (PX * 2)) * zoom;
     x.setTransform(1, 0, 0, 1, 0, 0);
     x.fillStyle = '#9fd67a'; x.fillRect(0, 0, W, H);
     // التحويل: العالم → الشاشة
     const toBase = (wx, wz) => [(wx - this.b.x0) * PX, (wz - this.b.z0) * PX];
     x.save();
     if (big) {
-      x.translate(W / 2, H / 2); x.scale(scale, scale);
-      x.translate(-base.width / 2, -base.height / 2);
+      const [vx, vz] = toBase(this.view.cx, this.view.cz);
+      x.imageSmoothingEnabled = this.view.zoom < 3;
+      x.translate(W / 2, H / 2); x.scale(scale, scale); x.translate(-vx, -vz);
     } else {
       // بتلف مع العربية: قدامك لفوق
       const [px, pz] = toBase(ph.x, ph.z);
@@ -207,7 +299,7 @@ export class MiniMap {
     }
     // طريق الـ GPS (من مكانك لحد الهدف)
     // بيظهر بس وإنت محمّل ركاب (أو الكمين/البنزين محتاجينك تروح مكان) — وإنت فاضي الخريطة نضيفة
-    if (nav?.route && (P?.onboard?.length || this.game.hud?.navOverride)) {
+    if (nav?.route && (P?.onboard?.length || this.game.hud?.navOverride || this.game.userTarget)) {
       const from = Math.max(0, nav._track?.i ?? 0);
       path(nav.route.pts, from, 8, '#ffffff', 0.95);
       path(nav.route.pts, from, 4.6, '#2b7cff', 1);
@@ -222,7 +314,17 @@ export class MiniMap {
         else if (dests.has(st) && P.mode === 'line') dot(st.x, st.z, 6, '#22c55e', '#3a3128');
       }
     }
-    if (nav?.target) pin(nav.target.x, nav.target.z, P?.trip ? '#16a34a' : P?.mode === 'line' ? '#e8711a' : '#f59e0b');
+    if (big) {
+      for (const p of this._pois()) {
+        const [a, b] = toBase(p.x, p.z);
+        x.save(); x.translate(a, b); x.scale(k * dpr, k * dpr);
+        x.beginPath(); x.arc(0, 0, 11, 0, Math.PI * 2); x.fillStyle = 'rgba(255,255,255,0.92)'; x.fill(); x.lineWidth = 2; x.strokeStyle = '#0d4f8c'; x.stroke();
+        x.font = '13px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(p.icon, 0, 1);
+        x.restore();
+      }
+      if (this.sel) pin(this.sel.x, this.sel.z, '#7c3aed');
+    }
+    if (nav?.target) pin(nav.target.x, nav.target.z, this.game.userTarget ? '#7c3aed' : P?.trip ? '#16a34a' : P?.mode === 'line' ? '#e8711a' : '#f59e0b');
     // اللاعبين التانيين
     for (const o of this.game.mp?.positions() || []) { dot(o.x, o.z, 7, '#3b82f6', '#fff'); if (!dash) text(`${o.seat} ${o.name || ''}`, o.x, o.z, '#1e3a8a'); }
     // إنت: سهم
@@ -234,6 +336,6 @@ export class MiniMap {
       x.restore();
     }
     x.restore();
-    if (big) { x.fillStyle = 'rgba(0,0,0,0.6)'; x.fillRect(0, H - 26 * dpr, W, 26 * dpr); x.fillStyle = '#fff'; x.font = `${12 * dpr}px Cairo, sans-serif`; x.textAlign = 'center'; x.direction = 'rtl'; x.fillText('🔵 طريقك · 🟠 خط الميكروباص · 🟡 زبون بيشاور · 📍 الوجهة — دوس على الخريطة عشان تقفلها', W / 2, H - 9 * dpr); }
+    if (big) { x.fillStyle = 'rgba(0,0,0,0.6)'; x.fillRect(0, H - 26 * dpr, W, 26 * dpr); x.fillStyle = '#fff'; x.font = `${12 * dpr}px Cairo, sans-serif`; x.textAlign = 'center'; x.direction = 'rtl'; x.fillText('اسحب للتحريك · عجلة/قرصة للزوم · دوس على مكان → اذهب إلى هنا · 🔵 طريقك · 🟠 الخط · 🟡 زبون', W / 2, H - 9 * dpr); }
   }
 }

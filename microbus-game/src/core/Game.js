@@ -175,6 +175,7 @@ export class Game {
       this.traffic.viewDist = this.mobile ? 150 : 190;
       this.crowdBase = this.mobile ? 70 : 130;
       this.crowd = new ShibinCrowd(this.scene, this.world, { count: this.crowdBase });
+      this.crowd.traffic = this.traffic; this.traffic.crowd = this.crowd;
       this.statics = [];
     } else {
       this.traffic = new TrafficSystem(this.scene, this.lights, (type, color, o) => this._makeCar(type, color, o), this.audio, { perLane: this.mobile ? 11 : 16, sideMul: this.mobile ? 1.5 : 1 });
@@ -429,6 +430,13 @@ export class Game {
     this.incidents.start(this.player.physics);
     // الميكروباص في شبين: اختار خطك الأول (اللعبة شغالة عادي في الخلفية، واختيار تاني من زرار تغيير الخط)
     if (this.world && this.player.kind === 'microbus' && this.passengers.LINES.length > 1) this.openLinePicker();
+  }
+
+  /** وجهة يدوية من الخريطة الكبيرة ({x,z,name}) */
+  setUserTarget(t) {
+    this.userTarget = t ? { x: t.x, z: t.z, name: t.name } : null;
+    this._navT = 0;
+    if (t) this.hud.toast(`🧭 الـ GPS: ${t.name}`, 2.2);
   }
 
   openLinePicker() {
@@ -745,8 +753,17 @@ export class Game {
       this.player.surface = surfaceAt(ph.x, ph.z);
       if (this.world) {
         // اسم الشارع الحقيقي (من OSM) لما تدخله — الشارع اللي مالوش اسم مش بيطلع له اسم
+        // (بيتغير بعد قراءتين متتاليتين بس، عشان مايرعشش عند التقاطعات)
         const st = this.world.streetAt(ph.x, ph.z);
-        if (st && st.name && st.name !== this._zone && this.started) { this.hud.toast(st.name, 1.6, true); this._zone = st.name; }
+        const key = st ? st.name || `~${st.edge.cls}${st.edge.elevated ? 'b' : ''}` : '';
+        if (key === this._streetCand) {
+          if (key !== this._zone && this.started) {
+            this._zone = key;
+            const cls = st?.edge.cls.replace('_link', '');
+            const generic = !st ? '' : st.edge.elevated ? 'كوبري (مالوش اسم مسجّل)' : ['primary', 'trunk', 'motorway', 'secondary'].includes(cls) ? 'طريق رئيسي (مالوش اسم مسجّل)' : 'شارع جانبي';
+            this.hud.setStreet(st?.name || null, generic);
+          }
+        } else this._streetCand = key;
       } else {
       // اسم المنطقة لما تدخلها
       // على طريق فرعي: اسمه، غير كده اسم المنطقة على الطريق الرئيسي
@@ -785,7 +802,11 @@ export class Game {
         const pol = this.police.navTarget() || this.incidents.navTarget?.();
         const lowFuel = this.fuel.frac < 0.15 && !this.passengers.trip && !this.passengers.onboard.length;
         this.hud.navOverride = pol ? 'police' : lowFuel ? 'fuel' : null;
-        this.nav.setTarget(pol || (lowFuel && this.station ? STATION.nav : this.passengers.navTarget(ph)));
+        // "اذهب إلى هنا" من الخريطة: بيخلص لما توصل (أو لو ركب زبون/الكمين)
+        const ut = this.userTarget;
+        if (ut && Math.hypot(ut.x - ph.x, ut.z - ph.z) < 22) { this.hud.toast(`📍 وصلت: ${ut.name}`, 2.4); this.userTarget = null; }
+        if (this.userTarget && this.passengers.trip) this.userTarget = null; // زبون التاكسي له الأولوية
+        this.nav.setTarget(pol || this.userTarget || (lowFuel && this.station ? STATION.nav : this.passengers.navTarget(ph)));
         this.hud.setNav(this.nav.info);
         this.hud.setFuel(this.fuel.frac);
         const P = this.player, info = this.nav.info, job = this.passengers.jobInfo();
@@ -805,7 +826,7 @@ export class Game {
       const c = this.camera.position, L = this.lampLights, n = L.length;
       const best = (this._lampBest ||= new Array(n).fill(null)), bd = (this._lampD ||= new Float64Array(n));
       bd.fill(Infinity);
-      for (const p of LAMP_POSITIONS) {
+      for (const p of this.world ? this.world.lamps.near : LAMP_POSITIONS) {
         const d = p.distanceToSquared(c);
         if (d >= bd[n - 1]) continue;
         let k = n - 1;

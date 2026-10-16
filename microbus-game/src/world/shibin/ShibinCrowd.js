@@ -78,7 +78,7 @@ export class ShibinCrowd {
       p.dir = this.R() < 0.5 ? 1 : -1;
       p.speed = p.standing ? 0 : 0.85 + this.R() * 0.7;
       p.look = this.R() * 2 - 1;
-      p.on = true;
+      p.on = true; p.cross = null;
       p.heading = this._yaw(p);
       return true;
     }
@@ -86,8 +86,42 @@ export class ShibinCrowd {
   }
 
   _yaw(p) {
+    if (p.cross) return p.cross.wait > 0 ? Math.atan2(p.cross.ux, p.cross.uz) + Math.sin(p.phase * 0.8) * 0.6 : Math.atan2(p.cross.ux, p.cross.uz);
     if (p.standing) return Math.atan2(-p.nx, -p.nz) + p.look;
     return Math.atan2(p.dx * p.dir, p.dz * p.dir);
+  }
+
+  /** آخر الرصيف عند التقاطع: ساعات بيعدّي الشارع للناحية التانية (الشوارع الصغيرة/المتوسطة بس، ولو مفيش عربيات قريبة) */
+  _tryCross(p, ph) {
+    const e = p.e, cls = e.cls.replace('_link', '');
+    if (p.group || this.R() > 0.4 || e.oneway && e.half > 4 || ['primary', 'trunk', 'motorway'].includes(cls) || e.half > 6) return false;
+    const x0 = p.x, z0 = p.z, tx = x0 - p.nx * 2 * p.lat, tz = z0 - p.nz * 2 * p.lat; // نفس المسافة على الناحية التانية
+    if (!this._ok(tx, tz)) return false;
+    p.cross = { x: x0, z: z0, x0, z0, tx, tz, ux: -p.nx, uz: -p.nz, t: 0, len: 2 * p.lat, wait: 0.6 + this.R() * 1.2 };
+    p.standing = false;
+    return true;
+  }
+
+  _carsNear(x, z, r) {
+    const T = this.traffic;
+    if (T) for (const c of T.cars) if (c.on && !c.off && c.v > 0.5 && (c.x - x) ** 2 + (c.z - z) ** 2 < r * r) return true;
+    return false;
+  }
+
+  _crossStep(p, dt, ph) {
+    const C = p.cross;
+    if (C.wait > 0) {
+      // بيبص يمين وشمال، ومش بيعدّي غير لما الطريق يفضى (عربيات المرور + إنت)
+      const busy = this._carsNear(C.x0 + C.ux * C.len / 2, C.z0 + C.uz * C.len / 2, 45) || (ph && (ph.x - C.x0) ** 2 + (ph.z - C.z0) ** 2 < 35 * 35 && Math.abs(ph.forwardSpeed) > 1);
+      C.wait = busy ? Math.max(C.wait, 0.4) : C.wait - dt;
+      C.waited = (C.waited || 0) + dt;
+      if (C.waited > 25) { p.cross = null; p.dir = -p.dir; } // زهق: يرجع
+      return;
+    }
+    C.t += (p.speed * 1.15 * dt) / C.len;
+    const u = Math.min(1, C.t);
+    C.x = C.x0 + (C.tx - C.x0) * u; C.z = C.z0 + (C.tz - C.z0) * u;
+    if (u >= 1) { p.cross = null; p.side = -p.side; p.dir = -p.dir; this._pos(p); }
   }
 
   _dodge(p, dt, ph) {
@@ -114,15 +148,29 @@ export class ShibinCrowd {
       p._dt = (p._dt || 0) + dt0;
       if (p.on && (fr + i) & 1 && (p.x - cx) ** 2 + (p.z - cz) ** 2 > 45 * 45) continue;
       const dt = p._dt; p._dt = 0;
-      if (!p.on) { if (budget-- > 0) this._spawn(p, cx, cz, fx, fz, this._first === false ? SPAWN_MIN : 4, SPAWN_MAX); continue; }
+      if (!p.on) {
+        if (budget-- > 0 && this._spawn(p, cx, cz, fx, fz, this._first === false ? SPAWN_MIN : 4, SPAWN_MAX)) {
+          // اتنين ماشيين مع بعض (صحاب/أم وابنها) — نفس السرعة والاتجاه، جنب بعض
+          p.group = null;
+          const q = this.people[i + 1];
+          if (q && i + 1 < this.count && !q.on && this.R() < 0.28) {
+            Object.assign(q, { e: p.e, side: p.side, lo: p.lo, hi: p.hi, s: p.s + 0.25, dir: p.dir, speed: p.speed, standing: p.standing, look: -p.look, scared: 0, cross: null });
+            q.lat = p.lat + 0.55 <= p.hi ? p.lat + 0.55 : Math.max(p.lo, p.lat - 0.55);
+            this._pos(q);
+            if (this._ok(q.x, q.z)) { q.on = true; q.heading = p.heading; p.group = q.group = true; }
+          }
+        }
+        continue;
+      }
       const d2 = (p.x - cx) ** 2 + (p.z - cz) ** 2;
-      if (d2 > RECYCLE * RECYCLE) { p.on = false; continue; }
+      if (d2 > RECYCLE * RECYCLE) { p.on = false; p.cross = null; p.group = null; continue; }
       if (ph && d2 < 400 && Math.abs(p.x - ph.x) < 9 && Math.abs(p.z - ph.z) < 9) this._dodge(p, dt, ph);
       p.scared = Math.max(0, p.scared - dt);
       if (!p.standing) {
         const [a, b] = this._range(p.e);
         const ns = p.s + p.dir * p.speed * (p.scared ? 1.6 : 1) * dt;
-        if (ns > b || ns < a) p.dir = -p.dir;
+        if (p.cross) { this._crossStep(p, dt, ph); }
+        else if (ns > b || ns < a) { if (!this._tryCross(p, ph)) p.dir = -p.dir; }
         else {
           const os = p.s; p.s = ns; this._pos(p);
           // قدامه مش رصيف (جزيرة/مدخل/ترعة): يرجع
@@ -130,18 +178,24 @@ export class ShibinCrowd {
         }
       } else if (this.R() < dt * 0.02) { p.standing = false; p.speed = 0.9 + this.R() * 0.5; }
       this._pos(p);
+      if (p.cross) { p.x = p.cross.x; p.z = p.cross.z; }
       const ty = this._yaw(p);
       p.heading += Math.atan2(Math.sin(ty - p.heading), Math.cos(ty - p.heading)) * Math.min(1, dt * 4);
       p.phase += dt * (p.scared ? 12 : p.standing ? 1 : p.speed * 4.2);
     }
     this._first = false;
+    // اللي بيعدّوا الشارع دلوقتي (المرور بيقف لهم)
+    const X = this.crossers || (this.crossers = []);
+    X.length = 0;
+    for (let i = 0; i < this.count; i++) { const p = this.people[i]; if (p.on && p.cross && p.cross.wait <= 0) X.push(p); }
     this.batch.begin();
     for (let i = 0; i < this.count; i++) {
       const p = this.people[i];
       if (!p.on || (p.x - cx) ** 2 + (p.z - cz) ** 2 > VIEW * VIEW) continue;
       const talk = p.standing && !p.scared && (p.variant + i) % 4 === 0 ? 0.18 + Math.sin(p.phase * 0.7) * 0.08 : 0;
       const amp = p.standing && !p.scared ? 0 : p.scared ? 1.5 : Math.min(1.2, p.speed * 0.8);
-      this.batch.add(p.variant, p.x, 0.15, p.z, p.heading, 1, p.phase, amp, talk, 0);
+      const y = p.cross && p.cross.wait <= 0 && p.cross.t > 0.08 && p.cross.t < 0.92 ? 0 : 0.15;
+      this.batch.add(p.variant, p.x, y, p.z, p.heading, 1, p.phase, p.cross && p.cross.wait > 0 ? 0 : amp, talk, 0);
     }
     this.batch.flush();
   }
@@ -163,7 +217,8 @@ export class ShibinCrowd {
   /** للاختبار: كام واحد واقف على أسفلت (المفروض صفر) */
   debugOnRoad() {
     let bad = 0, n = 0;
-    for (const p of this.people) { if (!p.on) continue; n++; if (!this._ok(p.x, p.z)) bad++; }
-    return { people: n, onRoad: bad };
+    let crossing = 0, groups = 0;
+    for (const p of this.people) { if (!p.on) continue; n++; if (p.group) groups++; if (p.cross) { crossing++; continue; } if (!this._ok(p.x, p.z)) bad++; }
+    return { people: n, onRoad: bad, crossing, groups };
   }
 }

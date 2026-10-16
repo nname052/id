@@ -130,6 +130,17 @@ export class HUD {
     el.parentElement.parentElement.classList.toggle('low', frac < 0.15);
   }
 
+  /** اسم الشارع الحالي: name = اسم حقيقي من OSM، أو null + وصف عام للشارع اللي مالوش اسم (من غير ما نألّف اسم) */
+  setStreet(name, generic) {
+    const box = (this.streetBox ||= document.getElementById('street')), el = (this.streetEl ||= document.getElementById('street-name'));
+    if (!box) return;
+    const text = name || generic || '';
+    if (text === this._street) return;
+    this._street = text;
+    box.classList.toggle('hidden', !text);
+    if (text) { el.textContent = text; el.classList.toggle('unnamed', !name); }
+  }
+
   setMoney(v) {
     const el = (this.moneyEl ||= document.getElementById('hud-money'));
     if (el) { el.textContent = `${Math.round(v)}`; el.parentElement?.classList.toggle('neg', v < 0); }

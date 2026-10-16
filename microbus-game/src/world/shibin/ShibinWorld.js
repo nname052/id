@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import { REGION_BASE, loadJSON, dropCache, buildGraph, edgePoint, edgesNear } from './ShibinData.js';
 import { buildingMaterial, buildTileBuildings, buildRealBuilding } from './ShibinBuildings.js';
 import { canvas, tex } from '../../render/textures.js';
+import { ShibinLamps } from './ShibinLamps.js';
 
 const LOAD_R = 650, UNLOAD_R = 900, DETAIL_R = 380, LOWMAT_R = 520;
 const SIDE_Y = 0.15, WATER_Y = -0.55, WATER_FLOOR = -0.9;
@@ -56,6 +57,8 @@ export class ShibinWorld {
     this._ground();
     this._gates();
     this._landmarkSigns();
+    this.lamps = new ShibinLamps(this, { mobile: this.low });
+    this.group.add(this.lamps.group);
     this.stats.loadMs = Math.round(performance.now() - t0);
     return this;
   }
@@ -81,6 +84,7 @@ export class ShibinWorld {
 
   setNight(on) {
     for (const m of [this.mats.bld, this.mats.bldLow]) m.userData.U.uNight.value = on ? 1 : 0;
+    this.lamps?.setNight(on);
   }
 
   /**
@@ -371,6 +375,7 @@ export class ShibinWorld {
   /** كل ربع ثانية: المربعات المطلوبة حوالين الكاميرا، والبعيد بيتشال */
   updateVisibility(cam, viewDist = 560) {
     const TS = this.TS, cx = cam.x, cz = cam.z;
+    this.lamps?.update(0.25, cam);
     const tiles = this.meta.tiles;
     const r = Math.min(LOAD_R, viewDist + 120);
     const i0 = Math.floor((cx - r) / TS), i1 = Math.floor((cx + r) / TS), j0 = Math.floor((cz - r) / TS), j1 = Math.floor((cz + r) / TS);
