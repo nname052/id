@@ -347,7 +347,9 @@ export class ShibinTraffic {
     for (const q of this.crowd?.crossers || []) {
       const dx = q.x - c.x, dz = q.z - c.z;
       if (Math.abs(dx) > 30 || Math.abs(dz) > 30) continue;
-      const lon = dx * hx + dz * hz; if (lon <= 0) continue;
+      const lon = dx * hx + dz * hz;
+      if (lon > -1 && dx * dx + dz * dz < (c.len / 2 + 2.5) ** 2) { gap = 0.1; vLead = 0; continue; } // لازق في العربية (لفة/تقاطع): وقفة فورية
+      if (lon <= 0) continue;
       if (Math.abs(dx * -hz + dz * hx) > c.width / 2 + 1.2) continue;
       const g = lon - c.len / 2 - 1.5;
       if (g < gap) { gap = Math.max(0.1, g); vLead = 0; }

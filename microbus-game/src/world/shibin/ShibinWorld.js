@@ -332,8 +332,8 @@ export class ShibinWorld {
         if (d > s.hw) continue;
         let h = s.ay + (s.by - s.ay) * t;
         // أول المطلع (واطي): حرفه الجانبي منحدر ناعم مش عتبة (لو حارة شارع جنبه بتلمسه)
-        // (التنعيم بيقل تدريجيًا بين 0.4 و 0.6م — كان بيتقطع فجأة عند 0.5 = عتبة 10سم في الكباري الصغيرة)
-        if (h < 0.6) { const k = Math.min(1, (s.hw - d) / 3), b = h <= 0.4 ? 1 : (0.6 - h) / 0.2; h *= 1 - (1 - k) * b; }
+        // (التنعيم بيقل تدريجيًا بين 0.4 و 1م — كان بيتقطع فجأة عند 0.5 = عتبة 10سم في الكباري الصغيرة)
+        if (h < 1) { const k = Math.min(1, (s.hw - d) / 3), b = h <= 0.4 ? 1 : (1 - h) / 0.6; h *= 1 - (1 - k) * b; }
         // بنفضل على السطح اللي العربية عليه: بس الأسطح القريبة من ارتفاعها (±0.8م) — مطلع جنب كوبري
         // أعلى/أوطى منه مايشقلبش العربية — ومن بينهم الأقرب لخطه (عشان التفريعة تمشي مع اللي ماشي عليها)
         if (Math.abs(h - ref) > 0.8 || h < g - 0.05) continue;
@@ -347,7 +347,7 @@ export class ShibinWorld {
         if (sw > 0) bh = sh / sw;
       }
       // أول/آخر المطلع (واطي) جنب شارع على الأرض موازي ليه: لو العربية أقرب لخط الشارع، فهي على الشارع
-      if (bh !== null && bh < 1.2 && (ref < bh - 0.25 ? this._groundRoadNearer(x, z, Infinity, null) : bh < 0.8 && this._groundRoadNearer(x, z, bestD, bestE))) bh = null;
+      if (bh !== null && bh < 1.2 && (ref < bh - 0.12 ? this._groundRoadNearer(x, z, Infinity, null) : bh < 0.8 && this._groundRoadNearer(x, z, bestD, bestE))) bh = null;
       if (bh !== null) g = bh;
     }
     return g;

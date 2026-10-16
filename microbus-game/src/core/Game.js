@@ -172,7 +172,7 @@ export class Game {
     S('المرور والمشاة...', 0.82);
     await nextFrame();
     if (this.world) {
-      this.traffic = new ShibinTraffic(this.scene, (type, color, o) => this._makeCar(type, color, o), this.audio, this.world, { count: this.tier === 'low' ? 14 : this.mobile ? 20 : 32, parked: this.tier === 'low' ? 6 : this.mobile ? 10 : 18 });
+      this.traffic = new ShibinTraffic(this.scene, (type, color, o) => this._makeCar(type, color, o), this.audio, this.world, { count: this.tier === 'low' ? 12 : this.mobile ? 16 : 28, parked: this.tier === 'low' ? 6 : this.mobile ? 8 : 16 });
       this.traffic.viewDist = this.mobile ? 150 : 190;
       this.crowdBase = this.mobile ? 70 : 130;
       this.crowd = new ShibinCrowd(this.scene, this.world, { count: this.crowdBase });

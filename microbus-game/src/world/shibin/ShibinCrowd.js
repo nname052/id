@@ -118,6 +118,8 @@ export class ShibinCrowd {
       if (C.waited > 25) { p.cross = null; p.dir = -p.dir; } // زهق: يرجع
       return;
     }
+    // عربية قريبة أوي من مكانه الجاي: يستنى في مكانه (مايمشيش قدامها)
+    if (this.traffic) for (const c of this.traffic.cars) if (c.on && !c.off && (c.x - C.x) ** 2 + (c.z - C.z) ** 2 < 4.5 * 4.5 && c.v > 0.3) return;
     C.t += (p.speed * 1.15 * dt) / C.len;
     const u = Math.min(1, C.t);
     C.x = C.x0 + (C.tx - C.x0) * u; C.z = C.z0 + (C.tz - C.z0) * u;
