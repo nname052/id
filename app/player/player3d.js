@@ -28,18 +28,24 @@ function engine() {
 }
 
 // ---------- تحميل ----------
-const fbx = new FBXLoader(), gltf = new GLTFLoader();
+// كل التحميل (والصور اللي جوه الموديلات) بيعدّي على مدير واحد، علشان نستنى كل الصور قبل أول رسمة
+// (FBX بيرجّع الموديل قبل ما صور الخامات تخلص، فالشخصية كانت بتطلع سودا في أول فريمات)
+const manager = new THREE.LoadingManager();
+let pending = 0, waiters = [];
+manager.itemStart = ((orig) => function (u) { pending++; return orig.call(this, u); })(manager.itemStart);
+manager.itemEnd = ((orig) => function (u) { pending--; const r = orig.call(this, u); if (pending <= 0) { waiters.forEach((f) => f()); waiters = []; } return r; })(manager.itemEnd);
+manager.itemError = ((orig) => function (u) { console.warn("3D asset failed", u); return orig.call(this, u); })(manager.itemError);
+const settled = () => new Promise((res) => (pending <= 0 ? res() : waiters.push(res)));
+const fbx = new FBXLoader(manager), gltf = new GLTFLoader(manager);
 const cache = {};
 const once = (key, fn) => (cache[key] ??= fn());
 
 const CHAR = { // نفس الكتالوج اللي في three_d.py
   Aj: ["Aj_Idle", 1.75], Ty: ["characters/Ty", 1.7], Big_Vegas: ["characters/Big_Vegas", 1.75], Timmy: ["characters/Timmy", 1.25],
-  Doozy: ["characters/Doozy", 1.3], Claire: ["characters/Claire", 1.68], Amy: ["characters/Amy", 1.62], Kaya: ["characters/Kaya", 1.65],
+  Doozy: ["characters/Doozy", 1.3], Claire: ["characters/Claire", 1.68], Amy: ["characters/Amy", 1.62], Kaya: ["characters/Kaya", 1.72],
   Megan: ["characters/Megan", 1.68], Kate: ["characters/Kate", 1.68], Jody: ["characters/Jody", 1.66], Sporty_Granny: ["characters/Sporty_Granny", 1.6],
 };
 const CLIP_FILE = { idle: "Aj_Idle", talking: "Aj_Talking", thinking: "Aj_Thinking", walking: "Aj_Walking" };
-const SITTING = new Set(["sitting_idle", "sitting_talking", "sitting_laughing", "stand_to_sit", "sit_to_stand", "typing"]);
-const ONE_SHOT = new Set(["stand_to_sit", "sit_to_stand", "sitting_floor"]);
 const WALKS = new Set(["walking", "walk_female"]);
 const SOURCE = { prefix: "mixamorig", hipsY: 83.2 }; // الحركات متصدّرة على Aj
 
@@ -123,8 +129,18 @@ async function character(name, heightM, look) {
   root.traverse((o) => { if (o.isBone) { o.getWorldPosition(v); top = Math.max(top, v.y); bottom = Math.min(bottom, v.y); } });
   root.scale.multiplyScalar(heightM / ((top - bottom) * 1.04));
   const hips = (() => { let h; root.traverse((o) => { if (o.isBone && /Hips$/.test(o.name) && !h) h = o; }); return h; })();
-  let head; root.traverse((o) => { if (o.isBone && o.name === base.prefix + "Head") head = o; });
-  return { root, prefix: base.prefix, hipsY: base.hipsY, hips, head, mixer: new THREE.AnimationMixer(root), height: heightM };
+  const bone = (n) => { let b; root.traverse((o) => { if (o.isBone && o.name === base.prefix + n && !b) b = o; }); return b; };
+  const head = bone("Head");
+  // الرجلين: الكعب (عضمة الـ Foot) والصوابع (ToeBase). في الوضع الأصلي الرجل مفرودة على الأرض،
+  // فبنقيس ارتفاع كل عضمة فوق النعل علشان نعرف بعدين نقطة لمس الأرض في أي وضعية
+  root.updateMatrixWorld(true);
+  const minY = new THREE.Box3().setFromObject(root).min.y;
+  const feet = ["Left", "Right"].map((side) => {
+    const ankle = bone(side + "Foot"), toe = bone(side + "ToeBase");
+    const y = (b) => (b ? b.getWorldPosition(v).y - minY : 0);
+    return { ankle, toe, ankleH: y(ankle), toeH: y(toe) };
+  }).filter((f) => f.ankle);
+  return { root, prefix: base.prefix, hipsY: base.hipsY, hips, head, feet, bone, name, mixer: new THREE.AnimationMixer(root), height: heightM };
 }
 
 function addPhone(ch) {
@@ -182,9 +198,11 @@ const SETS = {
     { f: KR + "stove_single.gltf", p: [0.5, -2.25], h: 0.95 }, { f: KR + "fridge_A_decorated.gltf", p: [1.75, -2.25], h: 2.0 },
     { f: KR + "kitchentable_A.gltf", p: [-2.0, 0.1], h: 0.78 }, { f: KR + "chair_A.gltf", p: [-2.0, 0.85], r: 180, h: 0.9 },
     { f: KR + "pot_A_stew.gltf", p: [0.5, -2.25], y: 0.95, h: 0.25 }, { f: KR + "crate_tomatoes.gltf", p: [2.4, -0.6], h: 0.35 } ] },
-  street: { indoor: false, ground: "#8d8f93", props: [
-    { f: CC + "building-a.glb", p: [-8, -12], h: 13 }, { f: CC + "building-c.glb", p: [-2.5, -12.5], h: 16 }, { f: CC + "building-e.glb", p: [3.5, -12], h: 12 },
-    { f: CC + "building-g.glb", p: [9, -12.5], h: 15 }, { f: CC + "building-skyscraper-b.glb", p: [0, -26], h: 40 }, { f: CC + "building-d.glb", p: [-14, -11], h: 11 },
+  // العماير: صف واحد على الرصيف التاني، كل عمارة جنب التانية بعرضها الحقيقي، وواجهتهم على بعد 9.5 متر
+  street: { indoor: false, ground: "#8d8f93", row: { z: -9.5, items: [
+    { f: CC + "building-a.glb", h: 9 }, { f: CC + "building-c.glb", h: 13 }, { f: CC + "building-e.glb", h: 8 }, { f: CC + "building-g.glb", h: 12 },
+    { f: CC + "building-d.glb", h: 10 }, { f: CC + "building-h.glb", h: 11 }, { f: CC + "building-b.glb", h: 9 }] },
+    props: [ { f: CC + "building-skyscraper-b.glb", p: [6, -40], h: 45 }, { f: CC + "building-skyscraper-d.glb", p: [-14, -46], h: 50 },
     { f: KC + "streetlight.gltf", p: [2.4, -2.3], h: 4.2 }, { f: KC + "car_taxi.gltf", p: [-3.2, -5.2], r: 90, h: 1.5 },
     { f: KC + "car_sedan.gltf", p: [4.5, -6.6], r: -90, h: 1.45 }, { f: KC + "bench.gltf", p: [-1.6, -2.1], h: 0.7 },
     { f: KC + "bush.gltf", p: [-3.1, -2.4], h: 0.9 }, { f: KC + "trash_A.gltf", p: [1.4, -2.4], h: 0.9 }, { f: KC + "firehydrant.gltf", p: [3.4, -1.4], h: 0.7 } ] },
@@ -194,6 +212,12 @@ const SETS = {
     { f: KC + "bench.gltf", p: [1.9, -1.8], r: -20, h: 0.7 }, { f: NK + "rock_largeA.glb", p: [-2.6, -2.2], h: 0.7 },
     { f: NK + "flower_redA.glb", p: [-1.6, 0.9], h: 0.35 }, { f: NK + "flower_yellowB.glb", p: [2.4, 0.4], h: 0.35 }, { f: NK + "flower_purpleA.glb", p: [-2.4, -0.4], h: 0.35 },
     { f: NK + "plant_bushLarge.glb", p: [3.2, -2.8], h: 1.1 }, { f: NK + "grass_large.glb", p: [-0.8, -1.6], h: 0.3 }, { f: NK + "path_stone.glb", p: [0, -0.4], w: 1.4 } ] },
+  cafe: { indoor: true, floor: "#8a6a52", wall: "#efe0cc", props: [
+    { f: KR + "kitchencounter_straight_B.gltf", p: [-1.3, -2.25], h: 1.0 }, { f: KR + "kitchencounter_straight_B_backsplash.gltf", p: [-0.3, -2.25], h: 1.0 },
+    { f: KR + "shelf_papertowel_decorated.gltf", p: [1.0, -2.45], y: 1.3, w: 0.9 }, { f: KR + "table_round_A_decorated.gltf", p: [1.75, -0.9], h: 0.78 },
+    { f: KR + "chair_A.gltf", p: [2.4, -0.5], r: -120, h: 0.9 }, { f: KR + "table_round_A_small_decorated.gltf", p: [-2.2, -0.2], h: 0.75 },
+    { f: KR + "chair_B.gltf", p: [-2.25, 0.5], r: 180, h: 0.9 }, { f: KR + "pillar_A.gltf", p: [2.55, -2.3], h: 2.6 },
+    { f: KF + "lamp_standing.gltf", p: [-2.5, -2.2], h: 1.65, shadow: false, light: true }, { f: KR + "crate_carrots.gltf", p: [0.6, -2.3], h: 0.35 } ] },
   studio: { indoor: false, studio: true, props: [] },
 };
 
@@ -208,7 +232,7 @@ function gradientSky(top, bottom) {
 }
 const mix = (a, b, p) => "#" + new THREE.Color(a).lerp(new THREE.Color(b), p).getHexString();
 
-async function buildSet(scene, spec, look, time, pal, sitting) {
+async function buildSet(scene, spec, look, time, pal, seed) {
   const set = SETS[spec] || SETS.studio;
   const mat = (color, rough = 0.85) => look === "anime" ? new THREE.MeshToonMaterial({ color, gradientMap: toonGradient() }) : new THREE.MeshStandardMaterial({ color, roughness: rough });
   let lampPos = null;
@@ -221,14 +245,16 @@ async function buildSet(scene, spec, look, time, pal, sitting) {
     const right = left.clone(); right.position.x = 2.9; right.rotation.y = -Math.PI / 2; scene.add(right);
     const base = new THREE.Mesh(new THREE.BoxGeometry(9, 0.12, 0.04), mat(mix(wallC, "#000", 0.25))); base.position.set(0, 0.06, -2.58); scene.add(base);
     scene.background = new THREE.Color(mix(wallC, "#000", 0.5));
+    if (look !== "anime") { scene.environment = await hdri("studio_small_09"); scene.environmentIntensity = 0.35; }
   } else if (set.studio) {
     // استوديو: خلفية منحنية بلون الفيديو (cyclorama)
     const c = pal.surface || "#2a2235";
     const floor = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), mat(c, 0.9)); floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
     const curve = new THREE.Mesh(new THREE.CylinderGeometry(6, 6, 30, 48, 1, true, Math.PI * 0.5, Math.PI), mat(c, 0.95));
-    curve.material.side = THREE.BackSide; curve.position.set(0, 0, 0); curve.rotation.y = Math.PI; scene.add(curve);
+    curve.material.side = THREE.BackSide; curve.rotation.y = Math.PI; scene.add(curve);
     scene.background = new THREE.Color(c);
     scene.fog = new THREE.Fog(c, 7, 22);
+    if (look !== "anime") { scene.environment = await hdri("brown_photostudio_02"); scene.environmentIntensity = 0.5; }
   } else {
     const gc = time === "night" ? mix(set.ground, "#0a1030", 0.55) : set.ground;
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), mat(gc, 0.95)); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
@@ -241,19 +267,41 @@ async function buildSet(scene, spec, look, time, pal, sitting) {
       const sky = { day: ["#5aa9e6", "#d8efff"], sunset: [mix("#3b2a6b", pal.accent2 || "#3b2a6b", 0.3), "#ffb27a"], night: ["#050a24", "#1c2c5e"] }[time] || ["#5aa9e6", "#d8efff"];
       scene.background = gradientSky(...sky);
     } else {
-      const tex = await hdri(time === "sunset" ? "venice_sunset" : "kloofendal_48d_partly_cloudy_puresky");
-      scene.background = tex; scene.backgroundIntensity = 0.9;
+      // سما حقيقية (HDRI): سما الغروب، أو واحدة من سمتين للنهار حسب المشهد
+      const tex = await hdri(time === "sunset" ? "venice_sunset" : seed % 2 ? "lebombo" : "kloofendal_48d_partly_cloudy_puresky");
+      scene.background = tex; scene.backgroundIntensity = 0.9; scene.environment = tex; scene.environmentIntensity = 0.4;
     }
     scene.fog = new THREE.Fog(time === "night" ? "#0d1638" : time === "sunset" ? "#e8a27a" : "#cfe3f3", 18, 70);
   }
-  const props = [...set.props];
-  if (sitting && !["living"].includes(spec)) props.push({ f: KF + "chair_A.gltf", p: [0, -0.32], r: 0, h: 0.95, seat: true });
-  await Promise.all(props.map(async (pr) => {
-    if (sitting && spec === "office" && pr.f.endsWith("chairDesk.glb")) return;
+  const placed = [];
+  if (set.row) { // صف عماير: بنحمّلهم ونرصّهم جنب بعض من النص
+    const objs = await Promise.all(set.row.items.map((pr) => prop(scene, look, { ...pr, p: [0, 0] })));
+    const widths = objs.map((o) => new THREE.Box3().setFromObject(o).getSize(new THREE.Vector3()).x + 0.6);
+    let x = -widths.slice(0, Math.floor(objs.length / 2)).reduce((a, b) => a + b, 0) - widths[Math.floor(objs.length / 2)] / 2;
+    objs.forEach((o, i) => { const b = new THREE.Box3().setFromObject(o); o.position.x = x + widths[i] / 2; o.position.z = set.row.z - b.max.z; x += widths[i]; });
+  }
+  await Promise.all(set.props.map(async (pr) => {
     const o = await prop(scene, look, pr);
+    placed.push(o);
     if (pr.light) { const b = new THREE.Box3().setFromObject(o); lampPos = new THREE.Vector3((b.min.x + b.max.x) / 2, b.max.y - 0.2, (b.min.z + b.max.z) / 2); }
   }));
-  return { set, lampPos };
+  return { set, lampPos, placed };
+}
+
+// الأثاث ما يدخلش في الشخصية: أي حاجة جوه مساحة حركتها بتتزق لبره (أو بتتشال لو مفيش مكان)
+function clearArea(scene, placed, zone) {
+  for (const o of placed) {
+    const b = new THREE.Box3().setFromObject(o);
+    if (b.max.y < 0.12) continue; // سجاد: عادي
+    const nx = Math.max(zone.x0 - b.max.x, b.min.x - zone.x1, 0), nz = Math.max(zone.z0 - b.max.z, b.min.z - zone.z1, 0);
+    if (nx > 0 || nz > 0) continue; // بعيد
+    // أقصر اتجاه للخروج
+    const moves = [[zone.x0 - b.max.x - 0.05, 0], [zone.x1 - b.min.x + 0.05, 0], [0, zone.z0 - b.max.z - 0.05]];
+    moves.sort((m1, m2) => Math.hypot(...m1) - Math.hypot(...m2));
+    const [dx, dz] = moves[0];
+    if (Math.hypot(dx, dz) > 1.6) { scene.remove(o); continue; }
+    o.position.x += dx; o.position.z += dz;
+  }
 }
 
 function lights(scene, setInfo, time, look, pal = {}) {
@@ -278,75 +326,230 @@ function lights(scene, setInfo, time, look, pal = {}) {
 }
 
 // ---------- الكاميرا ----------
-function cameraAt(kind, p, ch, x0) {
+function cameraAt(kind, p, ch, x0, z0 = 0) {
   const h = ch.height, cx = x0;
   const P = (x, y, z) => new THREE.Vector3(x, y, z);
   const e = ease(p);
   switch (kind) {
-    case "push_in": return { pos: P(cx + 0.25, h * 0.85, lerp(4.4, 2.5, e)), look: P(cx, h * 0.62, 0), fov: 42 };
-    case "pull_out": return { pos: P(cx, lerp(h * 0.85, h * 1.4, e), lerp(2.0, 5.8, e)), look: P(cx, h * 0.55, 0), fov: 42 };
-    case "orbit": { const a = lerp(-0.6, 0.6, e); return { pos: P(cx + Math.sin(a) * 3.4, h * 0.8, Math.cos(a) * 3.4), look: P(cx, h * 0.58, 0), fov: 42 }; }
-    case "low_angle": return { pos: P(cx + 0.4, 0.35, lerp(3.2, 2.6, e)), look: P(cx, h * 0.75, 0), fov: 48 };
-    case "high_angle": return { pos: P(cx + 0.3, lerp(4.4, 3.8, e), 2.6), look: P(cx, h * 0.35, 0), fov: 46 };
-    case "close_up": return { pos: P(cx + lerp(0.15, -0.1, e), h * 0.9, lerp(1.45, 1.15, e)), look: P(cx, h * 0.84, 0), fov: 38 };
-    case "tracking": return { pos: P(cx + 0.3, h * 0.75, 3.4), look: P(cx, h * 0.6, 0), fov: 42 };
-    case "dutch": return { pos: P(cx - 0.4, h * 0.8, lerp(3.4, 2.7, e)), look: P(cx, h * 0.62, 0), fov: 44, roll: -0.2 };
-    default: return { pos: P(cx + lerp(-0.2, 0.2, e), h * 1.0, 6.2), look: P(cx, h * 0.55, 0), fov: 40 }; // static_wide
+    case "push_in": return { pos: P(cx + 0.25, h * 0.85, z0 + lerp(4.4, 2.5, e)), look: P(cx, h * 0.62, z0), fov: 42 };
+    case "pull_out": return { pos: P(cx, lerp(h * 0.85, h * 1.4, e), z0 + lerp(2.0, 5.8, e)), look: P(cx, h * 0.55, z0), fov: 42 };
+    case "orbit": { const a = lerp(-0.6, 0.6, e); return { pos: P(cx + Math.sin(a) * 3.4, h * 0.8, z0 + Math.cos(a) * 3.4), look: P(cx, h * 0.58, z0), fov: 42 }; }
+    case "low_angle": return { pos: P(cx + 0.4, 0.35, z0 + lerp(3.2, 2.6, e)), look: P(cx, h * 0.75, z0), fov: 48 };
+    case "high_angle": return { pos: P(cx + 0.3, lerp(4.4, 3.8, e), z0 + 2.6), look: P(cx, h * 0.35, z0), fov: 46 };
+    case "close_up": return { pos: P(cx + lerp(0.15, -0.1, e), h * 0.9, z0 + lerp(1.5, 1.25, e)), look: P(cx, h * 0.84, z0), fov: 38 };
+    case "tracking": return { pos: P(cx + 0.3, h * 0.8, z0 + 4.3), look: P(cx, h * 0.6, z0), fov: 42 };
+    case "dutch": return { pos: P(cx - 0.4, h * 0.8, z0 + lerp(3.4, 2.7, e)), look: P(cx, h * 0.62, z0), fov: 44, roll: -0.2 };
+    default: return { pos: P(cx + lerp(-0.2, 0.2, e), h * 1.0, z0 + 6.2), look: P(cx, h * 0.55, z0), fov: 40 }; // static_wide
   }
 }
 
+// ---------- أداء الشخصية ----------
+// الوضعية في أول وآخر كل حركة: واقف / قاعد على كرسي / قاعد على الأرض
+const POSTURE = { stand_to_sit: ["stand", "sit"], sit_to_stand: ["sit", "stand"], sitting_floor: ["stand", "floor"] };
+for (const a of ["sitting_idle", "sitting_talking", "sitting_laughing", "typing"]) POSTURE[a] = ["sit", "sit"];
+const postureOf = (a) => POSTURE[a] || ["stand", "stand"];
+// حركات بتتكرر من غير قطع (loop). الباقي بيتعمل مرة واحدة وبعدها الشخصية بترجع لوقفة طبيعية بنعومة
+const LOOPS = new Set(["idle", "happy_idle", "sad_idle", "bored", "walking", "walk_female", "typing", "texting", "phone_call", "sitting_idle",
+                       "sitting_talking", "talking", "dancing_hiphop", "dancing_silly", "thinking", "looking_around"]);
+const JUMPY = new Set(["cheering", "victory", "excited", "dancing_hiphop", "dancing_silly"]); // فيها نط: ما نثبتش الرجل لتحت
+const FILLER = { stand: "idle", sit: "sitting_idle", floor: null };
+const XF = 0.5; // مدة الدمج بين حركتين (من غير نطّة في الوضعية)
+
+// الخطة: [{anim, start}] ← تسلسل كامل: بيدخّل حركة القعدة/القيام لو الوضعية اتغيّرت، ووقفة طبيعية بعد الحركات اللي بتخلص
+function performance(planned, durOf, sceneDur) {
+  const seq = [];
+  let posture = postureOf(planned[0].anim)[0];
+  for (let i = 0; i < planned.length; i++) {
+    let { anim, start } = planned[i];
+    const [from, to] = postureOf(anim);
+    if (from !== posture) {
+      const tr = posture === "sit" && from === "stand" ? "sit_to_stand" : posture === "stand" && from === "sit" ? "stand_to_sit" : null;
+      if (tr) { seq.push({ anim: tr, start }); start += durOf(tr) * 0.85; }
+    }
+    seq.push({ anim, start });
+    posture = to;
+    const next = planned[i + 1] ? planned[i + 1].start : sceneDur + 1;
+    const end = start + durOf(anim);
+    if (!LOOPS.has(anim) && end - XF < next - 0.3 && FILLER[posture]) seq.push({ anim: FILLER[posture], start: end - XF, filler: true });
+  }
+  for (let i = 1; i < seq.length; i++) seq[i].start = Math.max(seq[i].start, seq[i - 1].start + 0.4);
+  return seq;
+}
+
+// ---------- البق (للشخصيات اللي فيها بق منفصل) ----------
+// بنخفي البق الأصلي وقت الكلام، ونرسم مكانه بق كرتون بيتفتح ويتقفل مع حروف الكلمة اللي بتتقال
+function addMouth(ch) {
+  let lips;
+  ch.root.traverse((o) => { if (o.isMesh && !o.userData.outline && /Mouth|^h_Geo$/i.test(o.name) && !lips) lips = o; });
+  const head = ch.head;
+  if (!lips || !head) return null;
+  // في الوضعية الأصلية: الوش ناحية +Z
+  const rotY = ch.root.rotation.y; ch.root.rotation.y = 0; ch.root.updateMatrixWorld(true);
+  const bb = new THREE.Box3().setFromObject(lips);
+  ch.root.rotation.y = rotY; ch.root.updateMatrixWorld(true);
+  const c = bb.getCenter(new THREE.Vector3()), size = bb.getSize(new THREE.Vector3());
+  ch.root.rotation.y = 0; ch.root.updateMatrixWorld(true);
+  const world = new THREE.Matrix4().makeTranslation(c.x, c.y - size.y * 0.03, bb.max.z - size.z * 0.05);
+  const g = new THREE.Group();
+  const part = (color, z, geo = new THREE.CircleGeometry(1, 40)) => {
+    const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color, roughness: 0.8 })); m.position.z = z; g.add(m); return m;
+  };
+  const LIP = { Claire: "#b3202c", Sporty_Granny: "#a5445a", Big_Vegas: "#8a4a3c", Kaya: "#7a4636" };
+  const parts = { lip: part(LIP[ch.name] || "#8a4f40", 0), inner: part("#2e0f10", 0.0012), tongue: part("#c4596a", 0.0022), teeth: part("#f4efe6", 0.0024, new THREE.PlaneGeometry(1, 1)) };
+  head.add(g);
+  const local = new THREE.Matrix4().copy(head.matrixWorld).invert().multiply(world);
+  local.decompose(g.position, g.quaternion, g.scale);
+  ch.root.rotation.y = rotY; ch.root.updateMatrixWorld(true);
+  g.visible = false;
+  return { group: g, parts, lips, W: size.x * 0.165, H: size.x * 0.11 };
+}
+function setMouth(m, o) {
+  const speaking = o > 0.04;
+  m.lips.visible = !speaking; m.group.visible = speaking;
+  if (!speaking) return;
+  const W = m.W, H = m.H * o + 0.002, e = 0.004;
+  m.parts.lip.scale.set(W + e, H + e, 1);
+  m.parts.inner.scale.set(W - e / 2, H, 1);
+  const th = Math.min(0.007, H * 0.6);
+  m.parts.teeth.scale.set(W * 1.1, th, 1); m.parts.teeth.position.y = H - th / 2 - 0.001;
+  m.parts.tongue.scale.set(W * 0.55, H * 0.45, 1); m.parts.tongue.position.y = -H * 0.55;
+}
+// فتحة البق من توقيت الكلمات (بعد ما الصوت يتعمل): الحروف بتتوزع على مدة الكلمة، المتحركة أوسع، و م ب ف مقفولة
+function lipTrack(words) {
+  const op = (c) => ("مبف".includes(c) ? 0.06 : "اأإآىَ".includes(c) ? 1.0 : "وُ".includes(c) ? 0.7 : "يِ".includes(c) ? 0.6 : /[ً-ْ]/.test(c) ? -1 : 0.42);
+  const chars = [];
+  for (const w of words) {
+    const letters = [...w.word].map(op).filter((x) => x >= 0);
+    const d = (w.end - w.start) / Math.max(1, letters.length);
+    letters.forEach((o, i) => chars.push({ s: w.start + i * d, e: w.start + (i + 1) * d, w: o }));
+  }
+  const raw = (x) => { let v = 0; for (const c of chars) { if (x < c.s - 0.05 || x > c.e + 0.05) continue;
+    v = Math.max(v, c.w * clamp((x - c.s + 0.03) / 0.05) * clamp((c.e - x + 0.03) / 0.05)); } return v; };
+  return (x) => (raw(x - 0.03) + raw(x) + raw(x + 0.03)) / 3;
+}
+
+// ---------- كومبارس (شخصيات Kenney الصغيرة ماشية في الخلفية) ----------
+const EXTRAS = ["male-a", "female-b", "male-c", "female-d", "male-e", "female-f"];
+async function extras(scene, look, seed, n, far = false) {
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const g = await once(`gl:mini:${EXTRAS[(seed + i) % EXTRAS.length]}`, () => gltf.loadAsync(`${A}mini-characters/character-${EXTRAS[(seed + i) % EXTRAS.length]}.glb`));
+    const o = SkeletonUtils.clone(g.scene);
+    const b = new THREE.Box3().setFromObject(o); o.scale.setScalar(1.45 / (b.max.y - b.min.y));
+    convertMaterials(o, look); if (look === "anime") addOutlines(o, 0.02);
+    const mixer = new THREE.AnimationMixer(o), clip = g.animations.find((a) => a.name === "walk");
+    const act = mixer.clipAction(clip); act.play();
+    const dir = i % 2 ? -1 : 1;
+    o.rotation.y = dir * Math.PI / 2;
+    scene.add(o);
+    out.push({ o, mixer, act, dir, z: (far ? -7.4 : -5.2) - i * 0.9, x0: -7 + ((seed * 3 + i * 5) % 6), speed: 1.1 + (i % 3) * 0.15, dur: clip.duration });
+  }
+  return (t) => out.forEach((e) => { e.act.time = t % e.dur; e.mixer.update(0); e.o.position.set(e.dir * (e.x0 + e.speed * t), 0, e.z); });
+}
+
 // ---------- المشهد ----------
-// sc.scene3d = { set, character, actions: [{anim, cue_word}], camera, look, time, facing }
+// sc.scene3d = { set, character, actions: [{anim, cue_word}], camera, time, facing, speaking }
 export async function createScene3D(sc, el, ctx) {
   const s3 = sc.scene3d, look = (ctx.look || s3.look) === "anime" ? "anime" : "soft", time = s3.time || "day";
+  const seed = [...(sc.id || "s")].reduce((n, c) => n + c.charCodeAt(0), 0);
   const r = engine();
   const scene = new THREE.Scene();
-  const anims = (s3.actions && s3.actions.length ? s3.actions : [{ anim: "idle" }]).slice(0, 3);
-  const sitting = anims.some((a) => SITTING.has(a.anim));
-  const setInfo = await buildSet(scene, s3.set, look, time, ctx.palette, sitting);
+  (window.__scenes3d ??= []).push(scene); // للفحص من أدوات التطوير
+  const planned0 = (s3.actions && s3.actions.length ? s3.actions : [{ anim: "idle" }]).slice(0, 3);
+  const setInfo = await buildSet(scene, s3.set, look, time, ctx.palette || {}, seed);
   lights(scene, setInfo, time, look, ctx.palette || {});
-  const [, hgt] = CHAR[s3.character] || CHAR.Aj;
-  const ch = await character(s3.character in CHAR ? s3.character : "Aj", hgt, look);
-  const walking = anims.some((a) => WALKS.has(a.anim));
+  const name = s3.character in CHAR ? s3.character : "Aj";
+  const ch = await character(name, CHAR[name][1], look);
+  const walking = planned0.some((a) => WALKS.has(a.anim));
   ch.root.rotation.y = walking ? Math.PI / 2 : { side: Math.PI / 2.4, three_quarter: Math.PI / 7 }[s3.facing] || 0;
-  if (sitting) ch.root.position.z = -0.12;
   scene.add(ch.root);
-  if (anims.some((a) => ["phone_call", "texting"].includes(a.anim))) addPhone(ch);
-  const actions = [];
-  for (const a of anims) {
-    const clip = retarget(await loadClip(a.anim), ch);
-    const act = ch.mixer.clipAction(clip); act.play(); act.setEffectiveWeight(0);
-    actions.push({ act, dur: clip.duration, anim: a.anim, start: 0, word: a.cue_word });
-  }
-  // كل حركة بتبدأ مع كلمتها (أو بالتساوي على طول المشهد)
-  actions.forEach((a, i) => { a.start = i === 0 ? 0 : (a.word && ctx.cue(a.word) > 0.2 ? ctx.cue(a.word) : (ctx.duration * i) / actions.length); });
-  for (let i = 1; i < actions.length; i++) actions[i].start = Math.max(actions[i].start, actions[i - 1].start + 0.8);
+  if (planned0.some((a) => ["phone_call", "texting"].includes(a.anim))) addPhone(ch);
 
+  // التوقيت: كل حركة مع كلمتها (أو بالتساوي على طول المشهد)
+  const planned = planned0.map((a, i) => ({ anim: a.anim, start: i === 0 ? 0 : (a.cue_word && ctx.cue(a.cue_word) > 0.2 ? ctx.cue(a.cue_word) : (ctx.duration * i) / planned0.length) }));
+  for (let i = 1; i < planned.length; i++) planned[i].start = Math.max(planned[i].start, planned[i - 1].start + 0.8);
+  const clips = {};
+  const need = new Set([...planned.map((a) => a.anim), "idle", "sitting_idle", "stand_to_sit", "sit_to_stand"]);
+  for (const a of need) clips[a] = retarget(await loadClip(a), ch);
+  const seq = performance(planned, (a) => clips[a].duration, ctx.duration);
+  const actions = seq.map((x) => { const act = ch.mixer.clipAction(clips[x.anim].clone()); act.play(); act.setEffectiveWeight(0);
+    return { ...x, act, dur: clips[x.anim].duration, loop: LOOPS.has(x.anim) }; });
+
+  // الأداء في لحظة t: الحركة الحالية + اللي قبلها بتختفي بنعومة
+  const pose = (t) => {
+    let k = 0; actions.forEach((a, i) => { if (t >= a.start) k = i; });
+    const blend = k === 0 ? 1 : clamp((t - actions[k].start) / XF);
+    const sm = blend * blend * (3 - 2 * blend);
+    actions.forEach((a, i) => {
+      a.act.setEffectiveWeight(i === k ? sm : i === k - 1 ? 1 - sm : 0);
+      const lt = Math.max(0, t - a.start);
+      a.act.time = a.loop ? lt % a.dur : Math.min(lt, a.dur - 0.01);
+    });
+    ch.mixer.update(0);
+    // قد إيه الشخصية "قاعدة" دلوقتي (0 واقفة قدام الكرسي، 1 قاعدة عليه): بيتحسب من الحركتين اللي بيتدمجوا
+    const sitOf = (a) => { if (!a) return 0; const lt = clamp((t - a.start) / a.dur), sm = lt * lt * (3 - 2 * lt);
+      return a.anim === "stand_to_sit" ? sm : a.anim === "sit_to_stand" ? 1 - sm : postureOf(a.anim)[1] === "sit" ? 1 : 0; };
+    sitness = k === 0 ? sitOf(actions[0]) : lerp(sitOf(actions[k - 1]), sitOf(actions[k]), sm);
+    return actions[k];
+  };
+  let sitness = 0;
+
+  // تثبيت على الأرض: أوطى نقطة في الرجلين (كعب أو صوابع) لازم تبقى على الأرض بالظبط، فمفيش رجل بتغطس ولا بتطير
+  const v = new THREE.Vector3();
+  const ground = (cur) => {
+    ch.root.position.y = 0; ch.root.updateMatrixWorld(true);
+    let contact = Infinity;
+    for (const f of ch.feet) {
+      contact = Math.min(contact, f.ankle.getWorldPosition(v).y - f.ankleH);
+      if (f.toe) contact = Math.min(contact, f.toe.getWorldPosition(v).y - f.toeH);
+    }
+    if (!isFinite(contact)) return;
+    ch.root.position.y = JUMPY.has(cur.anim) ? Math.max(0, -contact) : -contact;
+    ch.root.updateMatrixWorld(true);
+  };
+
+  // الكرسي: بيتحط تحت الوسط بالظبط وهي قاعدة (بنقيس الوضعية نفسها)، فمفيش قعدة في الهوا ولا رجل جوه الكرسي
+  const sitIdx = actions.findIndex((a) => postureOf(a.anim)[1] === "sit" || postureOf(a.anim)[0] === "sit");
+  const fwd = new THREE.Vector3(Math.sin(ch.root.rotation.y), 0, Math.cos(ch.root.rotation.y));
+  const hasChair = sitIdx >= 0;
+  if (hasChair) {
+    const sitA = actions.find((a) => POSTURE[a.anim] && POSTURE[a.anim][0] === "sit" && POSTURE[a.anim][1] === "sit") || actions[sitIdx];
+    const tSit = sitA.anim === "stand_to_sit" ? sitA.start + sitA.dur - 0.05 : sitA.start + 0.3;
+    ground(pose(tSit));
+    const hp = ch.hips.getWorldPosition(new THREE.Vector3());
+    const seatH = Math.max(0.3, hp.y - 0.1);
+    const chair = await prop(scene, look, { f: s3.set === "living" ? KF + "armchair.gltf" : KF + "chair_A.gltf", p: [hp.x - fwd.x * 0.08, hp.z - fwd.z * 0.08], r: (ch.root.rotation.y * 180) / Math.PI, h: seatH / 0.5 });
+    chair.userData.seat = true;
+  }
+  // مساحة الشخصية (والمشي) فاضية من الأثاث
+  const zone = walking ? { x0: -2.0, x1: 2.0, z0: -0.55, z1: 0.55 } : { x0: -0.65, x1: 0.65, z0: -0.6, z1: 0.6 };
+  clearArea(scene, setInfo.placed, zone);
+
+  // البق: بس لو الشخصية بتتكلم في المشهد ده (مش راوي)
+  const mouth = s3.speaking ? addMouth(ch) : null;
+  const lips = mouth ? lipTrack(ctx.words || []) : null;
+  const crowd = ["street", "park"].includes(s3.set) ? await extras(scene, look, seed, 2, s3.set === "street") : null;
+
+  await settled(); // كل الصور اتحمّلت
   const cam = new THREE.PerspectiveCamera(42, W / H, 0.05, 300);
   const canvas = document.createElement("canvas"); canvas.width = W; canvas.height = H; canvas.className = "c3d";
   el.prepend(canvas);
   const g2 = canvas.getContext("2d");
-  const XF = 0.35; // مدة الانتقال بين حركتين
 
   return (t) => {
-    // الحركات
-    let k = 0; actions.forEach((a, i) => { if (t >= a.start) k = i; });
-    const blend = k === 0 ? 1 : clamp((t - actions[k].start) / XF);
-    actions.forEach((a, i) => {
-      const w = i === k ? blend : i === k - 1 ? 1 - blend : 0;
-      a.act.setEffectiveWeight(w);
-      const lt = Math.max(0, t - a.start);
-      a.act.time = ONE_SHOT.has(a.anim) ? Math.min(lt, a.dur - 0.01) : lt % a.dur;
-    });
-    ch.mixer.update(0);
+    const cur = pose(t);
     // المشي: الشخصية بتتحرك في المكان والكاميرا ماشية جنبها
     const p = clamp(t / Math.max(1, ctx.duration));
     const x0 = walking ? lerp(-1.4, 1.4, p) : 0;
-    ch.root.position.x = x0;
+    // واقفة: خطوة قدام الكرسي، وبترجع عليه وهي بتقعد
+    const back = hasChair ? (1 - sitness) * 0.42 : 0;
+    ch.root.position.x = x0 + fwd.x * back; ch.root.position.z = fwd.z * back;
+    ground(cur);
+    if (mouth) setMouth(mouth, lips(t));
+    if (crowd) crowd(t);
     // طول الشخصية "الحالي" من مكان راسها: لو قاعدة أو على الأرض الكاميرا بتنزل معاها
-    ch.root.updateMatrixWorld(true);
-    const headY = ch.head ? ch.head.getWorldPosition(new THREE.Vector3()).y + 0.12 : ch.height;
-    const c = cameraAt(walking && s3.camera === "static_wide" ? "tracking" : s3.camera, p, { height: Math.max(0.7, headY) }, walking ? x0 : 0);
+    const hw = ch.head ? ch.head.getWorldPosition(new THREE.Vector3()) : new THREE.Vector3(x0, ch.height, 0);
+    const c = cameraAt(walking && s3.camera === "static_wide" ? "tracking" : s3.camera, p, { height: Math.max(0.7, hw.y + 0.12) }, walking ? x0 : hw.x, hw.z);
     cam.fov = c.fov; cam.updateProjectionMatrix();
     cam.position.copy(c.pos); cam.lookAt(c.look);
     if (c.roll) cam.rotateZ(c.roll);

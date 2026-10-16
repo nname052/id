@@ -44,8 +44,9 @@ SCENE = {"type": "object", "properties": {
             "required": ["anim"], "additionalProperties": False}},
         "camera": {"type": "string", "enum": list(three_d.CAMERAS)},
         "time": {"type": "string", "enum": ["day", "sunset", "night"]},
-        "facing": {"type": "string", "enum": ["front", "three_quarter", "side"]}},
-        "required": ["set", "character", "actions", "camera", "time", "facing"], "additionalProperties": False},
+        "facing": {"type": "string", "enum": ["front", "three_quarter", "side"]},
+        "speaking": {"type": "boolean"}},
+        "required": ["set", "character", "actions", "camera", "time", "facing", "speaking"], "additionalProperties": False},
     "enter": {"type": "string", "enum": ["rise", "pop", "draw", "fade", "slide"]},
     "idle": {"type": "string", "enum": ["float", "pulse", "wobble", "none"]}},
     "required": ["sentence_ids", "layout", "headline", "cue_word", "enter", "idle"], "additionalProperties": False}
@@ -63,6 +64,43 @@ SCHEMA = {"type": "object", "properties": {
     "text_size": {"type": "string", "enum": ["normal", "large"]},
     "scenes": {"type": "array", "minItems": 1, "maxItems": 20, "items": SCENE}},
     "required": ["identity", "pace", "text_size", "scenes"], "additionalProperties": False}
+
+# ---------- السبورة البيضاء ----------
+WB_FONTS = ["Marhey", "Lemonada", "Reem Kufi", "Changa", "El Messiri", "Aref Ruqaa"]
+WB_ITEM = {"type": "object", "properties": {
+    "kind": {"type": "string", "enum": ["illustration", "icon", "text", "number", "arrow", "underline", "circle"]},
+    "search": {"type": "array", "items": {"type": "string"}},
+    "text": {"type": "string"}, "value": {"type": "string"},
+    "from": {"type": "integer"}, "to": {"type": "integer"}, "target": {"type": "integer"},
+    "color": {"type": "string", "enum": ["ink", "accent", "accent2"]},
+    "cue_word": {"type": "string"}},
+    "required": ["kind", "color", "cue_word"], "additionalProperties": False}
+WB_SCHEMA = {"type": "object", "properties": {
+    "identity": {"type": "object", "properties": {
+        "palette": SCHEMA["properties"]["identity"]["properties"]["palette"],
+        "font_heading": {"type": "string", "enum": WB_FONTS}, "font_body": {"type": "string", "enum": WB_FONTS},
+        "transition": {"type": "string", "enum": ["slide", "wipe"]}},
+        "required": ["palette", "font_heading", "font_body", "transition"], "additionalProperties": False},
+    "pace": SCHEMA["properties"]["pace"], "text_size": SCHEMA["properties"]["text_size"],
+    "scenes": {"type": "array", "minItems": 1, "maxItems": 20, "items": {"type": "object", "properties": {
+        "sentence_ids": {"type": "array", "items": {"type": "integer"}, "minItems": 1},
+        "board": {"type": "array", "minItems": 1, "maxItems": 4, "items": WB_ITEM}},
+        "required": ["sentence_ids", "board"], "additionalProperties": False}}},
+    "required": ["identity", "pace", "text_size", "scenes"], "additionalProperties": False}
+
+
+def schema_for(vtype: str) -> dict:
+    """الشكل المسموح لخطة المشاهد حسب نوع الفيديو: العادي من غير 3D، والـ 3D حركتين على الأقل في كل مشهد."""
+    import copy
+    sch = copy.deepcopy(SCHEMA)
+    sc = sch["properties"]["scenes"]["items"]["properties"]
+    if vtype == "regular":
+        sc["layout"]["enum"] = [x for x in LAYOUTS if x != "scene3d"]
+        del sc["scene3d"]
+    elif vtype == "3d":
+        sc["scene3d"]["properties"]["actions"]["minItems"] = 2
+    return sch
+
 
 POSE_FILE = {"cheer": "cheer0", "walk": "walk0", "run": "run0", "climb": "climb0"}
 TOON = ["Male person", "Female person", "Male adventurer", "Female adventurer"]
@@ -105,20 +143,68 @@ def resolve_visual(v: dict | None, pid: str, used: set, recent: set, toon: str, 
     return None
 
 
+def fix_3d(scenes: list, pid: str, voice_gender: str) -> None:
+    """قواعد الـ 3D اللي ما ينفعش نسيبها للـ AI: الشخصية مختلفة عن آخر الفيديوهات، ومن غير خلط واقعي بكرتون،
+    واللي بيتكلم لازم يكون عنده بق يتحرك ومن نفس نوع الصوت."""
+    banned = set(history.recent_characters(skip_pid=pid))
+    chars = [s["scene3d"]["character"] for s in scenes if s.get("scene3d")]
+    if not chars:
+        return
+    main = max(set(chars), key=chars.count)
+    mapping = {}
+
+    def alternative(c: str, need_speaker: bool) -> str:
+        g = three_d.GENDER[c]
+        pool = [x for x in (three_d.SPEAKERS if need_speaker else three_d.CHARACTERS) if three_d.GENDER[x] == g and x not in banned
+                and (x in three_d.REALISTIC) == (main in three_d.REALISTIC and c == main)]
+        pool = pool or [x for x in three_d.SPEAKERS if x not in banned] or list(three_d.SPEAKERS)
+        return pool[_seed(pid, c) % len(pool)]
+    speaking_chars = {s["scene3d"]["character"] for s in scenes if s.get("scene3d", {}).get("speaking")}
+    for c in set(chars):
+        if c in banned or (c != main and (c in three_d.REALISTIC) != (main in three_d.REALISTIC)):
+            mapping[c] = alternative(c, c in speaking_chars)
+    for s in scenes:
+        s3 = s.get("scene3d")
+        if not s3:
+            continue
+        s3["character"] = mapping.get(s3["character"], s3["character"])
+        if s3.get("speaking"):
+            if s3["character"] not in three_d.SPEAKERS:
+                s3["character"] = alternative(s3["character"], True)
+            # صوت الراوي ست والشخصية راجل (أو العكس): الشخصية ما تتكلمش، الراوي بيحكي
+            if voice_gender in ("male", "female") and three_d.GENDER[s3["character"]] != voice_gender:
+                s3["speaking"] = False
+    if mapping:
+        store.log(pid, f"3D: غيّرنا الشخصيات علشان ما تتكررش/تتخلطش: {mapping}")
+
+
 def run(pid: str, instruction: str | None = None) -> None:
     d = store.project_dir(pid)
+    proj = store.load(pid)
+    vtype = proj["settings"].get("video_type", "regular")
     script = store.read_json(d / "script.json")
     n = len(script["sentences"])
     sentences = "\n".join(f"{s['id']}: {s['text']}" for s in script["sentences"])
     b = store.read_json(d / "brief.json")
-    system = prompt("scene_plan", sentences=sentences, min_scenes=max(3, (n + 1) // 2), max_scenes=n,
-                    recent=history.summary(skip_pid=pid) or "(مفيش)", catalog=three_d.catalog(),
-                    brief=brief_stage.as_text(b) if b else "(مفيش رؤية: اختار إنت، موشن 2D غالبًا)")
-    user = "اعمل الهوية البصرية وخطة المشاهد.\n\n" + prefs.context_block(store.load(pid)["prompt"])
+    common = dict(sentences=sentences, min_scenes=max(3, (n + 1) // 2), max_scenes=n, recent=history.summary(skip_pid=pid) or "(مفيش)",
+                  brief=brief_stage.as_text(b) if b else "(مفيش رؤية: اختار إنت)")
+    vg = proj["settings"].get("voice_gender", "")
+    voice = {"male": "راجل", "female": "ست"}.get(vg, "غير محدد")
+    speakers = "، ".join(c for c in three_d.SPEAKERS if not vg or three_d.GENDER[c] == vg)
+    if vtype == "whiteboard":
+        system, sch = prompt("whiteboard_plan", **common), WB_SCHEMA
+    else:
+        rule = {"regular": "\n\n**نوع الفيديو: عادي (2D). ممنوع scene3d.**",
+                "3d": "\n\n**نوع الفيديو: 3D. أغلب المشاهد (70% على الأقل) scene3d، وكل مشهد فيه من 2 لـ 3 حركات بتمثّل الكلام، "
+                      "وما تكررش نفس الحركة في مشهدين ورا بعض. `speaking`: true بس لو الجملة على لسان الشخصية (مش راوي)، "
+                      f"واللي بيتكلم لازم يكون من دول (صوت الفيديو {voice}): {speakers}.**"}[vtype]
+        system = prompt("scene_plan", catalog=three_d.catalog_for("3d" if vtype == "3d" else "regular"), **common) + rule
+        sch = schema_for(vtype)
+    user = "اعمل الهوية البصرية وخطة المشاهد.\n\n" + prefs.context_block(proj["prompt"])
     old = store.read_json(d / "scenes" / "plan.json")
     if instruction and old:
         user += f"\n\nالخطة الحالية (مختصرة):\n{old.get('raw')}\n\nالمطلوب تعديله: {instruction}"
-    data = ask(pid, "scenes", system, user, SCHEMA)
+    data = ask(pid, "scenes", system, user, sch)
 
     used: set = set()
     recent = history.recent_assets(skip_pid=pid)
@@ -126,12 +212,23 @@ def run(pid: str, instruction: str | None = None) -> None:
     scenes = []
     for i, sc in enumerate(data["scenes"]):
         out = {**sc, "id": f"s{i + 1:02d}"}
-        out["visuals"] = []
+        out["visuals"], out["items"] = [], []
+        if vtype == "whiteboard":
+            # كل عنصر رسمة/أيقونة بيدوّر على ملفه، واللي ما لقيناش ليه رسمة بيتكتب كلام بدلها
+            out.update(layout="board", headline="", cue_word="", enter="fade", idle="none")
+            for j, it in enumerate(out["board"]):
+                if it["kind"] in ("illustration", "icon"):
+                    v = resolve_visual({"kind": it["kind"], "search": it.get("search") or []}, pid, used, recent, toon, f"{i}b{j}")
+                    if v and v["kind"] in ("illustration", "icon", "emoji"):
+                        it["visual"] = v; it["kind"] = v["kind"]; out["visuals"].append(v)
+                    else:
+                        it["kind"], it["text"] = "text", it.get("text") or " ".join(it.get("search") or [])[:24]
+            scenes.append(out)
+            continue
         if sc.get("visual"):
             v = resolve_visual(sc["visual"], pid, used, recent, toon, f"{i}v")
             if v:
                 out["visuals"].append(v)
-        out["items"] = []
         for j, it in enumerate(sc.get("items") or []):
             out["items"].append({"label": it["label"], "visual": resolve_visual(it.get("visual"), pid, used, recent, toon, f"{i}i{j}")})
         # شكل محتاج صورة ومالقيناش: بيتحوّل لشكل كلام بس بدل ما يبقى فاضي
@@ -144,11 +241,15 @@ def run(pid: str, instruction: str | None = None) -> None:
         if out["layout"] == "scene3d" and not out.get("scene3d"):
             out["layout"] = "kinetic"
         scenes.append(out)
+    if vtype == "3d":
+        fix_3d(scenes, pid, proj["settings"].get("voice_gender", ""))
 
     ident = data["identity"]
-    plan = {"version": 2, "created": int(time.time()), "style": (b or {}).get("style"), "identity": ident, "palette": ident["palette"], "pace": data["pace"], "text_size": data["text_size"],
-            "character": toon, "scenes": scenes,
-            "raw": [{k: v for k, v in sc.items() if k in ("sentence_ids", "layout", "headline")} for sc in data["scenes"]]}
+    if vtype == "whiteboard":
+        ident = {**ident, "background": "board", "look3d": "soft"}
+    plan = {"version": 2, "type": vtype, "created": int(time.time()), "style": (b or {}).get("style"), "identity": ident,
+            "palette": ident["palette"], "pace": data["pace"], "text_size": data["text_size"], "character": toon, "scenes": scenes,
+            "raw": [{k: v for k, v in sc.items() if k in ("sentence_ids", "layout", "headline", "board")} for sc in data["scenes"]]}
     files = [v["asset"] for s in scenes for v in s["visuals"]] + [it["visual"]["asset"] for s in scenes for it in s["items"] if it.get("visual")]
     plan["credits"] = assets.credits_for(files)
     store.write_json(d / "scenes" / "plan.json", plan)

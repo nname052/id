@@ -41,6 +41,14 @@ DEFAULT_SETTINGS = {
     "mood": "motivational",  # motivational | calm | funny | serious | educational
     "subtitles": True,
     "stability": DEFAULT_STABILITY,
+    "video_type": "regular",  # whiteboard | regular | 3d
+    "voice_gender": "",       # male | female (علشان الشخصية اللي بتتكلم تبقى من نفس النوع)
+}
+
+VIDEO_TYPES = {
+    "whiteboard": "سبورة بيضاء (إيد بقلم بترسم وتكتب وتشرح خطوة خطوة)",
+    "regular": "فيديو عادي (موشن جرافيك 2D زي فيديوهات الإدمان على الموبايل)",
+    "3d": "3D (شخصيات في مشاهد 3D بتتحرك حسب القصة)",
 }
 
 MOODS = {

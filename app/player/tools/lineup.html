@@ -1,0 +1,29 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Lineup</title>
+<!-- أداة تطوير: كل شخصيات الـ 3D جنب بعض بحركة معيّنة (علشان نتأكد من شكلها ووصفها) -->
+<script type="importmap">{ "imports": { "three": "/assets/vendor/three/three.module.js", "three/addons/": "/assets/vendor/three/addons/" } }</script>
+<style>body{margin:0;background:#222;display:grid;grid-template-columns:repeat(6,180px);gap:4px}canvas{width:180px;height:320px}div{color:#fff;font:12px sans-serif;text-align:center}</style>
+</head><body>
+<script type="module">
+import { createScene3D } from "/player/player3d.js";
+const q = new URLSearchParams(location.search);
+const names = (q.get("c") || "Aj,Ty,Big_Vegas,Timmy,Doozy,Claire,Amy,Kaya,Megan,Kate,Jody,Sporty_Granny").split(",");
+const anim = q.get("a") || "idle", set = q.get("set") || "studio", cam = q.get("cam") || "static_wide", t = +(q.get("t") || 1.2);
+// ?ts=0.5,1.5,3 بيرسم نفس الشخصية في كذا لحظة (علشان نشوف الحركة والانتقالات)
+const times = q.get("ts") ? q.get("ts").split(",").map(Number) : null;
+window.ready = (async () => {
+  const list = times ? times.map(() => names[0]) : names;
+  for (const [idx, n] of list.entries()) {
+    const box = document.createElement("div"); document.body.appendChild(box);
+    const sc = { scene3d: { set, character: n, actions: anim.split("+").map((a) => ({ anim: a })), camera: cam, time: q.get("time") || "day", facing: "front", speaking: q.has("speak") } };
+    const dur = +(q.get("dur") || 4);
+    // كلام تجريبي (للبق): كلمات ورا بعض على طول المشهد
+    const words = "اللحظة المناسبة عمرها ما هتيجي لازم تبدأ دلوقتي".split(" ").map((w, i) => ({ word: w, start: 0.3 + i * 0.45, end: 0.3 + i * 0.45 + 0.38 }));
+    const draw = await createScene3D({ ...sc, id: n }, box, { duration: dur, words, palette: { bg: "#20222e", surface: "#3a3f55", accent: "#ff7a45", accent2: "#5cc8b4" }, look: q.get("look") || "soft",
+      cue: () => 0 });
+    const tt = times ? times[idx] : t;
+    draw(tt);
+    box.insertAdjacentHTML("beforeend", `<div>${n} t=${tt}</div>`);
+  }
+})();
+</script></body></html>

@@ -2,21 +2,27 @@
 المشغّل (player3d.js) بيبني نفس الأماكن دي بنفس الأسماء."""
 
 # الاسم ← (المسار جوه assets/3d/mixamo، الطول بالمتر، وصف بالعربي)
-CHARACTERS = {
-    "Aj": ("Aj_Idle", 1.75, "شاب عشريني، تيشيرت وجينز"),
-    "Ty": ("characters/Ty", 1.7, "شاب كاجوال بشعر كيرلي"),
-    "Big_Vegas": ("characters/Big_Vegas", 1.75, "راجل تخين كرتوني بدقن، كوميدي"),
-    "Timmy": ("characters/Timmy", 1.25, "طفل كرتوني"),
-    "Doozy": ("characters/Doozy", 1.3, "شخصية كرتونية غريبة مضحكة"),
-    "Claire": ("characters/Claire", 1.68, "بنت شعرها أشقر، كاجوال"),
-    "Amy": ("characters/Amy", 1.62, "بنت شعرها بني، كاجوال"),
-    "Kaya": ("characters/Kaya", 1.65, "بنت رياضية"),
-    "Megan": ("characters/Megan", 1.68, "بنت موظفة، لبس شغل"),
-    "Kate": ("characters/Kate", 1.68, "ست شيك"),
-    "Jody": ("characters/Jody", 1.66, "بنت كاجوال"),
-    "Sporty_Granny": ("characters/Sporty_Granny", 1.6, "ست كبيرة رياضية، كوميدية"),
+CHARACTERS = {  # (اتأكدنا من شكلهم بصورة لكل الشخصيات: app/player/tools/lineup.html)
+    "Aj": ("Aj_Idle", 1.75, "شاب بكاب أحمر ونضارة وهودي رمادي، كرتون"),
+    "Ty": ("characters/Ty", 1.7, "ولد أشقر بجاكيت أحمر وكوفية، كرتون"),
+    "Big_Vegas": ("characters/Big_Vegas", 1.75, "راجل ضخم بقميص أبيض مفتوح وشعر زي إلفيس، كرتون كوميدي"),
+    "Timmy": ("characters/Timmy", 1.25, "طفل بكاب أحمر وهودي أخضر، كرتون"),
+    "Doozy": ("characters/Doozy", 1.3, "مخلوق أزرق بودان كبيرة (زي العفريت)، كرتون كوميدي"),
+    "Claire": ("characters/Claire", 1.68, "ست بشعر أسود وفستان أحمر، كرتون"),
+    "Amy": ("characters/Amy", 1.62, "بنت بشعر لبني وتيشيرت بمبي، شكل أنيمي"),
+    "Kaya": ("characters/Kaya", 1.72, "راجل بدقن وبرنيطة قش وقميص مقلّم، كرتون"),
+    "Megan": ("characters/Megan", 1.68, "ست بتيشيرت أبيض، واقعية"),
+    "Kate": ("characters/Kate", 1.68, "ست بشعر قصير أشقر وقميص أزرق، واقعية"),
+    "Jody": ("characters/Jody", 1.66, "ست بجاكيت رياضي بمبي، واقعية"),
+    "Sporty_Granny": ("characters/Sporty_Granny", 1.6, "جدة ببكَر في شعرها ونضارة وترينج أزرق، كرتون كوميدي"),
 }
+# الشخصيات الواقعية ما ينفعش تتحط مع الكرتون في نفس الفيديو
+REALISTIC = {"Megan", "Kate", "Jody"}
 NORMAL_MAPS_OFF = {"Doozy"}
+GENDER = {"Aj": "male", "Ty": "male", "Big_Vegas": "male", "Timmy": "male", "Doozy": "male", "Claire": "female", "Amy": "female",
+          "Kaya": "male", "Megan": "female", "Kate": "female", "Jody": "female", "Sporty_Granny": "female"}
+# الشخصيات اللي فيها بق منفصل (نقدر نحرّكه مع الصوت). الباقي البق جزء من الوش: بيمثّلوا من غير كلام (الراوي بيحكي)
+SPEAKERS = ["Aj", "Big_Vegas", "Claire", "Kaya", "Sporty_Granny"]
 
 ANIMS = {
     "idle": "واقف عادي", "happy_idle": "واقف مبسوط", "sad_idle": "واقف زعلان", "bored": "زهقان", "looking_around": "بيبص حواليه",
@@ -34,6 +40,7 @@ ANIMS = {
 SITTING = {"sitting_idle", "sitting_talking", "sitting_laughing", "stand_to_sit", "typing"}
 
 SETS = {
+    "cafe": "كافيه (ترابيزات مدورة، كراسي، بار، أكل)",
     "room": "أوضة نوم (سرير، مكتب صغير، لمبة، نبات)",
     "living": "صالة (كنبة، تليفزيون، سجادة، ترابيزة)",
     "office": "مكتب شغل (مكتب، كمبيوتر، كرسي، رفوف كتب)",
@@ -50,9 +57,24 @@ CAMERAS = {
 LOOKS = {"anime": "أنيمي/كرتون: تظليل مسطح وخطوط حوالين الأشكال", "soft": "إضاءة ناعمة واقعية زي أفلام الأنيميشن"}
 
 
+CATALOG_2D = ("- 1,700 رسمة فلات (مواقف وأشخاص)، وآلاف الأيقونات، وإيموجي بلون الفيديو، و 4 شخصيات كرتون 2D بوضعيات "
+              "(واقف، بيفكر، بيتكلم، بيشجّع، بيجري، بيمشي، بيقع…).\n- 21 خط عربي، و 12 شكل مشهد (صورة كبيرة، كلام متحرك، رقم بيعد، قايمة، مقارنة، "
+              "اقتباس، سؤال…)، ومشاهد مبتكرة بالكود.")
+CATALOG_WB = ("- السبورة: آلاف الأيقونات الخطية (بتترسم خط بخط)، و 1,700 رسمة (بتترسم حدودها وبعدين بتتلوّن خفيف)، وكتابة بخط اليد، "
+              "وأسهم، وأرقام كبيرة، ودواير وخطوط تحت الكلام، ورسوم بيانية بسيطة (عمود/دايرة).")
+
+
+def catalog_for(vtype: str) -> str:
+    if vtype == "whiteboard":
+        return CATALOG_WB
+    if vtype == "3d":
+        return catalog() + f"\n- الشخصيات اللي بتقدر تتكلم (بقها بيتحرك مع الصوت): {', '.join(SPEAKERS)}. الباقي بيمثّل بجسمه والراوي بيحكي."
+    return CATALOG_2D
+
+
 def catalog() -> str:
     """وصف الكتالوج للبرومبت."""
-    ch = "، ".join(f"{k} ({v[2]})" for k, v in CHARACTERS.items())
+    ch = "، ".join(f"{k} ({v[2]}، {'ذكر' if GENDER[k] == 'male' else 'أنثى'})" for k, v in CHARACTERS.items())
     an = "، ".join(f"{k} ({v})" for k, v in ANIMS.items())
     st = "، ".join(f"{k} ({v})" for k, v in SETS.items())
     cam = "، ".join(f"{k} ({v})" for k, v in CAMERAS.items())

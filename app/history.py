@@ -15,6 +15,15 @@ def recent_assets(n: int = 5, skip_pid: str | None = None) -> set:
     return {a for h in recent(n + 1) if h["pid"] != skip_pid for a in h.get("assets", [])}
 
 
+def recent_characters(n: int = 2, skip_pid: str | None = None) -> list[str]:
+    """شخصيات الـ 3D الأساسية في آخر فيديوهين (علشان ما تتكررش)."""
+    out = []
+    for h in recent(n + 1):
+        if h["pid"] != skip_pid:
+            out += [c for c in h.get("characters", []) if c not in out]
+    return out
+
+
 def summary(n: int = 5, skip_pid: str | None = None) -> str:
     """وصف قصير للي اتعمل قبل كده (بيتبعت لـ Claude علشان يعمل حاجة مختلفة)."""
     lines = []
@@ -34,6 +43,8 @@ def record(pid: str, plan: dict) -> None:
     hist.append({"pid": pid, "palette": ident.get("palette"), "font_heading": ident.get("font_heading"),
                  "background": ident.get("background"), "transition": ident.get("transition"),
                  "layouts": [s.get("layout") for s in plan.get("scenes", [])], "style": plan.get("style"),
+                 "type": plan.get("type"),
+                 "characters": sorted({s["scene3d"]["character"] for s in plan.get("scenes", []) if s.get("scene3d")}),
                  "three_d": [f"{s['scene3d'].get('character')} في {s['scene3d'].get('set')} ({s['scene3d'].get('camera')})"
                              for s in plan.get("scenes", []) if s.get("layout") == "scene3d" and s.get("scene3d")],
                  "assets": sorted({v["asset"] for s in plan.get("scenes", []) for v in s.get("visuals", []) if v.get("asset")})})

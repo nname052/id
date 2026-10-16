@@ -16,7 +16,7 @@
   const rand = (seed) => () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
   const norm = (s) => String(s).replace(/[^\p{L}\p{N}]/gu, "");
 
-  let D, P, ID, scenes = [], words = [], DURATION = 1, PACE = 1;
+  let D, P, ID, scenes = [], words = [], DURATION = 1, PACE = 1, WB = null;
 
   // ---------- الصور من المكتبات ----------
   const cache = {};
@@ -134,7 +134,9 @@
       const sw = sceneWords(sc);
       let last = 0;
       spans.forEach((s, i) => { const w = sw.find((w) => norm(w.word) === norm(s.textContent));
-        s._t = w ? Math.max(last, w.start - sc.start - 0.08) : last + (i ? 0.16 * PACE : 0.1); last = s._t; });
+        // الكلمة بتظهر وقت ما بتتقال، بس مش متأخرة عن ترتيبها (علشان المشهد ما يفضلش فاضي لحد الكلمة)
+        const byOrder = 0.12 + i * 0.22 * PACE;
+        s._t = Math.max(last, Math.min(w ? w.start - sc.start - 0.08 : byOrder, byOrder)); last = s._t; });
       return (t) => spans.forEach((s) => { const p = clamp((t - s._t) / (0.35 * PACE));
         s.style.opacity = clamp(p * 2); s.style.transform = `translateY(${(1 - easeOut(p)) * 60}px) scale(${0.85 + 0.15 * back(p)})`; });
     },
@@ -252,11 +254,20 @@
         const b = back(clamp((t - WALK - 0.05) / (0.45 * PACE)));
         $(".bubble", el).style.cssText = `opacity:${clamp(b)};transform:scale(${b})`; };
     },
+    // مشهد سبورة بيضاء: إيد بقلم بترسم وتكتب (player_wb.js)
+    async board(sc, el) {
+      const wb = (WB = await import("/player/player_wb.js?v=1"));
+      await wb.handLayer($("#stage"));
+      const sw = sceneWords(sc);
+      return await wb.createBoard(sc, el, { duration: sc.end - sc.start, palette: ID.palette, font: ID.font_heading, pace: PACE,
+        cue: (word) => { const w = sw.find((x) => norm(x.word) === norm(word)); return w ? Math.max(0, w.start - sc.start) : 0; } });
+    },
     // مشهد 3D: شخصية بتمثّل في مكان، بكاميرا سينمائية (player3d.js)
     async scene3d(sc, el) {
       const { createScene3D } = await import("/player/player3d.js?v=1");
       const sw = sceneWords(sc);
       const ctx = { duration: sc.end - sc.start, palette: ID.palette, look: ID.look3d,
+                    words: sw.map((w) => ({ word: w.word, start: w.start - sc.start, end: w.end - sc.start })),
                     cue: (word) => { const w = sw.find((x) => norm(x.word) === norm(word)); return w ? Math.max(0, w.start - sc.start) : 0; } };
       const draw = await createScene3D(sc, el, ctx);
       el.insertAdjacentHTML("beforeend", `<div class="scrim"></div>${sc.headline ? `<div class="hd top on3d">${headHTML(sc.headline)}</div>` : ""}`);
@@ -398,13 +409,17 @@
   // ---------- الرسم ----------
   function renderAt(t) {
     renderBackground(t);
+    let handSt = null;
     for (const { sc, el, update } of scenes) {
       const on = t >= sc.start - 0.01 && t < sc.end + overlap();
       el.style.display = on ? "" : "none";
       if (!on) continue;
       transition(el, t, sc);
-      update(t - sc.start);
+      const res = update(t - sc.start);
+      // الإيد بتاعة السبورة: من المشهد الحالي، ومش وقت الانتقال بين سبورتين
+      if (sc.layout === "board" && t >= sc.start + TR * PACE && t < sc.end) handSt = res;
     }
+    if (WB) WB.placeHand(handSt); // متزامن: لازم الإيد تتحط قبل لقطة الفريم
     curtain(t);
     const live = scenes.filter(({ sc }) => t >= sc.start && t < sc.end).pop();
     $("#subs").classList.toggle("on3d", !!live && live.sc.layout === "scene3d");

@@ -11,7 +11,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
 from . import prefs, store, worker
-from .config import APP, ASSETS, DEFAULT_SETTINGS, ELEVEN_KEY, FONTS, MOODS
+from .config import APP, ASSETS, DEFAULT_SETTINGS, ELEVEN_KEY, FONTS, MOODS, VIDEO_TYPES
 from .llm import claude_code
 from .pipeline import audio as audio_stage
 
@@ -129,6 +129,8 @@ def create(body: NewProject):
         raise HTTPException(400, "اكتب فكرة الفيديو")
     allowed = {k: v for k, v in body.settings.items() if k in DEFAULT_SETTINGS}
     allowed["duration"] = max(10, min(60, int(allowed.get("duration", 30))))
+    if allowed.get("video_type") not in VIDEO_TYPES:
+        allowed["video_type"] = "regular"
     p = store.create(body.prompt, allowed, body.direction)
     worker.enqueue(p["id"], "script")
     worker.learn(body.prompt, "فكرة فيديو جديد")

@@ -31,7 +31,8 @@
 
   function header(p) {
     $("#title").textContent = p.title || p.prompt;
-    $("#sub").textContent = `${p.prompt} · ${p.settings.duration} ثانية · ${p.settings.voice_name || ""}`;
+    const TYPE = { whiteboard: "✍️ سبورة بيضاء", regular: "📱 فيديو عادي", "3d": "🎬 3D" }[p.settings.video_type || "regular"];
+    $("#sub").textContent = `${TYPE} · ${p.prompt} · ${p.settings.duration} ثانية · ${p.settings.voice_name || ""}`;
     $("#stages").innerHTML = Object.entries(STAGE_NAMES).map(([k, n]) => {
       const st = p.stages[k].status; return `<span class="stage ${st}">${n}${STATUS_NAMES[st] ? " · " + STATUS_NAMES[st] : ""}</span>`; }).join("");
     const u = p.usage || {}, el = u.elevenlabs || {};
@@ -124,6 +125,7 @@
   function thumb(sc) {
     const v = (sc.visuals || [])[0] || ((sc.items || []).find((it) => it.visual) || {}).visual || (sc.asset ? { kind: sc.kind, asset: sc.asset } : null);
     if (sc.layout === "scene3d") return "🎬";
+    if (sc.layout === "board") { const v = (sc.board || []).find((x) => x.visual); return v ? `<img src="/assets/${esc(v.visual.asset)}">` : "✍️"; }
     if (v && v.kind === "character") return "🧍";
     if (v && v.asset && !String(v.asset).endsWith(".json")) return `<img src="/assets/${esc(v.asset)}">`;
     if (sc.layout === "custom" || sc.kind === "emoji") return "✦";
@@ -133,7 +135,7 @@
   }
   const KIND = { illustration: "رسمة", icon: "أيقونة", emoji: "إيموجي", number: "رقم", text: "كلمة كبيرة",
     hero: "صورة كبيرة", kinetic: "كلام متحرك", split: "نص ونص", stat: "رقم", list: "قايمة", versus: "مقارنة", quote: "اقتباس",
-    question: "سؤال", icon_row: "صف أيقونات", card: "كارت", character: "شخصية", custom: "مشهد مبتكر ✦", scene3d: "مشهد 3D 🎬" };
+    question: "سؤال", icon_row: "صف أيقونات", card: "كارت", character: "شخصية", custom: "مشهد مبتكر ✦", scene3d: "مشهد 3D 🎬", board: "سبورة ✍️" };
   function identityHTML(plan) {
     const id = plan.identity;
     if (!id) return "";
@@ -150,7 +152,8 @@
         <div class="muted">${sc.sentence_ids.map((id) => esc((sents.find((s) => s.id === id) || {}).text || "")).join(" ")}</div>
         <span class="badge">${KIND[sc.layout || sc.kind] || sc.layout || sc.kind}</span>
         ${[...(sc.visuals || []), ...(sc.items || []).map((it) => it.visual).filter(Boolean), ...(sc.asset_name ? [sc] : [])].map((v) => `<span class="badge" dir="ltr">${esc(v.asset_name || "")}</span>`).join(" ")}
-        ${sc.scene3d ? `<div class="muted">🎬 ${esc(sc.scene3d.character)} · ${esc(sc.scene3d.set)} · ${sc.scene3d.actions.map((a) => esc(a.anim)).join(" ← ")} · كاميرا ${esc(sc.scene3d.camera)} · ${esc(sc.scene3d.time)}</div>` : ""}
+        ${sc.board ? `<div class="muted">✍️ ${sc.board.map((x) => esc(x.text || x.value || (x.visual && x.visual.asset_name) || x.kind)).join(" ← ")}</div>` : ""}
+        ${sc.scene3d ? `<div class="muted">🎬 ${esc(sc.scene3d.character)} · ${esc(sc.scene3d.set)} · ${sc.scene3d.actions.map((a) => esc(a.anim)).join(" ← ")} · كاميرا ${esc(sc.scene3d.camera)} · ${esc(sc.scene3d.time)}${sc.scene3d.speaking ? " · 🗣 بتتكلم" : ""}</div>` : ""}
         ${sc.custom_brief && sc.layout === "custom" ? `<div class="muted">✦ ${esc(sc.custom_brief)}</div>` : ""}</div></div>`).join("")}</div>
       <div class="actions">
         <button class="primary" data-act="approve" data-stage="scenes">✓ موافق، اعمل الصوت</button>

@@ -6,6 +6,13 @@
   <label class="field" for="prompt">فكرة الفيديو</label>
   <textarea id="prompt" rows="3" placeholder="مثلًا: فيديو عن الخوف من الفشل، وإزاي التأجيل بيضيّع الفرص"></textarea>
 
+  <label class="field">نوع الفيديو</label>
+  <div class="types" id="vtype">
+    <button type="button" class="type" data-v="whiteboard"><b>✍️ سبورة بيضاء</b><span>إيد بقلم بترسم وتكتب على السبورة وتشرح خطوة خطوة</span></button>
+    <button type="button" class="type on" data-v="regular"><b>📱 فيديو عادي</b><span>موشن جرافيك 2D: رسومات وأيقونات وكلام متحرك</span></button>
+    <button type="button" class="type" data-v="3d"><b>🎬 3D</b><span>شخصيات في أماكن 3D بتتحرك وتمثّل حسب القصة</span></button>
+  </div>
+
   <label class="field" for="direction">إخراج الفيديو <span class="muted">(اختياري)</span></label>
   <textarea id="direction" rows="2" placeholder="مثلًا: أنيميشن 3D بشكل أنيمي، بنت قاعدة في أوضتها بالليل… (لو سبته فاضي، هقترح أنا رؤية وأوريهالك قبل ما أبدأ)"></textarea>
 
@@ -58,6 +65,11 @@
 <script>
   const chips = (id) => { $$(`#${id} .chip`).forEach((c) => (c.onclick = () => { $$(`#${id} .chip`).forEach((x) => x.classList.remove("on")); c.classList.add("on"); })); return () => $(`#${id} .chip.on`).dataset.v; };
   const dialect = chips("dialect"), mood = chips("mood"), stability = chips("stability");
+  // نوع الفيديو: بيغيّر الرؤية الإخراجية وخطة المشاهد وطريقة الرسم
+  $$("#vtype .type").forEach((b) => (b.onclick = () => { $$("#vtype .type").forEach((x) => x.classList.remove("on")); b.classList.add("on");
+    $("#direction").placeholder = { whiteboard: "مثلًا: رسومات بسيطة بالأسود، وكل خطوة رقم كبير بالأحمر… (اختياري)",
+      regular: "مثلًا: ألوان هادية، رسومات فلات وأرقام كبيرة… (اختياري)", "3d": "مثلًا: أنيمي، بنت في أوضتها بالليل بتكلم نفسها… (اختياري)" }[b.dataset.v]; }));
+  const vtype = () => $("#vtype .type.on").dataset.v;
   // الصوت لازم يبقى من نفس اللهجة: الصوت المصري بينطق الجيم "g" والقاف همزة حتى في الفصحى
   function checkVoice() {
     const d = dialect(), eg = voice && voice.egyptian;
@@ -118,7 +130,7 @@
     try {
       const r = await api("/api/projects", { method: "POST", body: { prompt, direction: $("#direction").value.trim(), settings: {
         duration: +$("#duration").value, dialect: dialect(), mood: mood(), voice_id: voice.voice_id, voice_name: voice.name,
-        subtitles: $("#subs").checked, stability: +stability() } } });
+        subtitles: $("#subs").checked, stability: +stability(), video_type: vtype(), voice_gender: voice.gender || "" } } });
       location.href = `/p/${r.id}`;
     } catch (e) { $("#msg").innerHTML = `<div class="note err">${esc(e.message)}</div>`; $("#go").disabled = false; }
   };
