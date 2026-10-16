@@ -46,6 +46,7 @@ import { MiniMap } from '../ui/MiniMap.js';
 import { setGroundProvider } from '../world/ground.js';
 import { setGraph, findRoute } from '../nav/RoadGraph.js';
 import { ShibinWorld } from '../world/shibin/ShibinWorld.js';
+import { showLinePicker } from '../ui/LinePicker.js';
 import { ShibinTraffic } from '../world/shibin/ShibinTraffic.js';
 import { ShibinCrowd } from '../world/shibin/ShibinCrowd.js';
 import { attachJobs } from '../world/shibin/ShibinJobs.js';
@@ -213,7 +214,7 @@ export class Game {
     this.passengers = new Passengers(this.scene, this.player, { hud: this.hud, audio: this.audio, settings: this.settings, wallet: this.wallet, world: this.world || null });
     this.passengers._updateHud();
     this.hud.setMoney(this.wallet.balance);
-    this.hud.onSwitchLine = () => this.passengers.cycleLine();
+    this.hud.onSwitchLine = () => (this.world ? this.openLinePicker() : this.passengers.cycleLine());
     // البنزين (تانك لكل عربية) + الرخص وأيام اللعبة + البنزينة + كماين المرور + لوحة المحفظة والرخص
     this.fuel = new FuelSystem({ hud: this.hud, wallet: this.wallet });
     this.fuel.attach(this.player);
@@ -426,6 +427,15 @@ export class Game {
     if (this.mobile) document.documentElement.requestFullscreen?.().catch(() => {});
     this.hud.toast(this.mobile ? 'امسك الدركسيون ولفّه، ودوس بنزين' : 'إنت دلوقتي في كرسي السواق — دوس W', 3);
     this.incidents.start(this.player.physics);
+    // الميكروباص في شبين: اختار خطك الأول (اللعبة شغالة عادي في الخلفية، واختيار تاني من زرار تغيير الخط)
+    if (this.world && this.player.kind === 'microbus' && this.passengers.LINES.length > 1) this.openLinePicker();
+  }
+
+  openLinePicker() {
+    const P = this.passengers;
+    if (P.mode !== 'line') return;
+    if (P.onboard.length) { this.hud.toast('نزّل الركاب الأول قبل ما تغيّر الخط', 2.4); return; }
+    showLinePicker(P.lineOptions(), (i) => P.selectLine(i));
   }
 
   /** سقف الفريمات: على الموبايل 60/120 فريم = كارت شاشة شغال على الآخر = سخونية. الافتراضي 45 (أو 30 في الواطية) */

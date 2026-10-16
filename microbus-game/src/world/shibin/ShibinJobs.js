@@ -56,7 +56,7 @@ export function attachJobs(world, findRoute) {
             name: e.name || '', street: e.name, kind: MAIN.has(e.cls) ? 'highway' : 'shibin', side, x, z, y: 0.15,
             nx: -rx * side, nz: -rz * side,
             ax: e.oneway ? q.dx : q.dx * side, az: e.oneway ? q.dz : q.dz * side,
-            mx, mz, my: 0, nearX: nearJ(mx, mz), edge: e,
+            mx, mz, my: 0, nearX: nearJ(mx, mz), edge: e, s,
           };
           cands.push(c);
           const k = `${Math.floor(c.x / 60)},${Math.floor(c.z / 60)}`;

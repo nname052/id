@@ -22,7 +22,7 @@ const r = await page.evaluate(async () => {
   const sp = W.spawnPose();
   const legs = [[sp, L.menoufia_university], [L.menoufia_university, L.station_shibin_new]];
   const dt = 1 / 30, v = 11, VD = tr.viewDist;
-  let pedPop = 0, popIn = 0, vanish = 0, overlapsMax = 0, parkedHit = 0, parkedBad = 0, parkedMax = 0, activeSum = 0, n = 0, pedSum = 0, steps = 0;
+  let dwells = 0, pullers = new Set(), pedPop = 0, popIn = 0, vanish = 0, overlapsMax = 0, parkedHit = 0, parkedBad = 0, parkedMax = 0, activeSum = 0, n = 0, pedSum = 0, steps = 0;
   const wasVis = new Map(), pop = [];
   for (const [a, b] of legs) {
     const rt = findRoute(a.x ?? a.rx, a.z ?? a.rz, b.rx ?? b.x, b.rz ?? b.z);
@@ -52,6 +52,7 @@ const r = await page.evaluate(async () => {
         if (vis !== was && steps > 2 && was === false && (dx * fx + dz * fz) / (d || 1) > 0.6 && d < 70) pedPop++;
         wasVis.set(p, vis);
       }
+      for (const c of tr.cars) { if (c.dwell > 0 && !c._dw) { dwells++; pullers.add(c.type); } c._dw = c.dwell > 0; }
       if (steps % 15 === 0) {
         const st = tr.debugStats(); overlapsMax = Math.max(overlapsMax, st.overlaps); parkedHit += st.parkedHit; parkedMax = Math.max(parkedMax, st.parked);
         activeSum += st.active; n++; pedSum += cr.debugOnRoad().people;
@@ -61,9 +62,9 @@ const r = await page.evaluate(async () => {
       if (steps % 60 === 0) await new Promise((r) => setTimeout(r, 0));
     }
   }
-  return { pedPopIn: pedPop, simSeconds: Math.round(steps * dt), popIn, vanish, pop, overlapsMax, parkedHit, parkedOffAsphalt: parkedBad, parkedMax, avgTraffic: +(activeSum / n).toFixed(1), avgPeds: Math.round(pedSum / n) };
+  return { aiStopsServed: dwells, aiStopTypes: [...pullers], pedPopIn: pedPop, simSeconds: Math.round(steps * dt), popIn, vanish, pop, overlapsMax, parkedHit, parkedOffAsphalt: parkedBad, parkedMax, avgTraffic: +(activeSum / n).toFixed(1), avgPeds: Math.round(pedSum / n) };
 });
-const pass = r.pedPopIn === 0 && r.popIn === 0 && r.vanish === 0 && r.overlapsMax === 0 && r.parkedHit === 0 && r.parkedOffAsphalt === 0 && !errors.length;
+const pass = r.aiStopsServed > 0 && r.pedPopIn === 0 && r.popIn === 0 && r.vanish === 0 && r.overlapsMax === 0 && r.parkedHit === 0 && r.parkedOffAsphalt === 0 && !errors.length;
 console.log(JSON.stringify({ ...r, errors }, null, 1));
 console.log(pass ? 'PASS city-life' : 'FAIL city-life');
 await browser.close();

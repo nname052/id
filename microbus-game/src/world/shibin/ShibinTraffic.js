@@ -186,7 +186,7 @@ export class ShibinTraffic {
       this._at(e, dir, s, 0, _b);
       if (!this._first && this._inView(_b.x, _b.z)) continue;
       if (this.parked.some((q) => q.on && (q.x - _b.x) ** 2 + (q.z - _b.z) ** 2 < 8 * 8)) continue;
-      c.e = e; c.dir = dir; c.s = s; c.lane = this._laneOff(e); c.turn = null; c.next = null; c.hold = null; c.deadEnd = false;
+      c.e = e; c.dir = dir; c.s = s; c.lane = c.laneHome = this._laneOff(e); c.turn = null; c.next = null; c.hold = null; c.deadEnd = false; c.pull = null; c.dwell = 0;
       c.v = Math.min(8, (e.speed / 3.6) * 0.6); c.on = true; c.bumped = 0; c.kox = c.koz = 0; c.stuck = 0;
       this._at(e, dir, s, c.lane, _a);
       c.lastDx = _a.dx; c.lastDz = _a.dz;
@@ -326,6 +326,7 @@ export class ShibinTraffic {
     }
     c.kox *= Math.exp(-dt * 0.8); c.koz *= Math.exp(-dt * 0.8);
     const e = c.e, L = e.length;
+    if (!c.pull && c.laneHome !== undefined && c.laneHome !== c.lane && !c.turn) { const d = c.laneHome - c.lane; c.lane += Math.sign(d) * Math.min(Math.abs(d), dt * 0.9); }
     const vMax = Math.max(4, (e.speed / 3.6) * c.vMul * (e.cls === 'residential' ? 0.8 : 1));
     // ===== اللي قدامي (عربية أو اللاعب) في نفس اتجاهي =====
     let gap = 1e9, vLead = 30, playerAhead = false;
@@ -335,7 +336,7 @@ export class ShibinTraffic {
       const dx = o.x - c.x, dz = o.z - c.z;
       if (Math.abs(dx) > 45 || Math.abs(dz) > 45) continue;
       const lon = dx * hx + dz * hz; if (lon <= 0 || lon > 45) continue;
-      const lat = Math.abs(dx * -hz + dz * hx); if (lat > 1.9) continue;
+      const lat = Math.abs(dx * -hz + dz * hx); if (lat > (c.turn || o.turn ? 2.5 : 1.9)) continue; // في اللفة المسار بيقصّر: هامش أوسع
       if (Math.abs(o.y - c.y) > 2.5) continue;
       const g = lon - (o.len + c.len) / 2;
       if (g < gap) { gap = g; vLead = (o.lastDx * hx + o.lastDz * hz) * o.v; }
@@ -393,6 +394,9 @@ export class ShibinTraffic {
         if (rem <= T1 + 0.05 && (c.hold === this._endNode(c) || node.edges.length < 3)) this._beginTurn(c);
       }
     }
+    // ===== شغل السواقين: الميكروباص (وساعات التاكسي) بيقف على جنب في أماكن الركوب يحمّل/ينزّل =====
+    target = this._job(c, dt, target);
+    if (c.dwell > 0) { c.v = 0; c.acc = 0; this._place(c); return; }
     // ===== IDM =====
     const v = c.v, aMax = 1.6, b = 3, T = 1.2, s0 = 2.2;
     const sStar = s0 + Math.max(0, v * T + (v * (v - vLead)) / (2 * Math.sqrt(aMax * b)));
@@ -414,7 +418,7 @@ export class ShibinTraffic {
       c.turnU += ds / c.turn.len;
       if (c.turnU >= 1) {
         const t = c.turn, nx = c.next;
-        c.e = nx.e; c.dir = nx.dir; c.s = t.T2 + (c.turnU - 1) * t.len; c.lane = t.lane2;
+        c.e = nx.e; c.dir = nx.dir; c.s = t.T2 + (c.turnU - 1) * t.len; c.lane = c.laneHome = t.lane2;
         c.turn = null; c.next = null;
       }
     } else c.s += ds;
@@ -422,6 +426,52 @@ export class ShibinTraffic {
     if (c.hold && !c.turn && c.hold !== this._endNode(c) && c.s > 6) this._release(c);
     if (!c.turn && c.s > c.e.length) { c.s = c.e.length; c.v = 0; }
     this._place(c);
+  }
+
+  /** أماكن الركوب على كل وصلة (من نفس أماكن ركاب اللاعب على الأرصفة الحقيقية) */
+  _stopsOn(e, side) {
+    if (!this._stopIdx) {
+      this._stopIdx = new Map();
+      const W = this.world.stopCandidates?.();
+      for (const c of W ? W.cands : []) { const k = c.edge.id * 2 + (c.side > 0 ? 0 : 1); let a = this._stopIdx.get(k); if (!a) this._stopIdx.set(k, (a = [])); a.push(c); }
+    }
+    return this._stopIdx.get(e.id * 2 + (side > 0 ? 0 : 1));
+  }
+
+  _job(c, dt, target) {
+    if (c.type !== 'microbus' && c.type !== 'taxi') return target;
+    c.jobCd = (c.jobCd ?? 8 + this.R() * 20) - dt;
+    const e = c.e;
+    if (c.dwell > 0) {
+      // واقف بيحمّل: أبواب/ركاب (منظر) — وبعدين يكمل
+      c.dwell -= dt; c.v = 0;
+      if (c.dwell <= 0) { c.pull = null; c.jobCd = c.type === 'microbus' ? 25 + this.R() * 35 : 60 + this.R() * 90; }
+      return 0;
+    }
+    if (!c.pull && !c.turn && !c.deadEnd && c.jobCd <= 0 && (c.type === 'microbus' || this.R() < 0.3)) {
+      const list = this._stopsOn(e, c.dir);
+      if (list) for (const st of list) {
+        const sT = c.dir > 0 ? st.s : e.length - st.s; // مكانه في اتجاه السير
+        const ahead = sT - c.s;
+        if (ahead < 18 || ahead > 60 || sT > e.length - 10) continue;
+        const curb = e.half - 1.15;
+        if (curb < 1.2 || this.parked.some((q) => q.on && (q.x - st.mx) ** 2 + (q.z - st.mz) ** 2 < 8 * 8)) continue;
+        if (this.cars.some((o) => o !== c && o.pull && o.e === e && Math.abs((o.pull.s) - sT) < 12)) continue;
+        c.pull = { s: sT, curb, lane0: c.lane };
+        break;
+      }
+      if (!c.pull) c.jobCd = 4;
+    }
+    const P = c.pull;
+    if (!P) return target;
+    if (c.turn || c.e !== e) { c.pull = null; return target; }
+    const rem = P.s - c.s;
+    if (rem < -3) { c.pull = null; return target; }
+    // بيقرب من الرصيف تدريجيًا في آخر 25م، وبيهدّي لحد ما يقف عند المكان
+    const k = Math.max(0, Math.min(1, 1 - (rem - 2) / 25));
+    c.lane = P.lane0 + (P.curb - P.lane0) * k;
+    if (rem < 1.0) { c.dwell = c.type === 'microbus' ? 5 + this.R() * 7 : 3 + this.R() * 3; return 0; }
+    return Math.min(target, Math.sqrt(2 * 1.8 * Math.max(0, rem)) + 0.3);
   }
 
   setDensity(k) {

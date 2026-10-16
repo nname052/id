@@ -248,3 +248,19 @@ body.touch .dash { gap: 8px; }
 #racebar b.go { color: #22c55e; font-size: 22px; }
 body.touch #racebar { font-size: 12px; padding: 2px 12px; top: calc(76px + env(safe-area-inset-top, 0px)); }
 @media (max-width: 760px) { body.touch #racebar { top: calc(118px + env(safe-area-inset-top, 0px)); } }
+
+/* ===== اختيار خط الميكروباص ===== */
+#linepick { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; background: rgba(0, 0, 0, 0.45); padding: 16px; direction: rtl; }
+#linepick .lp-box { width: min(440px, 100%); max-height: min(86vh, 640px); display: grid; grid-template-rows: auto 1fr auto; gap: 8px; background: rgba(16, 16, 20, 0.95); border: 1px solid rgba(242, 179, 48, 0.55); border-radius: 14px; padding: 12px; color: #f2f2f2; font-family: 'Cairo', sans-serif; }
+#linepick .lp-h { font-weight: 800; color: var(--accent, #f2b330); text-align: center; }
+#linepick .lp-list { overflow-y: auto; display: grid; gap: 8px; }
+#linepick .lp-item { all: unset; cursor: pointer; display: grid; gap: 3px; padding: 9px 10px; border-radius: 10px; background: rgba(255, 255, 255, 0.06); border: 1px solid transparent; }
+#linepick .lp-item.cur { border-color: rgba(242, 179, 48, 0.7); }
+#linepick .lp-item:hover, #linepick .lp-item:focus-visible { background: rgba(255, 255, 255, 0.12); }
+#linepick .lp-sign { justify-self: start; font-weight: 800; font-size: 13px; padding: 1px 8px; border-radius: 6px; color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5); }
+#linepick .lp-route { font-size: 15px; }
+#linepick .lp-meta { font-size: 12px; opacity: 0.8; }
+#linepick .lp-stops { font-size: 11px; opacity: 0.6; line-height: 1.5; }
+#linepick .lp-warn { font-size: 11px; color: #ffcf6e; }
+#linepick .lp-ok { font-size: 11px; color: #7ee39a; }
+#linepick .lp-close { font: 700 14px 'Cairo', sans-serif; padding: 7px; border: 0; border-radius: 10px; background: rgba(255, 255, 255, 0.12); color: #fff; cursor: pointer; }

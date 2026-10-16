@@ -201,6 +201,38 @@ export class Passengers {
     this.hud?.setJob?.(this.jobInfo());
   }
 
+  /** الخطوط المتاحة (لشاشة اختيار الخط): من/إلى، المحطات، الطول، الأجرة، الطلب المتوقع، وحالة التأكد */
+  lineOptions() {
+    return this.LINES.map((L, i) => {
+      if (L._len === undefined) {
+        let len = 0;
+        for (let k = 0; k < L.stops.length - 1; k++) {
+          const a = L.stops[k], b = L.stops[k + 1], r = findRoute(a.x, a.z, b.x, b.z);
+          len += r ? r.length : Math.hypot(b.x - a.x, b.z - a.z);
+        }
+        L._len = len;
+      }
+      const n = L.stops.length;
+      // الطلب: تقدير اللعبة (عدد المحطات في الكيلو) — مش إحصائية حقيقية
+      const per = (n - 1) / Math.max(0.5, L._len / 1000);
+      return {
+        i, name: L.name, color: L.color, fare: L.fare, from: L.stops[0].name, to: L.stops[n - 1].name,
+        stops: L.stops.map((x) => x.name), km: +(L._len / 1000).toFixed(1),
+        demand: per > 1.6 ? 'عالي' : per > 0.9 ? 'متوسط' : 'خفيف',
+        // أطراف الخط معالم حقيقية من OSM؛ المسار نفسه وكونه "خط ميكروباص" اقتراح من اللعبة لحد ما يتأكد
+        verified: !!L.verified, current: i === this.lineIdx % this.LINES.length,
+      };
+    });
+  }
+
+  selectLine(i) {
+    if (this.mode !== 'line') return false;
+    if (this.onboard.length) { this.hud?.toast('نزّل الركاب الأول قبل ما تغيّر الخط', 2.4); return false; }
+    this.lineIdx = Math.max(0, Math.min(this.LINES.length - 1, i | 0)); this.lineDir = 0;
+    this._setupLine();
+    return true;
+  }
+
   /** تغيير الخط (من الموقف وإنت فاضي بس) */
   cycleLine() {
     if (this.mode !== 'line') return false;
