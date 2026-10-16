@@ -61,7 +61,7 @@
 
   function panel(p) {
     const s = current(p), st = p.stages[s] || {};
-    const k = `${s}:${st.status}:${p.has_video}:${JSON.stringify(st.progress || "")}:${p.notice || ""}:${JSON.stringify(p.review || "")}`;
+    const k = `${s}:${st.status}:${p.has_video}:${JSON.stringify(st.progress || "")}:${p.notice || ""}:${JSON.stringify(p.review || "")}:${p.can_undo}`;
     if (k === lastKey || (dirty && st.status === "review")) return;
     lastKey = k; dirty = false;
     const el = $("#panel");
@@ -135,7 +135,9 @@
   function audioHTML(p) {
     const el = (p.usage || {}).elevenlabs || {}, words = p.words || [], flags = (p.review || {}).flags || {};
     const tts = (p.tts || { lines: [] }).lines;
-    const rows = tts.map((ln) => {
+    // الجملة بتتعاد وسط جملتين قبلها وجملة بعدها (علشان الصوت يفضل نفس الشخصية)، فالتكلفة بتاعتهم كلهم
+    const cost = (i) => tts.slice(Math.max(0, i - 2), i + 2).reduce((n, l) => n + l.tts.length + 1, -1);
+    const rows = tts.map((ln, li) => {
       const ws = words.filter((w) => w.sid === ln.id), bad = flags[String(ln.id)] || [];
       const badI = new Set(bad.map((b) => b.i));
       const start = ws.length ? ws[0].start : 0, end = ws.length ? ws[ws.length - 1].end : 0;
@@ -145,7 +147,7 @@
           ${bad.length ? `<div class="muted" style="color:var(--err)">ممكن تكون اتنطقت غلط: ${bad.map((b) => `«${esc(b.word)}» (اتسمعت «${esc(b.heard || "؟")}»)`).join("، ")}</div>` : ""}
           <div class="row" style="margin-top:6px">
             <button data-act="fixword" data-sid="${ln.id}" style="padding:4px 10px;font-size:13px">✎ صلّح نطق كلمة</button>
-            <button data-act="regensent" data-sid="${ln.id}" style="padding:4px 10px;font-size:13px">↻ أعد الجملة (${ln.tts.length} credit)</button>
+            <button data-act="regensent" data-sid="${ln.id}" style="padding:4px 10px;font-size:13px">↻ أعد الجملة (${cost(li)} credit)</button>
           </div></div></div>`;
     }).join("");
     return `<h2>${STAGE_NAMES.audio}</h2>
@@ -155,6 +157,7 @@
       <div class="scenes" style="margin-top:12px">${rows}</div>
       <div class="actions">
         <button class="primary" data-act="approve" data-stage="audio">✓ موافق، صدّر الفيديو</button>
+        ${p.can_undo ? `<button data-act="undo-sent">↶ رجّع الصوت زي ما كان قبل آخر إعادة</button>` : ""}
         <button data-act="review">🔎 راجع النطق (اختياري)</button>
         <button data-act="regen" data-stage="audio">↻ ولّد الصوت كله تاني (${p.audio_cost || "?"} credit)</button>
       </div>`;
@@ -187,6 +190,7 @@
       if (b.dataset.act === "resume") await api(`/api/projects/${PID}/resume`, { method: "POST" });
       if (b.dataset.act === "review") await api(`/api/projects/${PID}/audio/review`, { method: "POST" });
       if (b.dataset.act === "back-audio") await api(`/api/projects/${PID}/stages/audio/reopen`, { method: "POST" });
+      if (b.dataset.act === "undo-sent") await api(`/api/projects/${PID}/audio/undo`, { method: "POST" });
       if (b.dataset.act === "regensent") await api(`/api/projects/${PID}/audio/sentence/${b.dataset.sid}`, { method: "POST" });
       if (b.dataset.act === "fixword") {
         // الكلمة الغلط ← نطقها الصح في القاموس (بيفضل لكل الفيديوهات) ← إعادة الجملة دي بس

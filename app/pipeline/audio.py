@@ -80,13 +80,15 @@ def run(pid: str, approved_credits: bool = False) -> None:
     r = requests.post(
         f"{API}/v1/text-to-speech/{st['voice_id']}/with-timestamps",
         headers={"xi-api-key": ELEVEN_KEY}, params={"output_format": "mp3_44100_128"},
-        json={"text": text, "model_id": TTS_MODEL, "voice_settings": {"stability": float(st.get("stability", 0.5))}},
+        json={"text": text, "model_id": TTS_MODEL, "voice_settings": {"stability": float(st.get("stability", 0.5))}, "seed": seed_of(pid)},
         timeout=300,
     )
     if r.status_code != 200:
         raise RuntimeError(f"ElevenLabs HTTP {r.status_code}: {r.text[:300]}")
     data = r.json()
     (d / "audio").mkdir(exist_ok=True)
+    import shutil
+    shutil.rmtree(d / "audio" / "undo", ignore_errors=True)  # صوت جديد كله: نسخة الرجوع القديمة مبقتش تنفع
     (d / "audio" / "voice.mp3").write_bytes(base64.b64decode(data["audio_base64"]))
     store.write_json(d / "audio" / "alignment.json", data["alignment"])
     words = words_from_alignment(text, spans, data["alignment"])
@@ -120,21 +122,62 @@ def estimated_words(pid: str) -> dict:
 
 
 # ---------- إعادة جملة واحدة ----------
-def _tts(text: str, settings: dict, prev: str = "", nxt: str = "") -> dict:
-    body = {"text": text, "model_id": TTS_MODEL, "voice_settings": {"stability": float(settings.get("stability", 0.5))}}
-    if prev or nxt:
-        body |= {"previous_text": prev, "next_text": nxt}  # علشان نبرة الجملة تفضل متصلة باللي حواليها
+# الجملة لوحدها (نص قصير) بتخلي eleven_v3 يرتجل شخصية الصوت من الأول، فبتطلع كأنها صوت تاني.
+# علشان كده بنبعتها وسط الجمل اللي حواليها في طلب واحد (نفس السياق اللي اتقالت فيه أول مرة)، ونقص جملتنا بس.
+CTX_BEFORE, CTX_AFTER = 2, 1
+
+
+def seed_of(pid: str) -> int:
+    """بذرة ثابتة للمشروع: نفس البذرة في كل طلبات الصوت بتاعته."""
+    import zlib
+    return zlib.crc32(pid.encode()) % 4294967295
+
+
+def _tts(text: str, settings: dict, seed: int) -> dict:
+    body = {"text": text, "model_id": TTS_MODEL, "voice_settings": {"stability": float(settings.get("stability", 0.5))}, "seed": seed}
     r = requests.post(f"{API}/v1/text-to-speech/{settings['voice_id']}/with-timestamps", headers={"xi-api-key": ELEVEN_KEY},
                       params={"output_format": "mp3_44100_128"}, json=body, timeout=300)
-    if r.status_code == 400 and (prev or nxt):  # لو الموديل مش بيقبل السياق: من غيره
-        return _tts(text, settings)
     if r.status_code != 200:
         raise RuntimeError(f"ElevenLabs HTTP {r.status_code}: {r.text[:300]}")
     return r.json()
 
 
+def _context(lines: list[dict], idx: int) -> list[dict]:
+    return lines[max(0, idx - CTX_BEFORE):idx + 1 + CTX_AFTER]
+
+
+def sentence_cost(pid: str, sid: int) -> int:
+    lines = store.read_json(store.project_dir(pid) / "tts.json")["lines"]
+    idx = next(i for i, ln in enumerate(lines) if ln["id"] == sid)
+    return len(build_text(_context(lines, idx))[0])
+
+
+def _mean_db(path, start: float | None = None, dur: float | None = None) -> float | None:
+    """متوسط علو الصوت (dB) لجزء من ملف."""
+    import subprocess
+    args = ["ffmpeg", "-hide_banner", "-nostats"] + (["-ss", f"{start:.3f}"] if start is not None else []) + \
+           (["-t", f"{dur:.3f}"] if dur is not None else []) + ["-i", str(path), "-af", "volumedetect", "-f", "null", "-"]
+    out = subprocess.run(args, capture_output=True, text=True).stderr
+    m = re.search(r"mean_volume: (-?[\d.]+) dB", out)
+    return float(m.group(1)) if m else None
+
+
+def undo_sentence(pid: str) -> bool:
+    """بيرجّع الصوت والتوقيت زي ما كانوا قبل آخر إعادة جملة."""
+    import shutil
+    d = store.project_dir(pid)
+    u = d / "audio" / "undo"
+    if not (u / "voice.mp3").exists():
+        return False
+    shutil.copy(u / "voice.mp3", d / "audio" / "voice.mp3")
+    shutil.copy(u / "words.json", d / "words.json")
+    shutil.rmtree(u)
+    return True
+
+
 def regen_sentence(pid: str, sid: int) -> None:
-    """بيولّد صوت جملة واحدة ويركّبه مكانها في الصوت الكامل، وبيزحزح توقيت اللي بعدها."""
+    """بيولّد صوت جملة واحدة (وسط الجمل اللي حواليها) ويركّبه مكانها في الصوت الكامل، وبيزحزح توقيت اللي بعدها."""
+    import shutil
     import subprocess
     import tempfile
     from pathlib import Path
@@ -155,26 +198,45 @@ def regen_sentence(pid: str, sid: int) -> None:
     mine = [w for w in words if w["sid"] == sid]
     before = [w for w in words if words.index(w) < words.index(mine[0])]
     after = [w for w in words if words.index(w) > words.index(mine[-1])]
+    # الحتة القديمة اللي هتتشال من الصوت الكامل
     a = max(before[-1]["end"] + 0.02 if before else 0.0, mine[0]["start"] - 0.05)
     b = min(after[0]["start"] - 0.02 if after else W["duration"], mine[-1]["end"] + 0.12)
-    data = _tts(line["tts"], st, " ".join(l["display"] for l in lines[max(0, idx - 2):idx]), " ".join(l["display"] for l in lines[idx + 1:idx + 3]))
-    text, spans = build_text([line])
-    new = words_from_alignment(text, spans, data["alignment"])
-    dur = data["alignment"]["character_end_times_seconds"][-1] + 0.08
+
+    # الجملة وسط سياقها في طلب واحد، وبعدين نقص جملتنا من الصوت الجديد
+    ctx = _context(lines, idx)
+    text, spans = build_text(ctx)
+    data = _tts(text, st, seed_of(pid))
+    gen = words_from_alignment(text, spans, data["alignment"])
+    gdur = data["alignment"]["character_end_times_seconds"][-1]
+    g_mine = [w for w in gen if w["sid"] == sid]
+    g_before = [w for w in gen if w["i"] < g_mine[0]["i"]]
+    g_after = [w for w in gen if w["i"] > g_mine[-1]["i"]]
+    # القص في نص السكتة اللي بين جملتنا واللي حواليها (من غير ما ناكل نَفَس كلمة)
+    ca = max((g_before[-1]["end"] + g_mine[0]["start"]) / 2 if g_before else 0.0, g_mine[0]["start"] - 0.12)
+    cb = min((g_mine[-1]["end"] + g_after[0]["start"]) / 2 if g_after else gdur + 0.1, g_mine[-1]["end"] + 0.18)
+    dur = cb - ca
+
+    voice = d / "audio" / "voice.mp3"
+    u = d / "audio" / "undo"  # نسخة للرجوع لو الإعادة ماعجبتكش
+    u.mkdir(exist_ok=True)
+    shutil.copy(voice, u / "voice.mp3")
+    shutil.copy(d / "words.json", u / "words.json")
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
         (tmp / "new.mp3").write_bytes(base64.b64decode(data["audio_base64"]))
-        voice = d / "audio" / "voice.mp3"
+        # نفس علو صوت الجملة القديمة
+        old_db, new_db = _mean_db(voice, a, b - a), _mean_db(tmp / "new.mp3", ca, dur)
+        gain = max(-8.0, min(8.0, old_db - new_db)) if old_db is not None and new_db is not None else 0.0
         run = lambda *args: subprocess.run(["ffmpeg", "-y", "-loglevel", "error", *args], check=True)
+        fade = "afade=t=in:d=0.02,areverse,afade=t=in:d=0.04,areverse"
         run("-i", str(voice), "-t", f"{a:.3f}", "-ar", "44100", "-ac", "1", str(tmp / "p1.wav"))
-        run("-i", str(tmp / "new.mp3"), "-t", f"{dur:.3f}", "-ar", "44100", "-ac", "1", str(tmp / "p2.wav"))
+        run("-ss", f"{ca:.3f}", "-t", f"{dur:.3f}", "-i", str(tmp / "new.mp3"), "-af", f"volume={gain:.2f}dB,{fade}", "-ar", "44100", "-ac", "1", str(tmp / "p2.wav"))
         run("-ss", f"{b:.3f}", "-i", str(voice), "-ar", "44100", "-ac", "1", str(tmp / "p3.wav"))
         (tmp / "list.txt").write_text("file 'p1.wav'\nfile 'p2.wav'\nfile 'p3.wav'\n")
         run("-f", "concat", "-safe", "0", "-i", str(tmp / "list.txt"), "-c:a", "libmp3lame", "-b:a", "128k", str(tmp / "out.mp3"))
         voice.write_bytes((tmp / "out.mp3").read_bytes())
     shift = (a + dur) - b
-    for w in new:
-        w["start"], w["end"] = round(w["start"] + a, 3), round(w["end"] + a, 3)
+    new = [{**w, "start": round(w["start"] - ca + a, 3), "end": round(w["end"] - ca + a, 3)} for w in g_mine]
     for w in after:
         w["start"], w["end"] = round(w["start"] + shift, 3), round(w["end"] + shift, 3)
     out = before + new + after
@@ -185,7 +247,7 @@ def regen_sentence(pid: str, sid: int) -> None:
     if rv:  # الجملة اتعادت: علامات المراجعة القديمة بتاعتها مبقتش صح
         rv["flags"] = {k: v for k, v in rv.get("flags", {}).items() if int(k) != sid}
         store.write_json(d / "audio" / "review.json", rv)
-    store.update(pid, lambda p: p["usage"].setdefault("elevenlabs_extra", []).append({"sentence": sid, "chars": len(line["tts"])}))
+    store.update(pid, lambda p: p["usage"].setdefault("elevenlabs_extra", []).append({"sentence": sid, "chars": len(text), "gain_db": round(gain, 1)}))
 
 
 # ---------- مراجعة النطق (اختيارية) ----------

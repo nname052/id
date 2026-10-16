@@ -166,6 +166,7 @@ def get_project(pid: str):
         "audio_cost": audio_stage.estimate_cost(pid) if (d / "tts.json").exists() else None,
         "words": (store.read_json(d / "words.json") or {}).get("words") if (d / "audio" / "voice.mp3").exists() else None,
         "review": store.read_json(d / "audio" / "review.json"),
+        "can_undo": (d / "audio" / "undo" / "voice.mp3").exists(),
     }
 
 
@@ -241,6 +242,15 @@ def reopen_audio(pid: str):
 def audio_sentence(pid: str, sid: int):
     _get(pid)
     worker.enqueue(pid, "audio_sentence", sid=sid)
+    return {"ok": True}
+
+
+@app.post("/api/projects/{pid}/audio/undo")
+def audio_undo(pid: str):
+    _get(pid)
+    if not audio_stage.undo_sentence(pid):
+        raise HTTPException(400, "مفيش نسخة قديمة نرجعلها")
+    worker.mark_stale(pid, "audio")
     return {"ok": True}
 
 
