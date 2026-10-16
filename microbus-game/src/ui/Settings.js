@@ -25,6 +25,7 @@ export const SCHEMA = [
   { group: 'الصوت' },
   { key: 'masterVol', type: 'range', label: 'الصوت العام', min: 0, max: 100, step: 5, fmt: (v) => `${v}%`, def: 80 },
   { key: 'engineVol', type: 'range', label: 'صوت الموتور', min: 0, max: 100, step: 5, fmt: (v) => `${v}%`, def: 80 },
+  { key: 'radioVol', type: 'range', label: 'صوت الراديو', min: 0, max: 100, step: 5, fmt: (v) => `${v}%`, def: 60 },
   { group: 'المرور والركاب' },
   { key: 'traffic', type: 'seg', label: 'زحمة المرور', options: [['off', 'فاضي'], ['low', 'خفيفة'], ['normal', 'عادية'], ['high', 'زحمة']], def: 'normal' },
   { key: 'crowd', type: 'seg', label: 'الناس في الشوارع', options: [['low', 'قليل'], ['normal', 'كتير'], ['high', 'زحمة جدًا']], def: 'normal' },

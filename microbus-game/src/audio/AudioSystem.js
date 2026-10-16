@@ -23,7 +23,9 @@ export class AudioSystem {
     this.master.gain.value = 0.62 * (this.vol?.master ?? 0.8) / 0.8;
     const comp = ctx.createDynamicsCompressor();
     comp.threshold.value = -14; comp.ratio.value = 4;
-    this.master.connect(comp).connect(ctx.destination);
+    // تهذيب الحدّة: الترددات العالية (فوق ~6كيلو) أوطى شوية → مفيش صفير/زنة مزعجة في السماعات
+    const soft = ctx.createBiquadFilter(); soft.type = 'highshelf'; soft.frequency.value = 6000; soft.gain.value = -5;
+    this.master.connect(soft).connect(comp).connect(ctx.destination);
 
     // باص الأصوات الخارجية (بيتكتم شوية لما تكون جوه الميكروباص)
     this.outside = ctx.createBiquadFilter();
@@ -512,8 +514,9 @@ export class AudioSystem {
         e.whineGear.connect(this._filter('bandpass', 900, 3)).connect(e.whineGearG).connect(e.out);
       }
       const vs = Math.abs(ph.forwardSpeed);
-      set(e.whineGear.frequency, 120 + vs * 52, 0.05);
-      set(e.whineGearG.gain, this.engineKind === 'tuktuk' ? 0 : Math.min(1, vs / 18) * (0.12 + thr * 0.1), 0.1);
+      // زنة واطية بس (كانت بتوصل 1كيلوهرتز وتبان صفير): تردد أوطى وصوت أخف بكتير
+      set(e.whineGear.frequency, 110 + Math.min(vs, 22) * 18, 0.08);
+      set(e.whineGearG.gain, this.engineKind === 'tuktuk' ? 0 : Math.min(1, vs / 18) * (0.025 + thr * 0.02), 0.12);
     } else {
       const fire = (rpm / 60) * 2;
       set(e.saw.frequency, fire); set(e.pulse.frequency, fire);
@@ -521,7 +524,7 @@ export class AudioSystem {
       set(e.lp.frequency, 180 + rpm * 0.12 + thr * 650 + (inside ? 0 : 300));
       set(e.clatter.gain, 0.05 + thr * 0.14 + (inside ? 0 : 0.05));
       set(e.whine.frequency, 600 + rpm * 0.5);
-      set(e.whineG.gain, thr * Math.max(0, rpm - 1800) / 2500 * 0.025);
+      set(e.whineG.gain, 0); // (الصفير الصناعي اتشال)
     }
 
     // الكاوتش والطريق والهوا
@@ -529,8 +532,10 @@ export class AudioSystem {
     let skid = 0;
     for (const w of ph.wheels) skid = Math.max(skid, w.skid);
     if (ph.speed < 1.5) skid *= ph.speed / 1.5;
-    set(tr.squealG.gain, skid * 0.32 * distAtt, 0.04);
-    set(tr.toneG.gain, skid * 0.3, 0.04);
+    // صريخ الكاوتش: بس في الانزلاق الحقيقي (مش أي لفة)، وبيدخل ويخرج بالراحة
+    skid = Math.max(0, (skid - 0.35) / 0.65);
+    set(tr.squealG.gain, skid * 0.26 * distAtt, 0.08);
+    set(tr.toneG.gain, skid * 0.1, 0.08);
     set(tr.tone.frequency, 950 + Math.sin(t * 13) * 60 + ph.speed * 8);
     const surf = player.surface || 'city';
     const roughK = surf === 'agri' || surf === 'village' ? 1.5 : surf === 'dirt' ? 1.8 : surf === 'bridge' ? 1.15 : 1;
@@ -545,10 +550,11 @@ export class AudioSystem {
     set(tr.rubG.gain, bk * 0.22 * distAtt, 0.06);
     set(tr.hissG.gain, bk * Math.min(1, ph.speed / 15) * 0.03 * distAtt, 0.06);
     // صفارة الفرامل: مش في كل وقفة — احتمال لكل وقفة (أعلى في الميكروباص القديم)، وقصيرة
-    if (ph.speed > 4.2) this._sqArm = true;
+    if (ph.speed > 4.2) { this._sqArm = true; this._sqStrong = false; }
+    if (ph.brake > 0.45 && ph.speed > 3) this._sqStrong = true; // الصفارة بس بعد فرملة حقيقية (مش لمسة)
     if (this._sqArm && ph.brake > 0.3 && ph.speed < 3.0 && ph.speed > 0.3) {
       this._sqArm = false;
-      this._sqT = Math.random() < (this.engineKind === 'microbus' ? 0.3 : 0.12) ? 0.3 + Math.random() * 0.35 : 0;
+      this._sqT = this._sqStrong && Math.random() < (this.engineKind === 'microbus' ? 0.22 : 0.08) ? 0.25 + Math.random() * 0.3 : 0;
     }
     this._sqT = Math.max(0, (this._sqT || 0) - dt);
     const squeal = this._sqT > 0 && ph.brake > 0.2 && ph.speed > 0.2 ? 0.014 + ph.brake * 0.014 : 0;

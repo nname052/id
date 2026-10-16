@@ -47,6 +47,7 @@ import { setGroundProvider } from '../world/ground.js';
 import { setGraph, findRoute } from '../nav/RoadGraph.js';
 import { ShibinWorld } from '../world/shibin/ShibinWorld.js';
 import { showLinePicker } from '../ui/LinePicker.js';
+import { Radio } from '../audio/Radio.js';
 import { ShibinTraffic } from '../world/shibin/ShibinTraffic.js';
 import { ShibinCrowd } from '../world/shibin/ShibinCrowd.js';
 import { attachJobs } from '../world/shibin/ShibinJobs.js';
@@ -206,6 +207,10 @@ export class Game {
     if (this.mobile) { document.body.classList.add('touch'); this.touch = new TouchControls(); this.input.touch = this.touch; this.touch.maxWheel = this.player.physics.maxWheelAngle; }
     this.hud = new HUD();
     this.settings.mount(this.touch ? this.touch.root.querySelector('.t-top') : null);
+    // الراديو (اختياري، من غير أي بث متضمن)
+    this.radio = new Radio({ hud: this.hud, settings: this.settings });
+    this.radio.mountSettings(this.settings.panel);
+    this.settings.onChange((k, v) => { if (k === 'radioVol') this.radio.setVolume(v / 100); });
     this.cams = new CameraSystem(this.camera, this.player, renderer.domElement);
     this.cams.settings = this.settings;
     this.cams.colliders = this._colliders;

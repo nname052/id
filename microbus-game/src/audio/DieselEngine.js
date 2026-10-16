@@ -178,7 +178,7 @@ export class DieselEngine {
       set(this.rattleG.gain, this.P.rattle * gain * (0.05 + idle * 0.13 + bump * 0.35) * (inside ? 1.25 : 0.55), 0.08);
       set(this.rattleLfo.frequency, (rpm / 60) * 2, 0.05);
     }
-    set(this.turboG.gain, this.P.turbo * gain * L * Math.max(0, rpm - 1700) / 2600 * 0.035, 0.25);
+    set(this.turboG.gain, 0, 0.25); // صفير التيربو (sine عالي) كان بيبان كصفارة مزعجة → اتشال
   }
 
   dispose() {
