@@ -17,7 +17,7 @@ window.ready = (async () => {
     const draw = await createScene3D(sc, box, { duration: spec.duration, palette: spec.palette, look: q.get("look") || spec.look, words,
       cue: (w) => { const x = words.find((y) => y.word === w); return x ? x.start : 0; } });
     draw(t);
-    box.insertAdjacentHTML("beforeend", `<div class="l">${spec.names ? spec.names[ts.indexOf(t)] : "t=" + t}</div>`);
+    box.insertAdjacentHTML("beforeend", `<div class="l">${spec.names ? spec.names[ts.indexOf(t)] || "t=" + t : "t=" + t}</div>`);
   }
 })();
 </script></body></html>

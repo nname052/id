@@ -1,0 +1,13 @@
+{"duration": 8, "look": "soft", "ts": [0.6, 1.25, 2.0, 3.1, 4.4, 5.6, 6.6, 7.6],
+ "palette": {"bg": "#20222e", "surface": "#e4e7ea", "accent": "#3d7bd9", "accent2": "#5cc8b4"},
+ "words": [{"word": "الموضوع", "start": 0.3, "end": 0.9}, {"word": "ببساطة", "start": 0.95, "end": 1.6}, {"word": "إن", "start": 1.65, "end": 1.8},
+           {"word": "التركيز", "start": 1.85, "end": 2.5}, {"word": "بيضيع", "start": 2.55, "end": 3.1}, {"word": "منك", "start": 3.15, "end": 3.6},
+           {"word": "وإنت", "start": 4.1, "end": 4.5}, {"word": "مش", "start": 4.55, "end": 4.75}, {"word": "واخد", "start": 4.8, "end": 5.2},
+           {"word": "بالك؟", "start": 5.25, "end": 5.9}],
+ "scene3d": {"set": "office", "character": "Business_Male_02", "time": "day", "speaking": true, "blocking": {"x": 0, "z": 0, "face": 0},
+  "performance": [{"at": 0, "body": "upright", "head": "camera", "l_arm": "rest", "r_arm": "explain", "face": "warm"},
+                  {"at": 1.8, "body": "lean_forward", "head": "camera", "l_arm": "hip", "r_arm": "point_forward", "face": "serious"},
+                  {"at": 4.0, "body": "upright", "head": "tilt_left", "l_arm": "open_out", "r_arm": "open_out", "face": "curious"},
+                  {"at": 6.2, "body": "upright", "head": "camera", "l_arm": "rest", "r_arm": "chin", "face": "thinking"},
+                  {"at": 7.3, "body": "upright", "head": "camera", "l_arm": "rest", "r_arm": "rest", "face": "smile"}],
+  "shots": [{"at": 0, "type": "medium_close", "angle": 12, "height": "eye", "move": "push_in"}]}}

@@ -16,13 +16,28 @@ CHARACTERS = {  # (اتأكدنا من شكلهم بصورة لكل الشخصي
     "Jody": ("characters/Jody", 1.66, "ست بجاكيت رياضي بمبي، واقعية"),
     "Sporty_Granny": ("characters/Sporty_Granny", 1.6, "جدة ببكَر في شعرها ونضارة وترينج أزرق، كرتون كوميدي"),
 }
+# شخصيات واقعية محترمة (Microsoft Rocketbox، رخصة MIT): وشهم فيه أشكال بق للحروف وتعبيرات (ابتسامة، تكشيرة، حواجب، رمش)
+RBX = {
+    "Business_Male_01": ("بدلة سودا وكرافتة حمرا، شاب ثلاثيني"), "Business_Male_02": ("بدلة كحلي وكرافتة، شاب ثلاثيني"),
+    "Business_Male_03": ("بدلة سودا وكرافتة فاتحة، راجل أربعيني"), "Business_Male_04": ("صديري وقميص، راجل خمسيني أصلع"),
+    "Business_Male_05": ("بدلة سودا وقميص بنفسجي، أسمر"), "Business_Female_01": ("بدلة سودا، ست سمرا"),
+    "Business_Female_02": ("جاكيت أحمر غامق ونضارة، ست شقرا"), "Business_Female_03": ("تايير بيج، ست بشعر غامق"),
+    "Business_Female_04": ("بدلة سودا، ست بشعر بني"), "Medical_Male_01": ("دكتور بالبالطو الأبيض"), "Medical_Female_01": ("دكتورة بلبس طبي أبيض"),
+    "Male_Adult_03": ("راجل كبير شيك ببليزر"), "Male_Adult_08": ("شاب بقميص أزرق فاتح"), "Male_Adult_14": ("راجل بقميص رمادي وبنطلون كاكي"),
+    "Male_Adult_19": ("راجل بجلابية بيضا وشماغ أحمر"), "Male_Adult_21": ("راجل بجلابية بيضا وغترة بيضا"),
+    "Female_Adult_02": ("ست ببلوزة بيضا وجيبة"), "Female_Adult_06": ("ست محجبة بطرحة بيضا"), "Female_Adult_09": ("ست بكارديجان رمادي"),
+    "Female_Adult_14": ("ست ببليزر بيج"),
+}
+for _n, _d in RBX.items():
+    CHARACTERS[_n] = ("rbx", 1.67 if "Female" in _n else 1.8, _d + "، واقعي")
 # الشخصيات الواقعية ما ينفعش تتحط مع الكرتون في نفس الفيديو
-REALISTIC = {"Megan", "Kate", "Jody"}
+REALISTIC = {"Megan", "Kate", "Jody", *RBX}
+CARTOON = [c for c in CHARACTERS if c not in REALISTIC]
 NORMAL_MAPS_OFF = {"Doozy"}
-GENDER = {"Aj": "male", "Ty": "male", "Big_Vegas": "male", "Timmy": "male", "Doozy": "male", "Claire": "female", "Amy": "female",
+GENDER = {**{n: ("female" if "Female" in n else "male") for n in RBX}, "Aj": "male", "Ty": "male", "Big_Vegas": "male", "Timmy": "male", "Doozy": "male", "Claire": "female", "Amy": "female",
           "Kaya": "male", "Megan": "female", "Kate": "female", "Jody": "female", "Sporty_Granny": "female"}
 # الشخصيات اللي فيها بق منفصل (نقدر نحرّكه مع الصوت). الباقي البق جزء من الوش: بيمثّلوا من غير كلام (الراوي بيحكي)
-SPEAKERS = ["Aj", "Big_Vegas", "Claire", "Kaya", "Sporty_Granny"]
+SPEAKERS = ["Aj", "Big_Vegas", "Claire", "Kaya", "Sporty_Granny", *RBX]
 
 ANIMS = {
     "idle": "واقف عادي", "happy_idle": "واقف مبسوط", "sad_idle": "واقف زعلان", "bored": "زهقان", "looking_around": "بيبص حواليه",
@@ -74,7 +89,9 @@ def catalog_for(vtype: str) -> str:
 
 def catalog() -> str:
     """وصف الكتالوج للبرومبت."""
-    ch = "، ".join(f"{k} ({v[2]}، {'ذكر' if GENDER[k] == 'male' else 'أنثى'})" for k, v in CHARACTERS.items())
+    real = "، ".join(f"{k} ({v[2]}، {'ذكر' if GENDER[k] == 'male' else 'أنثى'})" for k, v in CHARACTERS.items() if k in RBX)
+    toon = "، ".join(f"{k} ({v[2]})" for k, v in CHARACTERS.items() if k not in REALISTIC)
+    ch = f"**واقعيين ومهندمين (الأساس لأي فيديو جاد)**: {real}\n  - كرتون (بس لو صاحب الفيديو طلب كرتون/أنيمي/هزار): {toon}"
     an = "، ".join(f"{k} ({v})" for k, v in ANIMS.items())
     st = "، ".join(f"{k} ({v})" for k, v in SETS.items())
     cam = "، ".join(f"{k} ({v})" for k, v in CAMERAS.items())
@@ -97,3 +114,6 @@ SHOT_TYPES = ['extreme_wide', 'wide', 'full', 'medium', 'medium_close', 'close',
 SHOT_HEIGHTS = ['eye', 'low', 'ground', 'high', 'top']
 CAMERA_MOVES = ['static', 'push_in', 'pull_out', 'orbit_left', 'orbit_right', 'crane_up', 'crane_down', 'truck_left', 'truck_right', 'handheld', 'whip_in', 'slow_zoom']
 EASES = ["smooth", "snap", "overshoot", "slow"]
+
+ACTIONS = ["open_fridge", "close_fridge", "use_laptop", "open_door", "look_out_window", "drink", "read_book", "hold_phone"]
+EXPRESSIONS = ["neutral", "smile", "big_smile", "warm", "serious", "sad", "worried", "surprised", "angry", "thinking", "skeptical", "confident", "curious", "disgusted"]

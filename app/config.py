@@ -31,7 +31,7 @@ TTS_MODEL = "eleven_v4"
 DEFAULT_STABILITY = 0.5  # الكلام العادي (القسم 5.3 في التصميم)
 
 W, H, FPS = 1080, 1920, 30
-WORDS_PER_SECOND = 2.2  # سرعة الكلام المصري التقريبية لحساب طول السكريبت
+WORDS_PER_SECOND = 1.9  # سرعة الكلام المصري التقريبية لحساب طول السكريبت
 
 DEFAULT_SETTINGS = {
     "duration": 30,          # بالثواني (10 لـ 60)
@@ -43,6 +43,7 @@ DEFAULT_SETTINGS = {
     "stability": DEFAULT_STABILITY,
     "video_type": "regular",  # whiteboard | regular | 3d
     "voice_gender": "",       # male | female (علشان الشخصية اللي بتتكلم تبقى من نفس النوع)
+    "voice_source": "eleven", # eleven | record | upload (صوتك إنت: بيتسجّل أو يترفع بعد المشاهد)
 }
 
 VIDEO_TYPES = {
@@ -58,3 +59,5 @@ MOODS = {
     "serious": "جاد",
     "educational": "تعليمي",
 }
+
+TTS_SPEED = 0.94  # سرعة الكلام في v4 (1 = العادي): أهدى سنة علشان الفيديو ما يجريش

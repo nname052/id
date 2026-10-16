@@ -2,9 +2,10 @@
 
 import os
 import threading
+from pathlib import Path
 import time
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import UploadFile, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -126,12 +127,14 @@ class NewProject(BaseModel):
 
 @app.post("/api/projects")
 def create(body: NewProject):
-    if len(body.prompt.strip()) < 3:
-        raise HTTPException(400, "اكتب فكرة الفيديو")
+    if len(body.prompt.strip()) < 3 and len(body.user_script.split()) < 5:
+        raise HTTPException(400, "اكتب موضوع الفيديو أو السكريبت")
     allowed = {k: v for k, v in body.settings.items() if k in DEFAULT_SETTINGS}
     allowed["duration"] = max(10, min(60, int(allowed.get("duration", 30))))
     if allowed.get("video_type") not in VIDEO_TYPES:
         allowed["video_type"] = "regular"
+    if allowed.get("voice_source") not in ("eleven", "record", "upload"):
+        allowed["voice_source"] = "eleven"
     p = store.create(body.prompt, allowed, body.direction, body.user_script)
     worker.enqueue(p["id"], "script")
     worker.learn(body.prompt, "فكرة فيديو جديد")
@@ -293,6 +296,30 @@ def edit_scene_part(pid: str, scene_id: str, body: Instruction):
     return {"ok": True}
 
 
+@app.post("/api/projects/{pid}/audio/upload")
+async def audio_upload(pid: str, file: UploadFile):
+    """صوتك (تسجيل من الموقع أو ملف): بيتحفظ وبعدين بيتظبط توقيت الكلام عليه في الطابور."""
+    _get(pid)
+    d = store.project_dir(pid) / "audio"
+    d.mkdir(exist_ok=True)
+    ext = (Path(file.filename or "voice.webm").suffix or ".webm").lower()
+    if ext not in (".webm", ".ogg", ".mp3", ".wav", ".m4a", ".aac", ".mp4", ".flac", ".aiff", ".aif", ".opus"):
+        raise HTTPException(400, "نوع الملف ده مش مدعوم (MP3، WAV، M4A، WebM)")
+    raw = d / f"user_raw{ext}"
+    raw.write_bytes(await file.read())
+    worker.enqueue(pid, "audio_user", raw=str(raw))
+    return {"ok": True}
+
+
+@app.post("/api/projects/{pid}/audio/need-voice")
+def audio_need_voice(pid: str):
+    """ترجع لتسجيل/رفع صوتك من الأول."""
+    _get(pid)
+    store.update(pid, lambda p: (p["stages"]["audio"].update(status="needs_voice"), p.update(status="awaiting_review")))
+    worker.mark_stale(pid, "audio")
+    return {"ok": True}
+
+
 @app.post("/api/projects/{pid}/audio/undo")
 def audio_undo(pid: str):
     _get(pid)
@@ -329,7 +356,7 @@ def player_data(pid: str):
     words = store.read_json(d / "words.json") if (d / "audio" / "voice.mp3").exists() else None
     if not words:
         words = audio_stage.estimated_words(pid)
-    has_audio = (d / "audio" / "voice.mp3").exists() and words.get("source") == "elevenlabs"
+    has_audio = (d / "audio" / "voice.mp3").exists() and words.get("source") in ("elevenlabs", "user")
     script = store.read_json(d / "script.json") or {"sentences": []}
     return {"plan": plan, "words": words, "settings": p["settings"], "script": script["sentences"],
             "audio": f"/files/{pid}/audio/voice.mp3?v={int((d / 'audio' / 'voice.mp3').stat().st_mtime)}" if has_audio else None}

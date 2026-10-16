@@ -17,6 +17,7 @@ NEXT = {"script": "tts", "tts": "brief", "brief": "scenes", "scenes": "audio", "
 SUB = {"audio_sentence": "audio", "audio_review": "audio",  # مهام صغيرة جوه مرحلة الصوت
        "edit_script": "script", "edit_tts": "tts", "edit_scene": "scenes"}  # تعديل جزء من غير ما الباقي يتعاد
 EDITS = {"edit_script", "edit_tts", "edit_scene"}
+JOB_STAGE = {**SUB, "audio_user": "audio"}  # المهمة دي شغالة على أنهي مرحلة
 DOWNSTREAM = {"script": ["tts", "brief", "scenes", "audio", "render"], "tts": ["audio", "render"], "brief": ["scenes", "render"], "scenes": ["render"], "audio": ["render"]}
 
 
@@ -26,7 +27,7 @@ def learn(text: str, source: str) -> None:
 
 
 def enqueue(pid: str, job: str, **kw) -> None:
-    stage = SUB.get(job, job)
+    stage = JOB_STAGE.get(job, job)
     if job in SUB:  # الحالة قبل ما نعلّم المهمة "في الطابور" (علشان نرجّعلها بعد المهام الصغيرة)
         cur = store.load(pid)
         kw["_snap"] = (cur["status"], {k: dict(v) for k, v in cur["stages"].items()})
@@ -48,7 +49,7 @@ def mark_stale(pid: str, stage: str) -> None:
 
 
 def _run(pid: str, job: str, kw: dict) -> None:
-    stage = SUB.get(job, job)
+    stage = JOB_STAGE.get(job, job)
     if job in SUB:  # مهمة صغيرة اختيارية: لو فشلت، المشروع يرجع زي ما كان مع رسالة (مش "فشل")
         prev = kw.pop("_snap", None)
         if not prev:
@@ -63,8 +64,19 @@ def _run(pid: str, job: str, kw: dict) -> None:
             brief.run(pid, kw.get("instruction"))
         elif job == "scenes":
             scenes.run(pid, kw.get("instruction"))
+        elif job == "tts" and store.load(pid)["settings"].get("voice_source", "eleven") != "eleven":
+            # الصوت هيبقى صوتك: مفيش tags ولا تجهيز للنطق
+            d = store.project_dir(pid)
+            store.write_json(d / "tts.json", {"lines": [{"id": s["id"], "display": s["text"], "tts": s["text"]} for s in store.read_json(d / "script.json")["sentences"]]})
         elif job == "tts":
             tts_prep.run(pid, kw.get("instruction"))
+        elif job == "audio_user":
+            audio.user_voice(pid, kw["raw"])
+        elif job == "audio" and store.load(pid)["settings"].get("voice_source", "eleven") != "eleven":
+            # صوتك إنت: بنستنى التسجيل/الملف من صفحة الفيديو
+            store.update(pid, lambda p: (p["stages"]["audio"].update(status="needs_voice"), p.update(status="awaiting_review")))
+            store.log(pid, "⏺ مستنيين صوتك (تسجيل أو ملف)")
+            return
         elif job == "audio":
             if not (store.project_dir(pid) / "tts.json").exists():  # مشاريع قديمة (الترتيب القديم): نجهّز النص الأول
                 tts_prep.run(pid)
@@ -92,12 +104,17 @@ def _run(pid: str, job: str, kw: dict) -> None:
     except Exception as e:  # noqa: BLE001
         if job in SUB:
             msg = str(e)
+            if "quota_exceeded" in msg:
+                msg = "مفتاح ElevenLabs وصل للحد اللي إنت حاطه عليه. ارفع الحد من elevenlabs.io ← Developers ← API Keys ← Credit limit، وجرّب تاني."
             if "speech_to_text" in msg:
                 msg = "مفتاح ElevenLabs مش معاه صلاحية Speech to Text. فعّلها من elevenlabs.io ← Developers ← API Keys، وجرّب تاني."
             store.update(pid, lambda p: (p.update(status=prev[0], stages=prev[1], notice=msg[:400])))
             store.log(pid, f"✗ {job}: {e}")
             return
-        store.update(pid, lambda p: (p["stages"][stage].update(status="failed", error=str(e)[:500]), p.update(status="failed")))
+        err = str(e)
+        if "quota_exceeded" in err:
+            err = "مفتاح ElevenLabs وصل للحد اللي إنت حاطه عليه (مش رصيدك). ارفع الحد من elevenlabs.io ← Developers ← API Keys ← Credit limit، وبعدين اضغط حاول تاني."
+        store.update(pid, lambda p: (p["stages"][stage].update(status="failed", error=err[:500]), p.update(status="failed")))
         store.log(pid, f"✗ {stage}: {e}\n{traceback.format_exc()[-800:]}")
         return
     store.log(pid, f"✓ {job}")
@@ -116,6 +133,11 @@ def _run(pid: str, job: str, kw: dict) -> None:
         store.update(pid, after_edit)
         return
     mark_stale(pid, stage)
+    if stage == "tts" and store.load(pid)["settings"].get("voice_source", "eleven") != "eleven":
+        # صوتك إنت: مفيش نص نطق نراجعه، بنكمّل على طول
+        store.update(pid, lambda p: p["stages"]["tts"].update(status="approved"))
+        enqueue(pid, NEXT["tts"])
+        return
     if stage in REVIEW:
         store.update(pid, lambda p: (p["stages"][stage].update(status="review"), p.update(status="awaiting_review")))
     elif stage == "render":

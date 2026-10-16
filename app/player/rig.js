@@ -165,15 +165,16 @@ const EASE = {
 };
 
 export function buildPerformance(keys, k, PACE = 1) {
-  const ks = keys.map((x) => ({ ...x, P: keyParams(x, k), dur: (x.dur || (x.ease === "snap" ? 0.28 : x.ease === "slow" ? 0.9 : 0.5)) * PACE }));
+  // الانتقال بين وضعيتين رزين: حوالي 0.8 ثانية (والحادة 0.45 بس للحظات القوية)
+  const ks = keys.map((x) => ({ ...x, P: keyParams(x, k), dur: (x.dur || (x.ease === "snap" ? 0.45 : x.ease === "slow" ? 1.2 : 0.8)) * PACE }));
   ks.sort((a, b) => a.t - b.t);
   // الوضعية في لحظة t: آخر وضعية بدأت بتتدمج من اللي قبلها
   return (t) => {
     let i = 0; ks.forEach((x, j) => { if (t >= x.t) i = j; });
     const cur = ks[i], prev = ks[i - 1];
-    if (!prev || t < cur.t) return { P: cur.P, key: cur, since: Math.max(0, t - cur.t), trans: 1 };
+    if (!prev || t < cur.t) return { P: cur.P, key: cur, prev: cur, since: Math.max(0, t - cur.t), trans: 1 };
     const raw = (t - cur.t) / cur.dur, p = (EASE[cur.ease] || EASE.smooth)(raw);
-    return { P: blendParams(prev.P, cur.P, p), key: cur, since: t - cur.t, trans: clamp(raw) };
+    return { P: blendParams(prev.P, cur.P, p), key: cur, prev, since: t - cur.t, trans: clamp(raw) };
   };
 }
 
@@ -258,6 +259,7 @@ export function applyPose(R, st) {
   if (motion === "look_around") { yaw += Math.sin(t * 1.3) * 45; pitch += Math.sin(t * 0.9) * 6; }
   if (motion === "tremble") { yaw += Math.sin(t * 31) * 2; pitch += Math.sin(t * 27) * 2; }
   if (st.speaking) pitch += (st.wordPulse || 0) * 5 + Math.sin(t * 3.1) * 1.2; // إيماءة صغيرة مع كل كلمة
+  if (st.headAdd) { yaw += st.headAdd.yaw || 0; pitch += st.headAdd.pitch || 0; }
   yaw += noise(t * 0.6, 21) * 2.2; pitch += noise(t * 0.5, 23) * 1.6 - lean * 0.45; tilt += noise(t * 0.4, 29) * 1.5;
   for (const [bone, w] of [[R.neck, 0.4], [R.head, 0.6]]) {
     if (!bone) continue;
@@ -288,6 +290,9 @@ export function applyPose(R, st) {
     const shoulder = s.arm.getWorldPosition(V());
     const off = new THREE.Vector3(x * sgn, y, z).applyQuaternion(rootQ).applyQuaternion(chestDelta);
     const target = shoulder.clone().add(off);
+    // الإيد ماسكة حاجة بعينها (مقبض التلاجة، الكيبورد، الكوباية عند البق…): بندمج ناحيتها
+    const rch = st.reach && st.reach[key];
+    if (rch && rch.w > 0) target.lerp(rch.point, clamp(rch.w));
     const pole = new THREE.Vector3(A.pole[0] * sgn, A.pole[1], A.pole[2]).applyQuaternion(rootQ).applyQuaternion(chestDelta).normalize();
     twoBone(s.arm, s.fore, s.hand, s.La, s.Lf, target, pole);
     // اتجاه الكف والصوابع

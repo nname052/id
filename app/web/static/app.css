@@ -113,3 +113,8 @@ button.mini { padding: 3px 9px; font-size: 13px; }
        background: color-mix(in srgb, var(--accent, #d9622b) 15%, transparent); color: var(--accent, #d9622b); font-weight: 700; }
 .topline { display: grid; grid-template-columns: 1fr 1.4fr; gap: 14px; }
 @media (max-width: 700px) { .topline { grid-template-columns: 1fr; } }
+.types.two { grid-template-columns: 1fr 1fr; } .types.three-small .type { padding: 10px 12px; }
+@media (max-width: 640px) { .types.two { grid-template-columns: 1fr; } }
+.read-script { margin: 12px 0; padding: 16px 18px; border-radius: 14px; background: var(--soft, #f4f1ec); font-size: 22px; line-height: 1.9; max-height: 360px; overflow: auto; }
+.read-script p { margin: 0 0 8px; }
+.rec-box { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }

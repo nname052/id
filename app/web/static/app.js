@@ -12,5 +12,5 @@ async function api(path, opts = {}) {
 
 const STAGE_NAMES = { script: "① السكريبت", tts: "② الإحساس والنطق", brief: "③ الرؤية الإخراجية", scenes: "④ المشاهد", audio: "⑤ الصوت", render: "⑥ التصدير" };
 const STATUS_NAMES = { pending: "", queued: "في الطابور", running: "شغال", review: "مستني موافقتك", approved: "✓", failed: "فشل",
-  stale: "محتاج يتعاد", waiting_limit: "واقف (حد Claude)", needs_credits: "محتاج موافقة" };
+  stale: "محتاج يتعاد", waiting_limit: "واقف (حد Claude)", needs_credits: "محتاج موافقة", needs_voice: "مستني صوتك" };
 const fmtDate = (s) => new Date(s).toLocaleDateString("ar-EG", { day: "numeric", month: "long" });

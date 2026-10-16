@@ -42,9 +42,10 @@ SCENE = {"type": "object", "properties": {
         "character": {"type": "string", "enum": list(three_d.CHARACTERS)},
         "time": {"type": "string", "enum": ["day", "sunset", "night"]},
         "speaking": {"type": "boolean"},
+        "start": {"type": "string", "enum": ["center", "at_fridge_open", "at_window", "at_desk"]},
         "blocking": {"type": "object", "properties": {"x": {"type": "number"}, "z": {"type": "number"}, "face": {"type": "number"}},
                      "required": ["x", "z", "face"], "additionalProperties": False},
-        "performance": {"type": "array", "minItems": 3, "maxItems": 9, "items": {"type": "object", "properties": {
+        "performance": {"type": "array", "minItems": 2, "maxItems": 7, "items": {"type": "object", "properties": {
             "at_word": {"type": "string"},
             "body": {"type": "string", "enum": three_d.BODY_POSES}, "head": {"type": "string", "enum": three_d.HEAD_POSES},
             "l_arm": {"type": "string", "enum": three_d.ARM_POSES}, "r_arm": {"type": "string", "enum": three_d.ARM_POSES},
@@ -52,14 +53,15 @@ SCENE = {"type": "object", "properties": {
             "ease": {"type": "string", "enum": three_d.EASES},
             "move_to": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2},
             "face": {"type": "number"},
-            "emote": {"type": "string", "enum": three_d.EMOTES}, "fx": {"type": "string", "enum": three_d.FX}},
-            "required": ["at_word", "body", "head", "l_arm", "r_arm", "motion", "ease"], "additionalProperties": False}},
-        "shots": {"type": "array", "minItems": 1, "maxItems": 4, "items": {"type": "object", "properties": {
+            "emote": {"type": "string", "enum": three_d.EMOTES}, "fx": {"type": "string", "enum": three_d.FX},
+            "face": {"type": "string", "enum": three_d.EXPRESSIONS}, "action": {"type": "string", "enum": three_d.ACTIONS}},
+            "required": ["at_word", "body", "head", "l_arm", "r_arm", "motion", "ease", "face"], "additionalProperties": False}},
+        "shots": {"type": "array", "minItems": 1, "maxItems": 2, "items": {"type": "object", "properties": {
             "at_word": {"type": "string"}, "type": {"type": "string", "enum": three_d.SHOT_TYPES},
             "angle": {"type": "number"}, "height": {"type": "string", "enum": three_d.SHOT_HEIGHTS},
             "move": {"type": "string", "enum": three_d.CAMERA_MOVES}, "dutch": {"type": "boolean"}},
             "required": ["at_word", "type", "angle", "height", "move", "dutch"], "additionalProperties": False}}},
-        "required": ["set", "character", "time", "speaking", "blocking", "performance", "shots"], "additionalProperties": False},
+        "required": ["set", "character", "time", "speaking", "start", "blocking", "performance", "shots"], "additionalProperties": False},
     "enter": {"type": "string", "enum": ["rise", "pop", "draw", "fade", "slide"]},
     "idle": {"type": "string", "enum": ["float", "pulse", "wobble", "none"]}},
     "required": ["sentence_ids", "layout", "headline", "cue_word", "enter", "idle"], "additionalProperties": False}
@@ -238,7 +240,9 @@ def _system(pid: str, proj: dict, vtype: str) -> tuple[str, dict]:
     rule = {"regular": "\n\n**نوع الفيديو: عادي (2D). ممنوع scene3d.**",
             "3d": "\n\n**نوع الفيديو: 3D. أغلب المشاهد (70% على الأقل) scene3d بإخراج حر (تحت). `speaking`: true بس لو الجملة على لسان الشخصية "
                   f"(مش راوي)، واللي بيتكلم لازم يكون من دول (صوت الفيديو {voice}): {speakers}.**\n\n"
-                  + prompt("direct3d", body=" | ".join(three_d.BODY_POSES), head=" | ".join(three_d.HEAD_POSES), arms=" | ".join(three_d.ARM_POSES))}[vtype]
+                  + prompt("direct3d", body=" | ".join(three_d.BODY_POSES), head=" | ".join(three_d.HEAD_POSES), arms=" | ".join(three_d.ARM_POSES),
+                           faces=" | ".join(three_d.EXPRESSIONS), tone=("خفيف/كوميدي: مسموح رموز أنيمي وخطوط سرعة بحساب" if proj["settings"].get("mood") == "funny"
+                                                                       else "جاد ومحترم: ممنوع رموز الأنيمي (emote) وخطوط السرعة (fx)"))}[vtype]
     return prompt("scene_plan", catalog=three_d.catalog_for("3d" if vtype == "3d" else "regular"), **common) + rule, schema_for(vtype)
 
 

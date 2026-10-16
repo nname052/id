@@ -8,7 +8,7 @@ import time
 import requests
 
 from .. import store
-from ..config import ELEVEN_KEY, TTS_MODEL
+from ..config import ELEVEN_KEY, TTS_MODEL, TTS_SPEED
 from .common import tokens, words_of
 
 API = "https://api.elevenlabs.io"
@@ -80,7 +80,7 @@ def run(pid: str, approved_credits: bool = False) -> None:
     r = requests.post(
         f"{API}/v1/text-to-speech/{st['voice_id']}/with-timestamps",
         headers={"xi-api-key": ELEVEN_KEY}, params={"output_format": "mp3_44100_128"},
-        json={"text": text, "model_id": TTS_MODEL, "voice_settings": {"stability": float(st.get("stability", 0.5))}, "seed": seed_of(pid)},
+        json={"text": text, "model_id": TTS_MODEL, "voice_settings": {"stability": float(st.get("stability", 0.5)), "speed": TTS_SPEED}, "seed": seed_of(pid)},
         timeout=300,
     )
     if r.status_code != 200:
@@ -134,7 +134,7 @@ def seed_of(pid: str) -> int:
 
 
 def _tts(text: str, settings: dict, seed: int) -> dict:
-    body = {"text": text, "model_id": TTS_MODEL, "voice_settings": {"stability": float(settings.get("stability", 0.5))}, "seed": seed}
+    body = {"text": text, "model_id": TTS_MODEL, "voice_settings": {"stability": float(settings.get("stability", 0.5)), "speed": TTS_SPEED}, "seed": seed}
     r = requests.post(f"{API}/v1/text-to-speech/{settings['voice_id']}/with-timestamps", headers={"xi-api-key": ELEVEN_KEY},
                       params={"output_format": "mp3_44100_128"}, json=body, timeout=300)
     if r.status_code != 200:
@@ -333,3 +333,89 @@ def remove_sentence(pid: str, sid: int) -> None:
     for i, w in enumerate(out):
         w["i"] = i
     store.write_json(d / "words.json", {"source": "elevenlabs", "duration": round(W["duration"] + shift, 3), "words": out})
+
+
+# ---------- صوتك إنت (تسجيل أو ملف) ----------
+def user_voice(pid: str, raw_path: str) -> None:
+    """الصوت اللي سجّلته أو رفعته: بنظبط مستواه، وبنعرف توقيت كل كلمة من السكريبت عليه (forced alignment من ElevenLabs)،
+    علشان الكلام على الشاشة وحركة البق يمشوا مع صوتك بالظبط."""
+    import subprocess
+    d = store.project_dir(pid)
+    (d / "audio").mkdir(exist_ok=True)
+    voice = d / "audio" / "voice.mp3"
+    # مستوى صوت ثابت ومريح (loudnorm) + شيل السكوت الطويل في الأول
+    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", raw_path, "-af",
+                    "silenceremove=start_periods=1:start_threshold=-45dB:start_silence=0.15,loudnorm=I=-16:TP=-1.5:LRA=11",
+                    "-ar", "44100", "-ac", "1", "-c:a", "libmp3lame", "-b:a", "160k", str(voice)], check=True)
+    lines = [{"id": s["id"], "display": s["text"], "tts": s["text"]} for s in store.read_json(d / "script.json")["sentences"]]
+    text, spans = build_text(lines)
+    dur = float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(voice)],
+                               capture_output=True, text=True).stdout.strip() or 0)
+    words, how = None, "ElevenLabs"
+    try:
+        with open(voice, "rb") as f:
+            r = requests.post(f"{API}/v1/forced-alignment", headers={"xi-api-key": ELEVEN_KEY},
+                              files={"file": ("voice.mp3", f, "audio/mpeg")}, data={"text": text}, timeout=600)
+        if r.status_code != 200:
+            raise RuntimeError(f"HTTP {r.status_code}: {r.text[:160]}")
+        chars = r.json()["characters"]
+        al = {"characters": [c["text"] for c in chars], "character_start_times_seconds": [c["start"] for c in chars],
+              "character_end_times_seconds": [c["end"] for c in chars]}
+        store.write_json(d / "audio" / "alignment.json", al)
+        words = words_from_alignment(text, spans, al)
+    except Exception as e:  # noqa: BLE001  (رصيد/مفتاح/نت): بنظبط التوقيت على الجهاز
+        store.log(pid, f"⚠ المحاذاة من ElevenLabs ما نفعتش ({str(e)[:120]})، بنظبط التوقيت على الجهاز من السكتات")
+        words, how = local_align(voice, lines, dur), "على الجهاز"
+    store.log(pid, f"✓ توقيت الكلام اتظبط على صوتك ({how})")
+    store.write_json(d / "words.json", {"source": "user", "duration": round(dur, 3), "words": words})
+    store.write_json(d / "tts.json", {"lines": lines})
+
+
+def local_align(voice, lines: list[dict], dur: float) -> list[dict]:
+    """توقيت تقريبي من غير إنترنت: بنلاقي السكتات في الصوت، ونوزّع الجمل على الكلام حسب طولها، ونثبّت حدود كل جملة على أقرب سكتة،
+    وجوه الجملة الكلمات بتتوزع حسب عدد حروفها."""
+    import re as _re
+    import subprocess
+    out = subprocess.run(["ffmpeg", "-hide_banner", "-nostats", "-i", str(voice), "-af", "silencedetect=noise=-35dB:d=0.22", "-f", "null", "-"],
+                         capture_output=True, text=True).stderr
+    starts = [float(x) for x in _re.findall(r"silence_start: ([\d.]+)", out)]
+    ends = [float(x) for x in _re.findall(r"silence_end: ([\d.]+)", out)]
+    sil = list(zip(starts, ends + [dur] * (len(starts) - len(ends))))
+    # مقاطع الكلام = الوقت اللي بين السكتات
+    speech, cur = [], 0.0
+    for a, b in sil:
+        if a - cur > 0.05:
+            speech.append((cur, a))
+        cur = b
+    if dur - cur > 0.05:
+        speech.append((cur, dur))
+    total = sum(b - a for a, b in speech) or dur
+    def real(x):  # من "وقت كلام" لوقت حقيقي
+        for a, b in speech:
+            if x <= b - a:
+                return a + x
+            x -= b - a
+        return speech[-1][1] if speech else x
+    lens = [max(1, len(l["display"].replace(" ", ""))) for l in lines]
+    acc, bounds = 0, [speech[0][0] if speech else 0.0]
+    mids = [(a + b) / 2 for a, b in sil]
+    for n in lens[:-1]:
+        acc += n
+        t = real(total * acc / sum(lens))
+        near = min(mids, key=lambda m: abs(m - t), default=t)
+        bounds.append(near if abs(near - t) < 0.9 and near > bounds[-1] + 0.3 else t)
+    bounds.append(speech[-1][1] if speech else dur)
+    words = []
+    for i, l in enumerate(lines):
+        s0, s1 = bounds[i], bounds[i + 1]
+        # بنشيل السكتة اللي في أول/آخر الجملة
+        for a, b in sil:
+            if a <= s0 + 0.05 < b: s0 = b
+            if a < s1 - 0.05 <= b: s1 = a
+        ws = l["display"].split(); n = sum(max(1, len(w)) for w in ws) or 1
+        t = s0
+        for w in ws:
+            span = (s1 - s0) * max(1, len(w)) / n
+            words.append({"i": len(words), "word": w, "sid": l["id"], "start": round(t, 3), "end": round(t + span * 0.9, 3)})
+            t += span
+    return words

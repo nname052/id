@@ -266,7 +266,7 @@
     async scene3d(sc, el) {
       const { createScene3D } = await import("/player/player3d.js?v=1");
       const sw = sceneWords(sc);
-      const ctx = { duration: sc.end - sc.start, palette: ID.palette, look: ID.look3d, pace: PACE,
+      const ctx = { duration: sc.end - sc.start, palette: ID.palette, look: ID.look3d, pace: PACE, dialect: D.settings.dialect,
                     words: sw.map((w) => ({ word: w.word, start: w.start - sc.start, end: w.end - sc.start })),
                     cue: (word) => { const w = sw.find((x) => norm(x.word) === norm(word)); return w ? Math.max(0, w.start - sc.start) : 0; } };
       const draw = await createScene3D(sc, el, ctx);
@@ -335,7 +335,7 @@
     if (P.text_size === "large") st.classList.add("large-text");
     PACE = { calm: 1.35, normal: 1, energetic: 0.72 }[P.pace] || 1;
     words = D.words.words;
-    DURATION = D.words.duration + 0.8;
+    DURATION = D.words.duration + 2.2; // وقت بسيط بعد آخر كلمة علشان الفيديو يتقفل بهدوء
     if (!D.settings.subtitles) $("#subs").style.display = "none";
     buildBackground(ID.background);
     await Promise.all([document.fonts.load(`800 100px "${ID.font_heading}"`, "عربي"), document.fonts.load(`600 50px "${ID.font_body}"`, "عربي")]);

@@ -8,6 +8,8 @@ import { RGBELoader } from "three/addons/loaders/RGBELoader.js";
 import * as SkeletonUtils from "three/addons/utils/SkeletonUtils.js";
 import { setupRig, buildPerformance, applyPose, BODY } from "./rig.js";
 import { cameraAt as directorCamera, anchors, drawEmote, drawFx } from "./director.js";
+import { makeFace } from "./face.js";
+import { fridge as makeFridge, laptopDesk, wallDoor, wallWindow, handProp } from "./props3d.js";
 
 
 const W = 1080, H = 1920;
@@ -39,6 +41,8 @@ manager.itemStart = ((orig) => function (u) { pending++; return orig.call(this, 
 manager.itemEnd = ((orig) => function (u) { pending--; const r = orig.call(this, u); if (pending <= 0) { waiters.forEach((f) => f()); waiters = []; } return r; })(manager.itemEnd);
 manager.itemError = ((orig) => function (u) { console.warn("3D asset failed", u); return orig.call(this, u); })(manager.itemError);
 const settled = () => new Promise((res) => (pending <= 0 ? res() : waiters.push(res)));
+// شخصيات Rocketbox صورها TGA كبيرة، فبنزّلناها PNG أصغر بنفس الاسم
+manager.setURLModifier((u) => (/\/rocketbox\//.test(u) ? u.replace(/\.tga$/i, ".png") : u));
 const fbx = new FBXLoader(manager), gltf = new GLTFLoader(manager);
 const cache = {};
 const once = (key, fn) => (cache[key] ??= fn());
@@ -48,6 +52,18 @@ const CHAR = { // نفس الكتالوج اللي في three_d.py
   Doozy: ["characters/Doozy", 1.3], Claire: ["characters/Claire", 1.68], Amy: ["characters/Amy", 1.62], Kaya: ["characters/Kaya", 1.72],
   Megan: ["characters/Megan", 1.68], Kate: ["characters/Kate", 1.68], Jody: ["characters/Jody", 1.66], Sporty_Granny: ["characters/Sporty_Granny", 1.6],
 };
+// شخصيات واقعية محترمة (Microsoft Rocketbox، MIT): فيها 15 شكل بق للحروف + 52 تعبير وش (ابتسامة، تكشيرة، حواجب، رمش…)
+const RBX = ["Business_Male_01", "Business_Male_02", "Business_Male_03", "Business_Male_04", "Business_Male_05", "Business_Female_01",
+  "Business_Female_02", "Business_Female_03", "Business_Female_04", "Medical_Male_01", "Medical_Female_01", "Male_Adult_03", "Male_Adult_08",
+  "Male_Adult_14", "Male_Adult_19", "Male_Adult_21", "Female_Adult_02", "Female_Adult_06", "Female_Adult_09", "Female_Adult_14"];
+for (const n of RBX) CHAR[n] = [`rbx:${n}`, /Female/.test(n) ? 1.67 : 1.8];
+// أسماء العضم في Rocketbox (3ds Max Biped) ← الأسماء اللي المحرّك بيستخدمها
+const RBX_BONES = { Hips: "Bip01_Pelvis", Spine: "Bip01_Spine", Spine1: "Bip01_Spine1", Spine2: "Bip01_Spine2", Neck: "Bip01_Neck", Head: "Bip01_Head" };
+for (const [S, s] of [["Left", "L"], ["Right", "R"]]) {
+  Object.assign(RBX_BONES, { [S + "Shoulder"]: `Bip01_${s}_Clavicle`, [S + "Arm"]: `Bip01_${s}_UpperArm`, [S + "ForeArm"]: `Bip01_${s}_Forearm`,
+    [S + "Hand"]: `Bip01_${s}_Hand`, [S + "UpLeg"]: `Bip01_${s}_Thigh`, [S + "Leg"]: `Bip01_${s}_Calf`, [S + "Foot"]: `Bip01_${s}_Foot`, [S + "ToeBase"]: `Bip01_${s}_Toe0` });
+  ["Thumb", "Index", "Middle", "Ring", "Pinky"].forEach((f, i) => [1, 2, 3].forEach((j) => (RBX_BONES[`${S}Hand${f}${j}`] = `Bip01_${s}_Finger${i}${j === 1 ? "" : j - 1}`)));
+}
 const CLIP_FILE = { idle: "Aj_Idle", talking: "Aj_Talking", thinking: "Aj_Thinking", walking: "Aj_Walking" };
 const WALKS = new Set(["walking", "walk_female"]);
 const SOURCE = { prefix: "mixamorig", hipsY: 83.2 }; // الحركات متصدّرة على Aj
@@ -55,11 +71,12 @@ const SOURCE = { prefix: "mixamorig", hipsY: 83.2 }; // الحركات متصد�
 async function characterBase(name) {
   return once(`ch:${name}`, async () => {
     const [file] = CHAR[name] || CHAR.Aj;
-    const root = await fbx.loadAsync(`${A}mixamo/${file}.fbx`);
+    const rbx = file.startsWith("rbx:");
+    const root = await fbx.loadAsync(rbx ? `${A}rocketbox/${file.slice(4)}/${file.slice(4)}_facial.fbx` : `${A}mixamo/${file}.fbx`);
     root.updateMatrixWorld(true);
     let hips;
-    root.traverse((o) => { if (o.isBone && /Hips$/.test(o.name) && !hips) hips = o; });
-    return { root, prefix: hips.name.replace(/Hips$/, ""), hipsY: hips.getWorldPosition(new THREE.Vector3()).y };
+    root.traverse((o) => { if (o.isBone && (rbx ? o.name === "Bip01_Pelvis" : /Hips$/.test(o.name)) && !hips) hips = o; });
+    return { root, rbx, prefix: rbx ? "" : hips.name.replace(/Hips$/, ""), hipsY: hips.getWorldPosition(new THREE.Vector3()).y };
   });
 }
 const loadClip = (anim) => once(`clip:${anim}`, async () =>
@@ -131,8 +148,9 @@ async function character(name, heightM, look) {
   const v = new THREE.Vector3();
   root.traverse((o) => { if (o.isBone) { o.getWorldPosition(v); top = Math.max(top, v.y); bottom = Math.min(bottom, v.y); } });
   root.scale.multiplyScalar(heightM / ((top - bottom) * 1.04));
-  const hips = (() => { let h; root.traverse((o) => { if (o.isBone && /Hips$/.test(o.name) && !h) h = o; }); return h; })();
-  const bone = (n) => { let b; root.traverse((o) => { if (o.isBone && o.name === base.prefix + n && !b) b = o; }); return b; };
+  const hips = (() => { let h; root.traverse((o) => { if (o.isBone && (base.rbx ? o.name === "Bip01_Pelvis" : /Hips$/.test(o.name)) && !h) h = o; }); return h; })();
+  const want = (n) => (base.rbx ? RBX_BONES[n] || n : base.prefix + n);
+  const bone = (n) => { const w = want(n); let b; root.traverse((o) => { if (o.isBone && o.name === w && !b) b = o; }); return b; };
   const head = bone("Head");
   // الرجلين: الكعب (عضمة الـ Foot) والصوابع (ToeBase). في الوضع الأصلي الرجل مفرودة على الأرض،
   // فبنقيس ارتفاع كل عضمة فوق النعل علشان نعرف بعدين نقطة لمس الأرض في أي وضعية
@@ -143,11 +161,12 @@ async function character(name, heightM, look) {
     const y = (b) => (b ? b.getWorldPosition(v).y - minY : 0);
     return { ankle, toe, ankleH: y(ankle), toeH: y(toe) };
   }).filter((f) => f.ankle);
-  return { root, prefix: base.prefix, hipsY: base.hipsY, hips, head, feet, bone, name, mixer: new THREE.AnimationMixer(root), height: heightM };
+  let face = null; root.traverse((o) => { if (o.isMesh && o.morphTargetDictionary && Object.keys(o.morphTargetDictionary).length > 20 && !face) face = o; });
+  return { root, prefix: base.prefix, hipsY: base.hipsY, hips, head, feet, bone, name, rbx: base.rbx, face, mixer: new THREE.AnimationMixer(root), height: heightM };
 }
 
 function addPhone(ch) {
-  let bone; ch.root.traverse((o) => { if (o.isBone && o.name === ch.prefix + "RightHand") bone = o; });
+  const bone = ch.bone("RightHand");
   if (!bone) return;
   ch.root.updateMatrixWorld(true);
   const s = bone.getWorldScale(new THREE.Vector3()).x;
@@ -235,7 +254,7 @@ function gradientSky(top, bottom) {
 }
 const mix = (a, b, p) => "#" + new THREE.Color(a).lerp(new THREE.Color(b), p).getHexString();
 
-async function buildSet(scene, spec, look, time, pal, seed) {
+async function buildSet(scene, spec, look, time, pal, seed, skip = []) {
   const set = SETS[spec] || SETS.studio;
   const mat = (color, rough = 0.85) => look === "anime" ? new THREE.MeshToonMaterial({ color, gradientMap: toonGradient() }) : new THREE.MeshStandardMaterial({ color, roughness: rough });
   let lampPos = null;
@@ -283,7 +302,7 @@ async function buildSet(scene, spec, look, time, pal, seed) {
     let x = -widths.slice(0, Math.floor(objs.length / 2)).reduce((a, b) => a + b, 0) - widths[Math.floor(objs.length / 2)] / 2;
     objs.forEach((o, i) => { const b = new THREE.Box3().setFromObject(o); o.position.x = x + widths[i] / 2; o.position.z = set.row.z - b.max.z; x += widths[i]; });
   }
-  await Promise.all(set.props.map(async (pr) => {
+  await Promise.all(set.props.filter((pr) => !skip.some((x) => pr.f.includes(x))).map(async (pr) => {
     const o = await prop(scene, look, pr);
     placed.push(o);
     if (pr.light) { const b = new THREE.Box3().setFromObject(o); lampPos = new THREE.Vector3((b.min.x + b.max.x) / 2, b.max.y - 0.2, (b.min.z + b.max.z) / 2); }
@@ -577,7 +596,11 @@ async function createDirectedScene(sc, el, ctx) {
   const r = engine();
   const scene = new THREE.Scene();
   (window.__scenes3d ??= []).push(scene);
-  const setInfo = await buildSet(scene, s3.set, look, time, ctx.palette || {}, seed);
+  const START = s3.start || "center";
+  const ACT = new Set([...(s3.performance || []).map((x) => x.action).filter(Boolean),
+    ...({ at_fridge_open: ["open_fridge"], at_window: ["look_out_window"], at_desk: ["use_laptop"] }[START] || [])]);
+  const usesFridge = ACT.has("open_fridge") || ACT.has("close_fridge");
+  const setInfo = await buildSet(scene, s3.set, look, time, ctx.palette || {}, seed, usesFridge ? ["fridge"] : []);
   lights(scene, setInfo, time, look, ctx.palette || {});
   const name = s3.character in CHAR ? s3.character : "Aj";
   const ch = await character(name, CHAR[name][1], look);
@@ -596,6 +619,49 @@ async function createDirectedScene(sc, el, ctx) {
     .map((x, i, a) => ({ ...x, t: i === 0 ? 0 : T(x, i, a.length) }));
   perf.sort((a, b) => a.t - b.t);
   for (let i = 1; i < perf.length; i++) perf[i].t = Math.max(perf[i].t, perf[i - 1].t + 0.25);
+
+  // ---------- التعامل مع الحاجات (تلاجة، لابتوب، باب، شباك، كوباية، كتاب، موبايل) ----------
+  // كل action بيتحوّل لحركة حقيقية: الشخصية بتمشي لمكانها، وبتمد إيدها للمقبض، والباب/الغطا بيتحرك مع الإيد
+  const indoor = SETS[s3.set] && SETS[s3.set].indoor;
+  const B0s = s3.blocking || {};
+  const items = {};
+  if (usesFridge) items.fridge = makeFridge(scene, look, s3.set === "kitchen" ? 1.75 : 2.0, -2.22);
+  if (ACT.has("open_door") && indoor) items.door = wallDoor(scene, look, 2.88, 0.55);
+  if (ACT.has("look_out_window") && indoor) items.window = wallWindow(scene, look, -1.0, -2.58, time);
+  if (START === "at_desk" && !perf[0].action) perf[0].action = "use_laptop";
+  if (ACT.has("use_laptop")) { const lk = perf.find((x) => x.action === "use_laptop"); const at = lk.move_to || [B0s.x || 0, B0s.z || 0];
+    items.laptop = laptopDesk(scene, look, at[0], at[1] + 0.38 * k); lk.move_to = at; }
+  // البداية عند التلاجة المفتوحة أو الشباك: الشخصية هناك من أول لحظة (من غير ما تمشي تاني)
+  // عند التلاجة المفتوحة: وشه ناحيتنا بزاوية والتلاجة منورة وراه (مش ضهره للكاميرا)
+  if (START === "at_fridge_open" && items.fridge) { s3.blocking = { x: items.fridge.stand.x - 0.35, z: items.fridge.stand.z + 0.25, face: -25 }; items.fridge.startOpen = true; }
+  if (START === "at_window" && items.window) { s3.blocking = { x: items.window.stand.x, z: items.window.stand.z, face: 180 }; perf[0].l_arm = "behind_back"; perf[0].r_arm = "behind_back"; }
+  const acts = [];
+  for (const x of perf) {
+    const a = x.action; if (!a) continue;
+    const it = { open_fridge: items.fridge, close_fridge: items.fridge, open_door: items.door, look_out_window: items.window }[a];
+    if (it && it.stand) { x.move_to = [it.stand.x, it.stand.z]; x.face = it.face; }
+    if (a === "look_out_window") { x.l_arm = "behind_back"; x.r_arm = "behind_back"; x.head = x.head === "camera" ? "up" : x.head; }
+    if (a === "use_laptop") { x.face = 0; if (!(BODY[x.body] || {}).sit) x.body = "sit_lean"; x.l_arm = "typing"; x.r_arm = "typing"; }
+    if (a === "drink") x.r_arm = "hold_cup";
+    if (a === "read_book") { x.l_arm = "phone_front"; x.r_arm = "phone_front"; x.head = "down"; }
+    if (a === "hold_phone") x.r_arm = "phone_front";
+    if (["open_fridge", "close_fridge", "open_door"].includes(a)) { x.r_arm = "rest"; if (x.head === "camera") x.head = "forward"; }
+    acts.push({ a, key: x });
+  }
+  // بعد ما يخلّص الحاجة (فتح التلاجة/الباب/بص من الشباك) بيلف تاني ناحيتنا بهدوء، إلا لو الوضعية اللي بعدها محددة اتجاه
+  perf.forEach((x, i) => { const n = perf[i + 1];
+    if (["open_fridge", "close_fridge", "open_door"].includes(x.action) && n && typeof n.face !== "number" && !n.action && !n.move_to) n.face = -20; });
+  // حاجات في الإيد
+  const attach = (side, obj, off = [0, 0.09, 0.03], rot = [0, 0, 0]) => {
+    const bone = ch.bone(side + "Hand"); if (!bone) return;
+    ch.root.updateMatrixWorld(true);
+    const sc2 = bone.getWorldScale(new THREE.Vector3()).x;
+    obj.scale.setScalar(1 / sc2); obj.position.set(off[0] / sc2, off[1] / sc2, off[2] / sc2); obj.rotation.set(...rot);
+    bone.add(obj); return obj;
+  };
+  if (ACT.has("hold_phone")) addPhone(ch);
+  if (ACT.has("drink")) attach("Right", handProp("mug", look), [0, 0.08, 0.05], [0, 0, Math.PI / 2]);
+  if (ACT.has("read_book")) attach("Right", handProp("book", look), [-0.06, 0.1, 0.08], [Math.PI / 2.3, 0, 0]);
   const poseAt = buildPerformance(perf, k, PACE);
 
   // التحرّك في المكان (blocking): من مكان لمكان بالمشي، والوش بيلف ناحية الاتجاه
@@ -606,7 +672,7 @@ async function createDirectedScene(sc, el, ctx) {
   for (const x of perf) {
     if (x.move_to) {
       const to = new THREE.Vector3(x.move_to[0], 0, x.move_to[1]), dist = to.distanceTo(pos);
-      if (dist > 0.05) { const dur = dist / (1.05 * k); segs.push({ t0: x.t, t1: x.t + dur, from: pos.clone(), to, dist }); pos = to; }
+      if (dist > 0.05) { const dur = dist / (0.85 * k); segs.push({ t0: x.t, t1: x.t + dur, from: pos.clone(), to, dist }); pos = to; } // مشي هادي
     }
   }
   const faces = perf.filter((x) => typeof x.face === "number").map((x) => ({ t: x.t, f: x.face * Math.PI / 180 }));
@@ -616,7 +682,8 @@ async function createDirectedScene(sc, el, ctx) {
       if (t >= s.t1) { p = s.to.clone(); travel += s.dist; }
       else if (t >= s.t0) { const u = (t - s.t0) / (s.t1 - s.t0); p = s.from.clone().lerp(s.to, u); travel += s.dist * u; moving = s; }
     }
-    for (const x of faces) if (t >= x.t) f = x.f;
+    // اللفّة بتاخد نص ثانية (مش فجأة)
+    for (const x of faces) if (t >= x.t) { const d = (((x.f - f + Math.PI * 3) % (Math.PI * 2)) - Math.PI); f = f + d * smooth01((t - x.t) / 0.6); }
     if (moving) {
       const dir = Math.atan2(moving.to.x - moving.from.x, moving.to.z - moving.from.z);
       const ramp = Math.min(clamp((t - moving.t0) / 0.3), clamp((moving.t1 - t) / 0.3));
@@ -650,13 +717,47 @@ async function createDirectedScene(sc, el, ctx) {
   clearArea(scene, setInfo.placed, { x0: Math.min(...pts.map((p) => p.x)) - 0.6, x1: Math.max(...pts.map((p) => p.x)) + 0.6,
                                      z0: Math.min(...pts.map((p) => p.z)) - 0.6, z1: Math.max(...pts.map((p) => p.z)) + 0.6 });
 
-  const mouth = s3.speaking ? addMouth(ch) : null;
+  // الشخصيات الواقعية: وش كامل (أشكال بق للحروف + تعبيرات + رمش). الكرتون: بق مرسوم بيتفتح ويتقفل
+  const face = ch.face && ch.rbx ? makeFace(ch.face, ctx.words || [], !!s3.speaking, seed, ctx.dialect === "msa") : null;
+  const mouth = !face && s3.speaking ? addMouth(ch) : null;
   const lips = mouth ? lipTrack(ctx.words || []) : null;
   const wordPulse = (t) => s3.speaking ? (ctx.words || []).reduce((m, w) => Math.max(m, Math.exp(-Math.pow((t - w.start - 0.05) / 0.09, 2))), 0) : 0;
   const crowd = ["street", "park"].includes(s3.set) ? await extras(scene, look, seed, 2, s3.set === "street") : null;
   const shots = (s3.shots && s3.shots.length ? s3.shots : [{ type: "medium", move: "push_in" }])
     .map((x, i, a) => ({ ...x, t: i === 0 ? 0 : T(x, i, a.length) })).sort((a, b) => a.t - b.t);
   const bounds = setInfo.set.indoor ? INDOOR_BOUNDS : null;
+
+  // حالة الحاجات والإيد في لحظة t
+  const arrive = (key) => { const sg = segs.find((s) => Math.abs(s.t0 - key.t) < 1e-6); return (sg ? sg.t1 : key.t) + 0.15; };
+  const actState = (t, A) => {
+    const reach = {}; let headAdd = null;
+    for (const name of ["fridge", "door"]) { // الباب: بيتفتح مع شدة الإيد، وبيفضل مفتوح (أو بيتقفل)
+      const it = items[name]; if (!it) continue;
+      let open = it.startOpen ? 1 : 0;
+      for (const x of acts.filter((y) => (name === "door" ? y.a === "open_door" : y.a.endsWith("fridge"))).sort((p1, p2) => p1.key.t - p2.key.t)) {
+        const u = t - arrive(x.key); if (u < 0) break;
+        const closing = x.a === "close_fridge", pull = smooth01((u - 0.55) / 1.0);
+        open = closing ? 1 - pull : pull;
+        const w = smooth01(u / 0.55) * (1 - smooth01((u - 1.7) / 0.5));
+        it.set(open);
+        if (w > 0) reach.R = { point: it.handle(), w };
+      }
+      it.set(open);
+    }
+    if (items.laptop) {
+      const x = acts.find((y) => y.a === "use_laptop").key, u = t - x.t, nxt = perf.find((y) => y.t > x.t);
+      items.laptop.set(smooth01(u / 0.8));
+      const w = smooth01((u - 0.4) / 0.6) * (nxt ? 1 - smooth01((t - nxt.t) / 0.5) : 1);
+      if (w > 0) { const kp = items.laptop.keys(), ty = (s) => Math.abs(Math.sin(t * 11 + s)) * 0.015;
+        reach.L = { point: kp.clone().add(new THREE.Vector3(0.09, 0.01 + ty(0), 0.02)), w }; reach.R = { point: kp.clone().add(new THREE.Vector3(-0.09, 0.01 + ty(1.7), 0.02)), w };
+        headAdd = { pitch: 14 * w }; }
+    }
+    for (const x of acts.filter((y) => y.a === "drink")) { // بيشرب: الكوباية للبق وبيرجّع راسه سنة
+      const u = t - x.key.t, w = smooth01((u - 0.5) / 0.6) * (1 - smooth01((u - 2.0) / 0.6));
+      if (w > 0) { reach.R = { point: A.face.clone().add(A.forward.clone().multiplyScalar(0.11 * k)).add(new THREE.Vector3(0, -0.07 * k, 0)), w }; headAdd = { pitch: -9 * w }; }
+    }
+    return { reach, headAdd };
+  };
 
   await settled();
   const cam = new THREE.PerspectiveCamera(42, W / H, 0.05, 300);
@@ -665,18 +766,20 @@ async function createDirectedScene(sc, el, ctx) {
   const g2 = canvas.getContext("2d");
 
   return (t) => {
-    const { P, key } = poseAt(t);
+    const { P, key, prev, trans } = poseAt(t);
     const rs = rootAt(t);
     const fxNow = perf.filter((x) => x.fx && t >= x.t && t < x.t + 1);
     const shake = fxNow.some((x) => x.fx === "shake") ? Math.max(...fxNow.filter((x) => x.fx === "shake").map((x) => 1 - (t - x.t) / 0.5), 0) : 0;
     // مرتين: الأول بتقدير للكاميرا، وبعدين الكاميرا بتتحسب من مكان الراس والصدر الحقيقي (بعد الميلان والقعدة)، والراس بتبص لها
-    const st = { P, t, rootPos: rs.p, face: rs.f, walk: rs.walk, speaking: !!s3.speaking, wordPulse: wordPulse(t), seat };
     const A0 = anchors(rs.p, rs.f, ch.height, P.body.sit, P.body.crouch, P.body.lean);
+    const AS = actState(t, A0);
+    const st = { P, t, rootPos: rs.p, face: rs.f, walk: rs.walk, speaking: !!s3.speaking, wordPulse: wordPulse(t), seat, reach: AS.reach, headAdd: AS.headAdd };
     applyPose(R, { ...st, camPos: directorCamera(shots, t, ctx.duration, A0, rs.f, bounds, 0).pos });
     const A = realAnchors(R, rs.f, A0);
     const c = directorCamera(shots, t, ctx.duration, A, rs.f, bounds, shake);
     applyPose(R, { ...st, camPos: c.pos });
     if (mouth) setMouth(mouth, lips(t));
+    if (face) face(t, (prev || key).face || "neutral", key.face || "neutral", clamp(trans ?? 1));
     if (crowd) crowd(t);
     cam.fov = c.fov; cam.updateProjectionMatrix();
     cam.position.copy(c.pos); cam.up.set(0, 1, 0); cam.lookAt(c.look);

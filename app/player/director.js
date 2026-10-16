@@ -51,7 +51,8 @@ export function cameraAt(shots, t, sceneDur, A, face, bounds, fxShake = 0) {
   const anchor = A[S.a].clone();
   const fwd = A.forward;
   // اتجاه الكاميرا من الشخصية: angle حوالين الشخصية (0 = قدامها)، و elev فوق/تحت
-  const yaw = Math.atan2(fwd.x, fwd.z) + angle * D;
+  // الزاوية من قدام المكان (ناحية الجمهور، +z) زي أي لوكيشن تصوير، مش من اتجاه الشخصية: لو لفّت ضهرها الكاميرا ما تروحش ورا الحيطة
+  const yaw = angle * D;
   let dir = new THREE.Vector3(Math.sin(yaw) * Math.cos(elev * D), Math.sin(elev * D), Math.cos(yaw) * Math.cos(elev * D));
   let pos = anchor.clone().add(dir.multiplyScalar(dist));
   let look = anchor.clone();

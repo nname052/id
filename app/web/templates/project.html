@@ -23,12 +23,13 @@
   const RUNNING_TEXT = { script: "Claude بيكتب السكريبت…", scenes: "Claude بيخطط المشاهد وبيدوّر في المكتبات…", tts: "بنجهّز النص للنطق…",
     audio: "ElevenLabs بيولّد الصوت…", render: "بنصدّر الفيديو…", audio_sentence: "بنعيد الجملة…", audio_review: "بنراجع النطق…",
     brief: "Claude بيكتب الرؤية الإخراجية…", edit_script: "بنعدّل الجزء اللي غيّرته بس (النطق، والصوت، والمشاهد)…",
-    edit_tts: "بنعيد صوت الجمل اللي عدّلتها بس…", edit_scene: "Claude بيعدّل المشهد ده بس…" };
+    edit_tts: "بنعيد صوت الجمل اللي عدّلتها بس…", edit_scene: "Claude بيعدّل المشهد ده بس…",
+    audio_user: "بنظبط توقيت كل كلمة على صوتك…" };
 
   // المرحلة اللي محتاجة انتباهك دلوقتي
   function current(p) {
     const order = ["script", "tts", "brief", "scenes", "audio", "render"];
-    return order.find((s) => ["running", "queued", "review", "failed", "waiting_limit", "needs_credits"].includes(p.stages[s].status))
+    return order.find((s) => ["running", "queued", "review", "failed", "waiting_limit", "needs_credits", "needs_voice"].includes(p.stages[s].status))
       || (p.status === "done" ? "done" : order.find((s) => p.stages[s].status !== "approved") || "done");
   }
 
@@ -91,6 +92,7 @@
     else if (s === "tts") el.innerHTML = back + ttsHTML(p, EDIT);
     else if (s === "brief") el.innerHTML = back + briefHTML(p);
     else if (s === "scenes") el.innerHTML = back + scenesHTML(p, EDIT);
+    else if (s === "audio" && st.status === "needs_voice") el.innerHTML = notice + recordHTML(p);
     else if (s === "audio") el.innerHTML = notice + audioHTML(p);
     else if (s === "render") el.innerHTML = notice + `<h2>${STAGE_NAMES.render}</h2><div class="muted">${st.status === "stale" ? "فيه تعديلات لسه ما ظهرتش في الفيديو." : ""}</div>
       <div class="actions"><button class="primary" data-act="regen" data-stage="render">⬇ صدّر الفيديو</button></div>`;
@@ -199,11 +201,52 @@
       </div>`;
   }
 
+  // صوتك إنت: تسجيل من الموقع أو رفع ملف
+  function recordHTML(p) {
+    const sents = (p.script || { sentences: [] }).sentences;
+    const up = p.settings.voice_source === "upload";
+    return `<h2>${STAGE_NAMES.audio}</h2>
+      <div class="muted">${up ? "ارفع ملف الصوت" : "سجّل السكريبت بصوتك"}: اقرا بهدوء وبإحساس، وسيب ثانية بين الجمل. الكلام على الشاشة وحركة البق هيتظبطوا على صوتك تلقائي.</div>
+      <div class="read-script">${sents.map((s) => `<p>${esc(s.text)}</p>`).join("")}</div>
+      <div class="rec-box">
+        <button class="primary" id="rec-btn" data-act="rec-toggle">⏺ ابدأ التسجيل</button>
+        <span id="rec-time" class="muted"></span>
+        <audio id="rec-play" controls hidden></audio>
+        <button id="rec-send" data-act="rec-send" hidden>✓ استخدم التسجيل ده</button>
+      </div>
+      <div class="row" style="margin-top:10px"><label class="btn">⬆ أو ارفع ملف صوت<input type="file" id="voice-file" accept="audio/*,.m4a,.mp3,.wav" hidden></label></div>`;
+  }
+  let recorder = null, recChunks = [], recBlob = null, recStart = 0, recTimer = null;
+  async function recToggle() {
+    if (recorder && recorder.state === "recording") { recorder.stop(); return; }
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+    recChunks = []; recorder = new MediaRecorder(stream);
+    recorder.ondataavailable = (e) => recChunks.push(e.data);
+    recorder.onstop = () => { stream.getTracks().forEach((t) => t.stop()); clearInterval(recTimer);
+      recBlob = new Blob(recChunks, { type: recorder.mimeType || "audio/webm" });
+      const a = $("#rec-play"); a.src = URL.createObjectURL(recBlob); a.hidden = false; $("#rec-send").hidden = false;
+      $("#rec-btn").textContent = "⏺ سجّل تاني"; };
+    recorder.start(); recStart = Date.now(); dirty = true;
+    $("#rec-btn").textContent = "⏹ وقّف التسجيل"; $("#rec-send").hidden = true; $("#rec-play").hidden = true;
+    recTimer = setInterval(() => ($("#rec-time").textContent = `⏺ ${Math.floor((Date.now() - recStart) / 1000)} ثانية`), 300);
+  }
+  async function sendVoice(blob, name) {
+    const fd = new FormData(); fd.append("file", blob, name);
+    const r = await fetch(`/api/projects/${PID}/audio/upload`, { method: "POST", body: fd });
+    if (!r.ok) throw new Error((await r.json()).detail || "حصلت مشكلة في الرفع");
+    dirty = false; lastKey = "";
+  }
+  $("#panel").addEventListener("change", async (e) => {
+    if (e.target.id !== "voice-file" || !e.target.files[0]) return;
+    try { await sendVoice(e.target.files[0], e.target.files[0].name); tick(); } catch (err) { alert(err.message); }
+  });
+
   function audioHTML(p) {
     const el = (p.usage || {}).elevenlabs || {}, words = p.words || [], flags = (p.review || {}).flags || {};
     const tts = (p.tts || { lines: [] }).lines;
     // الجملة بتتعاد وسط جملتين قبلها وجملة بعدها (علشان الصوت يفضل نفس الشخصية)، فالتكلفة بتاعتهم كلهم
     const cost = (i) => tts.slice(Math.max(0, i - 2), i + 2).reduce((n, l) => n + l.tts.length + 1, -1);
+    const userVoice = p.settings.voice_source && p.settings.voice_source !== "eleven";
     const rows = tts.map((ln, li) => {
       const ws = words.filter((w) => w.sid === ln.id), bad = flags[String(ln.id)] || [];
       const badI = new Set(bad.map((b) => b.i));
@@ -215,7 +258,7 @@
           ${bad.length ? `<div class="muted" style="color:var(--err)">ممكن تكون اتنطقت غلط: ${bad.map((b) => `«${esc(b.word)}» (اتسمعت «${esc(b.heard || "؟")}»)`).join("، ")}</div>` : ""}
           <div class="row" style="margin-top:6px">
             <button data-act="fixword" data-sid="${ln.id}" style="padding:4px 10px;font-size:13px">✎ صلّح نطق كلمة</button>
-            <button data-act="regensent" data-sid="${ln.id}" style="padding:4px 10px;font-size:13px">↻ أعد الجملة (${cost(li)} credit)</button>
+            ${userVoice ? "" : `<button data-act="regensent" data-sid="${ln.id}" style="padding:4px 10px;font-size:13px">↻ أعد الجملة (${cost(li)} credit)</button>`}
           </div></div></div>`;
     }).join("");
     return `<h2>${STAGE_NAMES.audio}</h2>
@@ -227,7 +270,7 @@
         <button class="primary" data-act="approve" data-stage="audio">✓ موافق، صدّر الفيديو</button>
         ${p.can_undo ? `<button data-act="undo-sent">↶ رجّع الصوت زي ما كان قبل آخر إعادة</button>` : ""}
         <button data-act="review">🔎 راجع النطق (اختياري)</button>
-        <button data-act="regen" data-stage="audio">↻ ولّد الصوت كله تاني (${p.audio_cost || "?"} credit)</button>
+        ${userVoice ? `<button data-act="voice-again">⏺ سجّل/ارفع صوتك تاني</button>` : `<button data-act="regen" data-stage="audio">↻ ولّد الصوت كله تاني (${p.audio_cost || "?"} credit)</button>`}
       </div>`;
   }
 
@@ -258,6 +301,9 @@
     // أزرار محلية (من غير سيرفر)
     if (b.dataset.act === "add-sent") { const row = b.closest(".s"); row.insertAdjacentHTML("afterend", sentRow({ id: "", text: "" }, 0)); row.nextElementSibling.querySelector("textarea").focus(); dirty = true; return; }
     if (b.dataset.act === "del-sent") { b.closest(".s").remove(); dirty = true; return; }
+    if (b.dataset.act === "rec-toggle") { recToggle().catch((err) => alert("مقدرتش أفتح المايك: " + err.message)); return; }
+    if (b.dataset.act === "rec-send") { b.disabled = true; sendVoice(recBlob, "voice.webm").then(tick).catch((err) => { alert(err.message); b.disabled = false; }); return; }
+    if (b.dataset.act === "voice-again") { await api(`/api/projects/${PID}/audio/need-voice`, { method: "POST" }); lastKey = ""; tick(); return; }
     if (b.dataset.act === "close-view") { VIEW = null; dirty = false; lastKey = ""; header(P); panel(P); return; }
     b.disabled = true;
     try {
