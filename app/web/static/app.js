@@ -10,7 +10,7 @@ async function api(path, opts = {}) {
   return data;
 }
 
-const STAGE_NAMES = { script: "① السكريبت", scenes: "② المشاهد", tts: "③ تجهيز النص", audio: "④ الصوت", render: "⑤ التصدير" };
+const STAGE_NAMES = { script: "① السكريبت", brief: "② الرؤية الإخراجية", scenes: "③ المشاهد", tts: "④ تجهيز النص", audio: "⑤ الصوت", render: "⑥ التصدير" };
 const STATUS_NAMES = { pending: "", queued: "في الطابور", running: "شغال", review: "مستني موافقتك", approved: "✓", failed: "فشل",
   stale: "محتاج يتعاد", waiting_limit: "واقف (حد Claude)", needs_credits: "محتاج موافقة" };
 const fmtDate = (s) => new Date(s).toLocaleDateString("ar-EG", { day: "numeric", month: "long" });

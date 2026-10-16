@@ -8,10 +8,10 @@ import time
 
 from .. import history, prefs, store
 from ..config import ASSETS
-from . import assets, custom
+from . import assets, brief as brief_stage, custom, three_d
 from .common import ask, prompt
 
-LAYOUTS = ["hero", "kinetic", "split", "stat", "list", "versus", "quote", "question", "icon_row", "card", "character", "custom"]
+LAYOUTS = ["hero", "kinetic", "split", "stat", "list", "versus", "quote", "question", "icon_row", "card", "character", "custom", "scene3d"]
 HEADING_FONTS = ["Reem Kufi", "Lalezar", "Rakkas", "Blaka", "Kufam", "Changa", "Marhey", "Lemonada", "Alexandria", "Cairo",
                  "Readex Pro", "El Messiri", "Aref Ruqaa", "Amiri", "Noto Kufi Arabic", "Baloo Bhaijaan 2", "Zain"]
 BODY_FONTS = ["IBM Plex Sans Arabic", "Cairo", "Tajawal", "Almarai", "Alexandria", "Readex Pro", "Zain", "Noto Kufi Arabic", "Baloo Bhaijaan 2"]
@@ -35,6 +35,17 @@ SCENE = {"type": "object", "properties": {
     "number_label": {"type": "string"},
     "chart": {"type": "string", "enum": ["ring", "bar", "none"]},
     "custom_brief": {"type": "string"},
+    "camera": {"type": "string", "enum": ["none", "push", "pull", "drift", "tilt", "shake"]},
+    "scene3d": {"type": "object", "properties": {
+        "set": {"type": "string", "enum": list(three_d.SETS)},
+        "character": {"type": "string", "enum": list(three_d.CHARACTERS)},
+        "actions": {"type": "array", "minItems": 1, "maxItems": 3, "items": {"type": "object", "properties": {
+            "anim": {"type": "string", "enum": list(three_d.ANIMS)}, "cue_word": {"type": "string"}},
+            "required": ["anim"], "additionalProperties": False}},
+        "camera": {"type": "string", "enum": list(three_d.CAMERAS)},
+        "time": {"type": "string", "enum": ["day", "sunset", "night"]},
+        "facing": {"type": "string", "enum": ["front", "three_quarter", "side"]}},
+        "required": ["set", "character", "actions", "camera", "time", "facing"], "additionalProperties": False},
     "enter": {"type": "string", "enum": ["rise", "pop", "draw", "fade", "slide"]},
     "idle": {"type": "string", "enum": ["float", "pulse", "wobble", "none"]}},
     "required": ["sentence_ids", "layout", "headline", "cue_word", "enter", "idle"], "additionalProperties": False}
@@ -45,8 +56,9 @@ SCHEMA = {"type": "object", "properties": {
         "font_heading": {"type": "string", "enum": HEADING_FONTS},
         "font_body": {"type": "string", "enum": BODY_FONTS},
         "background": {"type": "string", "enum": ["solid", "gradient", "blobs", "grid", "split", "stripes", "spotlight", "paper"]},
-        "transition": {"type": "string", "enum": ["rise", "slide", "zoom", "wipe", "flash"]}},
-        "required": ["palette", "font_heading", "font_body", "background", "transition"], "additionalProperties": False},
+        "transition": {"type": "string", "enum": ["rise", "slide", "zoom", "wipe", "flash"]},
+        "look3d": {"type": "string", "enum": list(three_d.LOOKS)}},
+        "required": ["palette", "font_heading", "font_body", "background", "transition", "look3d"], "additionalProperties": False},
     "pace": {"type": "string", "enum": ["calm", "normal", "energetic"]},
     "text_size": {"type": "string", "enum": ["normal", "large"]},
     "scenes": {"type": "array", "minItems": 1, "maxItems": 20, "items": SCENE}},
@@ -98,8 +110,10 @@ def run(pid: str, instruction: str | None = None) -> None:
     script = store.read_json(d / "script.json")
     n = len(script["sentences"])
     sentences = "\n".join(f"{s['id']}: {s['text']}" for s in script["sentences"])
+    b = store.read_json(d / "brief.json")
     system = prompt("scene_plan", sentences=sentences, min_scenes=max(3, (n + 1) // 2), max_scenes=n,
-                    recent=history.summary(skip_pid=pid) or "(مفيش)")
+                    recent=history.summary(skip_pid=pid) or "(مفيش)", catalog=three_d.catalog(),
+                    brief=brief_stage.as_text(b) if b else "(مفيش رؤية: اختار إنت، موشن 2D غالبًا)")
     user = "اعمل الهوية البصرية وخطة المشاهد.\n\n" + prefs.context_block(store.load(pid)["prompt"])
     old = store.read_json(d / "scenes" / "plan.json")
     if instruction and old:
@@ -127,10 +141,12 @@ def run(pid: str, instruction: str | None = None) -> None:
             out["layout"] = "kinetic"
         if out["layout"] == "stat" and not re.search(r"\d", out.get("number_value") or ""):
             out["layout"] = "kinetic"
+        if out["layout"] == "scene3d" and not out.get("scene3d"):
+            out["layout"] = "kinetic"
         scenes.append(out)
 
     ident = data["identity"]
-    plan = {"version": 2, "created": int(time.time()), "identity": ident, "palette": ident["palette"], "pace": data["pace"], "text_size": data["text_size"],
+    plan = {"version": 2, "created": int(time.time()), "style": (b or {}).get("style"), "identity": ident, "palette": ident["palette"], "pace": data["pace"], "text_size": data["text_size"],
             "character": toon, "scenes": scenes,
             "raw": [{k: v for k, v in sc.items() if k in ("sentence_ids", "layout", "headline")} for sc in data["scenes"]]}
     files = [v["asset"] for s in scenes for v in s["visuals"]] + [it["visual"]["asset"] for s in scenes for it in s["items"] if it.get("visual")]

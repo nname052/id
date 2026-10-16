@@ -33,12 +33,18 @@
     const box = document.createElement("div");
     box.className = `vis ${v.kind} ${cls}`;
     if (v.kind === "character") {
-      const [x, y, w, h] = await poseRect(`/assets/${encodeURI(v.xml)}`, v.pose);
+      const xmlUrl = `/assets/${encodeURI(v.xml)}`;
+      const [x, y, w, h] = await poseRect(xmlUrl, v.pose);
+      box._pose = [x, y, w, h];
+      box._walk = await Promise.all([0, 1, 2, 3, 4, 5, 6, 7].map((i) => poseRect(xmlUrl, `walk${i}`)));
       // قص الوضعية بس (من غير ما حتت الوضعيات اللي جنبها تبان)
       const cid = `c${Math.round(x)}_${Math.round(y)}_${(visual.n = (visual.n || 0) + 1)}`;
       box.innerHTML = `<svg viewBox="${x} ${y + 4} ${w} ${h - 4}" preserveAspectRatio="xMidYMax meet"><clipPath id="${cid}"><rect x="${x}" y="${y + 4}" width="${w}" height="${h - 4}"/></clipPath>
         <image href="/assets/${encodeURI(v.asset)}" width="864" height="640" clip-path="url(#${cid})"/></svg>`;
       const img = $("image", box);
+      // بيغيّر الوضعية المعروضة (للمشي: فريم ورا فريم)
+      box._show = ([x, y, w, h]) => { const vb = `${x} ${y + 4} ${w} ${h - 4}`; const sv = $("svg", box);
+        if (sv.getAttribute("viewBox") !== vb) { sv.setAttribute("viewBox", vb); const rc = $("rect", box); rc.setAttribute("x", x); rc.setAttribute("y", y + 4); } };
       await new Promise((res) => { const i = new Image(); i.onload = i.onerror = res; i.src = img.getAttribute("href"); });
     } else if (String(v.asset).endsWith(".json")) { // إيموجي Lottie (مشاريع قديمة)
       const data = await (await fetch(`/assets/${v.asset}`)).json();
@@ -237,9 +243,26 @@
       el.innerHTML = `<div class="chr"></div><div class="bubble"><div class="bt">${headHTML(sc.headline)}</div></div>`;
       $(".chr", el).appendChild(v);
       fit($(".bt", el), 460, 52, 3);
-      return (t) => { const p = easeOut(t / (0.5 * PACE)), b = back(clamp((t - 0.35) / (0.45 * PACE)));
-        $(".chr", el).style.cssText = `opacity:${clamp(p * 2)};transform:translateY(${(1 - p) * 300 + Math.sin(t * 2.2 / PACE) * 6}px) scaleY(${1 + 0.012 * Math.sin(t * 2.2 / PACE)})`;
+      const WALK = 1.1 * PACE; // مدة الدخول ماشي
+      return (t) => {
+        const p = clamp(t / WALK), walking = t < WALK && v._walk;
+        if (v._show) v._show(walking ? v._walk[Math.floor(t * 11) % 8] : v._pose);
+        const x = (1 - easeOut(p)) * -620, bob = walking ? Math.abs(Math.sin(t * 11 * Math.PI / 4)) * -10 : Math.sin(t * 2.2 / PACE) * 6;
+        $(".chr", el).style.cssText = `opacity:${clamp(t * 6)};transform:translate(${x}px, ${bob}px) scaleY(${1 + (walking ? 0 : 0.012 * Math.sin(t * 2.2 / PACE))})`;
+        const b = back(clamp((t - WALK - 0.05) / (0.45 * PACE)));
         $(".bubble", el).style.cssText = `opacity:${clamp(b)};transform:scale(${b})`; };
+    },
+    // مشهد 3D: شخصية بتمثّل في مكان، بكاميرا سينمائية (player3d.js)
+    async scene3d(sc, el) {
+      const { createScene3D } = await import("/player/player3d.js?v=1");
+      const sw = sceneWords(sc);
+      const ctx = { duration: sc.end - sc.start, palette: ID.palette, look: ID.look3d,
+                    cue: (word) => { const w = sw.find((x) => norm(x.word) === norm(word)); return w ? Math.max(0, w.start - sc.start) : 0; } };
+      const draw = await createScene3D(sc, el, ctx);
+      el.insertAdjacentHTML("beforeend", `<div class="scrim"></div>${sc.headline ? `<div class="hd top on3d">${headHTML(sc.headline)}</div>` : ""}`);
+      fit($(".hd", el), 940, 60, 2);
+      draw(0);
+      return (t) => { draw(Math.max(0, t)); headIn($(".hd", el), t); };
     },
     // مشهد مبتكر: موديول JS كتبه Claude للمشهد ده بالذات
     async custom(sc, el) {
@@ -253,7 +276,12 @@
       const sw = sceneWords(sc);
       const ctx = { duration: sc.end - sc.start, cue: (word) => { const w = sw.find((x) => norm(x.word) === norm(word)); return w ? Math.max(0, w.start - sc.start) : 0; } };
       // نجرّب كام لحظة قبل التصدير: لو الكود بيقع، المشهد بيرجع لشكل جاهز
-      for (const t of [0, 0.3, 1, ctx.duration / 2, ctx.duration]) scene.renderAt(t, ctx);
+      // ونراقب لو الكود حط قيمة مش رقم (NaN) في أي شكل: ده معناه حسبة غلط هتبوّظ الرسم
+      const orig = Element.prototype.setAttribute; let bad = null;
+      Element.prototype.setAttribute = function (k, v) { if (/NaN|undefined|Infinity/.test(String(v))) bad = `${k}=${v}`; return orig.call(this, k, v); };
+      try { for (const t of [0, 0.3, 1, ctx.duration / 2, ctx.duration]) scene.renderAt(t, ctx); }
+      finally { Element.prototype.setAttribute = orig; }
+      if (bad || /NaN/.test(root.innerHTML)) throw new Error("custom scene produced " + (bad || "NaN"));
       return (t) => { try { scene.renderAt(Math.max(0, t), ctx); } catch (e) { console.warn(e); } };
     },
   };
@@ -342,7 +370,19 @@
     else if (k === "rise") tf = `translateY(${(1 - inP) * 60 - 70 * outP}px)`;
     else op = 1; // wipe / flash: التغيير بيحصل تحت الستارة
     el.style.opacity = op;
-    el.style.transform = tf;
+    el.style.transform = `${tf} ${camera2d(sc, t - sc.start)}`;
+  }
+  // الكاميرا في المشاهد الـ 2D: حركة بطيئة مستمرة بتدّي إحساس سينمائي
+  function camera2d(sc, t) {
+    const d = Math.max(1, sc.end - sc.start), p = clamp(t / d);
+    switch (sc.camera) {
+      case "push": return `scale(${1 + 0.06 * easeInOut(p)})`;
+      case "pull": return `scale(${1.07 - 0.07 * easeInOut(p)})`;
+      case "drift": return `translateX(${lerp(-24, 24, easeInOut(p))}px) scale(1.03)`;
+      case "tilt": return `rotate(${lerp(-1.2, 1.2, easeInOut(p))}deg) scale(1.04)`;
+      case "shake": return `translate(${Math.sin(t * 37) * 3 * (1 - p)}px, ${Math.cos(t * 41) * 3 * (1 - p)}px)`;
+      default: return "";
+    }
   }
   function curtain(t) {
     const fx = $("#fx"), k = ID.transition;
@@ -366,6 +406,8 @@
       update(t - sc.start);
     }
     curtain(t);
+    const live = scenes.filter(({ sc }) => t >= sc.start && t < sc.end).pop();
+    $("#subs").classList.toggle("on3d", !!live && live.sc.layout === "scene3d");
     // الترجمة: الجملة اللي بتتقال دلوقتي، والكلمة الحالية ملوّنة
     const cur = words.find((w) => t >= w.start - 0.05 && t <= w.end + 0.25) || [...words].reverse().find((w) => w.start <= t);
     const subs = $("#subs");

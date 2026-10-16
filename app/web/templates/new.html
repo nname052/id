@@ -6,12 +6,15 @@
   <label class="field" for="prompt">فكرة الفيديو</label>
   <textarea id="prompt" rows="3" placeholder="مثلًا: فيديو عن الخوف من الفشل، وإزاي التأجيل بيضيّع الفرص"></textarea>
 
+  <label class="field" for="direction">إخراج الفيديو <span class="muted">(اختياري)</span></label>
+  <textarea id="direction" rows="2" placeholder="مثلًا: أنيميشن 3D بشكل أنيمي، بنت قاعدة في أوضتها بالليل… (لو سبته فاضي، هقترح أنا رؤية وأوريهالك قبل ما أبدأ)"></textarea>
+
   <label class="field">المدة: <span id="durv">{{ defaults.duration }}</span> ثانية</label>
   <input id="duration" type="range" min="10" max="60" step="5" value="{{ defaults.duration }}" style="width:100%">
 
   <label class="field">اللهجة</label>
   <div class="chips" id="dialect">
-    <span class="chip on" data-v="egyptian">مصري</span><span class="chip" data-v="msa">فصحى بسيطة</span>
+    <span class="chip on" data-v="egyptian">عامية مصرية</span><span class="chip" data-v="msa">فصحى</span><span class="chip" data-v="white">عربي بسيط</span>
   </div>
 
   <label class="field">الإحساس</label>
@@ -59,10 +62,10 @@
   function checkVoice() {
     const d = dialect(), eg = voice && voice.egyptian;
     let msg = "";
-    if (d === "msa" && eg) msg = "الصوت ده مصري، فهينطق الفصحى بلهجة مصرية (زي الجيم في «ضجيج»). اختار صوت من فلتر «فصحى».";
+    if (d !== "egyptian" && eg) msg = "الصوت ده مصري، فهينطق الفصحى بلهجة مصرية (زي الجيم في «ضجيج»). اختار صوت من فلتر «فصحى».";
     if (d === "egyptian" && voice && voice.accent && !eg) msg = "الصوت ده مش مصري، فالعامية ممكن تطلع بلهجة تانية. اختار صوت من فلتر «مصري».";
     $("#vwarn").innerHTML = msg ? `<div class="note warn">⚠️ ${esc(msg)}</div>` : "";
-    $("#vaccent").value = d === "msa" ? "msa" : "eg";
+    $("#vaccent").value = d === "egyptian" ? "eg" : "msa";
   }
   $$("#dialect .chip").forEach((c) => c.addEventListener("click", checkVoice));
   let voices = [], voice = { voice_id: "{{ defaults.voice_id }}", name: "{{ defaults.voice_name }}" }, audio = new Audio(), playing = null;
@@ -113,7 +116,7 @@
     if (prompt.length < 3) { $("#msg").innerHTML = `<div class="note err">اكتب فكرة الفيديو الأول</div>`; return; }
     $("#go").disabled = true;
     try {
-      const r = await api("/api/projects", { method: "POST", body: { prompt, settings: {
+      const r = await api("/api/projects", { method: "POST", body: { prompt, direction: $("#direction").value.trim(), settings: {
         duration: +$("#duration").value, dialect: dialect(), mood: mood(), voice_id: voice.voice_id, voice_name: voice.name,
         subtitles: $("#subs").checked, stability: +stability() } } });
       location.href = `/p/${r.id}`;

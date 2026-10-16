@@ -29,6 +29,14 @@ def ask(pid: str, stage: str, system: str, user: str, schema: dict, model: str |
     return res["data"]
 
 
+TOKEN = re.compile(r"\[[^\]]*\]|\S+")
+
+
+def tokens(text: str) -> list[str]:
+    """تقسيم نص النطق: الـ tag (حتى لو فيه مسافة زي [short pause]) بيتحسب حتة واحدة."""
+    return TOKEN.findall(text)
+
+
 def words_of(text: str) -> list[str]:
     """كلمات الجملة اللي بتتنطق (من غير الـ tags)."""
-    return [w for w in text.split() if not TAG.match(w)]
+    return [w for w in tokens(text) if not TAG.match(w)]

@@ -1,4 +1,4 @@
-"""المرحلة 3: تجهيز النص للنطق (تشكيل الكلمات الصعبة بس، ونفس عدد الكلمات علشان الترجمة تتزامن)."""
+"""المرحلة 3: تجهيز النص للنطق: التشكيل الضروري، والإحساس (audio tags) حسب السياق، ونفس عدد الكلمات علشان الترجمة تتزامن."""
 
 from .. import prefs, store
 from .common import ask, prompt, words_of
@@ -14,8 +14,12 @@ def run(pid: str, instruction: str | None = None) -> None:
     script = store.read_json(d / "script.json")
     sentences = "\n".join(f"{s['id']}: {s['text']}" for s in script["sentences"])
     proj = store.load(pid)
-    name = "tts_prep_msa" if proj["settings"].get("dialect") == "msa" else "tts_prep_egyptian"
-    data = ask(pid, "tts", prompt(name, sentences=sentences, context=prefs.context_block()), "جهّز النص.", SCHEMA, model="sonnet")
+    name = {"msa": "tts_prep_msa", "white": "tts_prep_white"}.get(proj["settings"].get("dialect"), "tts_prep_egyptian")
+    system = prompt(name, sentences=sentences, context=prefs.context_block(), tags=prompt("tts_tags"))
+    user = "جهّز النص."
+    if instruction:
+        user += f"\n\nالمطلوب تعديله: {instruction}"
+    data = ask(pid, "tts", system, user, SCHEMA)  # opus: التشكيل والإحساس محتاجين فهم كويس للسياق
     by_id = {l["id"]: l["tts"].strip() for l in data["lines"]}
     lines, fixed = [], 0
     for s in script["sentences"]:

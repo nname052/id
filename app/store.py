@@ -11,7 +11,7 @@ from pathlib import Path
 
 from .config import DEFAULT_SETTINGS, VIDEOS
 
-STAGES = ["script", "scenes", "tts", "audio", "render"]
+STAGES = ["script", "brief", "scenes", "tts", "audio", "render"]
 _lock = threading.Lock()
 
 
@@ -36,7 +36,7 @@ def read_json(path: Path, default=None):
         return default
 
 
-def create(prompt: str, settings: dict) -> dict:
+def create(prompt: str, settings: dict, direction: str = "") -> dict:
     slug = re.sub(r"[^\w]+", "-", prompt.strip())[:24].strip("-") or "video"
     pid = f"{datetime.now():%Y-%m-%d}_{secrets.token_hex(3)}"
     proj = {
@@ -44,6 +44,7 @@ def create(prompt: str, settings: dict) -> dict:
         "slug": slug,
         "title": "",
         "prompt": prompt.strip(),
+        "direction": direction.strip(),  # طلب الإخراج (اختياري)
         "settings": {**DEFAULT_SETTINGS, **settings},
         "created": datetime.now().isoformat(timespec="seconds"),
         "status": "queued",
@@ -56,7 +57,10 @@ def create(prompt: str, settings: dict) -> dict:
 
 
 def load(pid: str) -> dict | None:
-    return read_json(project_dir(pid) / "project.json")
+    p = read_json(project_dir(pid) / "project.json")
+    if p and "brief" not in p["stages"]:  # مشاريع قبل مرحلة الرؤية الإخراجية: نعتبرها متوافق عليها
+        p["stages"] = {s: p["stages"].get(s, {"status": "approved" if s == "brief" else "pending"}) for s in STAGES}
+    return p
 
 
 def save(proj: dict) -> None:

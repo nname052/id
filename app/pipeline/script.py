@@ -4,6 +4,16 @@ from .. import prefs, store
 from ..config import MOODS, WORDS_PER_SECOND
 from .common import ask, prompt
 
+# اللهجة اللي بيختارها صاحب الفيديو (مصري / فصحى / عربي بسيط)
+DIALECTS = {
+    "egyptian": ("**عامية مصرية** طبيعية زي ما صناع المحتوى المصريين بيتكلموا (مش عامية الشارع الخشنة، ومش فصحى متنكرة). "
+                 "استخدم التعبيرات المصرية المألوفة (زي: بص، خلّي بالك، الموضوع ببساطة، يعني إيه…)، وما تخلطش فصحى وعامية في نفس الجملة."),
+    "msa": ("**فصحى** سليمة وسهلة زي مذيعي الوثائقيات: جمل واضحة وكلمات مشهورة، من غير تقعير ولا كلمات قديمة نادرة، "
+            "ومن غير أي كلمة عامية."),
+    "white": ("**عربي بسيط** (لغة بيضاء) يفهمه أي عربي: قريب من الفصحى في الكلمات بس بروح الكلام اليومي، "
+              "من غير كلمات مصرية أوي ولا فصحى تقيلة (زي: «الفكرة ببساطة إن…»، «لو جربت…»)."),
+}
+
 SCHEMA = {
     "type": "object",
     "properties": {
@@ -19,8 +29,7 @@ def run(pid: str, instruction: str | None = None) -> None:
     proj = store.load(pid)
     st = proj["settings"]
     words = int(st["duration"] * WORDS_PER_SECOND)
-    dialect = ("اكتب بالعامية المصرية زي ما الناس بتتكلم في الشارع (مش فصحى)." if st["dialect"] == "egyptian"
-               else "اكتب بفصحى بسيطة وسهلة.")
+    dialect = DIALECTS.get(st["dialect"], DIALECTS["egyptian"])
     system = prompt("script", dialect_rule=dialect, mood=MOODS.get(st["mood"], st["mood"]), words=words,
                     max_words=int(words * 1.15), duration=st["duration"])
     user = f"فكرة الفيديو: {proj['prompt']}"

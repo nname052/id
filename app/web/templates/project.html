@@ -24,7 +24,7 @@
 
   // المرحلة اللي محتاجة انتباهك دلوقتي
   function current(p) {
-    const order = ["script", "scenes", "tts", "audio", "render"];
+    const order = ["script", "brief", "scenes", "tts", "audio", "render"];
     return order.find((s) => ["running", "queued", "review", "failed", "waiting_limit", "needs_credits"].includes(p.stages[s].status))
       || (p.status === "done" ? "done" : order.find((s) => p.stages[s].status !== "approved") || "done");
   }
@@ -77,6 +77,7 @@
       return;
     }
     if (s === "script") el.innerHTML = scriptHTML(p);
+    else if (s === "brief") el.innerHTML = briefHTML(p);
     else if (s === "scenes") el.innerHTML = scenesHTML(p);
     else if (s === "audio") el.innerHTML = notice + audioHTML(p);
     else el.innerHTML = `<h2>${STAGE_NAMES[s]}</h2><div class="actions"><button class="primary" data-act="approve" data-stage="${s}">كمّل</button></div>`;
@@ -95,9 +96,34 @@
       </div>`;
   }
 
+  const STYLE_NAMES = { motion2d: "موشن جرافيك 2D", cinematic2d: "2D سينمائي بشخصيات", "3d": "3D بشخصيات", anime3d: "3D بشكل أنيمي", mixed: "خليط 3D و 2D" };
+  // الرؤية الإخراجية: Claude بيقول هيعمل إيه، وإنت توافق أو تطلب تعديل
+  function briefHTML(p) {
+    const b = p.brief, sents = (p.script || { sentences: [] }).sentences;
+    if (!b) return `<h2>${STAGE_NAMES.brief}</h2><div class="muted">لسه ما اتكتبتش.</div>`;
+    const sentText = (ids) => ids.map((id) => esc((sents.find((s) => s.id === id) || {}).text || "")).join(" ");
+    return `<h2>${STAGE_NAMES.brief}</h2>
+      <div class="muted">${p.direction ? `طلب الإخراج بتاعك: «${esc(p.direction)}»` : "ما كتبتش طلب إخراج، فده اقتراحي. وافق أو اطلب تعديل."}</div>
+      <div class="note ok" style="margin-top:10px"><b>${esc(STYLE_NAMES[b.style] || b.style)}</b> · ${esc(b.concept)}</div>
+      <div class="brief-grid">
+        <div><b>الشكل والإحساس</b><div>${esc(b.look)}</div></div>
+        <div><b>الشخصيات</b><div>${esc(b.characters)}</div></div>
+        <div><b>الكاميرا والحركة</b><div>${esc(b.camera)}</div></div>
+        <div><b>المختلف المرة دي</b><div>${esc(b.different)}</div></div>
+      </div>
+      <div class="scenes" style="margin-top:12px">${b.beats.map((x, i) => `<div class="scene-card"><div class="thumb">${i + 1}</div>
+        <div class="grow"><div class="muted">${sentText(x.sentence_ids)}</div><div>🎬 ${esc(x.idea)}</div></div></div>`).join("")}</div>
+      <div class="actions">
+        <button class="primary" data-act="approve" data-stage="brief">✓ موافق، خطط المشاهد</button>
+        <input type="text" id="instr" class="grow" placeholder="اطلب تعديل: خليه 3D أنيمي، الشخصية بنت، المشهد التاني في الشارع…">
+        <button data-act="regen" data-stage="brief">↻ رؤية تانية</button>
+      </div>`;
+  }
+
   // صورة مصغّرة للمشهد (خطة نسخة 2: visuals و items، والقديمة: kind و asset)
   function thumb(sc) {
     const v = (sc.visuals || [])[0] || ((sc.items || []).find((it) => it.visual) || {}).visual || (sc.asset ? { kind: sc.kind, asset: sc.asset } : null);
+    if (sc.layout === "scene3d") return "🎬";
     if (v && v.kind === "character") return "🧍";
     if (v && v.asset && !String(v.asset).endsWith(".json")) return `<img src="/assets/${esc(v.asset)}">`;
     if (sc.layout === "custom" || sc.kind === "emoji") return "✦";
@@ -107,7 +133,7 @@
   }
   const KIND = { illustration: "رسمة", icon: "أيقونة", emoji: "إيموجي", number: "رقم", text: "كلمة كبيرة",
     hero: "صورة كبيرة", kinetic: "كلام متحرك", split: "نص ونص", stat: "رقم", list: "قايمة", versus: "مقارنة", quote: "اقتباس",
-    question: "سؤال", icon_row: "صف أيقونات", card: "كارت", character: "شخصية", custom: "مشهد مبتكر ✦" };
+    question: "سؤال", icon_row: "صف أيقونات", card: "كارت", character: "شخصية", custom: "مشهد مبتكر ✦", scene3d: "مشهد 3D 🎬" };
   function identityHTML(plan) {
     const id = plan.identity;
     if (!id) return "";
@@ -124,6 +150,7 @@
         <div class="muted">${sc.sentence_ids.map((id) => esc((sents.find((s) => s.id === id) || {}).text || "")).join(" ")}</div>
         <span class="badge">${KIND[sc.layout || sc.kind] || sc.layout || sc.kind}</span>
         ${[...(sc.visuals || []), ...(sc.items || []).map((it) => it.visual).filter(Boolean), ...(sc.asset_name ? [sc] : [])].map((v) => `<span class="badge" dir="ltr">${esc(v.asset_name || "")}</span>`).join(" ")}
+        ${sc.scene3d ? `<div class="muted">🎬 ${esc(sc.scene3d.character)} · ${esc(sc.scene3d.set)} · ${sc.scene3d.actions.map((a) => esc(a.anim)).join(" ← ")} · كاميرا ${esc(sc.scene3d.camera)} · ${esc(sc.scene3d.time)}</div>` : ""}
         ${sc.custom_brief && sc.layout === "custom" ? `<div class="muted">✦ ${esc(sc.custom_brief)}</div>` : ""}</div></div>`).join("")}</div>
       <div class="actions">
         <button class="primary" data-act="approve" data-stage="scenes">✓ موافق، اعمل الصوت</button>
@@ -144,6 +171,7 @@
       return `<div class="scene-card" style="align-items:flex-start">
         <button class="play-seg" data-a="${start}" data-b="${end}" title="اسمع الجملة">▶</button>
         <div class="grow">${ws.map((w) => badI.has(w.i) ? `<b style="color:var(--err)" title="اتسمعت: ${esc((bad.find((b) => b.i === w.i) || {}).heard || "")}">${esc(w.word)}</b>` : esc(w.word)).join(" ")}
+          <div class="muted tts-line" title="النص اللي بيروح للصوت: التشكيل والإحساس">🎙 ${esc(ln.tts).replace(/\[([^\]]+)\]/g, '<span class="badge" dir="ltr">$1</span>')}</div>
           ${bad.length ? `<div class="muted" style="color:var(--err)">ممكن تكون اتنطقت غلط: ${bad.map((b) => `«${esc(b.word)}» (اتسمعت «${esc(b.heard || "؟")}»)`).join("، ")}</div>` : ""}
           <div class="row" style="margin-top:6px">
             <button data-act="fixword" data-sid="${ln.id}" style="padding:4px 10px;font-size:13px">✎ صلّح نطق كلمة</button>

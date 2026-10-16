@@ -22,7 +22,9 @@ def summary(n: int = 5, skip_pid: str | None = None) -> str:
         if h["pid"] == skip_pid:
             continue
         lines.append(f"- ألوان {h.get('palette')}، خط عناوين {h.get('font_heading')}، خلفية {h.get('background')}، "
-                     f"انتقال {h.get('transition')}، أشكال مشاهد: {', '.join(h.get('layouts', []))}")
+                     f"انتقال {h.get('transition')}، أشكال مشاهد: {', '.join(h.get('layouts', []))}"
+                     + (f"، أسلوب {h['style']}" if h.get("style") else "")
+                     + (f"، مشاهد 3D: {', '.join(h['three_d'])}" if h.get("three_d") else ""))
     return "\n".join(lines)
 
 
@@ -31,7 +33,9 @@ def record(pid: str, plan: dict) -> None:
     ident = plan.get("identity", {})
     hist.append({"pid": pid, "palette": ident.get("palette"), "font_heading": ident.get("font_heading"),
                  "background": ident.get("background"), "transition": ident.get("transition"),
-                 "layouts": [s.get("layout") for s in plan.get("scenes", [])],
+                 "layouts": [s.get("layout") for s in plan.get("scenes", [])], "style": plan.get("style"),
+                 "three_d": [f"{s['scene3d'].get('character')} في {s['scene3d'].get('set')} ({s['scene3d'].get('camera')})"
+                             for s in plan.get("scenes", []) if s.get("layout") == "scene3d" and s.get("scene3d")],
                  "assets": sorted({v["asset"] for s in plan.get("scenes", []) for v in s.get("visuals", []) if v.get("asset")})})
     PATH.parent.mkdir(exist_ok=True)
     write_json(PATH, hist[-KEEP:])

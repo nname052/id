@@ -119,6 +119,7 @@ def usage():
 # ---------- المشاريع ----------
 class NewProject(BaseModel):
     prompt: str
+    direction: str = ""
     settings: dict = {}
 
 
@@ -128,9 +129,11 @@ def create(body: NewProject):
         raise HTTPException(400, "اكتب فكرة الفيديو")
     allowed = {k: v for k, v in body.settings.items() if k in DEFAULT_SETTINGS}
     allowed["duration"] = max(10, min(60, int(allowed.get("duration", 30))))
-    p = store.create(body.prompt, allowed)
+    p = store.create(body.prompt, allowed, body.direction)
     worker.enqueue(p["id"], "script")
     worker.learn(body.prompt, "فكرة فيديو جديد")
+    if body.direction.strip():
+        worker.learn(body.direction, "طلب إخراج لفيديو جديد")
     return {"id": p["id"]}
 
 
@@ -158,6 +161,7 @@ def get_project(pid: str):
     plan = store.read_json(d / "scenes" / "plan.json")
     return p | {
         "script": store.read_json(d / "script.json"),
+        "brief": store.read_json(d / "brief.json"),
         "plan": plan and {k: v for k, v in plan.items() if k != "raw"},
         "tts": store.read_json(d / "tts.json"),
         "has_audio": (d / "audio" / "voice.mp3").exists(),

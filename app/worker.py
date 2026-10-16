@@ -7,14 +7,14 @@ import traceback
 
 from . import prefs, store
 from .llm.claude_code import LimitReached
-from .pipeline import audio, render, scenes, script, tts_prep
+from .pipeline import audio, brief, render, scenes, script, tts_prep
 
 _q: queue.Queue = queue.Queue()
 PORT = 8000
-REVIEW = {"script", "scenes", "audio"}       # بعدهم بنستنى موافقتك
-NEXT = {"script": "scenes", "scenes": "tts", "tts": "audio", "audio": "render"}
+REVIEW = {"script", "brief", "scenes", "audio"}       # بعدهم بنستنى موافقتك
+NEXT = {"script": "brief", "brief": "scenes", "scenes": "tts", "tts": "audio", "audio": "render"}
 SUB = {"audio_sentence": "audio", "audio_review": "audio"}  # مهام صغيرة جوه مرحلة الصوت
-DOWNSTREAM = {"script": ["scenes", "tts", "audio", "render"], "scenes": ["render"], "tts": ["audio", "render"], "audio": ["render"]}
+DOWNSTREAM = {"script": ["brief", "scenes", "tts", "audio", "render"], "brief": ["scenes", "render"], "scenes": ["render"], "tts": ["audio", "render"], "audio": ["render"]}
 
 
 def learn(text: str, source: str) -> None:
@@ -51,6 +51,8 @@ def _run(pid: str, job: str, kw: dict) -> None:
     try:
         if job == "script":
             script.run(pid, kw.get("instruction"))
+        elif job == "brief":
+            brief.run(pid, kw.get("instruction"))
         elif job == "scenes":
             scenes.run(pid, kw.get("instruction"))
         elif job == "tts":

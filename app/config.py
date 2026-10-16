@@ -35,7 +35,7 @@ WORDS_PER_SECOND = 2.2  # سرعة الكلام المصري التقريبية 
 
 DEFAULT_SETTINGS = {
     "duration": 30,          # بالثواني (10 لـ 60)
-    "dialect": "egyptian",   # egyptian | msa
+    "dialect": "egyptian",   # egyptian | msa | white
     "voice_id": DEFAULT_VOICE,
     "voice_name": "Ahmad",
     "mood": "motivational",  # motivational | calm | funny | serious | educational

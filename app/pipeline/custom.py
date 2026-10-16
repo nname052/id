@@ -36,6 +36,8 @@ kit.palette = {bg, ink, accent, accent2, surface}, kit.fonts = {heading, body}, 
 - خلفية المشهد شفافة (الخلفية العامة موجودة). ممكن تضيف أشكال جوه المشهد.
 - استخدم ألوان kit.palette بس.
 - خلّي الحركة سلسة: دخول في أول 0.6 ثانية، وحاجة بتتحرك بهدوء بعدها، وما تخليش المشهد ثابت.
+- اتأكد إن كل الحسابات بترجع أرقام سليمة في أي لحظة (t = 0 ولحد آخر المشهد): ممنوع NaN أو undefined أو قسمة على صفر.
+  ctx.cue() ممكن ترجع 0، و ctx.duration ممكن يبقى قصير (ثانيتين). استخدم kit.clamp.
 - الكود لوحده من غير أي شرح، ومن غير ```."""
 
 SCHEMA = {"type": "object", "properties": {"code": {"type": "string"}}, "required": ["code"], "additionalProperties": False}

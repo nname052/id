@@ -9,7 +9,7 @@ import requests
 
 from .. import store
 from ..config import ELEVEN_KEY, TTS_MODEL
-from .common import words_of
+from .common import tokens, words_of
 
 API = "https://api.elevenlabs.io"
 
@@ -31,7 +31,7 @@ def build_text(lines: list[dict]) -> tuple[str, list[dict]]:
     for ln in lines:
         disp = ln["display"].split()
         k = 0
-        for tok in ln["tts"].split():
+        for tok in tokens(ln["tts"]):
             if parts:
                 pos += 1
             if not tok.startswith("["):

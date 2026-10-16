@@ -142,3 +142,12 @@ body.render #stage { transform: none !important; }
             background: rgba(0,0,0,.55); color: #fff; font: 14px system-ui; direction: ltr; }
 #controls button { font-size: 16px; width: 38px; height: 32px; border-radius: 8px; border: 0; cursor: pointer; }
 #controls input { flex: 1; }
+
+/* مشهد 3D: الصورة بملو الشاشة، وتدرّج غامق فوق وتحت علشان الكلام والترجمة يتقروا */
+.c3d { position: absolute; inset: 0; width: 1080px; height: 1920px; }
+.L-scene3d .scrim { position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(to bottom, rgba(0,0,0,.55) 0, rgba(0,0,0,0) 30%, rgba(0,0,0,0) 58%, rgba(0,0,0,.6) 82%, rgba(0,0,0,.7) 100%); }
+.hd.on3d { color: #fff; text-shadow: 0 6px 30px rgba(0,0,0,.55); top: 200px; }
+.hd.on3d .hl { color: var(--accent); }
+#subs.on3d { color: #fff; text-shadow: 0 3px 16px rgba(0,0,0,.7); }
+#subs.on3d span.now { color: var(--accent); }
