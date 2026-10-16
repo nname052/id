@@ -104,7 +104,7 @@ export class ShibinCrowd {
 
   _carsNear(x, z, r) {
     const T = this.traffic;
-    if (T) for (const c of T.cars) if (c.on && !c.off && c.v > 0.5 && (c.x - x) ** 2 + (c.z - z) ** 2 < r * r) return true;
+    if (T) for (const c of T.cars) { if (!c.on || c.off) continue; const d2 = (c.x - x) ** 2 + (c.z - z) ** 2; if (d2 < 14 * 14 || (c.v > 0.5 && d2 < r * r)) return true; }
     return false;
   }
 
@@ -121,7 +121,10 @@ export class ShibinCrowd {
     C.t += (p.speed * 1.15 * dt) / C.len;
     const u = Math.min(1, C.t);
     C.x = C.x0 + (C.tx - C.x0) * u; C.z = C.z0 + (C.tz - C.z0) * u;
-    if (u >= 1) { p.cross = null; p.side = -p.side; p.dir = -p.dir; this._pos(p); }
+    if (u >= 1) {
+      p.cross = null; p.side = -p.side; p.dir = -p.dir; this._pos(p);
+      if (!this._ok(p.x, p.z)) { p.side = -p.side; this._pos(p); } // (نادرًا) الناحية التانية مش رصيف هنا: يفضل على ناحيته
+    }
   }
 
   _dodge(p, dt, ph) {
@@ -164,7 +167,7 @@ export class ShibinCrowd {
       }
       const d2 = (p.x - cx) ** 2 + (p.z - cz) ** 2;
       if (d2 > RECYCLE * RECYCLE) { p.on = false; p.cross = null; p.group = null; continue; }
-      if (ph && d2 < 400 && Math.abs(p.x - ph.x) < 9 && Math.abs(p.z - ph.z) < 9) this._dodge(p, dt, ph);
+      if (ph && !p.cross && d2 < 400 && Math.abs(p.x - ph.x) < 9 && Math.abs(p.z - ph.z) < 9) this._dodge(p, dt, ph);
       p.scared = Math.max(0, p.scared - dt);
       if (!p.standing) {
         const [a, b] = this._range(p.e);

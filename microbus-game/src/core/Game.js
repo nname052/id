@@ -229,6 +229,9 @@ export class Game {
       this.passengers.stops.some((st) => (st.mx ?? st.x) - x < r + 8 && x - (st.mx ?? st.x) < r + 8 && Math.hypot((st.mx ?? st.x) - x, (st.mz ?? st.z) - z) < r + 8) ||
       (this.world.policeSpots || []).some((sp) => Math.hypot(sp.q.x - x, sp.q.z - z) < r + 40);
     this.incidents = new Incidents(this.scene, { hud: this.hud, wallet: this.wallet, licenses: this.licenses, passengers: this.passengers, audio: this.audio });
+    // هروب من كمين → مطاردة من مكان عربية الكمين على شبكة الطرق
+    this.police.onFlee = (c, x, z) => this.incidents.pursueFrom(x, z, this.player.physics, this.player.kind);
+    this.incidents.onFinish = () => this.police.chaseOver();
     this.race = this.raceTrack ? new Race(this) : null;
     this.docs = new Docs(this, this.touch ? this.touch.root.querySelector('.t-top') : null);
     this.mp = new Multiplayer(this);

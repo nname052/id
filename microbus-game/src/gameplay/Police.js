@@ -249,10 +249,18 @@ export class Police {
   }
 
   _flee(c) {
-    this.wallet?.add(-FINE.flee, 'fine', `هروب من ${c.def.name}`);
-    this.hud?.toast(`📸 هروب من الكمين — غرامة ${FINE.flee} ج اتخصمت`, 4);
+    // عربية الكمين نفسها بتطلع وراك على الطرق (مش بتظهر جنبك) — ولو المطاردة مش متاحة: غرامة بالكاميرا
+    const p = new THREE.Vector3(); c.car.root.getWorldPosition(p);
+    if (this.onFlee?.(c, p.x, p.z)) { c.car.root.visible = false; c.chased = true; this.hud?.toast(`🚨 هربت من ${c.def.name} — عربية الشرطة طالعة وراك!`, 3.5); }
+    else {
+      this.wallet?.add(-FINE.flee, 'fine', `هروب من ${c.def.name}`);
+      this.hud?.toast(`📸 هروب من الكمين — غرامة ${FINE.flee} ج اتخصمت`, 4);
+    }
     this._done(c);
   }
+
+  /** المطاردة خلصت: عربية الكمين ترجع مكانها (لما تبقى بعيد عنها) */
+  chaseOver() { for (const c of this.cps) if (c.chased) { c.chased = false; c.car.root.visible = true; } }
 
   _done(c) {
     c.state = 'done'; c.cool = COOL; c.on = false;

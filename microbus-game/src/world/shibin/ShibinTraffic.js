@@ -78,6 +78,7 @@ export class ShibinTraffic {
       // مفيش عربية مركونة/موقف/كمين قريب
       if (!first && this._inView(_a.x, _a.z)) continue;
       if (this.parked.some((o) => o.on && o !== q && (o.x - _a.x) ** 2 + (o.z - _a.z) ** 2 < 7 * 7)) continue;
+      if (this.cars.some((o) => o.on && (o.x - _a.x) ** 2 + (o.z - _a.z) ** 2 < 9 * 9)) continue;
       if (this.world.nearReserved?.(_a.x, _a.z, 14)) continue;
       const h = this.world.height(_a.x, _a.z, 0);
       if (Math.abs(h) > 0.05) continue; // لازم أسفلت (مش رصيف/ترعة/كوبري)
@@ -432,7 +433,7 @@ export class ShibinTraffic {
       }
     } else c.s += ds;
     // سبنا التقاطع → نفك الحجز
-    if (c.hold && !c.turn && c.hold !== this._endNode(c) && c.s > 6) this._release(c);
+    if (c.hold && !c.turn && c.hold !== this._endNode(c) && c.s > 8 + c.len) this._release(c); // نفك الحجز بعد ما العربية كلها تبعد عن التقاطع
     if (!c.turn && c.s > c.e.length) { c.s = c.e.length; c.v = 0; }
     this._place(c);
   }

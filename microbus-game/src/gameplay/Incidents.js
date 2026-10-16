@@ -12,7 +12,7 @@ import { groundHeight } from '../world/ground.js';
 import { findRoute, projectToGraph } from '../nav/RoadGraph.js';
 
 const KEY = 'egy-police-block-v1';
-const FINE = { crash: 300, flip: 500, flee: 1500 };
+const FINE = { crash: 300, flip: 500, flee: 1500, checkpoint: 1000 };
 const MAX_V = 30;          // أقصى سرعة لعربية الشرطة (م/ث ≈ 108 كم/س) — ممكن تهرب منها
 const CHASE_TIME = 60;     // المطاردة دقيقة؛ لو فضلت بعيد عنها لحد ما تخلص = هربت
 
@@ -56,6 +56,22 @@ export class Incidents {
     this._startChase(true);
     this.audio?.siren?.(true);
     setTimeout(() => this.hud?.toast('🚓 الشرطة وراك! اقف على جنب وادفع الغرامة — أو اهرب منها دقيقة', 3.5), n ? 3200 : 0);
+  }
+
+  /** هروب من كمين: المطاردة بتبدأ من مكان عربية الكمين نفسها (على الطريق، مش جنبك) */
+  pursueFrom(x, z, ph, playerKind) {
+    if (this.state !== 'idle') return false;
+    const q = projectToGraph(x, z, 40);
+    if (!q) return false;
+    this.kind = 'checkpoint'; this.vkind = playerKind; this.fine = FINE.checkpoint;
+    const P = this.p;
+    P.x = q.x; P.z = q.z; P.v = 3;
+    P.yaw = Math.atan2(-(ph.x - q.x), -(ph.z - q.z));
+    this.route = null; this.ri = 0; this._rt = 0;
+    this.car.root.visible = true;
+    this._startChase(true);
+    this.audio?.siren?.(true);
+    return true;
   }
 
   /** مكان ظهور الشرطة: نقطة على الطرق بعيد عنك بمسافة طريق معقولة */
@@ -179,13 +195,13 @@ export class Incidents {
   _ticketCard() {
     const total = this.fine;
     const pay = () => {
-      this.wallet?.add(-total, 'fine', this.kind === 'flip' ? 'غرامة حادثة (انقلاب)' : 'غرامة حادثة');
+      this.wallet?.add(-total, 'fine', this.kind === 'flip' ? 'غرامة حادثة (انقلاب)' : this.kind === 'checkpoint' ? 'غرامة هروب من كمين' : 'غرامة حادثة');
       this.hud?.toast('👮 اتفضل — وسوق براحة', 3);
       this._finish();
     };
     this.hud?.showCard({
-      title: '🚓 الشرطة — محضر حادثة', tone: 'police danger',
-      rows: [[this.kind === 'flip' ? 'انقلاب عربية' : 'تصادم / سواقة متهورة', `${total} ج`], ['الغرامة', `${total} ج`, 'pc-c']],
+      title: this.kind === 'checkpoint' ? '🚓 الشرطة — هروب من كمين' : '🚓 الشرطة — محضر حادثة', tone: 'police danger',
+      rows: [[this.kind === 'flip' ? 'انقلاب عربية' : this.kind === 'checkpoint' ? 'عدّيت الكمين من غير ما تقف' : 'تصادم / سواقة متهورة', `${total} ج`], ['الغرامة', `${total} ج`, 'pc-c']],
       note: 'ادفع وكمّل — ولو مشيت المطاردة هتكمل',
       buttons: [{ label: 'ادفع الغرامة', onClick: pay }],
     });
@@ -201,7 +217,7 @@ export class Incidents {
   _caught() {
     const keys = ['driver', this.vkind].filter(Boolean);
     this.licenses?.revoke?.(keys);
-    this.blocked = { fine: this.fine + FINE.flee, keys };
+    this.blocked = { fine: this.fine + FINE.flee, keys, kind: this.kind };
     try { localStorage.setItem(KEY, JSON.stringify(this.blocked)); } catch { /* */ }
     this.state = 'blocked';
     this.at = null;
@@ -220,7 +236,7 @@ export class Incidents {
     };
     this.hud?.showCard({
       title: '🚔 الشرطة مسكتك!', tone: 'police danger',
-      rows: [['هروب من الشرطة', `${FINE.flee} ج`], ['الحادثة', `${b.fine - FINE.flee} ج`], ['سحب الرخص', 'رخصة القيادة + رخصة العربية'], ['الإجمالي', `${b.fine} ج`, 'pc-c']],
+      rows: [['هروب من الشرطة', `${FINE.flee} ج`], [b.kind === 'checkpoint' ? 'الكمين' : 'الحادثة', `${b.fine - FINE.flee} ج`], ['سحب الرخص', 'رخصة القيادة + رخصة العربية'], ['الإجمالي', `${b.fine} ج`, 'pc-c']],
       note: 'مش هتعرف تكمّل غير لما تدفع (لو الفلوس مش مكفية هتبقى عليك)',
       buttons: [{ label: `ادفع ${b.fine} ج`, onClick: pay }],
       def: null,
@@ -229,6 +245,7 @@ export class Incidents {
 
   _finish() {
     this.state = 'idle';
+    this.onFinish?.();
     this.car.root.visible = false;
     this.p.v = 0;
     this._cool = 20; // مفيش حادثة جديدة على طول (الخبطات الصغيرة بعد الحادثة)
