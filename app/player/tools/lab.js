@@ -4,7 +4,7 @@
 import * as THREE from "three";
 import { character, buildSet, lights, engine, settled, loadClip } from "/player/player3d.js";
 import { makeRetarget, clipTrack } from "/player/clips.js";
-import { setupRig, buildPerformance, applyPose, stepAt } from "/player/rig.js";
+import { setupRig, buildPerformance, applyPose, stepAt, pointAt } from "/player/rig.js";
 import { makeGrasp, fingerPoints, standFor, sdfLocal } from "/player/grasp.js";
 import { makeFace } from "/player/face.js";
 
@@ -159,7 +159,7 @@ async function sceneDuo(scene) {
   const faceA = 62 * Math.PI / 180, faceB = -62 * Math.PI / 180;
   const perfA = buildPerformance([
     { t: 0, body: "upright", head: "forward", l_arm: "rest", r_arm: "explain", face: "serious", dur: 0.9 },
-    { t: 2.85, body: "lean_forward", head: "forward", l_arm: "hip", r_arm: "point_forward", face: "serious", dur: 0.5, ease: "snap" },
+    { t: 2.85, body: "lean_forward", head: "forward", l_arm: "rest", r_arm: "rest", face: "serious", dur: 0.6 },
     { t: 4.6, body: "upright", head: "down", l_arm: "rest", r_arm: "rest", face: "thinking", dur: 1.0, ease: "slow" },
     { t: 6.6, body: "upright", head: "forward", l_arm: "rest", r_arm: "rest", face: "neutral", motion: "nod", dur: 0.9 },
     { t: 8.6, body: "upright", head: "forward", l_arm: "rest", r_arm: "chest", face: "warm", dur: 1.0, ease: "slow" }], RA.k);
@@ -167,8 +167,13 @@ async function sceneDuo(scene) {
     { t: 0, body: "upright", head: "down", l_arm: "rest", r_arm: "rest", face: "neutral", dur: 0.9 },
     { t: 3.1, body: "lean_back", head: "tilt_right", l_arm: "chest", r_arm: "rest", face: "worried", dur: 0.6 },
     { t: 5.4, body: "upright", head: "forward", l_arm: "rest", r_arm: "stop", face: "serious", dur: 0.7 },
-    { t: 7.0, body: "upright", head: "forward", l_arm: "rest", r_arm: "chin", face: "thinking", dur: 1.0, ease: "slow" },
+    { t: 7.0, body: "upright", head: "forward", l_arm: "rest", r_arm: "rest", face: "thinking", dur: 1.0, ease: "slow" },
     { t: 8.8, body: "upright", head: "forward", l_arm: "rest", r_arm: "rest", face: "neutral", dur: 1.0, ease: "slow" }], RB.k);
+  // الحركة المسجّلة تحت كل واحد: A بيتكلم بإيده بهدوء (asking_question) وبعدين يقف عادي؛ B بتسمع، وبعدين بتفكر (thinking)
+  const baseA = await clipLayer(A, RA, [{ name: "idle", start: -1, end: 0.5 }, { name: "asking_question", start: 0.5, end: 4.4 }, { name: "idle", start: 4.4, offset: 2 }]);
+  const baseB = await clipLayer(B, RB, [{ name: "idle", start: -1, end: 6.9, offset: 4 }, { name: "thinking", start: 6.9, end: 9.0, offset: 0.5 }, { name: "idle", start: 9.0, offset: 1 }]);
+  // A بيشاور على B (على صدرها) وهو بيقول "لازم نحسمه"
+  const pointW = (t) => smooth((t - 2.9) / 0.55) * (1 - smooth((t - 4.25) / 0.6));
   // البصّة: كل واحد بيبص للتاني، بس بعد 0.2 ثانية من ما التاني يبدأ يتكلم (رد فعل طبيعي)، وفي التفكير بيبص لتحت
   const lookW = (t, startSpeak, away) => Math.max(smooth((t - startSpeak - 0.2) / 0.35), 0) * (1 - (away ? away(t) : 0));
   const faceAfn = makeFace(A.face, wA, true, 5), faceBfn = makeFace(B.face, wB, true, 7);
@@ -177,7 +182,7 @@ async function sceneDuo(scene) {
     duration: 10.5, words: [...wA, ...wB], actors: [RA, RB],
     frame(t) {
       const sA = stepAt(RA, A0, A1, faceA, stepA(t), "Right"), sB = stepAt(RB, B0, B1, faceB, stepB(t), "Left");
-      const pA = sA.root, pB = sB.root;
+      const pA = sA.root, pB = sB.root, bA = baseA(t), bB = baseB(t);
       const headPos = (R2) => R2.head.getWorldPosition(new THREE.Vector3());
       // A: بيبص لـ B طول ما بيتكلم، وبيبص لتحت وهو بيفكر (4.6–5.8)، وبيرجع يبصلها بعد ما تبدأ ترد بـ 0.2
       const awayA = (tt) => smooth((tt - 4.6) / 0.5) * (1 - smooth((tt - 5.8) / 0.4));
@@ -186,16 +191,20 @@ async function sceneDuo(scene) {
       // B: بتبص لتحت في الأول، وبعد ما A يبدأ يتكلم بـ 0.2 بترفع عينها له
       const lwB = lookW(t, 0.4);
       applyPose(RB, { P: PB, t, rootPos: pB, face: faceB, energy: 0.4 + 0.4 * smooth((t - 2.8) / 0.6) * (1 - smooth((t - 4.8) / 0.8)), seed: 2.1, lookPoint: headPos(RA), lookW: lwB,
-        feetW: sB.feetW, speaking: speakB(t), wordPulse: pulse(wB, t) });
+        feetW: sB.feetW, speaking: speakB(t), wordPulse: pulse(wB, t), base: bB, bodyAdd: { crouch: sB.crouch } });
+      const pw = pointW(t), aim = pw > 0 ? pointAt(RA, pA, faceA, headPos(RB).add(new THREE.Vector3(0, -0.3, 0)), pw) : null;
       applyPose(RA, { P: PA, t, rootPos: pA, face: faceA, energy: 0.4 + 0.45 * smooth((t - 2.4) / 0.6) * (1 - smooth((t - 4.3) / 0.8)), seed: 0.4, lookPoint: headPos(RB), lookW: lwA,
-        feetW: sA.feetW, speaking: speakA(t), wordPulse: pulse(wA, t) });
+        feetW: sA.feetW, speaking: speakA(t), wordPulse: pulse(wA, t), base: bA, reach: aim ? aim.reach : undefined,
+        bodyAdd: { crouch: sA.crouch, turn: aim ? aim.bodyAdd.turn : 0 } });
       // B مرة تانية بعد ما A اتحرك (علشان تبص لمكان راسه الجديد)
       applyPose(RB, { P: PB, t, rootPos: pB, face: faceB, energy: 0.4 + 0.4 * smooth((t - 2.8) / 0.6) * (1 - smooth((t - 4.8) / 0.8)), seed: 2.1, lookPoint: headPos(RA), lookW: lwB,
-        feetW: sB.feetW, speaking: speakB(t), wordPulse: pulse(wB, t) });
+        feetW: sB.feetW, speaking: speakB(t), wordPulse: pulse(wB, t), base: bB, bodyAdd: { crouch: sB.crouch } });
       faceAfn(t, (prA || kA).face, kA.face, trA); faceBfn(t, (prB || kB).face, kB.face, trB);
       return { lookA: lwA, lookB: lwB, speaking: speakA(t) ? "A" : speakB(t) ? "B" : "-", actors: [RA, RB] };
     },
-    cameras: { wide: { pos: [2.3, 1.55, 3.7], look: [0.12, 1.05, 0], fov: 44 } },
+    cameras: { wide: { pos: [2.3, 1.55, 3.7], look: [0.12, 1.05, 0], fov: 44 },
+      closeA: { pos: [0.0, 1.45, 1.55], look: [-0.45, 1.2, 0.05], fov: 30 }, closeB: { pos: [0.35, 1.4, 1.6], look: [0.72, 1.15, 0.0], fov: 30 },
+      legsA: { pos: [-0.05, 0.55, 1.45], look: [-0.5, 0.42, 0.05], fov: 34 }, legsB: { pos: [1.2, 0.55, 1.5], look: [0.72, 0.42, 0.0], fov: 34 } },
   };
 }
 
@@ -245,7 +254,7 @@ window.setupLab = async (name, camName = "wide", opts = {}) => {
   const c = S.cameras[camName] || S.cameras.wide;
   cam = new THREE.PerspectiveCamera(c.fov, W / H, 0.05, 100); cam.position.set(...c.pos); cam.lookAt(new THREE.Vector3(...c.look));
   document.body.appendChild(r.domElement); r.domElement.style.cssText = "position:absolute;left:0;top:0;width:1080px;height:1920px";
-  prevBones = null; prevVel = null;
+  prevBones = null; prevVel = null; window.__S = S;
   return S.duration;
 };
 // بيرسم لحظة t وبيرجّع القياسات (لازم الفريمات تتنادى بالترتيب علشان قياس "النطّة" بين فريمين)
@@ -262,7 +271,7 @@ window.labFrame = (t) => {
     prevVel = vel;
   }
   prevBones = bones;
-  return { t, dbg: info.actors[0]._dbg, comZ: info.actors[0]._comZ, sole: Math.min(...ms.map((m) => m.sole)), comOut: Math.max(...ms.map((m) => m.comOut)), jump, pop, popBone, ...Object.fromEntries(Object.entries(info).filter(([kk]) => kk !== "actors")) };
+  return { t, dbg: info.actors[0]._dbg, dbgB: info.actors[1] && info.actors[1]._dbg, comZ: info.actors[0]._comZ, sole: Math.min(...ms.map((m) => m.sole)), comOut: Math.max(...ms.map((m) => m.comOut)), jump, pop, popBone, ...Object.fromEntries(Object.entries(info).filter(([kk]) => kk !== "actors")) };
 };
 window.labDebugFeet = (tt) => {
   S.frame(tt);

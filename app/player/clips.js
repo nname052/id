@@ -95,6 +95,13 @@ export function makeRetarget(src, tgt, restQ) {
     src.root.rotation.y = 0; src.root.position.set(0, 0, 0); src.root.updateMatrixWorld(true);
   }
 
+  const means = new Map();
+  const hipsMean = (clip) => {
+    if (means.has(clip)) return means.get(clip);
+    const m = V(), n = 12;
+    for (let i = 0; i < n; i++) { poseSource([{ clip, time: (clip.duration * (i + 0.5)) / n, w: 1 }]); m.add(src.bone("Hips").getWorldPosition(V()).sub(S0.hips)); }
+    m.divideScalar(n); means.set(clip, m); return m;
+  };
   // بيرجّع { q: Map(عضمة الهدف ← دوران محلي), hips: إزاحة الوسط بإحداثيات الجسم (متر) }
   function sample(layers) {
     poseSource(layers);
@@ -115,7 +122,10 @@ export function makeRetarget(src, tgt, restQ) {
       const local = worldOf(tb.parent).clone().invert().multiply(W);
       worldT.set(tb, W); q.set(tb, local);
     }
-    const hp = src.bone("Hips").getWorldPosition(V()).sub(S0.hips).multiplyScalar(scale);
+    // الوسط: بناخد بس تغيّره حوالين متوسطه في الكليب (تمايل ونفَس)، مش ارتفاعه الثابت (الممثل الأصلي واقف أوطى/أعلى من وضعه الأصلي)
+    const hp = src.bone("Hips").getWorldPosition(V()).sub(S0.hips);
+    for (const L of layers) hp.addScaledVector(hipsMean(L.clip), -L.w);
+    hp.multiplyScalar(scale);
     return { q, hips: hp, abdFix };
   }
   return { sample, scale, abdFix };

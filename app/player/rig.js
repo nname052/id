@@ -99,11 +99,12 @@ function aim(bone, child, target) { // بيوجّه العضمة علشان ال
 }
 // IK بعضمتين: الكوع بيتحسب من طول العضمتين واتجاه الـ pole
 // soft: الدراع قرب الفرد الكامل بيتفرد بنعومة (acos عند الفرد الكامل سرعته لانهائية، فالكوع كان بيتني فجأة أول ما الإيد تبدأ تطلع)
-function twoBone(upper, lower, end, L1, L2, target, pole, soft = false) {
+function twoBone(upper, lower, end, L1, L2, target, pole, soft = 0, band = 0.14) { // soft: 0..1 (أو true)، band: عرض منطقة الفرد الناعم (نسبة من الطول)
   const a = upper.getWorldPosition(V());
   const t = target.clone().sub(a);
-  const Lm = L1 + L2, s0 = 0.86 * Lm, sw = 0.138 * Lm;
-  const dRaw = soft && t.length() > s0 ? s0 + sw * Math.tanh((t.length() - s0) / sw) : t.length();
+  const Lm = L1 + L2, s0 = (1 - band) * Lm, sw = (band - 0.002) * Lm;
+  const sw0 = soft === true ? 1 : +soft || 0, tl = t.length();
+  const dRaw = sw0 > 0 && tl > s0 ? lerp(tl, s0 + sw * Math.tanh((tl - s0) / sw), sw0) : tl;
   const d = clamp(dRaw, Math.abs(L1 - L2) + 1e-3, Lm * 0.999);
   const dir = t.normalize();
   const cosA = clamp((L1 * L1 + d * d - L2 * L2) / (2 * L1 * d), -1, 1), sinA = Math.sqrt(1 - cosA * cosA);
@@ -363,7 +364,8 @@ export function applyPose(R, st) {
     // خطوة حقيقية: الرجل متثبتة في مكان في العالم (ما بتتزحلقش)، وبتترفع بس وهي بتتنقل
     if (st.feetW && st.feetW[S]) { const fw = st.feetW[S]; target = new THREE.Vector3(fw.x, s.ankleH + (fw.lift || 0) + (R.ground || 0), fw.z); fy = s.ankleH + (fw.lift || 0); }
       const pole = toW(sgn * 0.12, 0, 1).normalize();
-      twoBone(s.up, s.leg, s.foot, s.Lu, s.Ll, target, pole);
+      // الرجل اللي في الهوا (خطوة) بتتفرد بنعومة قرب الفرد الكامل (نفس حل الكوع)؛ المزروعة على الأرض بالظبط
+      twoBone(s.up, s.leg, s.foot, s.Lu, s.Ll, target, pole, smooth((fy - s.ankleH) / (0.025 * k)), 0.06);
       // الرجل مفرودة على الأرض ووشها لقدام
       // الرجل المزروعة على الأرض بتفضل مفرودة بالظبط زي الوقفة العادية (بتلف بس مع اتجاه الجسم)، فالنعل ما يغطسش ولا يميل
       { const want = rootQ.clone().multiply(s.footQ0);
@@ -431,7 +433,7 @@ export function applyPose(R, st) {
     if (rch && rch.w > 0) target.lerp(rch.point, clamp(rch.w));
     const pole = new THREE.Vector3(A.pole[0] * sgn, A.pole[1], A.pole[2]).applyQuaternion(rootQ).applyQuaternion(chestDelta).normalize();
     // وهي ماسكة/بتمد إيدها: الكوع ثابت لتحت ولبره (زي الطبيعي) علشان الدراع ما يتقلبش وهي بترجع
-    if (rch && rch.w > 0) pole.lerp(new THREE.Vector3(0.55 * sgn, -1, -0.25).applyQuaternion(rootQ).normalize(), clamp(rch.w * 1.5)).normalize();
+    if (rch && rch.w > 0) pole.lerp(new THREE.Vector3(0.55 * sgn, -1, -0.25).applyQuaternion(rootQ).normalize(), smooth(rch.w)).normalize();
     twoBone(s.arm, s.fore, s.hand, s.La, s.Lf, target, pole, true);
     // اتجاه الكف والصوابع
     const f1 = s.fingers[1] && s.fingers[1][0], ix = s.fingers[0] && s.fingers[0][0], pk = s.fingers[3] && s.fingers[3][0];
@@ -475,7 +477,7 @@ export function applyPose(R, st) {
   // الإيد اللي ماسكة حاجة (reach) ما بتتدمجش علشان تفضل على الحاجة بالظبط
   if (BQ) for (const [S, key] of [["Left", "L"], ["Right", "R"]]) {
     const s = R.side[S], rch = st.reach && st.reach[key];
-    const w = baseW * clamp(P[key].clip || 0) * (1 - clamp(rch && rch.w ? rch.w * 1.5 : 0));
+    const w = baseW * clamp(P[key].clip || 0) * (1 - smooth(rch && rch.w ? rch.w : 0));
     if (w <= 1e-4) continue;
     for (const b of [s.arm, s.fore, s.hand, ...(s.fingers || []).flat()]) { const qb = b && BQ.get(b); if (qb) b.quaternion.slerp(qb, w); }
     // تصحيح التلامس: الجسم ده عرضه غير الجسم اللي اتسجلت عليه الحركة، فالدراع الحر بيقرّب/يبعد بالفرق.
@@ -496,17 +498,43 @@ export { MOTIONS };
 
 // خطوة واحدة من مكان لمكان: الرجل اللي قدام بتتنقل الأول (0–55%) والتانية وراها (45–100%)، والجسم ماشي بينهم بنعومة.
 // بيرجّع { root, feetW } لاستخدامهم في applyPose. lead = "Left" | "Right"
+// إشارة على حاجة/شخص في العالم: بيختار الإيد اللي في ناحية الهدف، الدراع بيتمد ناحيته (من غير ما يعدّي قدام الجسم)،
+// السبابة بتشاور عليه، والجسم بيلف شوية ناحيته. كله من مكان الجذر (مش من الوضعية الحالية) فمفيش ارتعاش.
+// بيرجّع { side, reach: {L|R: ...}, bodyAdd: {turn} } يتدمجوا مع باقي الوضعية
+export function pointAt(R, rootPos, face, target, w = 1, side = null) {
+  const k = R.k, q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), face), qi = q.clone().invert();
+  const loc = target.clone().sub(rootPos).applyQuaternion(qi);
+  const S = side || (loc.x >= 0 ? "Left" : "Right"), s = R.side[S], key = S === "Left" ? "L" : "R";
+  // الجسم بيلف ثلث الزاوية ناحية الهدف (والباقي الدراع)
+  const yaw = Math.atan2(loc.x, loc.z) / D, turn = clamp(yaw * 0.3, -25, 25) * smooth(w);
+  const qT = q.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), turn * D));
+  const sh = new THREE.Vector3(s.shX0, s.shY0, 0).applyQuaternion(qT).add(new THREE.Vector3(rootPos.x, R.ground || 0, rootPos.z));
+  const dir = target.clone().sub(sh).normalize();
+  // الإيد مش لازم تعدّي قدام الجسم: الاتجاه الأفقي بيتحدّ عند خط النص
+  const side3 = new THREE.Vector3(s.sign, 0, 0).applyQuaternion(qT);
+  if (dir.dot(side3) < -0.05) dir.addScaledVector(side3, -0.05 - dir.dot(side3)).normalize();
+  dir.y = Math.min(dir.y, 0.25) - 0.08; dir.normalize();                 // لتحت سنة (زي الإشارة الطبيعية)
+  const point = sh.clone().addScaledVector(dir, (s.La + s.Lf) * 0.86);
+  const palm = new THREE.Vector3(0, -1, 0).addScaledVector(dir, 0.3).addScaledVector(side3, -0.4).normalize();
+  return { side: S, reach: { [key]: { point, fing: dir, palm, w: clamp(w), curls: [0, 92, 95, 95, 40] } }, bodyAdd: { turn: S === "Left" ? turn : turn } };
+}
+
 export function stepAt(R, P0, P1, face, p, lead = "Right") {
   const k = R.k, q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), face);
   const foot = (side, P) => { const s = R.side[side]; return new THREE.Vector3(s.footX, 0, 0.02 * k).applyQuaternion(q).add(P); };
   const feetW = {};
+  // رفعة الرجل حسب اتجاه الخطوة: لقدام بترتفع (~6 سم)، لورا أو للجنب بالكاد (~3 سم، زي الحقيقة) — فالركبة ما تتنيش زيادة
+  const mv = P1.clone().sub(P0), fwdDot = mv.length() > 1e-6 ? mv.clone().normalize().dot(new THREE.Vector3(0, 0, 1).applyQuaternion(q)) : 1;
+  const liftH = lerp(0.032, 0.06, smooth((fwdDot + 0.2) / 1.0)) * k;
   for (const side of ["Left", "Right"]) {
     const isLead = side === lead, u = isLead ? smooth(p / 0.55) : smooth((p - 0.45) / 0.55);
     const a = foot(side, P0), b = foot(side, P1), pos = a.clone().lerp(b, u);
-    feetW[side] = { x: pos.x, z: pos.z, lift: Math.sin(Math.PI * clamp(u)) ** 2 * 0.075 * k * Math.min(1, a.distanceTo(b) / (0.15 * k)) };
+    feetW[side] = { x: pos.x, z: pos.z, lift: Math.sin(Math.PI * clamp(u)) ** 2 * liftH * Math.min(1, a.distanceTo(b) / (0.15 * k)) };
   }
   // الرفعة sin² (مش sin): الركبة المفرودة بتبدأ تتني بنعومة من غير نطّة لحظة ما الرجل تسيب الأرض
   // الجسم بيتنقل مع الرجلين، وبيوطى شوية في نص الخطوة
   const root = P0.clone().lerp(P1, smooth(p));
-  return { root, feetW, dip: Math.sin(Math.PI * clamp(p)) * 0.015 * k };
+  // الوسط بيوطى شوية في نص الخطوة (الركب مش بتتفرد على الآخر) — كقيمة crouch تتحط في bodyAdd
+  const dip = Math.sin(Math.PI * clamp(p)) ** 2 * 0.025 * k;
+  return { root, feetW, dip, crouch: dip / (R.hipsW0.y * 0.42) };
 }
