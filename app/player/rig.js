@@ -76,13 +76,16 @@ const _tmpQ = Q(), _tmpQ2 = Q(), _tmpV = V(), _tmpV2 = V();
 // الرسغ بيلف اتجاه الصوابع من اتجاه الساعد a ناحية b بنسبة w.
 // لو الاتجاهين قريبين من العكس (الدراع لتحت والصوابع المطلوبة لفوق) الاتجاه مش محدد، فبنثني ناحية الكف (زي الإيد الحقيقية)،
 // والثنية محدودة ~95° (الرسغ مبيتنيش 180°)؛ الباقي بيكمّله الساعد وهو طالع
-function bendDir(a, b, w, palm) {
+function bendDir(a, b, w, palm, lim = [70, 100]) {
   const cs = clamp(a.dot(b), -1, 1), d = b.clone().addScaledVector(a, -cs), sn = d.length();
+  // التحيّز ناحية الكف بس لما الاتجاهين قريبين من العكس (غير كده الاتجاه بيوصل للمطلوب بالظبط)
   const pp = palm.clone().addScaledVector(a, -palm.dot(a));
-  if (pp.lengthSq() > 1e-8) d.addScaledVector(pp.normalize(), 0.35 * smooth((0.45 - sn) / 0.45));
+  if (pp.lengthSq() > 1e-8) d.addScaledVector(pp.normalize(), 0.35 * smooth((0.45 - sn) / 0.45) * smooth((-cs - 0.6) / 0.35));
   if (d.lengthSq() < 1e-10) return a.clone();
   d.normalize();
-  const cap = 95 * D, phi = cap * Math.tanh((Math.atan2(sn, cs) * w) / cap);
+  // حد الرسغ: مظبوط بالظبط لحد lim[0] درجة، وبعدها بيتقفل بنعومة لحد lim[1]
+  const x = Math.atan2(sn, cs) * w, c0 = lim[0] * D, c1 = lim[1] * D;
+  const phi = x <= c0 ? x : c0 + (c1 - c0) * Math.tanh((x - c0) / (c1 - c0));
   return a.clone().multiplyScalar(Math.cos(phi)).addScaledVector(d, Math.sin(phi)).normalize();
 }
 function rotateWorld(bone, q) { // بيلف العضمة لفّة في إحداثيات العالم
@@ -442,25 +445,32 @@ export function applyPose(R, st) {
       const foreDir = hw.clone().sub(s.fore.getWorldPosition(V())).normalize();
       // الاتجاه بيلف على قوس (مش خلط خطّي): من تحت لفوق الخلط الخطي بيعدّي على صفر ويتقلب فجأة
       const palmW = new THREE.Vector3(A.palm[0] * sgn, A.palm[1], A.palm[2]).applyQuaternion(rootQ).applyQuaternion(chestDelta);
-      if (rch && rch.palm && rch.w > 0) palmW.lerp(rch.palm, clamp(rch.w));
       let fingDesired = A.fing && A.fingW > 0.01
         ? bendDir(foreDir, new THREE.Vector3(A.fing[0] * sgn, A.fing[1], A.fing[2]).applyQuaternion(rootQ).applyQuaternion(chestDelta).normalize(), A.fingW, palmW)
         : foreDir;
-      if (rch && rch.fing && rch.w > 0) fingDesired = bendDir(fingDesired, rch.fing, clamp(rch.w), palmW);
-      // الكف كله في دورة واحدة: من إطار الإيد الحالي (صوابع + كف) لإطار الهدف.
-      // (لفّ الصوابع الأول وبعدين الكف كان بيتقلب 180° لما الصوابع تعكس اتجاهها، زي الإيد وهي طالعة للدقن)
       const fwd = f1.getWorldPosition(V()).sub(hw).normalize();
       const acr = ix.getWorldPosition(V()).sub(pk.getWorldPosition(V())).normalize();
       const normal = fwd.clone().cross(acr).multiplyScalar(s.normSign);
       normal.sub(fwd.clone().multiplyScalar(normal.dot(fwd))).normalize();
-      const want = new THREE.Vector3(A.palm[0] * sgn, A.palm[1], A.palm[2]).applyQuaternion(rootQ).applyQuaternion(chestDelta);
-      if (rch && rch.palm && rch.w > 0) want.lerp(rch.palm, clamp(rch.w));
-      want.sub(fingDesired.clone().multiplyScalar(want.dot(fingDesired)));
-      // لو الكف المطلوب موازي للصوابع (مش محدد): نسيب الكف على أقرب وضع ليه بنعومة بدل ما نختار عشوائي
-      const nSw = normal.clone().applyQuaternion(Q().setFromUnitVectors(fwd, fingDesired));
-      want.addScaledVector(nSw, 0.002 + 0.3 * smooth((0.3 - want.length()) / 0.3));
-      want.sub(fingDesired.clone().multiplyScalar(want.dot(fingDesired))).normalize();
+      // كف عمودي على الصوابع؛ لو الكف المطلوب موازي للصوابع (مش محدد) بنسيبه على أقرب وضع ليه بنعومة
+      const perpPalm = (f, want) => {
+        const w2 = want.clone().addScaledVector(f, -want.dot(f));
+        const nSw = normal.clone().applyQuaternion(Q().setFromUnitVectors(fwd, f));
+        w2.addScaledVector(nSw, 0.002 + 0.3 * smooth((0.3 - w2.length()) / 0.3));
+        return w2.addScaledVector(f, -w2.dot(f)).normalize();
+      };
       const frame = (f, n) => new THREE.Matrix4().makeBasis(f, n, f.clone().cross(n));
+      let want = perpPalm(fingDesired, palmW);
+      // مسك حاجة: إطار الإيد كله (صوابع + كف) بيتدمج كدوران (slerp) من إطار الوضعية لإطار المسكة،
+      // فمفيش نقطة في النص الكف فيها بيبقى موازي للصوابع ويتقلب، وعند w=1 الاتجاه مظبوط بالظبط (الحاجة ما تلفّش ولا تميل)
+      if (rch && rch.fing && rch.w > 0) {
+        const f1w = rch.fing.clone().normalize(), p1w = perpPalm(f1w, rch.palm || palmW);
+        // نقطة البداية: إطار الوضعية، ولو الدراع حر (بيرجع للحركة المسجّلة) إطار الإيد الفعلي دلوقتي (دايمًا محدد)
+        const qa = Q().setFromRotationMatrix(frame(fingDesired, want)).slerp(Q().setFromRotationMatrix(frame(fwd, normal)), clamp(A.clip || 0));
+        const qb = Q().setFromRotationMatrix(frame(f1w, p1w));
+        const qw = qa.slerp(qb, clamp(rch.w));
+        fingDesired = new THREE.Vector3(1, 0, 0).applyQuaternion(qw); want = new THREE.Vector3(0, 1, 0).applyQuaternion(qw);
+      }
       const qFrom = Q().setFromRotationMatrix(frame(fwd, normal)), qTo = Q().setFromRotationMatrix(frame(fingDesired, want));
       rotateWorld(s.hand, qTo.multiply(qFrom.invert()));
       // الصوابع: انثناء ناحية الكف

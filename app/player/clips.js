@@ -89,7 +89,7 @@ export function makeRetarget(src, tgt, restQ) {
   // وضعية المصدر لما يتدمج كذا كليب بأوزان: [{clip, time, w}]
   function poseSource(layers) {
     for (const a of actions.values()) a.setEffectiveWeight(0);
-    for (const b of srcRest.keys()) b.quaternion.copy(srcRest.get(b));
+    // من غير ما نرجّع العضم للوضع الأصلي يدوي: three بيتخطى تطبيق القيمة لو هي نفس آخر قيمة اتطبقت، فالرجوع اليدوي كان بيعلق (فريم بوضع T)
     for (const L of layers) { const a = action(L.clip); a.setEffectiveWeight(L.w); a.time = L.time; }
     mixer.update(0);
     src.root.rotation.y = 0; src.root.position.set(0, 0, 0); src.root.updateMatrixWorld(true);

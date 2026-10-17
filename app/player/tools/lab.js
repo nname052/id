@@ -5,7 +5,7 @@ import * as THREE from "three";
 import { character, buildSet, lights, engine, settled, loadClip } from "/player/player3d.js";
 import { makeRetarget, clipTrack } from "/player/clips.js";
 import { setupRig, buildPerformance, applyPose, stepAt, pointAt } from "/player/rig.js";
-import { makeGrasp, fingerPoints, standFor, sdfLocal } from "/player/grasp.js";
+import { makeGrasp, fingerPoints, standFor, sdfLocal, handSkin, eachSkin } from "/player/grasp.js";
 import { makeFace } from "/player/face.js";
 
 const W = 1080, H = 1920;
@@ -147,8 +147,21 @@ async function sceneCup(scene, opts) {
       gs.placeObject();
       if (face) face(t, "neutral", t > 4.9 ? "smile" : "neutral", smooth((t - 4.9) / 0.8));
       // قياس المسكة: أقرب عقلة لسطح الكوباية (سالب = دخلت جواها)
-      const pen = gs.mode === "held" ? gs.contact() : null;
-      return { mode: gs.mode, pen, cupY: c.position.y, cupGap: c.position.y - tb.top, actors: [R] };
+      const ct = gs.mode === "held" ? gs.contact() : null, pen = ct ? Math.min(ct.palm, ct.fingers) : null;
+      // قياسات المسكة من جلد الإيد نفسه
+      const s = R.side.Right, hv = handSkin(ch, s), inv = new THREE.Matrix4().compose(c.position, c.quaternion, new THREE.Vector3(1, 1, 1)).invert();
+      const sd = (p) => sdfLocal(OB.shape, p.clone().applyMatrix4(inv));
+      let low = Infinity, palmD = Infinity, fingD = Infinity; const pc = new THREE.Vector3(); let n = 0;
+      let overLow = Infinity; const edgeZw = edgeZ;
+      eachSkin(hv.palm, (v) => { low = Math.min(low, v.y); palmD = Math.min(palmD, sd(v)); pc.add(v); n++; if (v.z > edgeZw) overLow = Math.min(overLow, v.y); });
+      eachSkin(hv.fing.flat(2), (v) => { low = Math.min(low, v.y); fingD = Math.min(fingD, sd(v)); if (v.z > edgeZw) overLow = Math.min(overLow, v.y); });
+      pc.divideScalar(Math.max(1, n));
+      const tips = [0, 1, 2, 3, 4].map((fi) => +(sd(fingerPoints(s, fi).pop()) * 1000).toFixed(1));
+      const hm = s.hand.matrixWorld.clone().invert(), rel = c.position.clone().applyMatrix4(hm);
+      const grip = { overTableLowY: isFinite(overLow) ? +overLow.toFixed(4) : null, wristY: +s.hand.getWorldPosition(new THREE.Vector3()).y.toFixed(4), handLowY: +low.toFixed(4), tableTop: tb.top,
+        palmSkinMM: +(palmD * 1000).toFixed(1), fingSkinMM: +(fingD * 1000).toFixed(1), palmCenterMM: +(sd(pc) * 1000).toFixed(1), tipsMM: ct ? ct.tips.map((x) => +(x * 1000).toFixed(1)) : tips,
+        cup: c.position.toArray().map((x) => +x.toFixed(4)), cupInHand: rel.toArray().map((x) => +(x * 100).toFixed(2)) };
+      return { mode: gs.mode, pen, grip, cupY: c.position.y, cupGap: c.position.y - tb.top, actors: [R] };
     },
     cameras: { wide: { pos: [1.15, 1.45, 2.35], look: [0, 1.05, 0.25], fov: 34 }, hand: { pos: [0.5, 1.2, 1.15], look: [-0.06, 0.98, 0.32], fov: 30 },
       handBack: { pos: [-0.75, 1.25, 1.0], look: [-0.08, 0.98, 0.3], fov: 28 } },
