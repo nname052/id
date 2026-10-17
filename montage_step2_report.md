@@ -1,6 +1,6 @@
 # Montage, Step 2: staged, reviewable automatic editor
 
-Branch: `autovideo-motion-v2`. Built on the Step 1 skeleton (`a8b9b5c`); upload, analysis, the manual editor and the SHA-256 check are kept. Free tools only: FFmpeg, PySceneDetect, faster-whisper 1.2.1 (CPU, int8). No paid APIs, no GPU, no ElevenLabs credits. `grasp.js`, `rig.js`, the motion/scene code and the "New video" pipeline were not changed.
+Commit: `29a99db` (branch `autovideo-motion-v2`). Built on the Step 1 skeleton (`a8b9b5c`); upload, analysis, the manual editor and the SHA-256 check are kept. Free tools only: FFmpeg, PySceneDetect, faster-whisper 1.2.1 (CPU, int8). No paid APIs, no GPU, no ElevenLabs credits. `grasp.js`, `rig.js`, the motion/scene code and the "New video" pipeline were not changed.
 
 ## What was built
 - **Modes:** BASIC (default, 4 stages) or ADVANCED (7 stages), saved per montage. Switching mode keeps every saved version.
