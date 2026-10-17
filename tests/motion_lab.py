@@ -11,6 +11,7 @@ import sys
 from playwright.sync_api import sync_playwright
 
 name, cam, out = sys.argv[1], sys.argv[2], sys.argv[3]
+opts = json.loads(sys.argv[4]) if len(sys.argv) > 4 else {}
 FPS = 30
 with sync_playwright() as pw:
     b = pw.chromium.launch(args=["--use-angle=metal"])
@@ -19,7 +20,7 @@ with sync_playwright() as pw:
     pg.on("pageerror", lambda e: errs.append(str(e)))
     pg.goto("http://127.0.0.1:8000/player/tools/lab.html")
     pg.wait_for_function("window.labReady === true", timeout=60000)
-    dur = pg.evaluate(f"window.setupLab({json.dumps(name)}, {json.dumps(cam)})")
+    dur = pg.evaluate(f"window.setupLab({json.dumps(name)}, {json.dumps(cam)}, {json.dumps(opts)})")
     ff = subprocess.Popen(["ffmpeg", "-loglevel", "error", "-y", "-f", "image2pipe", "-framerate", str(FPS), "-i", "-",
                            "-vf", "scale=540:960", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "20", out + ".mp4"], stdin=subprocess.PIPE)
     rows = []

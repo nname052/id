@@ -1,33 +1,35 @@
-// مسك الحاجات: الإيد بتروح للحاجة (IK)، والصوابع بتتقفل لحد ما تلمس سطحها الحقيقي (من غير ما تدخل فيها)،
-// والحاجة بتتحرك مع الإيد وهي ماسكاها، ولما تتحط بتقعد على السطح بالظبط.
-// كله محسوب من t: بنقيس المسكة مرة واحدة في البداية (وضعية لحظة المسك) وبعدين كل فريم بيتحسب لوحده.
+// نظام مسك واحد لأي حاجة (كوباية، كتاب، موبايل…): الحاجة متوصّفة بشكلها (اسطوانة أو صندوق) كـ "دالة مسافة" (SDF)،
+// ونوع المسكة بيتختار من الشكل نفسه: الحاجة الطويلة بتتمسك من الجنب (الإبهام لفوق)، والمسطحة من فوق (الكف لتحت).
+// الإيد بتروح للحاجة (IK)، والصوابع والإبهام بيتقفلوا لحد ما يلمسوا السطح الحقيقي (من غير ما يدخلوا فيه)،
+// والحاجة بتتحرك مع الإيد وهي ماسكاها، ولما تتحط بتقعد على السطح بالظبط وعدلة.
+// كله محسوب من t: المسكة بتتقاس مرة واحدة في البداية، وبعدين كل فريم بيتحسب لوحده.
 import * as THREE from "three";
+import { poseFingers } from "./rig.js";
 
 const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
 const smooth = (x) => (x = clamp(x), x * x * (3 - 2 * x));
 const lerp = (a, b, p) => a + (b - a) * p;
-const D = Math.PI / 180;
-const V = () => new THREE.Vector3();
+const V = () => new THREE.Vector3(), Q = () => new THREE.Quaternion();
+const UP = new THREE.Vector3(0, 1, 0);
 
-function rotateWorld(bone, q) {
-  const pq = bone.parent.getWorldQuaternion(new THREE.Quaternion()).invert();
-  const wq = bone.getWorldQuaternion(new THREE.Quaternion());
-  bone.quaternion.copy(pq.multiply(q.clone().multiply(wq)));
-  bone.updateMatrixWorld(true);
+// ---------- الشكل ----------
+// shape = { kind: "cylinder", r, h } | { kind: "box", w, h, d } — نقطة الأصل في نص القاعدة
+export function sdfLocal(shape, p) {
+  if (shape.kind === "cylinder") {
+    const dr = Math.hypot(p.x, p.z) - shape.r, dy = Math.abs(p.y - shape.h / 2) - shape.h / 2;
+    return Math.min(Math.max(dr, dy), 0) + Math.hypot(Math.max(dr, 0), Math.max(dy, 0));
+  }
+  const q = [Math.abs(p.x) - shape.w / 2, Math.abs(p.y - shape.h / 2) - shape.h / 2, Math.abs(p.z) - shape.d / 2];
+  return Math.hypot(...q.map((v) => Math.max(v, 0))) + Math.min(Math.max(...q), 0);
 }
-// نفس طريقة ثني الصوابع اللي في rig.js (لصباع واحد)
-function curlChain(s, fi, deg) {
-  const chain = s.fingers[fi], ang = deg * D;
-  const n0 = chain[1] || chain[0].children.find((c) => c.isBone);
-  const hinge = n0 ? n0.getWorldPosition(V()).sub(chain[0].getWorldPosition(V())).normalize().cross(s.palmN).normalize() : s.palmN.clone();
-  chain.forEach((bone, ji) => {
-    const nxt = chain[ji + 1] || bone.children.find((c) => c.isBone);
-    if (!nxt) return;
-    const axis = fi === 4 ? s.palmN.clone() : hinge;
-    const a = fi === 4 ? -ang * 0.5 * s.sgn : ang * (ji === 0 ? 0.8 : 1);
-    if (axis.lengthSq() > 1e-6) rotateWorld(bone, new THREE.Quaternion().setFromAxisAngle(axis, a));
-  });
+// نص عرض الحاجة في اتجاه أفقي u (بعد لفّة الحاجة)
+function extentAlong(shape, q, u) {
+  if (shape.kind === "cylinder") return shape.r;
+  const ux = new THREE.Vector3(1, 0, 0).applyQuaternion(q), uz = new THREE.Vector3(0, 0, 1).applyQuaternion(q);
+  return Math.abs(u.dot(ux)) * shape.w / 2 + Math.abs(u.dot(uz)) * shape.d / 2;
 }
+const isFlat = (shape) => shape.h < 0.05;
+
 // مكان طرف الصباع (آخر عقلة + طولها تقريبًا)
 export function fingerPoints(s, fi) {
   const c = s.fingers[fi], pts = c.map((b) => b.getWorldPosition(V()));
@@ -35,97 +37,148 @@ export function fingerPoints(s, fi) {
   if (n >= 2) pts.push(pts[n - 1].clone().add(pts[n - 1].clone().sub(pts[n - 2]).multiplyScalar(0.85)));
   return pts;
 }
-// بُعد نقطة عن محور الكوباية (خط رأسي)
-const axisDist = (p, c) => Math.hypot(p.x - c.x, p.z - c.z);
 
-/** cfg = { R, side: "Right", obj, radius, height, from (قاعدة الحاجة على الترابيزة), to (مكان الحطّ),
- *   t: { reach, grasp, lift, place, release, back }, pose(t, reach) ← بيطبّق وضعية الشخصية كلها في لحظة t }
+// ---------- مكان الوقفة ----------
+// الشخص بيقف قدام حرف السطح (edge: {point, normal لناحية الشخص}) بحيث كتف الإيد اللي هتمسك يبقى في صف الحاجة،
+// والجسم بعيد عن الحرف مسافة مريحة. ده اللي بيمنع الانحناء الزيادة (السبب، مش الميلة).
+export function standFor(R, objPos, edge, side = "Right", gap = 0.05) {
+  const k = R.k, n = edge.normal.clone().setY(0).normalize();
+  const face = Math.atan2(-n.x, -n.z);                                    // الوش ناحية السطح
+  const lateral = new THREE.Vector3(1, 0, 0).applyAxisAngle(UP, face);    // شمال الشخص
+  const shX = (R.side[side].sign > 0 ? 1 : -1) * Math.abs(R.side[side].shX0 || 0.17 * k);
+  const front = 0.13 * k + gap;                                            // من نص الجسم لقدام البطن + مسافة
+  const onEdge = objPos.clone().addScaledVector(n, n.dot(edge.point.clone().sub(objPos))); // على الحرف قدام الحاجة
+  const pos = onEdge.addScaledVector(n, front).addScaledVector(lateral, -shX * 0.6);
+  pos.y = 0;
+  return { pos, face };
+}
+
+/** cfg = { R, side, obj, shape (أو radius/height = اسطوانة), from (قاعدة الحاجة), to (مكان الحطّ),
+ *   t: { reach, grasp, lift, place, release, back }, pose(t, reach, extra) ← بيطبّق وضعية الشخصية كلها في لحظة t }
  *  بيرجّع update(t) ← بيدّي reach للدراع، ومكان الحاجة، و bodyAdd (استعداد/متابعة) */
 export function makeGrasp(cfg) {
-  const { R, obj, radius, height } = cfg, S = cfg.side || "Right", key = S === "Right" ? "R" : "L", s = R.side[S], k = R.k;
+  const { R, obj } = cfg, S = cfg.side || "Right", key = S === "Right" ? "R" : "L", s = R.side[S], k = R.k;
+  const shape = cfg.shape || { kind: "cylinder", r: cfg.radius, h: cfg.height };
   const T = cfg.t, from = cfg.from.clone(), to = cfg.to.clone();
-  const up = new THREE.Vector3(0, 1, 0);
+  const q0 = obj.quaternion.clone();
   obj.position.copy(from);
+  const rootQ = () => R.ch.root.getWorldQuaternion(Q());
+  const lateralOut = () => new THREE.Vector3(s.sign > 0 ? 1 : -1, 0, 0).applyQuaternion(rootQ()); // ناحية الإيد لبره
+  const bodyFwd = () => new THREE.Vector3(0, 0, 1).applyQuaternion(rootQ());
 
-  // شكل المسكة حوالين نقطة p (قاعدة الكوباية): الكف بيبص للكوباية من ناحية الكتف، والصوابع بتلف حواليها
-  const gripAt = (base, shoulder, leftDir) => {
-    const a = shoulder.clone().sub(base); a.y = 0; a.normalize();                 // من الكوباية للكتف (أفقي)
-    const fing = up.clone().cross(a).normalize(); if (fing.dot(leftDir) < 0) fing.negate(); // الصوابع ناحية نص الجسم
-    const palm = a.clone().negate();                                                 // الكف بيبص للكوباية
-    const palmC = base.clone().add(up.clone().multiplyScalar(height * 0.42)).add(a.clone().multiplyScalar(radius + 0.024 * k));
-    const wrist = palmC.clone().sub(fing.clone().multiplyScalar(0.06 * k)).add(a.clone().multiplyScalar(0.012 * k));
+  // اتجاه الإبهام بالنسبة لإطار الإيد (الصوابع × الكف): بيتقاس مرة من الهيكل نفسه
+  cfg.pose(T.grasp, null, { noCurl: true });
+  const hw0 = s.hand.getWorldPosition(V()), f0 = s.fingers[1][0].getWorldPosition(V()).sub(hw0).normalize();
+  const th0 = s.fingers[4][0].getWorldPosition(V()).sub(hw0);
+  const thumbSign = Math.sign(th0.dot(f0.clone().cross(s.palmN))) || 1;
+  const thumbDir = (fing, palm) => fing.clone().cross(palm).multiplyScalar(thumbSign);
+
+  // شكل المسكة حوالين قاعدة الحاجة base
+  const gripAt = (base, q, shoulder) => {
+    if (isFlat(shape)) {
+      // من فوق: الكف لتحت، والصوابع على العرض الأقصر (بتقفل على الحرفين)، ناحية بعيد عن الجسم
+      const palm = UP.clone().negate();
+      let fing = shape.kind === "box" && shape.w < shape.d ? new THREE.Vector3(1, 0, 0).applyQuaternion(q) : new THREE.Vector3(0, 0, 1).applyQuaternion(q);
+      if (fing.dot(bodyFwd()) < 0) fing.negate();
+      const palmC = base.clone().addScaledVector(UP, shape.h + 0.03 * k);
+      const wrist = palmC.clone().addScaledVector(fing, -0.07 * k).addScaledVector(UP, 0.015 * k);
+      return { wrist, fing, palm, a: UP.clone() };
+    }
+    // من الجنب: الإيد جاية من ناحيتها (برّه + شوية من ناحية الكتف)، الكف بيبص للحاجة، والإبهام لفوق (زي الحقيقة)
+    const toSh = shoulder.clone().sub(base).setY(0).normalize();
+    const a = lateralOut().multiplyScalar(1).addScaledVector(toSh, 0.6).setY(0).normalize();
+    const palm = a.clone().negate();
+    let fing = UP.clone().cross(a).normalize();
+    if (thumbDir(fing, palm).y < 0) fing.negate();
+    const hgt = Math.min(shape.h * 0.45, shape.h - 0.025);
+    const palmC = base.clone().addScaledVector(UP, hgt).addScaledVector(a, extentAlong(shape, q, a) + 0.022 * k);
+    const wrist = palmC.clone().addScaledVector(fing, -0.06 * k).addScaledVector(a, 0.012 * k);
     return { wrist, fing, palm, a };
   };
-  const ctxAt = (t) => { // مكان الكتف واتجاه الشمال للشخصية في لحظة t (من وضعية من غير مسكة)
-    cfg.pose(t, null);
-    const sh = s.arm.getWorldPosition(V());
-    const left = new THREE.Vector3(1, 0, 0).applyQuaternion(R.ch.root.getWorldQuaternion(new THREE.Quaternion())).multiplyScalar(s.sign > 0 ? -1 : 1);
-    return { sh, left };
-  };
+  const shoulderAt = (t) => { cfg.pose(t, null); return s.arm.getWorldPosition(V()); };
 
-  // 1) قياس المسكة في لحظة المسك: الصوابع مفرودة، وبعدين كل صباع بيتني لحد ما يلمس السطح
-  const c0 = ctxAt(T.grasp), G0 = gripAt(from, c0.sh, c0.left);
+  // 1) قياس المسكة لحظة المسك: الصوابع مفرودة، وبعدين كل صباع (والإبهام بمعاكسته) بيتقفل لحد ما يلمس السطح
+  let G0 = gripAt(from, q0, shoulderAt(T.grasp));
   const reachFull = (g, curls) => ({ [key]: { point: g.wrist, fing: g.fing, palm: g.palm, w: 1, curls } });
-  cfg.pose(T.grasp, reachFull(G0, null), { noCurl: true });
-  const axisC = from.clone();
-  const curls = [0, 0, 0, 0, 0];
-  for (let fi = 0; fi < 5; fi++) {
+  const objInv = new THREE.Matrix4().compose(from, q0, new THREE.Vector3(1, 1, 1)).invert();
+  const sdf = (p) => sdfLocal(shape, p.clone().applyMatrix4(objInv));
+  // الإيد المفتوحة كلها لازم تبقى برّه الحاجة قبل القفل: لو أي عقلة جوّه، الرسغ بيرجع لورا في اتجاه المسكة بقد الفرق
+  for (let i = 0; i < 5; i++) {
+    cfg.pose(T.grasp, reachFull(G0, null), { noCurl: true });
+    let m = sdf(s.hand.getWorldPosition(V()));
+    for (let fi = 0; fi < 5; fi++) for (const p of fingerPoints(s, fi)) m = Math.min(m, sdf(p));
+    if (m >= 0.007) break;
+    G0 = { ...G0, wrist: G0.wrist.clone().addScaledVector(G0.a, 0.007 - m + 0.002) };
+  }
+  const allBones = s.fingers.flat();
+  const saved = allBones.map((b) => b.quaternion.clone());
+  const restore = () => { allBones.forEach((b, i) => b.quaternion.copy(saved[i])); s.hand.updateMatrixWorld(true); };
+  const TOUCH = 0.011, SKIN = 0.005;
+  const tryCurl = (fi, c) => { restore(); poseFingers(s, c, s.sgn); const pts = fingerPoints(s, fi); return { tip: sdf(pts[pts.length - 1]), inside: pts.slice(1).some((p) => sdf(p) < SKIN) }; };
+  const curls = [0, 0, 0, 0, 0, 0];
+  for (let fi = 0; fi < 4; fi++) {
     if (!s.fingers[fi] || !s.fingers[fi].length) continue;
-    const saved = s.fingers[fi].map((b) => b.quaternion.clone());
-    const restore = () => { s.fingers[fi].forEach((b, i) => b.quaternion.copy(saved[i])); s.fingers[fi][0].updateMatrixWorld(true); };
     let best = 0, bestErr = Infinity;
     for (let deg = 0; deg <= 115; deg += 2.5) {
-      restore(); curlChain(s, fi, deg);
-      const pts = fingerPoints(s, fi), tip = pts[pts.length - 1];
-      const inside = pts.some((p) => p.y > from.y - 0.01 && p.y < from.y + height + 0.01 && axisDist(p, axisC) < radius + 0.007);
-      if (inside) break;                                        // أي عقلة دخلت جوه الكوباية: نقف عند اللي قبلها
-      const err = Math.abs(axisDist(tip, axisC) - (radius + 0.013));
+      const c = [0, 0, 0, 0, 0, 0]; c[fi] = deg;
+      const r = tryCurl(fi, c);
+      if (r.inside) break;                                   // أي عقلة دخلت جوه: نقف عند اللي قبلها
+      const err = Math.abs(r.tip - TOUCH);
       if (err < bestErr) { bestErr = err; best = deg; }
-      if (axisDist(tip, axisC) <= radius + 0.013) break;          // الطرف لمس السطح
+      if (r.tip <= TOUCH) break;                             // الطرف لمس السطح
     }
-    restore();
     curls[fi] = best;
   }
-  // 2) الحاجة متربوطة بالإيد: نقيس مكانها بالنسبة لعضمة الإيد لحظة المسك
+  { // الإبهام: معاكسة (ناحية وش الكف) + ثني عبر الكف، أقرب حاجة للمس من غير دخول
+    let best = [0, 0], bestErr = Infinity;
+    for (let op = 0; op <= 80; op += 5) for (let fl = 0; fl <= 90; fl += 5) {
+      const c = [0, 0, 0, 0, fl, op], r = tryCurl(4, c);
+      if (r.inside) continue;
+      // الطريق كله للقفلة (الإبهام مفتوح ← مقفول على نفس المعاكسة) لازم يفضل برّه الحاجة، مش آخره بس
+      let pathIn = false;
+      for (let f2 = 0; f2 < fl && !pathIn; f2 += 10) pathIn = tryCurl(4, [0, 0, 0, 0, f2, op]).inside;
+      if (pathIn) continue;
+      const err = Math.abs(r.tip - TOUCH) + (op + fl) * 1e-5;
+      if (err < bestErr) { bestErr = err; best = [fl, op]; }
+    }
+    curls[4] = best[0]; curls[5] = best[1];
+  }
+  restore();
+  // 2) الحاجة متربوطة بالإيد: مكانها بالنسبة لعضمة الإيد لحظة المسك
   cfg.pose(T.grasp, reachFull(G0, curls));
-  const handM0 = s.hand.matrixWorld.clone();
-  const objM0 = new THREE.Matrix4().compose(from, new THREE.Quaternion(), new THREE.Vector3(1, 1, 1));
-  const offset = handM0.clone().invert().multiply(objM0);
+  const offset = s.hand.matrixWorld.clone().invert().multiply(new THREE.Matrix4().compose(from, q0, new THREE.Vector3(1, 1, 1)));
   const objFromHand = () => new THREE.Matrix4().multiplyMatrices(s.hand.matrixWorld, offset);
 
   // 3) مكان الشيل (قدام الصدر) ومكان الحطّ
-  const holdBase = (t) => { const c = ctxAt(t); const f = new THREE.Vector3(0, 0, 1).applyQuaternion(R.ch.root.getWorldQuaternion(new THREE.Quaternion()));
-    return { c, base: c.sh.clone().add(f.multiplyScalar(0.36 * k)).add(c.left.clone().multiplyScalar(0.1 * k)).add(new THREE.Vector3(0, -0.36 * k, 0)) }; };
+  const holdBase = (t) => { const sh = shoulderAt(t);
+    return sh.clone().addScaledVector(bodyFwd(), 0.34 * k).addScaledVector(lateralOut(), -0.1 * k).add(new THREE.Vector3(0, -0.36 * k, 0)); };
   // نهاية الحطّ: بنظبط الإيد لحد ما قاعدة الحاجة تقعد على السطح بالظبط (3 مرات تصحيح)
-  const placeFix = (t, curlsNow) => {
-    const c = ctxAt(t); let g = gripAt(to, c.sh, c.left);
+  const placeFix = (t) => {
+    let g = gripAt(to, q0, shoulderAt(t));
     for (let i = 0; i < 3; i++) {
-      cfg.pose(t, reachFull(g, curlsNow));
-      const p = new THREE.Vector3().setFromMatrixPosition(objFromHand());
-      const err = to.clone().sub(p); if (err.length() < 0.002) break;
+      cfg.pose(t, reachFull(g, curls));
+      const err = to.clone().sub(new THREE.Vector3().setFromMatrixPosition(objFromHand())); if (err.length() < 0.002) break;
       g = { ...g, wrist: g.wrist.clone().add(err) };
     }
     return g;
   };
-  const Gplace = placeFix(T.release, curls);
+  const Gplace = placeFix(T.release);
   cfg.pose(T.release, reachFull(Gplace, curls));
-  const objPlacedM = objFromHand();
-  const placed = { p: new THREE.Vector3(), q: new THREE.Quaternion(), s: new THREE.Vector3() };
-  objPlacedM.decompose(placed.p, placed.q, placed.s); placed.p.y = to.y; placed.q.identity(); // على السطح بالظبط وعدلة
+  const placed = { p: new THREE.Vector3().setFromMatrixPosition(objFromHand()), q: q0.clone() };
+  placed.p.y = to.y; // على السطح بالظبط وعدلة
 
-  const OPEN = [6, 6, 6, 6, 0];
-  // كل نقط الإيد بتتحسب مرة واحدة (مش من مكان الكتف كل فريم، علشان ما يحصلش ارتعاش)
-  const cH = holdBase(T.place), Ghold = { ...G0, wrist: gripAt(cH.base, cH.c.sh, cH.c.left).wrist };
-  const Wpre = G0.wrist.clone().add(G0.a.clone().multiplyScalar(0.08 * k)).add(new THREE.Vector3(0, 0.03 * k, 0));
-  const Wrel = Gplace.wrist.clone().add(Gplace.a.clone().multiplyScalar(0.06 * k)).add(new THREE.Vector3(0, 0.02 * k, 0));
-  const seg = (t0, t1) => smooth((t - t0) / Math.max(0.05, t1 - t0));
+  // تجهيز الإيد وهي رايحة (pre-shape): الصوابع مفتوحة والإبهام معاكس من بدري، فالقفلة بعدها ثني بس
+  const OPEN = [6, 6, 6, 6, 0, curls[5]];
+  const hb = holdBase(T.place), Ghold = { ...G0, wrist: gripAt(hb, q0, shoulderAt(T.place)).wrist };
+  const Wpre = G0.wrist.clone().addScaledVector(G0.a, 0.08 * k).add(new THREE.Vector3(0, 0.03 * k, 0));
+  const Wrel = Gplace.wrist.clone().addScaledVector(Gplace.a, 0.06 * k).add(new THREE.Vector3(0, 0.02 * k, 0));
   let t = 0;
+  const seg = (t0, t1) => smooth((t - t0) / Math.max(0.05, t1 - t0));
   const path = () => { // مكان الرسغ في لحظة t (منحنيات ناعمة بين نقط ثابتة)
     if (t < T.grasp) { const p = seg(T.reach, T.grasp); const g = smooth((p - 0.55) / 0.45); return { w: p, pt: Wpre.clone().lerp(G0.wrist, g), G: G0 }; }
     if (t < T.lift) return { w: 1, pt: G0.wrist.clone(), G: G0 };
     if (t < T.place) { const p = seg(T.lift, Math.min(T.lift + 0.9, T.place)); const pt = G0.wrist.clone().lerp(Ghold.wrist, p); pt.y += Math.sin(p * Math.PI) * 0.04 * k; return { w: 1, pt, G: Ghold }; }
     if (t < T.release) { const p = seg(T.place, T.release); const pt = Ghold.wrist.clone().lerp(Gplace.wrist, p); pt.y += Math.sin(p * Math.PI) * 0.03 * k;
-      // اتجاه الإيد بيتغيّر بالتدريج من مسكة الشيل لمسكة الحطّ (مش مرة واحدة)
       const G = { fing: Ghold.fing.clone().lerp(Gplace.fing, p).normalize(), palm: Ghold.palm.clone().lerp(Gplace.palm, p).normalize() };
       return { w: 1, pt, G }; }
     const p = seg(T.release, T.release + 0.35); return { w: 1 - seg(T.back, T.back + 1.0), pt: Gplace.wrist.clone().lerp(Wrel, p), G: Gplace };
@@ -152,13 +205,15 @@ export function makeGrasp(cfg) {
       mode = t >= T.grasp + 0.2 && t < T.release ? "held" : "rest";
     }
     return {
-      reach: reach ? { [key]: reach } : null, bodyAdd, mode,
+      reach: reach ? { [key]: reach } : null, bodyAdd, mode, curls, shape,
       placeObject: () => {
         if (mode === "held") { const m = objFromHand(); m.decompose(obj.position, obj.quaternion, obj.scale); }
         else if (t >= T.release) { obj.position.copy(placed.p); obj.quaternion.copy(placed.q); obj.scale.set(1, 1, 1); }
-        else { obj.position.copy(from); obj.quaternion.identity(); obj.scale.set(1, 1, 1); }
+        else { obj.position.copy(from); obj.quaternion.copy(q0); obj.scale.set(1, 1, 1); }
       },
-      curls, radius,
+      // أقرب مسافة لأي عقلة من سطح الحاجة دلوقتي (سالب = جوّاها) للقياس
+      contact: () => { const inv = new THREE.Matrix4().compose(obj.position, obj.quaternion, new THREE.Vector3(1, 1, 1)).invert();
+        let m = Infinity; for (let fi = 0; fi < 5; fi++) for (const p of fingerPoints(s, fi).slice(1)) m = Math.min(m, sdfLocal(shape, p.clone().applyMatrix4(inv))); return m; },
     };
   };
 }

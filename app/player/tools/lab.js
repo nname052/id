@@ -2,9 +2,10 @@
 // 1A/1B: شخصية بتشيل كوباية من على ترابيزة، وتمسكها، وترجّعها مكان تاني (مسكة + توازن + استعداد ومتابعة).
 // 1C: شخصيتين: واحد بيتكلم والتاني بيتفاعل (بصّة متأخرة 0.2 ثانية، خطوة لقدام ← خطوة لورا).
 import * as THREE from "three";
-import { character, buildSet, lights, engine, settled } from "/player/player3d.js";
+import { character, buildSet, lights, engine, settled, loadClip } from "/player/player3d.js";
+import { makeRetarget, clipTrack } from "/player/clips.js";
 import { setupRig, buildPerformance, applyPose, stepAt } from "/player/rig.js";
-import { makeGrasp, fingerPoints } from "/player/grasp.js";
+import { makeGrasp, fingerPoints, standFor, sdfLocal } from "/player/grasp.js";
 import { makeFace } from "/player/face.js";
 
 const W = 1080, H = 1920;
@@ -71,25 +72,47 @@ function measure(R) {
   return { sole, comOut: outside, bones, names };
 }
 
+// طبقة الحركة المسجّلة للمشهد: الكليبات بالأسماء على الزمن (entries: [{name, start, end?, speed?}])
+let SRC = null;
+async function clipLayer(ch, R, entries, fade = 0.8) {
+  SRC ||= await character("Aj", 1.8, "soft");
+  const rt = makeRetarget(SRC, ch, R.rest);
+  const list = await Promise.all(entries.map(async (e) => ({ ...e, clip: await loadClip(e.name) })));
+  const track = clipTrack(list, fade);
+  return (t) => rt.sample(track(t));
+}
+
 // ---------- مشهد 1A/1B: الكوباية ----------
 async function sceneCup(scene, opts) {
   const ch = await character(opts.character || "Business_Female_02", 1.67, "soft");
   scene.add(ch.root); ch.root.position.set(0, 0, 0); ch.root.updateMatrixWorld(true);
   const R = setupRig(ch), k = R.k;
-  const tb = table(scene, 0, 0.46); // حرف الترابيزة على بعد 16 سم من الجسم (واقفة لازقة فيها)
+  // سطح بارتفاع الوقوف (رخامة مطبخ 0.92م): الحاجة على بعد 12 سم من الحرف، والشخص بيقف بنفسه في المكان المريح (standFor)
+  const tb = table(scene, 0, 0.5, opts.top || 0.92);
   const c = cup(scene, 0.042, 0.105);
-  const from = new THREE.Vector3(-0.19, tb.top, tb.z - 0.17), to = new THREE.Vector3(-0.04, tb.top, tb.z - 0.15); // مكان تاني على يمينها (الإيد اليمين ما تعدّيش قدام الجسم)
+  const edgeZ = tb.z - tb.d / 2;
+  const from = new THREE.Vector3(-0.12, tb.top, edgeZ + 0.12), to = new THREE.Vector3(0.04, tb.top, edgeZ + 0.13);
+  const stand = standFor(R, from, { point: new THREE.Vector3(0, 0, edgeZ), normal: new THREE.Vector3(0, 0, -1) }, "Right");
   const perf = buildPerformance([{ t: 0, body: "upright", head: "down", l_arm: "rest", r_arm: "rest", face: "neutral" },
     { t: 4.9, body: "upright", head: "camera", l_arm: "rest", r_arm: "rest", face: "smile", dur: 0.9 }], k);
+  const base = await clipLayer(ch, R, [{ name: opts.idle || "idle", start: 0, offset: 1.5 }]);
   const pose = (t, reach, extra = {}) => {
     const { P } = perf(t);
-    applyPose(R, { P, t, rootPos: new THREE.Vector3(0, 0, 0), face: 0, energy: 0.35, seed: 1.3, reach: reach || undefined, ...extra });
+    applyPose(R, { P, t, rootPos: stand.pos, face: stand.face, energy: 0.35, seed: 1.3, reach: reach || undefined, base: base(t), ...extra });
   };
   // إيقاع هادي: المد حوالي ثانية، والشيل والحطّ بهدوء
   const T = { reach: 1.1, grasp: 2.15, lift: 2.5, place: 3.75, release: 4.75, back: 5.0 };
-  const grasp = makeGrasp({ R, obj: c, radius: 0.042, height: 0.105, from, to, t: T, side: "Right", pose });
+  const grasp = makeGrasp({ R, obj: c, shape: { kind: "cylinder", r: 0.042, h: 0.105 }, from, to, t: T, side: "Right", pose });
   const face = makeFace(ch.face, [], false, 3);
   // تشخيص: الإيد وصلت فين واتجاهها قد إيه قريب من المطلوب لحظة المسك
+  window.labGripDetail = (tt) => {
+    const gs = grasp(tt); pose(tt, gs.reach, { bodyAdd: gs.bodyAdd }); gs.placeObject();
+    const inv = new THREE.Matrix4().compose(c.position, c.quaternion, new THREE.Vector3(1, 1, 1)).invert();
+    const s = R.side.Right, per = [];
+    for (let fi = 0; fi < 5; fi++) per.push(fingerPoints(s, fi).map((p) => +(sdfLocal(gs.shape, p.clone().applyMatrix4(inv)) * 1000).toFixed(1)));
+    const hand = +(sdfLocal(gs.shape, s.hand.getWorldPosition(new THREE.Vector3()).applyMatrix4(inv)) * 1000).toFixed(1);
+    return { curls: gs.curls, per, hand, mode: gs.mode };
+  };
   window.labDebugGrip = () => {
     const gs = grasp(T.grasp + 0.3); const rr = gs.reach.R;
     pose(T.grasp + 0.3, gs.reach, { noCurl: true });
@@ -100,7 +123,8 @@ async function sceneCup(scene, opts) {
     const r3 = (v) => v.toArray().map((x) => +x.toFixed(3));
     return { wristErr: +hw.distanceTo(rr.point).toFixed(3), wrist: r3(hw), target: r3(rr.point), fingWant: r3(rr.fing), fingGot: r3(fwd),
              palmWant: r3(rr.palm), palmGot: r3(normal), normSign: s.normSign, curls: gs.curls, cup: r3(c.position), reachLen: +(s.La + s.Lf).toFixed(3),
-             shoulder: r3(wp(s.arm)) };
+             shoulder: r3(wp(s.arm)),
+             thumbTip: r3(fingerPoints(s, 4).pop().sub(hw)), indexTip: r3(fingerPoints(s, 0).pop().sub(hw)), pinkyTip: r3(fingerPoints(s, 3).pop().sub(hw)), toCup: r3(c.position.clone().sub(hw)) };
   };
   return {
     duration: 6.4, words: [], R, cupObj: c, tb, from, to, T,
@@ -109,19 +133,12 @@ async function sceneCup(scene, opts) {
       pose(t, gs.reach, { bodyAdd: gs.bodyAdd });
       gs.placeObject();
       if (face) face(t, "neutral", t > 4.9 ? "smile" : "neutral", smooth((t - 4.9) / 0.8));
-      // قياس المسكة: أقرب عقلة لمحور الكوباية (سالب = دخلت جواها)
-      let pen = null;
-      if (gs.mode === "held") {
-        const s = R.side.Right, axis = c.position;
-        pen = Infinity;
-        for (let fi = 0; fi < 5; fi++) for (const p of fingerPoints(s, fi)) {
-          if (p.y < axis.y - 0.005 || p.y > axis.y + 0.11) continue;
-          pen = Math.min(pen, Math.hypot(p.x - axis.x, p.z - axis.z) - 0.042);
-        }
-      }
-      return { mode: gs.mode, pen: pen === Infinity ? null : pen, cupY: c.position.y, cupGap: c.position.y - tb.top, actors: [R] };
+      // قياس المسكة: أقرب عقلة لسطح الكوباية (سالب = دخلت جواها)
+      const pen = gs.mode === "held" ? gs.contact() : null;
+      return { mode: gs.mode, pen, cupY: c.position.y, cupGap: c.position.y - tb.top, actors: [R] };
     },
-    cameras: { wide: { pos: [1.15, 1.35, 2.35], look: [0, 1.0, 0.25], fov: 34 }, hand: { pos: [0.55, 1.05, 1.25], look: [-0.05, 0.85, 0.35], fov: 30 } },
+    cameras: { wide: { pos: [1.15, 1.45, 2.35], look: [0, 1.05, 0.25], fov: 34 }, hand: { pos: [0.5, 1.2, 1.15], look: [-0.06, 0.98, 0.32], fov: 30 },
+      handBack: { pos: [-0.75, 1.25, 1.0], look: [-0.08, 0.98, 0.3], fov: 28 } },
   };
 }
 
@@ -182,13 +199,48 @@ async function sceneDuo(scene) {
   };
 }
 
+// ---------- مشهد clips: حركة مسجّلة (Mixamo) على شخصية Rocketbox عن طريق إعادة الاستهداف ----------
+async function sceneClips(scene, opts) {
+  const ch = await character(opts.character || "Business_Male_02", 1.8, "soft");
+  scene.add(ch.root); ch.root.position.set(0, 0, 0); ch.root.updateMatrixWorld(true);
+  const R = setupRig(ch), src = await character("Aj", 1.8, "soft");
+  const rt = makeRetarget(src, ch, R.rest);
+  const names = (opts.clips || "idle,talking").split(",");
+  const clips = await Promise.all(names.map((n) => loadClip(n)));
+  const seg = 9 / clips.length;
+  const track = clipTrack(clips.map((c, i) => ({ clip: c, start: i * seg, end: i < clips.length - 1 ? (i + 1) * seg : null })), 0.8);
+  const perf = buildPerformance([{ t: 0, body: "upright", head: "forward", l_arm: "rest", r_arm: "rest", face: "neutral" }], R.k);
+  window.labDbgRT = (tt) => {
+    const out = {}, wp = (b) => b.getWorldPosition(new THREE.Vector3());
+    const base = rt.sample(track(tt));
+    const dir = (c, a, b) => { const A = c.bone(a), B = c.bone(b); return A && B ? wp(B).sub(wp(A)).normalize().toArray().map((x) => +x.toFixed(2)) : null; };
+    const srcD = {}; for (const [a, b] of [["LeftArm", "LeftForeArm"], ["LeftForeArm", "LeftHand"], ["Spine", "Neck"], ["Neck", "Head"], ["LeftShoulder", "LeftArm"]]) srcD[a] = dir(src, a, b);
+    applyPose(R, { P: perf(tt).P, t: tt, rootPos: new THREE.Vector3(0, 0, 0), face: 0, energy: 0.4, seed: 0.7, base, baseW: 1 });
+    for (const [a, b] of [["LeftArm", "LeftForeArm"], ["LeftForeArm", "LeftHand"], ["Spine", "Neck"], ["Neck", "Head"], ["LeftShoulder", "LeftArm"]]) out[a] = { src: srcD[a], tgt: dir(ch, a, b) };
+    // نفس الشي من غير الـ rig: نطبّق الأساس بس
+    for (const [bn, q] of R.rest) bn.quaternion.copy(base.q.get(bn) || q); ch.root.rotation.y = 0; ch.root.updateMatrixWorld(true);
+    for (const [a, b] of [["LeftArm", "LeftForeArm"], ["Spine", "Neck"], ["Neck", "Head"]]) out[a].raw = dir(ch, a, b);
+    out.abdFix = +(rt.abdFix * 57.3).toFixed(1);
+    return out;
+  };
+  return {
+    duration: 9, words: [], actors: [R],
+    frame(t) {
+      const base = rt.sample(track(t));
+      applyPose(R, { P: perf(t).P, t, rootPos: new THREE.Vector3(0, 0, 0), face: 0.35, energy: 0.4, seed: 0.7, base });
+      return { actors: [R] };
+    },
+    cameras: { wide: { pos: [0.9, 1.3, 3.2], look: [0, 1.0, 0], fov: 38 } },
+  };
+}
+
 // ---------- الواجهة اللي السكريبت بيستخدمها ----------
 let S, cam, r, scene, prevBones = null, prevVel = null;
 window.setupLab = async (name, camName = "wide", opts = {}) => {
   r = engine(); scene = new THREE.Scene();
   const set = await buildSet(scene, "studio", "soft", "day", PAL, 1);
   lights(scene, set, "day", "soft", PAL);
-  S = name === "duo" ? await sceneDuo(scene) : await sceneCup(scene, opts);
+  S = name === "duo" ? await sceneDuo(scene) : name === "clips" ? await sceneClips(scene, opts) : await sceneCup(scene, opts);
   await settled();
   const c = S.cameras[camName] || S.cameras.wide;
   cam = new THREE.PerspectiveCamera(c.fov, W / H, 0.05, 100); cam.position.set(...c.pos); cam.lookAt(new THREE.Vector3(...c.look));

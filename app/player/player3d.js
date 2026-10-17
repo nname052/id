@@ -811,4 +811,4 @@ function realAnchors(R, face, est) {
 }
 
 // للمعمل (اختبارات الحركة): نفس دوال المحرّك من غير ما نكررها
-export { character, buildSet, lights, engine, settled, addMouth, setMouth };
+export { character, buildSet, lights, engine, settled, addMouth, setMouth, loadClip };

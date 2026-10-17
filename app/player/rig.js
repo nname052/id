@@ -21,7 +21,7 @@ const noise = (t, s = 0) => Math.sin(t * 1.13 + s) * 0.5 + Math.sin(t * 2.71 + s
 // x = لبره (بعيد عن الجسم، وسالب = عابر قدام الجسم)، y = لفوق، z = لقدام.
 // pole = الكوع بيشاور فين، palm = الكف بيبص فين، fing = اتجاه الصوابع (لو مش مكمّلة الدراع)، hand = شكل الصوابع
 export const ARMS = {
-  rest:          { p: [0.06, -0.56, 0.04], pole: [0.2, 0, -1], palm: [-1, 0, 0], hand: "relaxed" },
+  rest:          { p: [0.06, -0.56, 0.04], pole: [0.2, 0, -1], palm: [-1, 0, 0], hand: "relaxed", clip: 1 }, // clip: الدراع الحر بيمشي مع الحركة المسجّلة لو فيه
   hip:           { p: [0.13, -0.34, -0.04], pole: [1, 0.1, -0.7], palm: [-1, 0, 0], fing: [0, -0.5, 0.6], hand: "relaxed" },
   chin:          { p: [-0.15, 0.14, 0.15], pole: [0.3, -1, 0.2], palm: [0, 0, -1], fing: [-0.2, 1, 0], hand: "fist" },
   head:          { p: [-0.02, 0.36, 0.0], pole: [1, 0.3, 0.2], palm: [0, -1, 0], hand: "open" },
@@ -166,7 +166,7 @@ export function setupRig(ch) {
 // key = { t, dur, ease, body, head, l_arm, r_arm, l_hand, r_hand, motion, move_to:[x,z], face, emote }
 function armParams(name, k) {
   const a = ARMS[name] || ARMS.rest;
-  return { p: a.p.map((x) => x * k), pole: a.pole, palm: a.palm, fing: a.fing || null, hand: HANDS[a.hand] || HANDS.relaxed, motion: a.motion || null };
+  return { p: a.p.map((x) => x * k), pole: a.pole, palm: a.palm, fing: a.fing || null, hand: HANDS[a.hand] || HANDS.relaxed, motion: a.motion || null, clip: a.clip || 0 };
 }
 function keyParams(key, k) {
   const body = { lean: 0, side: 0, turn: 0, crouch: 0, shoulders: 0, sit: 0, jump: 0, ...(BODY[key.body] || {}), ...(key.body_adjust || {}) };
@@ -184,7 +184,7 @@ function blendParams(A, B, p) {
   o.head.lookW = lerp(A.head.look ? 1 : 0, B.head.look ? 1 : 0, p);
   for (const S of ["L", "R"]) o[S] = { p: lerpArr(A[S].p, B[S].p, p), pole: lerpArr(A[S].pole, B[S].pole, p), palm: lerpArr(A[S].palm, B[S].palm, p),
     fing: A[S].fing || B[S].fing ? lerpArr(A[S].fing || [0, 0, 0], B[S].fing || [0, 0, 0], p) : null, fingW: lerp(A[S].fing ? 1 : 0, B[S].fing ? 1 : 0, A[S].fing ? p : smooth((p - 0.15) / 0.85)), // الرسغ بيبدأ يتني بعد ما الدراع يبدأ يطلع
-    hand: lerpArr(A[S].hand, B[S].hand, p), motion: p < 0.5 ? A[S].motion : B[S].motion };
+    hand: lerpArr(A[S].hand, B[S].hand, p), motion: p < 0.5 ? A[S].motion : B[S].motion, clip: lerp(A[S].clip || 0, B[S].clip || 0, p) };
   return o;
 }
 // كل المنحنيات بتبدأ وتخلص بسرعة صفر (مفيش حركة بتبدأ فجأة بسرعتها الكاملة):
@@ -209,12 +209,42 @@ export function buildPerformance(keys, k, PACE = 1) {
   };
 }
 
+const sgnOf = (s) => s.sign;
+// ثني الصوابع (مشترك بين الوضعيات والمسك): curls = [سبابة، وسطى، بنصر، خنصر، إبهام عبر الكف، (معاكسة الإبهام اختياري)].
+// المعاكسة بتلف الإبهام ناحية وش الكف (زي ما بنمسك كوباية)، والثني عبر الكف بعدها.
+export function poseFingers(s, curls, sgn) {
+  const palmN = s.palmN, hw = s.hand.getWorldPosition(V());
+  const fwd = s.fingers[1] && s.fingers[1][0] ? s.fingers[1][0].getWorldPosition(V()).sub(hw).normalize() : V();
+  s.fingers.forEach((chain, fi) => {
+    if (!chain || !chain.length) return;
+    const ang = (curls[fi] || 0) * D;
+    if (fi === 4 && curls[5]) { // معاكسة: لفّة حوالين اتجاه الإيد ناحية وش الكف
+      const tp = chain[chain.length - 1].getWorldPosition(V()).sub(chain[0].getWorldPosition(V()));
+      const dirSign = Math.sign(fwd.clone().cross(tp).dot(palmN)) || 1;
+      rotateWorld(chain[0], Q().setFromAxisAngle(fwd, curls[5] * D * dirSign));
+    }
+    // محور الثني واحد للصباع كله (مفصلة)، بيتحسب من أوله قبل ما يتني (لو اتحسب من كل عقلة بعد الثني بيتقلب في القفلة الكاملة)
+    const n0 = chain[1] || chain[0].children.find((c) => c.isBone);
+    const baseDir = n0 ? n0.getWorldPosition(V()).sub(chain[0].getWorldPosition(V())).normalize() : fwd.clone();
+    const hinge = baseDir.clone().cross(palmN).normalize();
+    chain.forEach((bone, ji) => {
+      const nxt = chain[ji + 1] || (bone.children.find((c) => c.isBone));
+      if (!nxt) return;
+      const axis = fi === 4 ? palmN.clone() : hinge;
+      const a = fi === 4 ? -ang * 0.5 * sgn : ang * (ji === 0 ? 0.8 : 1);
+      if (axis.lengthSq() > 1e-6) rotateWorld(bone, Q().setFromAxisAngle(axis, a));
+    });
+  });
+}
 // ---------- تطبيق الوضعية على العضم ----------
 // st = { P (قيم الوضعية), rootPos, face (راديان), walk: {phase, speed} , camPos, speaking, wordPulse, t, seat }
 export function applyPose(R, st) {
   const { ch } = R, P = st.P, t = st.t, k = R.k, B = P.body;
-  // 1) رجوع للوضع الأصلي
-  for (const [bone, q] of R.rest) bone.quaternion.copy(q);
+  // 1) رجوع للأساس: الحركة المسجّلة (st.base من clips.js) لو موجودة، وإلا الوضع الأصلي.
+  // الدراعين والصوابع بيبدأوا من الوضع الأصلي (الـ IK بيحطهم)، وفي الآخر بيتدمجوا مع الحركة المسجّلة بوزن الدراع الحر
+  const BQ = st.base && st.base.q, baseW = BQ ? clamp(st.baseW ?? 1) : 0;
+  if (!R.armSet) { R.armSet = new Set(); for (const S of ["Left", "Right"]) { const s = R.side[S]; [s.arm, s.fore, s.hand, ...(s.fingers || []).flat()].forEach((b) => b && R.armSet.add(b)); } }
+  for (const [bone, q] of R.rest) bone.quaternion.copy(BQ && !R.armSet.has(bone) && BQ.get(bone) ? q.clone().slerp(BQ.get(bone), baseW) : q);
   R.hips.position.copy(R.hipsRest);
   ch.root.position.set(st.rootPos.x, R.ground || 0, st.rootPos.z);
   ch.root.rotation.y = st.face;
@@ -233,7 +263,10 @@ export function applyPose(R, st) {
   // وهي بتمد إيدها نقل الوزن بيهدى بالتدريج (مش مرة واحدة)
   const wReach = Math.max(0, ...Object.values(st.reach || {}).map((r) => (r && r.w) || 0));
   const ws = wsRaw * (1 - smooth((st.walk && st.walk.amt) || 0)) * lerp(1, 0.3, smooth(wReach / 0.5));
-  const sway = ws * 0.03 * k * life;
+  // لو فيه حركة مسجّلة تحت، هي اللي بتدّي التمايل والنفَس؛ الإجرائي بيقل علشان ما يتضاعفش
+  const procIdle = 1 - 0.75 * baseW;
+  const sway = ws * 0.03 * k * life * procIdle;
+  const bh = BQ && st.base.hips ? st.base.hips.clone().multiplyScalar(baseW) : V();
   // التوازن: لو الإيد رايحة لقدام بعيد أو لتحت، الصدر بيميل والوسط بيرجع لورا بنسبة ثابتة (مركز الثقل يفضل فوق الرجلين)،
   // ولو الميلة كبيرة الركب بتتني شوية. الميلة المطلوبة بتتحسب بالقياس (مش بتقدير)، وبمنحنى ناعم علشان ما يحصلش وقوف مفاجئ.
   const add = st.bodyAdd || {};
@@ -266,15 +299,15 @@ export function applyPose(R, st) {
     const back = Math.sin(Math.max(0, L) * D) * HIP_BACK * k + comShift;
     const crouchDrop = R.hipsW0.y * 0.42 * (B.crouch + bal.crouch + (add.crouch || 0));
     const hipsH = R.hipsW0.y - sitDrop - crouchDrop + walkBob + bounce + laugh + breathe * 0.003 * k;
-    R.hips.quaternion.copy(R.rest.get(R.hips));
-    const hipsW = at(R.hipsW0.x + sway + (add.shiftX || 0), hipsH, R.hipsW0.z - hipsBack - back + (add.shiftZ || 0));
+    R.hips.quaternion.copy(BQ && BQ.get(R.hips) ? R.rest.get(R.hips).clone().slerp(BQ.get(R.hips), baseW) : R.rest.get(R.hips));
+    const hipsW = at(R.hipsW0.x + sway + bh.x + (add.shiftX || 0), hipsH + bh.y, R.hipsW0.z - hipsBack - back + bh.z * 0.5 + (add.shiftZ || 0));
     R.hips.position.copy(R.hips.parent.worldToLocal(hipsW.clone()));
     R.hips.updateMatrixWorld(true);
     rotateWorld(R.hips, Q().setFromAxisAngle(toW(1, 0, 0), (L * 0.25 + (st.walk ? 4 * st.walk.amt : 0)) * D)); // ميلان الحوض مع الجسم
-    rotateWorld(R.hips, Q().setFromAxisAngle(toW(0, 0, 1), ws * 3.2 * life * D)); // الحوض بيميل ناحية الرجل اللي مش شايلة الوزن
+    rotateWorld(R.hips, Q().setFromAxisAngle(toW(0, 0, 1), ws * 3.2 * life * procIdle * D)); // الحوض بيميل ناحية الرجل اللي مش شايلة الوزن
   };
   const applySpine = (L) => {
-    for (const sp of R.spine) { sp.quaternion.copy(R.rest.get(sp)); }
+    for (const sp of R.spine) { sp.quaternion.copy(BQ && BQ.get(sp) ? R.rest.get(sp).clone().slerp(BQ.get(sp), baseW) : R.rest.get(sp)); }
     R.spine[0].updateMatrixWorld(true);
     for (const sp of R.spine) {
       const n = R.spine.length;
@@ -432,23 +465,28 @@ export function applyPose(R, st) {
       const fwd2 = f1.getWorldPosition(V()).sub(s.hand.getWorldPosition(V())).normalize();
       const acr2 = ix.getWorldPosition(V()).sub(pk.getWorldPosition(V())).normalize();
       const palmN = fwd2.clone().cross(acr2).multiplyScalar(s.normSign).normalize();
-      const curls = rch && rch.curls ? A.hand.map((a, i) => lerp(a, rch.curls[i], clamp(rch.w))) : A.hand;
+      const curls = rch && rch.curls ? [...A.hand.map((a, i) => lerp(a, rch.curls[i], clamp(rch.w))), lerp(0, rch.curls[5] || 0, clamp(rch.w))] : A.hand;
       s.palmN = palmN; s.sgn = sgn;
       if (st.noCurl) continue; // للقياس: الصوابع مفرودة
-      s.fingers.forEach((chain, fi) => {
-        const ang = curls[fi] * D;
-        // محور الثني واحد للصباع كله (مفصلة)، بيتحسب من أوله قبل ما يتني (لو اتحسب من كل عقلة بعد الثني بيتقلب في القفلة الكاملة)
-        const n0 = chain[1] || chain[0].children.find((c) => c.isBone);
-        const baseDir = n0 ? n0.getWorldPosition(V()).sub(chain[0].getWorldPosition(V())).normalize() : fwd2.clone();
-        const hinge = baseDir.clone().cross(palmN).normalize();
-        chain.forEach((bone, ji) => {
-          const nxt = chain[ji + 1] || (bone.children.find((c) => c.isBone));
-          if (!nxt) return;
-          const axis = fi === 4 ? palmN.clone() : hinge;
-          const a = fi === 4 ? -ang * 0.5 * sgn : ang * (ji === 0 ? 0.8 : 1);
-          if (axis.lengthSq() > 1e-6) rotateWorld(bone, Q().setFromAxisAngle(axis, a));
-        });
-      });
+      poseFingers(s, curls, sgn);
+    }
+  }
+  // 7) الدراع الحر (وزن clip) بيرجع للحركة المسجّلة: دمج محلي على السلسلة كلها، فالدراع متصل وحي ومش متجمد.
+  // الإيد اللي ماسكة حاجة (reach) ما بتتدمجش علشان تفضل على الحاجة بالظبط
+  if (BQ) for (const [S, key] of [["Left", "L"], ["Right", "R"]]) {
+    const s = R.side[S], rch = st.reach && st.reach[key];
+    const w = baseW * clamp(P[key].clip || 0) * (1 - clamp(rch && rch.w ? rch.w * 1.5 : 0));
+    if (w <= 1e-4) continue;
+    for (const b of [s.arm, s.fore, s.hand, ...(s.fingers || []).flat()]) { const qb = b && BQ.get(b); if (qb) b.quaternion.slerp(qb, w); }
+    // تصحيح التلامس: الجسم ده عرضه غير الجسم اللي اتسجلت عليه الحركة، فالدراع الحر بيقرّب/يبعد بالفرق.
+    // بيتطبق بس على الدراع النازل جنب الجسم (الإشارات الكبيرة زي ما هي)
+    const fix = st.base.abdFix || 0;
+    if (fix) {
+      s.arm.parent.updateMatrixWorld(true);
+      const dl = s.fore.getWorldPosition(V()).sub(s.arm.getWorldPosition(V())).applyQuaternion(rootQ.clone().invert());
+      const abd = Math.atan2(dl.x * sgnOf(s), -dl.y) / D; // زاوية بعد الدراع عن الجسم (درجة)
+      const bell = 1 - smooth((abd - 20) / 35);
+      rotateWorld(s.arm, Q().setFromAxisAngle(toW(0, 0, 1), -sgnOf(s) * fix * bell * w));
     }
   }
   ch.root.updateMatrixWorld(true);
