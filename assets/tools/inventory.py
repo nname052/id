@@ -100,11 +100,12 @@ def dims(size):
     x, y, z = size
     return {"h": y, "len": max(x, z), "max": max(x, y, z)}
 
-def scale_issue(entry):
-    if entry["type"] not in ("prop", "environment") or not entry["scale"].get("size_m"):
+def scale_issue(entry, corrected=False):
+    sc = entry.get("scale_corrected") if corrected else entry["scale"]
+    if entry["type"] not in ("prop", "environment") or not sc or not sc.get("size_m"):
         return None
     tk = tokens(Path(entry["path"]).stem)
-    d = dims(entry["scale"]["size_m"])
+    d = dims(sc["size_m"])
     for words, dim, lo, hi, label in RANGES:
         if tk & {w.rstrip("s") if len(w) > 3 else w for w in words.split()}:
             break
@@ -115,6 +116,82 @@ def scale_issue(entry):
         return None
     return {"name": entry["name"], "path": entry["path"], "type": entry["type"], "category": label, "dimension": dim,
             "measured_m": round(v, 4), "plausible_m": [lo, hi], "factor_to_mid": round(((lo * hi) ** 0.5) / v, 3) if v > 0 else None}
+
+# ---------- تصحيح المقاس لكل مكتبة ----------
+# المعامل = الوسيط (median) لـ (المقاس الحقيقي ÷ المتقاس) على حاجات مرجعية من نفس المكتبة. مش تخمين لكل حاجة.
+# القياسات: h = الارتفاع الكلي، len = أطول بُعد أفقي، seat = ارتفاع أكبر سطح أفقي في النص (قعدة كرسي/كنبة)،
+# top = ارتفاع أكبر سطح أفقي في النص العالي (سطح ترابيزة/مكتب/رخامة)
+REFS = {
+    "furniture-kit": [("desk", "top", 0.75, "desk top"), ("table", "top", 0.75, "table top"), ("chair", "seat", 0.45, "chair seat"),
+                      ("chairDesk", "seat", 0.45, "chair seat"), ("loungeSofa", "h", 0.85, "sofa height"), ("wall", "h", 2.7, "wall height (2.4-3.0)"),
+                      ("kitchenCabinet", "top", 0.9, "kitchen counter")],
+    "kaykit-furniture": [("chair_A", "seat", 0.45, "chair seat"), ("table_medium", "top", 0.75, "table top"), ("couch", "h", 0.85, "sofa height"),
+                         ("book_single", "h", 0.22, "book height")],
+    "kaykit-restaurant": [("chair_A", "seat", 0.45, "chair seat"), ("kitchentable_A", "top", 0.75, "table top"),
+                          ("kitchencounter_straight_A", "top", 0.9, "kitchen counter"), ("door_A", "h", 2.05, "door"), ("wall", "h", 2.7, "wall height (2.4-3.0)")],
+    "kaykit-city": [("car_sedan", "h", 1.45, "car height"), ("car_hatchback", "h", 1.45, "car height"), ("car_stationwagon", "h", 1.45, "car height"),
+                    ("bench", "h", 0.45, "backless bench seat")],
+    "food-kit": [("mug", "h", 0.10, "mug"), ("cup", "h", 0.10, "mug/cup"), ("glass", "h", 0.12, "drinking glass (typical)"),
+                 ("bottle-ketchup", "h", 0.20, "ketchup bottle (typical)")],
+    "car-kit": [("sedan", "h", 1.45, "car height"), ("police", "h", 1.55, "car height incl. light bar"), ("taxi", "h", 1.6, "car height incl. roof sign"),
+                ("suv", "h", 1.70, "SUV height (typical)")],
+    "city-kit-suburban": [("fence", "h", 1.1, "garden fence (typical)"), ("fence-1x2", "h", 1.1, "garden fence (typical)"), ("fence-2x2", "h", 1.1, "garden fence (typical)")],
+    "city-kit-commercial": [("detail-parasol-a", "h", 2.3, "patio parasol (typical)"), ("detail-parasol-b", "h", 2.3, "patio parasol (typical)")],
+    "city-kit-roads": [("construction-cone", "h", 0.7, "traffic cone (typical)"), ("road-sign-stop", "h", 2.2, "stop sign post (typical)"),
+                       ("light-square", "h", 6.0, "street light (typical)"), ("light-curved", "h", 6.0, "street light (typical)")],
+    "nature-kit": [("canoe", "len", 4.6, "canoe length (typical)"), ("bed", "len", 1.9, "camp bed length (typical)"), ("fence_simple", "h", 1.1, "fence (typical)"),
+                   ("tent_smallClosed", "h", 1.2, "2-person tent (typical)"), ("sign", "h", 1.2, "trail sign (typical)")],
+    "holiday-kit": [("cabin-door-rotate", "h", 2.05, "door"), ("cabin-wall", "h", 2.4, "wall height (2.4-3.0, low end for a cabin)"),
+                    ("bench", "h", 0.85, "bench with backrest (typical)")],
+    "mini-characters": [("wheelchair", "h", 0.9, "wheelchair (typical)"), ("wheelchair-deluxe", "h", 0.9, "wheelchair (typical)"),
+                        ("aid-cane", "h", 0.9, "walking cane (typical)"), ("aid-crutch", "h", 1.3, "crutch (typical)"), ("aid-glasses", "len", 0.14, "glasses width (typical)")],
+}
+HUMAN = (1.6, 1.9, 1.75)  # مكتبات الشخصيات: لو الوسيط جوه مدى الكبار يفضل 1.0، غير كده بيتظبط على 1.75م
+
+def surf_height(e, kind):
+    s = e["scale"]; H = s["size_m"][1]; sf = s.get("surfaces") or []
+    if kind == "seat": c = [x for x in sf if 0.2 * H <= x[0] <= 0.75 * H]
+    else: c = [x for x in sf if x[0] >= 0.5 * H]
+    return max(c, key=lambda x: x[1])[0] if c else None
+
+def library_factors(out):
+    import statistics
+    by = {}
+    for e in out: by.setdefault(e["library"], []).append(e)
+    res = {}
+    for lib, items in by.items():
+        if lib in REFS:
+            ev = []
+            for name, kind, real, label in REFS[lib]:
+                e = next((x for x in items if x["name"] == name), None)
+                if not e or "size_m" not in e["scale"]: continue
+                d = dims(e["scale"]["size_m"])
+                meas = surf_height(e, kind) if kind in ("seat", "top") else d[kind]
+                if not meas: continue
+                ev.append({"asset": name, "measure": kind, "label": label, "measured_m": round(meas, 4), "reference_m": real, "ratio": round(real / meas, 3)})
+            if ev:
+                v = round(statistics.median(x["ratio"] for x in ev), 3)
+                spread = round(max(x["ratio"] for x in ev) / min(x["ratio"] for x in ev), 2)
+                res[lib] = {"value": v, "reason": f"median of real/measured over {len(ev)} reference items in this library (spread {spread}x)", "evidence": ev}
+            continue
+        hs = [x["scale"]["size_m"][1] for x in items if x["type"] == "character" and "size_m" in x["scale"]]
+        if hs:
+            med = statistics.median(hs)
+            v = 1.0 if HUMAN[0] <= med <= HUMAN[1] else round(HUMAN[2] / med, 3)
+            res[lib] = {"value": v, "reason": (f"character median height {med:.2f} m is inside the adult range {HUMAN[0]}-{HUMAN[1]} m: no correction" if v == 1.0
+                        else f"character median height {med:.2f} m (stylized); scaled to a {HUMAN[2]} m adult"),
+                        "evidence": [{"measure": "h", "median_character_height_m": round(med, 4), "min_m": round(min(hs), 4), "max_m": round(max(hs), 4), "count": len(hs)}]}
+        elif lib == "hdri":
+            res[lib] = {"value": 1.0, "reason": "HDRI images have no spatial size", "evidence": []}
+    return res
+
+def remaining_reason(x):
+    lo, hi = x["plausible_m"]; v = x["measured_m"]; r = v / lo if v < lo else v / hi
+    if x["category"].startswith("generic"):
+        return "no category reference for this name; generic range only (review by eye)"
+    if r > 2.5 or r < 0.4:
+        return f"{'larger' if r > 1 else 'smaller'} than the kit's reference set by {r:.1f}x: stylized item or the file name category does not fit this object"
+    return f"stylized proportion: the kit draws this item {'larger' if r > 1 else 'smaller'} than its reference set ({r:.2f}x off range)"
 
 def main():
     files = sorted(p for p in A3.rglob("*") if p.is_file() and p.suffix.lower() in EXT)
@@ -130,7 +207,7 @@ def main():
             if i % 100 == 0:
                 print(f"{i}/{len(files)} {rel}", flush=True)
                 pg.reload(); pg.wait_for_function("window.invReady")  # ذاكرة نضيفة كل 100 ملف
-            scale = {k: meas[k] for k in ("size_m", "basis", "unit_to_m", "pixels", "kind") if k in meas}
+            scale = {k: meas[k] for k in ("size_m", "basis", "unit_to_m", "pixels", "kind", "surfaces") if k in meas}
             if "size_m" in scale:
                 s = scale["size_m"]; scale["height_m"] = s[1]; scale["max_dim_m"] = max(s)
             e = {"name": rel.stem, "type": None, "library": rel.parts[0] if len(rel.parts) > 1 else "(root)", "path": "assets/3d/" + rel.as_posix(),
@@ -144,8 +221,19 @@ def main():
             if meas.get("error"): e["error"] = meas["error"]
             out.append(e)
         b.close()
-    issues = [x for x in (scale_issue(e) for e in out) if x]
-    manifest = {"generated_by": "assets/tools/inventory.py", "scale_basis": "bounding box measured by three.js loaders (glTF in meters; FBX cm x UnitScaleFactor); characters in bind pose; animation-only files use the skeleton box; HDRIs have no spatial size (pixel size recorded)",
+    issues_raw = [x for x in (scale_issue(e) for e in out) if x]
+    factors = library_factors(out)
+    for e in out:
+        f = factors.get(e["library"]) or {"value": 1.0, "reason": "no reference items; left at measured size", "evidence": []}
+        e["scale_factor"] = {"value": f["value"], "library": e["library"], "reason": f["reason"]}
+        if "size_m" in e["scale"]:
+            cs = [round(v * f["value"], 4) for v in e["scale"]["size_m"]]
+            e["scale_corrected"] = {"size_m": cs, "height_m": cs[1], "max_dim_m": max(cs)}
+        else:
+            e["scale_corrected"] = {k: e["scale"][k] for k in e["scale"] if k != "surfaces"}
+    issues = [x for x in (scale_issue(e, corrected=True) for e in out) if x]
+    for x in issues: x["reason"] = remaining_reason(x)
+    manifest = {"generated_by": "assets/tools/inventory.py", "library_factors": factors, "scale_check_raw": issues_raw, "scale_basis": "bounding box measured by three.js loaders (glTF in meters; FBX cm x UnitScaleFactor); characters in bind pose; animation-only files use the skeleton box; HDRIs have no spatial size (pixel size recorded)",
                 "counts": {}, "assets": out, "scale_check": issues}
     c = manifest["counts"]
     c["total"] = len(out)
@@ -154,7 +242,8 @@ def main():
     c["excluded_from_selection"] = c["license_unclear_flagged"]
     c["no_local_license_file"] = sum(1 for e in out if not e["license_file_local"])
     c["measure_errors"] = sum(1 for e in out if e.get("error"))
-    c["scale_outliers"] = len(issues)
+    c["scale_outliers_raw"] = len(issues_raw)
+    c["scale_outliers_corrected"] = len(issues)
     (ROOT / "assets_manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=1))
     print(json.dumps(c, indent=1))
 

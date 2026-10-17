@@ -25,6 +25,29 @@ function measureObject(root, unitToM) {
     const box = new THREE.Box3().setFromObject(root, true);
     if (!box.isEmpty()) { const s = box.getSize(new THREE.Vector3()).multiplyScalar(unitToM); out.size_m = [r4(s.x), r4(s.y), r4(s.z)]; out.basis = "mesh_bbox"; }
   }
+  // الأسطح الأفقية (اللي وشها لفوق): مساحتها حسب الارتفاع، علشان نعرف ارتفاع قعدة الكرسي وسطح الترابيزة الحقيقي (مش أعلى نقطة في الموديل)
+  if (meshes && !skinned) {
+    const box = new THREE.Box3().setFromObject(root, true), y0 = box.min.y, H = box.max.y - box.min.y, NB = 200;
+    if (H > 0) {
+      const bins = new Float64Array(NB), a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), n = new THREE.Vector3();
+      root.traverse((o) => {
+        if (!o.isMesh || !o.geometry.attributes.position) return;
+        const pos = o.geometry.attributes.position, idx = o.geometry.index, cnt = idx ? idx.count : pos.count;
+        for (let i = 0; i + 2 < cnt; i += 3) {
+          const ia = idx ? idx.getX(i) : i, ib = idx ? idx.getX(i + 1) : i + 1, ic = idx ? idx.getX(i + 2) : i + 2;
+          a.fromBufferAttribute(pos, ia).applyMatrix4(o.matrixWorld); b.fromBufferAttribute(pos, ib).applyMatrix4(o.matrixWorld); c.fromBufferAttribute(pos, ic).applyMatrix4(o.matrixWorld);
+          n.subVectors(b, a).cross(c.clone().sub(a)); const area2 = n.length(); if (area2 < 1e-12) continue;
+          if (Math.abs(n.y / area2) < 0.9) continue;                                   // أفقي تقريبًا (لفوق أو لتحت)
+          if (n.y < 0 && o.material && !(o.material.side === THREE.DoubleSide)) continue; // الوش اللي لتحت مش سطح قعدة
+          const y = (a.y + b.y + c.y) / 3, k = Math.min(NB - 1, Math.max(0, Math.floor(((y - y0) / H) * NB)));
+          bins[k] += area2 / 2;
+        }
+      });
+      const unit2 = unitToM * unitToM;
+      out.surfaces = [...bins].map((ar, k) => [r4(((k + 0.5) / NB) * H * unitToM), r4(ar * unit2)]).filter((s) => s[1] > 0)
+        .sort((p, q) => q[1] - p[1]).slice(0, 8); // [ارتفاع فوق أوطى نقطة (م)، مساحة (م²)]
+    }
+  }
   if (!out.size_m && bones) { // ملف حركة من غير جسم: طول الهيكل نفسه
     const box = new THREE.Box3(), v = new THREE.Vector3();
     root.traverse((o) => { if (o.isBone) box.expandByPoint(o.getWorldPosition(v)); });
