@@ -721,7 +721,7 @@ async function createDirectedScene(sc, el, ctx) {
   const face = ch.face && ch.rbx ? makeFace(ch.face, ctx.words || [], !!s3.speaking, seed, ctx.dialect === "msa") : null;
   const mouth = !face && s3.speaking ? addMouth(ch) : null;
   const lips = mouth ? lipTrack(ctx.words || []) : null;
-  const wordPulse = (t) => s3.speaking ? (ctx.words || []).reduce((m, w) => Math.max(m, Math.exp(-Math.pow((t - w.start - 0.05) / 0.09, 2))), 0) : 0;
+  const wordPulse = (t) => s3.speaking ? (ctx.words || []).reduce((m, w) => m + Math.exp(-Math.pow((t - w.start - 0.06) / 0.13, 2)), 0) : 0;
   const crowd = ["street", "park"].includes(s3.set) ? await extras(scene, look, seed, 2, s3.set === "street") : null;
   const shots = (s3.shots && s3.shots.length ? s3.shots : [{ type: "medium", move: "push_in" }])
     .map((x, i, a) => ({ ...x, t: i === 0 ? 0 : T(x, i, a.length) })).sort((a, b) => a.t - b.t);
@@ -809,3 +809,6 @@ function realAnchors(R, face, est) {
   return { hips: wp(R.hips), chest: wp(R.spine[R.spine.length - 1]), neck: R.neck ? wp(R.neck) : est.neck, head,
            face: head.clone().add(f.clone().multiplyScalar(0.06 * k)).add(new THREE.Vector3(0, -0.01 * k, 0)), forward: f };
 }
+
+// للمعمل (اختبارات الحركة): نفس دوال المحرّك من غير ما نكررها
+export { character, buildSet, lights, engine, settled, addMouth, setMouth };
