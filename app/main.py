@@ -18,7 +18,7 @@ from .pipeline import audio as audio_stage
 from .montage import router as montage_router
 
 PORT = int(os.environ.get("APP_PORT", "8000"))
-app = FastAPI(title="TikTok Motion")
+app = FastAPI(title="Mashhad")
 app.mount("/static", StaticFiles(directory=APP / "web" / "static"), name="static")
 app.mount("/player", StaticFiles(directory=APP / "player"), name="player")
 app.mount("/assets", StaticFiles(directory=ASSETS), name="assets")

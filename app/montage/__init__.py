@@ -4,6 +4,7 @@
 المشترك بس: شكل الصفحات (base.html) ودوال حفظ JSON.
 """
 
+import secrets
 import shutil
 import threading
 import time
@@ -16,7 +17,7 @@ from pydantic import BaseModel
 from ..config import APP
 from ..store import write_json
 from . import export as exporter
-from . import media, state
+from . import media, nl, stages, state
 
 router = APIRouter()
 pages = Jinja2Templates(directory=APP / "web" / "templates")
@@ -48,22 +49,6 @@ def _analyze(mid: str, sid: str) -> None:
         state.update(mid, lambda mm: next(s for s in mm["sources"] if s["id"] == sid).update(analysis=res, analysis_status="done", analysis_error=None))
     except Exception as e:  # noqa: BLE001
         state.update(mid, lambda mm: next(s for s in mm["sources"] if s["id"] == sid).update(analysis_status="failed", analysis_error=str(e)[:300]))
-
-
-def _export(mid: str) -> None:
-    d = state.mdir(mid)
-    m = state.load(mid)
-    edit = m.get("edit") or {}
-    t0 = time.time()
-    try:
-        sources = {s["id"]: {"path": d / s["work"], **s["probe"]} for s in m["sources"]}
-        out = exporter.render(edit.get("segments", []), sources, edit.get("aspect", "9:16"), d / "exports")
-        info = media.probe(out)
-        expected = round(sum(float(s["end"]) - float(s["start"]) for s in edit["segments"]), 3)
-        state.update(mid, lambda mm: mm.update(export={"status": "done", "file": f"exports/{out.name}", "probe": info, "expected_duration": expected,
-                                                         "seconds": round(time.time() - t0, 2), "finished": time.time()}))
-    except Exception as e:  # noqa: BLE001
-        state.update(mid, lambda mm: mm.update(export={"status": "failed", "error": str(e)[:500], "finished": time.time()}))
 
 
 # ---------- الرفع ----------
@@ -182,16 +167,204 @@ def save_edit(mid: str, body: EditBody):
 # ---------- التصدير ----------
 @router.post("/api/montage/{mid}/export")
 def start_export(mid: str):
-    m = state.load(mid)
+    """التصدير بقى مرحلة S4: مقفول لحد ما توافق على آخر معاينة (S3)."""
+    _need(mid)
+    try:
+        stages.start(mid, "s4_export")
+    except stages.Blocked as e:
+        raise HTTPException(409, str(e)) from e
+    return {"ok": True}
+
+
+# ---------- المراحل ----------
+def _need(mid: str) -> dict:
+    try:
+        m = state.load(mid)
+    except ValueError:
+        m = None
     if not m:
         raise HTTPException(404)
-    if not (m.get("edit") or {}).get("segments"):
-        raise HTTPException(400, "اختار أجزاء واحفظ التعديل الأول")
-    if (m.get("export") or {}).get("status") == "running":
-        raise HTTPException(409, "فيه تصدير شغال دلوقتي")
-    state.update(mid, lambda mm: mm.update(export={"status": "running", "started": time.time()}))
-    _bg(_export, mid)
+    return m
+
+
+def _key(m: dict, key: str) -> str:
+    if key not in stages.LABELS:
+        raise HTTPException(404, "مرحلة مش معروفة")
+    return key
+
+
+class ModeBody(BaseModel):
+    mode: str
+
+
+class RunBody(BaseModel):
+    params: dict | None = None
+
+
+class RevertBody(BaseModel):
+    version: int
+
+
+class TextBody(BaseModel):
+    text: str
+
+
+class ApplyBody(BaseModel):
+    proposal: str
+
+
+class RoleBody(BaseModel):
+    role: str
+
+
+class ManualBody(BaseModel):
+    segments: list[Segment]
+    aspect: str | None = None
+
+
+@router.put("/api/montage/{mid}/mode")
+def set_mode(mid: str, body: ModeBody):
+    _need(mid)
+    try:
+        stages.set_mode(mid, body.mode)
+    except stages.Blocked as e:
+        raise HTTPException(400, str(e)) from e
+    return stages.view(state.load(mid))
+
+
+@router.get("/api/montage/{mid}/stages")
+def get_stages(mid: str):
+    return stages.view(_need(mid))
+
+
+@router.put("/api/montage/{mid}/sources/{sid}/role")
+def set_role(mid: str, sid: str, body: RoleBody):
+    m = _need(mid)
+    if body.role not in ("main", "music", "auto") or not any(s["id"] == sid for s in m["sources"]):
+        raise HTTPException(400, "الدور لازم يبقى main أو music أو auto")
+    state.update(mid, lambda mm: next(s for s in mm["sources"] if s["id"] == sid).update(role=None if body.role == "auto" else body.role))
     return {"ok": True}
+
+
+@router.post("/api/montage/{mid}/stages/{key}/run")
+def run_stage(mid: str, key: str, body: RunBody | None = None):
+    m = _need(mid)
+    try:
+        stages.start(mid, _key(m, key), (body.params if body else None))
+    except stages.Blocked as e:
+        raise HTTPException(409, str(e)) from e
+    return {"ok": True}
+
+
+@router.post("/api/montage/{mid}/stages/{key}/approve")
+def approve_stage(mid: str, key: str):
+    m = _need(mid)
+    try:
+        stages.approve(mid, _key(m, key))
+    except stages.Blocked as e:
+        raise HTTPException(409, str(e)) from e
+    return stages.view(state.load(mid))
+
+
+@router.post("/api/montage/{mid}/stages/{key}/revert")
+def revert_stage(mid: str, key: str, body: RevertBody):
+    m = _need(mid)
+    try:
+        stages.revert(mid, _key(m, key), body.version)
+    except stages.Blocked as e:
+        raise HTTPException(409, str(e)) from e
+    return stages.view(state.load(mid))
+
+
+@router.get("/api/montage/{mid}/stages/{key}/v/{n}")
+def stage_json(mid: str, key: str, n: int):
+    """stage.json زي ما اتكتب بالظبط (bytes)."""
+    m = _need(mid)
+    p = stages.vdir(mid, _key(m, key), n) / "stage.json"
+    if not p.is_file():
+        raise HTTPException(404)
+    return FileResponse(p, media_type="application/json")
+
+
+@router.post("/api/montage/{mid}/stages/{key}/propose")
+def propose_edit(mid: str, key: str, body: TextBody):
+    """الكلام ← تغيير في JSON المرحلة + diff (من غير ما يتطبق)، أو سؤال لو مش واضح."""
+    m = _need(mid)
+    r = (m.get("stages") or {}).get(_key(m, key)) or {}
+    if r.get("current") is None:
+        raise HTTPException(409, "شغّل المرحلة الأول")
+    doc = stages.read_stage(mid, key, r["current"])
+    s1n = (doc["data"].get("s1") if key != "s1_analyze" else None) or (doc["input"] or {}).get("version")
+    wbs = stages.words_by_source(stages.read_stage(mid, "s1_analyze", s1n)["data"]) if key != "s1_analyze" else {}
+    res = nl.propose(key, doc, body.text.strip(), wbs)
+    if "question" in res:
+        return {"question": res["question"]}
+    pid = secrets.token_hex(4)
+    prop = {"id": pid, "stage": key, "base_version": r["current"], "text": body.text.strip(), "kind": res["kind"], "diff": res["diff"],
+            "notes": res["notes"], "new_data": res["new_data"], "new_params": res["new_params"], "created": time.time()}
+    state.update(mid, lambda mm: mm.setdefault("proposals", {}).update({pid: prop}))
+    return {"proposal": pid, "kind": res["kind"], "diff": res["diff"], "notes": res["notes"], "base_version": r["current"]}
+
+
+@router.post("/api/montage/{mid}/stages/{key}/apply")
+def apply_edit(mid: str, key: str, body: ApplyBody):
+    """التطبيق بعد التأكيد بس ← نسخة جديدة N+1 للمرحلة."""
+    m = _need(mid)
+    prop = (m.get("proposals") or {}).get(body.proposal)
+    if not prop or prop["stage"] != _key(m, key):
+        raise HTTPException(404, "الاقتراح ده مش موجود")
+    r = (m.get("stages") or {}).get(key) or {}
+    if r.get("current") != prop["base_version"]:
+        raise HTTPException(409, "النسخة الحالية اتغيرت بعد الاقتراح: اطلبه تاني")
+    if r.get("job") == "running":
+        raise HTTPException(409, "المرحلة دي شغالة دلوقتي")
+    base = stages.read_stage(mid, key, prop["base_version"])
+    try:
+        if prop["kind"] == "params":   # تغيير إعدادات ← نعيد المرحلة بيها
+            stages.start(mid, key, prop["new_params"], origin="edit", note=prop["text"])
+        else:                          # تغيير في البيانات نفسها ← نسخة جديدة بنفس المدخل + معاينة جديدة
+            data = {**prop["new_data"], "_report": [f"تعديل بالكلام: «{prop['text']}»"] + prop["notes"] +
+                    [f"{x['path']}: {x['from']} ← {x['to']}" for x in prop["diff"]]}
+            stages.start(mid, key, prop["new_params"], origin="edit", note=prop["text"], data_override=data, base_input=base["input"])
+    except stages.Blocked as e:
+        raise HTTPException(409, str(e)) from e
+    state.update(mid, lambda mm: (mm.get("proposals") or {}).pop(body.proposal, None))
+    return {"ok": True, "new_version": max(v["n"] for v in r["versions"]) + 1}
+
+
+@router.post("/api/montage/{mid}/stages/{key}/manual")
+def manual_edit(mid: str, key: str, body: ManualBody):
+    """التعديل اليدوي القديم (بداية/نهاية/ترتيب) ← نسخة جديدة من مرحلة القصّ."""
+    m = _need(mid)
+    if _key(m, key) not in ("s2_cut", "s2b_cuts", "s2c_rhythm"):
+        raise HTTPException(400, "التعديل اليدوي للأجزاء في مراحل القصّ بس")
+    r = (m.get("stages") or {}).get(key) or {}
+    if r.get("current") is None:
+        raise HTTPException(409, "شغّل المرحلة الأول")
+    base = stages.read_stage(mid, key, r["current"])
+    old = {s["id"]: s for s in base["data"]["segments"]}
+    dur = {s["id"]: s["probe"]["duration"] for s in m["sources"]}
+    segs = []
+    for k, s in enumerate(body.segments):
+        if s.source not in dur:
+            raise HTTPException(400, f"مصدر مش موجود: {s.source}")
+        a, b = max(0.0, s.start), min(dur[s.source], s.end)
+        if b - a < 0.05:
+            raise HTTPException(400, f"جزء مدته أقل من 0.05 ثانية ({s.start}–{s.end})")
+        prev = next((o for o in old.values() if o["source"] == s.source and abs(o["start"] - a) < 0.005 and abs(o["end"] - b) < 0.005), None)
+        segs.append({**(prev or {"text": "", "speed": 1.0}), "id": (prev or {}).get("id") or f"m{k + 1}", "source": s.source, "start": round(a, 3), "end": round(b, 3)})
+    data = {**base["data"], "segments": segs, "aspect": body.aspect or base["data"].get("aspect", "9:16"), "_report": ["تعديل يدوي"]}
+    stages.start(mid, key, None, origin="manual", note="تعديل يدوي", data_override=data, base_input=base["input"])
+    return {"ok": True}
+
+
+@router.get("/montage-files/{mid}/stages/{key}/v{n}/preview.mp4")
+def stage_preview(mid: str, key: str, n: int):
+    m = _need(mid)
+    p = stages.vdir(mid, _key(m, key), n) / "preview.mp4"
+    if not p.is_file():
+        raise HTTPException(404)
+    return FileResponse(p, media_type="video/mp4")
 
 
 @router.get("/api/montage/{mid}/verify")

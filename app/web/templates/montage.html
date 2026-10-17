@@ -14,76 +14,166 @@
 </div>
 
 <div class="card" style="margin-bottom:var(--s4)">
-  <h2>المشاهد</h2>
-  <div class="muted">PySceneDetect قطّع كل فيديو لمشاهد. دوس "+" علشان تضيف المشهد للتعديل.</div>
-  <div id="scenes" style="margin-top:var(--s2)"></div>
+  <div class="row" style="justify-content:space-between">
+    <h2 style="margin:0">المراحل</h2>
+    <div class="seg" id="mode" role="radiogroup" aria-label="الوضع">
+      <button data-mode="basic" role="radio">أساسي · 4 مراحل</button><button data-mode="advanced" role="radio">متقدم · 7 مراحل</button>
+    </div>
+  </div>
+  <div class="muted" style="margin-top:var(--s2)">كل مرحلة بتطلع نسخة ومعاينة. وافق، أو أعد، أو ارجع لنسخة قديمة، أو اكتب التعديل بالكلام. التصدير مقفول لحد ما توافق على معاينة الصوت.</div>
+  <div id="stages" style="margin-top:var(--s4)"></div>
 </div>
 
-<div class="card">
-  <h2>التعديل (بالترتيب)</h2>
-  <div class="muted">رتّب الأجزاء بـ ↑ ↓، احذف بـ ✕، وتقدر تعدّل البداية والنهاية بالثانية.</div>
+<details class="card">
+  <summary><b>التعديل اليدوي (المشاهد والأجزاء)</b> <span class="muted">· بيتحفظ كنسخة جديدة من مرحلة القصّ</span></summary>
+  <h3 style="margin-top:var(--s4)">المشاهد</h3>
+  <div class="muted">PySceneDetect قطّع كل فيديو لمشاهد. دوس "+" علشان تضيف المشهد للأجزاء.</div>
+  <div id="scenes" style="margin-top:var(--s2)"></div>
+  <h3 style="margin-top:var(--s4)">الأجزاء (بالترتيب)</h3>
+  <div class="muted">رتّب بـ ↑ ↓، احذف بـ ✕، وعدّل البداية والنهاية بالثانية.</div>
   <div id="edit" style="margin-top:var(--s2)"></div>
-  <div class="row" style="margin-top:var(--s3); gap:var(--s2); align-items:center; flex-wrap:wrap">
+  <div class="row" style="margin-top:var(--s3)">
     <span>المقاس:</span>
     <label><input type="radio" name="aspect" value="9:16" checked> 9:16 (طولي)</label>
     <label><input type="radio" name="aspect" value="16:9"> 16:9 (عرضي)</label>
     <span class="muted" id="total"></span>
   </div>
-  <div class="actions"><button id="saveEdit">حفظ التعديل</button><button class="primary" id="export">تصدير MP4</button><span id="editMsg" class="muted"></span></div>
-  <div id="exportBox" style="margin-top:var(--s3)"></div>
-</div>
+  <div class="actions"><button id="saveEdit">حفظ كنسخة جديدة</button><span id="editMsg" class="muted"></span></div>
+</details>
 {% endblock %}
 {% block script %}
 <script>
   const MID = "{{ mid }}";
-  let M = null, EDIT = [], editDirty = false;
+  let M = null, V = null, EDIT = [], editDirty = false, editFrom = null;
+  const open = new Set(), drafts = {}, props = {};
   const sec = (x) => (Math.round(x * 100) / 100).toFixed(2);
   const mmss = (x) => `${Math.floor(x / 60)}:${String(Math.floor(x % 60)).padStart(2, "0")}`;
   const lu = (v) => (v === null || v === undefined ? "—" : v.toFixed(1));
+  const ST = { empty: "لسه", ready: "جاهزة للمراجعة", approved: "✓ موافَق", stale: "قديمة (اللي قبلها اتغيّر)" };
+  const ORIGIN = { run: "تشغيل", redo: "إعادة", edit: "تعديل بالكلام", manual: "يدوي" };
+  const CUT = ["s2_cut", "s2b_cuts", "s2c_rhythm"];
 
   function renderSources() {
     $("#title").textContent = M.title;
     $("#sources").innerHTML = M.sources.map((s) => {
       const p = s.probe, a = (s.analysis || {}), L = a.loudness;
       const vid = p.has_video ? `${p.width}×${p.height} · ${p.fps} فريم/ث` : "صوت بس";
-      const an = s.analysis_status === "running" ? `<span class="muted">بيتحلّل…</span>`
+      const an = s.analysis_status === "running" ? `<span class="muted">بيتقري…</span>`
         : s.analysis_status === "failed" ? `<span class="note err">التحليل فشل: ${esc(s.analysis_error || "")}</span>`
-        : `مشاهد: ${(a.scenes || []).length}${a.ffmpeg_check ? ` (FFmpeg: ${a.ffmpeg_check.scene_count})` : ""}${L ? ` · علو الصوت ${lu(L.integrated_lufs)} LUFS · Peak ${lu(L.true_peak_dbtp)} dBTP` : ""}`;
-      return `<div style="padding:8px 0;border-bottom:1px solid var(--line)"><b>${esc(s.id)} · ${esc(s.name)}</b>
+        : `مشاهد: ${(a.scenes || []).length}${L ? ` · علو الصوت ${lu(L.integrated_lufs)} LUFS · Peak ${lu(L.true_peak_dbtp)} dBTP` : ""}`;
+      const role = p.has_video ? "" : `<label class="muted">الدور: <select class="role" data-sid="${s.id}" style="width:auto">
+        ${[["auto", "تلقائي"], ["main", "كلام"], ["music", "مزيكا"]].map(([v, t]) => `<option value="${v}" ${(s.role || "auto") === v ? "selected" : ""}>${t}</option>`).join("")}</select></label>`;
+      return `<div style="padding:var(--s2) 0;border-bottom:1px solid var(--line)"><b>${esc(s.id)} · ${esc(s.name)}</b> ${role}
         <div class="muted">${mmss(p.duration)} (${sec(p.duration)} ث) · ${vid} · صوت: ${p.has_audio ? "موجود" : "مفيش"}</div><div class="muted">${an}</div></div>`;
     }).join("");
   }
+
+  function diffTable(d) {
+    return `<table class="diff"><thead><tr><th>الحقل</th><th>قبل</th><th>بعد</th></tr></thead><tbody>${d.map((x) =>
+      `<tr><td dir="ltr">${esc(x.path)}</td><td>${esc(JSON.stringify(x.from))}</td><td>${esc(JSON.stringify(x.to))}</td></tr>`).join("")}</tbody></table>`;
+  }
+
+  function stageCard(s, i) {
+    const busy = s.job === "running", isOpen = open.has(s.key) || busy;
+    const vers = s.versions.slice().reverse().map((v) => `<option value="${v.n}" ${v.n === s.current ? "selected" : ""}>v${v.n} · ${ORIGIN[v.origin] || v.origin}${v.n === s.approved ? " ✓" : ""}${v.note ? " · " + esc(v.note).slice(0, 30) : ""}</option>`).join("");
+    const p = props[s.key];
+    const prop = !p ? "" : p.question ? `<div class="note warn">❓ ${esc(p.question)}</div>`
+      : `<div class="note">التعديل المقترح على v${p.base_version} (${p.kind === "params" ? "إعدادات ← هتتعاد المرحلة بيها" : "بيانات ← نسخة جديدة"}):</div>${diffTable(p.diff)}
+         ${(p.notes || []).map((n) => `<div class="muted">• ${esc(n)}</div>`).join("")}
+         <div class="row" style="margin-top:var(--s2)"><button class="primary" data-act="apply">طبّق (نسخة جديدة)</button><button data-act="cancel">إلغاء</button></div>`;
+    const isExport = s.key === "s4_export";
+    const runLabel = isExport ? "⬇ صدّر MP4" : (s.current ? "↻ أعد المرحلة" : "▶ شغّل");
+    const lock = isExport && !s.can_run ? `<div class="note warn">🔒 التصدير مقفول لحد ما توافق على آخر معاينة (S3 · الصوت).</div>` : "";
+    return `<div class="stage-card ${s.status} ${busy ? "busy" : ""}" data-key="${s.key}">
+      <button class="stage-head" data-act="toggle" aria-expanded="${isOpen}">
+        <span class="num">${i + 1}</span><b>${esc(s.label)}</b>
+        <span class="pill ${s.status}">${busy ? "شغالة…" : ST[s.status]}</span>
+        ${s.current ? `<span class="muted">v${s.current}${s.seconds ? ` · ${s.seconds} ث` : ""}</span>` : ""}
+        ${s.job === "failed" ? `<span class="pill failed">فشلت</span>` : ""}
+      </button>
+      <div class="stage-body" ${isOpen ? "" : "hidden"}>
+        ${s.error ? `<div class="note err">${esc(s.error)}</div>` : ""}${lock}
+        <div class="stage-grid">
+          <div>${s.preview ? `<video class="pv" src="${s.preview}?v=${s.current}" controls playsinline preload="metadata"></video>` : `<div class="pv empty">${busy ? '<span class="spinner"></span>' : "مفيش معاينة لسه"}</div>`}</div>
+          <div>
+            <div class="report">${s.report.map((l) => `<div>${esc(l)}</div>`).join("") || `<span class="muted">شغّل المرحلة علشان تشوف النتيجة.</span>`}</div>
+            ${isExport && s.summary && s.summary.file ? `<a class="btn primary" href="/montage-files/${MID}/${s.summary.file}" download>⬇ تحميل الفيديو</a>` : ""}
+            <div class="row" style="margin-top:var(--s3)">
+              <button data-act="run" ${(!s.can_run || busy) ? "disabled" : ""}>${runLabel}</button>
+              ${isExport ? "" : `<button class="primary" data-act="approve" ${(s.status !== "ready" || busy) ? "disabled" : ""}>✓ موافقة</button>`}
+              ${s.versions.length > 1 ? `<select class="ver" style="width:auto">${vers}</select><button data-act="revert" ${busy ? "disabled" : ""}>↶ ارجع للنسخة دي</button>` : ""}
+            </div>
+            ${isExport || !s.current ? "" : `<div class="nl">
+              <label class="field" for="nl-${s.key}">عدّل بالكلام</label>
+              <div class="row"><input type="text" id="nl-${s.key}" class="grow nl-in" placeholder="${CUT.includes(s.key) ? "مثلًا: شيل أول ثانيتين · خلّي الجزء التاني أبطأ" : s.key === "s3_audio" ? "مثلًا: وطّي المزيكا · خلّي الصوت أعلى" : s.key === "s2a_select" ? "مثلًا: شيل اللقطة 2" : s.key === "s2d_subs" ? "مثلًا: خلّي السطور أقصر" : "مثلًا: الكلام إنجليزي"}" value="${esc(drafts[s.key] || "")}">
+              <button data-act="propose" ${busy ? "disabled" : ""}>اعرض التغيير</button></div>${prop}</div>`}
+          </div>
+        </div>
+      </div></div>`;
+  }
+
+  function renderStages() {
+    $$("#mode button").forEach((b) => { const on = b.dataset.mode === V.mode; b.classList.toggle("on", on); b.setAttribute("aria-checked", on); });
+    $("#stages").innerHTML = V.stages.map(stageCard).join("");
+  }
+
   function renderScenes() {
     $("#scenes").innerHTML = M.sources.filter((s) => s.analysis).map((s) => `<div style="margin:var(--s2) 0"><b class="muted">${esc(s.id)}</b>
-      <div class="row" style="flex-wrap:wrap;gap:var(--s2);margin-top:var(--s1)">${s.analysis.scenes.map((c) => `<button class="addScene" data-src="${s.id}" data-a="${c.start}" data-b="${c.end}">+ ${c.index}: ${sec(c.start)}–${sec(c.end)}</button>`).join("")}</div></div>`).join("") || `<span class="muted">لسه بيتحلّل…</span>`;
+      <div class="row" style="gap:var(--s2);margin-top:var(--s1)">${s.analysis.scenes.map((c) => `<button class="addScene" data-src="${s.id}" data-a="${c.start}" data-b="${c.end}">+ ${c.index}: ${sec(c.start)}–${sec(c.end)}</button>`).join("")}</div></div>`).join("") || `<span class="muted">لسه بيتحلّل…</span>`;
   }
   function renderEdit() {
-    $("#edit").innerHTML = EDIT.map((g, i) => `<div class="row" style="gap:var(--s2);align-items:center;margin-bottom:var(--s2)" data-i="${i}">
+    $("#edit").innerHTML = EDIT.map((g, i) => `<div class="row" style="gap:var(--s2);margin-bottom:var(--s2)" data-i="${i}">
       <b style="min-width:24px">${i + 1}</b><span class="muted">${esc(g.source)}</span>
       <input type="number" step="0.01" class="a" value="${sec(g.start)}" style="max-width:100px"> → <input type="number" step="0.01" class="b" value="${sec(g.end)}" style="max-width:100px">
       <span class="muted">(${sec(g.end - g.start)} ث)</span>
-      <button class="up">↑</button><button class="down">↓</button><button class="danger rm">✕</button></div>`).join("") || `<span class="muted">مفيش أجزاء لسه.</span>`;
+      <button class="up">↑</button><button class="down">↓</button><button class="danger rm">✕</button></div>`).join("") || `<span class="muted">مفيش أجزاء لسه. شغّل مرحلة القصّ أو ضيف مشاهد.</span>`;
     $("#total").textContent = `المدة الكلية: ${sec(EDIT.reduce((t, g) => t + (g.end - g.start), 0))} ث`;
   }
-  function renderExport() {
-    const e = M.export;
-    if (!e) { $("#exportBox").innerHTML = ""; return; }
-    if (e.status === "running") $("#exportBox").innerHTML = `<div class="muted">بيتصدّر…</div>`;
-    else if (e.status === "failed") $("#exportBox").innerHTML = `<div class="note err">${esc(e.error || "")}</div>`;
-    else if (e.status === "done") {
-      const p = e.probe;
-      $("#exportBox").innerHTML = `<div class="note ok">✓ اتصدّر: ${p.width}×${p.height} · ${sec(p.duration)} ث (المتوقع ${sec(e.expected_duration)}) · في ${e.seconds} ث</div>
-        <a class="btn primary" href="/montage-files/${MID}/${e.file}" download>تحميل الفيديو</a>`;
-    }
-  }
+  const cutStage = () => (V.mode === "advanced" ? "s2b_cuts" : "s2_cut");
+
   async function load() {
-    M = await api(`/api/montage/${MID}`);
-    if (!editDirty) { EDIT = (M.edit && M.edit.segments || []).map((g) => ({ ...g })); renderEdit();
-      $$("input[name=aspect]").forEach((r) => { r.checked = r.value === ((M.edit || {}).aspect || "9:16"); }); }
-    renderSources(); renderScenes(); renderExport();
-    const busy = M.sources.some((s) => s.analysis_status === "running") || (M.export && M.export.status === "running");
+    [M, V] = await Promise.all([api(`/api/montage/${MID}`), api(`/api/montage/${MID}/stages`)]);
+    renderSources(); renderScenes(); renderStages();
+    const cs = V.stages.find((s) => s.key === cutStage());
+    if (!editDirty && cs && cs.current && editFrom !== `${cs.key}:${cs.current}`) {
+      const doc = await api(`/api/montage/${MID}/stages/${cs.key}/v/${cs.current}`);
+      EDIT = doc.data.segments.map((g) => ({ source: g.source, start: g.start, end: g.end }));
+      editFrom = `${cs.key}:${cs.current}`;
+      $$("input[name=aspect]").forEach((r) => { r.checked = r.value === (doc.data.aspect || "9:16"); });
+      renderEdit();
+    } else if (!cs || !cs.current) renderEdit();
+    const busy = M.sources.some((s) => s.analysis_status === "running") || V.stages.some((s) => s.job === "running");
     if (busy) setTimeout(load, 1500);
   }
+
+  $("#mode").onclick = async (e) => {
+    const b = e.target.closest("button[data-mode]"); if (!b || b.dataset.mode === V.mode) return;
+    V = await api(`/api/montage/${MID}/mode`, { method: "PUT", body: { mode: b.dataset.mode } }); editFrom = null; load();
+  };
+  $("#stages").addEventListener("input", (e) => { if (e.target.classList.contains("nl-in")) drafts[e.target.closest("[data-key]").dataset.key] = e.target.value; });
+  $("#stages").addEventListener("keydown", (e) => { if (e.key === "Enter" && e.target.classList.contains("nl-in")) e.target.closest(".nl").querySelector("[data-act=propose]").click(); });
+  $("#stages").onclick = async (e) => {
+    const b = e.target.closest("[data-act]"); if (!b) return;
+    const card = b.closest("[data-key]"), key = card.dataset.key, act = b.dataset.act;
+    const base = `/api/montage/${MID}/stages/${key}`;
+    try {
+      if (act === "toggle") { open.has(key) ? open.delete(key) : open.add(key); renderStages(); return; }
+      b.disabled = true;
+      if (act === "run") { open.add(key); await api(`${base}/run`, { method: "POST", body: {} }); }
+      else if (act === "approve") await api(`${base}/approve`, { method: "POST" });
+      else if (act === "revert") await api(`${base}/revert`, { method: "POST", body: { version: +$(".ver", card).value } });
+      else if (act === "propose") {
+        const text = (drafts[key] || "").trim(); if (!text) { b.disabled = false; return; }
+        props[key] = await api(`${base}/propose`, { method: "POST", body: { text } });
+      } else if (act === "apply") { await api(`${base}/apply`, { method: "POST", body: { proposal: props[key].proposal } }); delete props[key]; drafts[key] = ""; }
+      else if (act === "cancel") delete props[key];
+      await load();
+    } catch (err) { props[key] = { question: err.message }; renderStages(); }
+  };
+  $("#sources").onchange = async (e) => {
+    if (!e.target.classList.contains("role")) return;
+    await api(`/api/montage/${MID}/sources/${e.target.dataset.sid}/role`, { method: "PUT", body: { role: e.target.value } }); load();
+  };
   $("#scenes").onclick = (e) => {
     const b = e.target.closest(".addScene"); if (!b) return;
     EDIT.push({ source: b.dataset.src, start: +b.dataset.a, end: +b.dataset.b }); editDirty = true; renderEdit();
@@ -102,14 +192,11 @@
     editDirty = true; renderEdit();
   };
   const aspect = () => ($$("input[name=aspect]").find((r) => r.checked) || {}).value || "9:16";
-  async function saveEdit() {
-    const r = await api(`/api/montage/${MID}/edit`, { method: "PUT", body: { segments: EDIT, aspect: aspect() } });
-    editDirty = false; $("#editMsg").textContent = `✓ اتحفظ (${r.segments.length} جزء · ${sec(r.total)} ث)`; await load();
-  }
-  $("#saveEdit").onclick = () => saveEdit().catch((e) => { $("#editMsg").textContent = e.message; });
-  $("#export").onclick = async () => {
-    try { await saveEdit(); await api(`/api/montage/${MID}/export`, { method: "POST" }); await load(); }
-    catch (e) { $("#editMsg").textContent = e.message; }
+  $("#saveEdit").onclick = async () => {
+    try {
+      await api(`/api/montage/${MID}/stages/${cutStage()}/manual`, { method: "POST", body: { segments: EDIT, aspect: aspect() } });
+      editDirty = false; editFrom = null; $("#editMsg").textContent = "✓ بيتعمل نسخة جديدة…"; open.add(cutStage()); await load();
+    } catch (e) { $("#editMsg").textContent = e.message; }
   };
   $("#addSrc").onclick = async () => {
     const f = $("#more").files[0]; if (!f) return;
