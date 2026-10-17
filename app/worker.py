@@ -5,7 +5,7 @@ import threading
 import time
 import traceback
 
-from . import prefs, store
+from . import eleven_account, prefs, store
 from .llm.claude_code import LimitReached
 from .pipeline import audio, brief, edits, render, scenes, script, tts_prep
 
@@ -105,6 +105,7 @@ def _run(pid: str, job: str, kw: dict) -> None:
         if job in SUB:
             msg = str(e)
             if "quota_exceeded" in msg:
+                eleven_account.record("quota_exceeded")
                 msg = "مفتاح ElevenLabs وصل للحد اللي إنت حاطه عليه. ارفع الحد من elevenlabs.io ← Developers ← API Keys ← Credit limit، وجرّب تاني."
             if "speech_to_text" in msg:
                 msg = "مفتاح ElevenLabs مش معاه صلاحية Speech to Text. فعّلها من elevenlabs.io ← Developers ← API Keys، وجرّب تاني."
@@ -113,6 +114,7 @@ def _run(pid: str, job: str, kw: dict) -> None:
             return
         err = str(e)
         if "quota_exceeded" in err:
+            eleven_account.record("quota_exceeded")
             err = "مفتاح ElevenLabs وصل للحد اللي إنت حاطه عليه (مش رصيدك). ارفع الحد من elevenlabs.io ← Developers ← API Keys ← Credit limit، وبعدين اضغط حاول تاني."
         store.update(pid, lambda p: (p["stages"][stage].update(status="failed", error=err[:500]), p.update(status="failed")))
         store.log(pid, f"✗ {stage}: {e}\n{traceback.format_exc()[-800:]}")

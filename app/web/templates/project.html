@@ -15,6 +15,15 @@
 {% endblock %}
 {% block script %}
 <script>
+  // إعادة جملة: لو تكلفتها أكتر من حد الموافقة (صفحة الإعدادات)، السيرفر بيرجّع needs_confirm ومش بيبعت حاجة لـ ElevenLabs لحد ما توافق
+  async function regenSentence(sid) {
+    let r = await api(`/api/projects/${PID}/audio/sentence/${sid}`, { method: "POST", body: {} });
+    if (r && r.needs_confirm) {
+      if (!confirm(r.message)) return;
+      r = await api(`/api/projects/${PID}/audio/sentence/${sid}`, { method: "POST", body: { confirm: true } });
+    }
+    return r;
+  }
   const PID = "{{ pid }}";
   let P = null, lastKey = "", dirty = false, phoneKey = "";
   let VIEW = null; // مرحلة فاتحها بإيدك علشان تعدّلها (غير المرحلة الحالية)
@@ -326,7 +335,7 @@
       if (b.dataset.act === "review") await api(`/api/projects/${PID}/audio/review`, { method: "POST" });
       if (b.dataset.act === "back-audio") await api(`/api/projects/${PID}/stages/audio/reopen`, { method: "POST" });
       if (b.dataset.act === "undo-sent") await api(`/api/projects/${PID}/audio/undo`, { method: "POST" });
-      if (b.dataset.act === "regensent") await api(`/api/projects/${PID}/audio/sentence/${b.dataset.sid}`, { method: "POST" });
+      if (b.dataset.act === "regensent") await regenSentence(b.dataset.sid);
       if (b.dataset.act === "fixword") {
         // الكلمة الغلط ← نطقها الصح في القاموس (بيفضل لكل الفيديوهات) ← إعادة الجملة دي بس
         const word = prompt("الكلمة اللي اتنطقت غلط (زي ما هي مكتوبة في الجملة):");
@@ -336,7 +345,7 @@
         const st = await api("/api/style");
         st.pronunciations[word.trim()] = fix.trim();
         await api("/api/style", { method: "PUT", body: st });
-        await api(`/api/projects/${PID}/audio/sentence/${b.dataset.sid}`, { method: "POST" });
+        await regenSentence(b.dataset.sid);
       }
       dirty = false; lastKey = ""; phoneKey = "";
       await tick();

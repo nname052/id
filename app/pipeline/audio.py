@@ -9,6 +9,7 @@ import requests
 
 from .. import store
 from ..config import ELEVEN_KEY, TTS_MODEL, TTS_SPEED
+from .. import eleven_account
 from .common import tokens, words_of
 
 API = "https://api.elevenlabs.io"
@@ -68,11 +69,28 @@ def estimate_cost(pid: str) -> int:
     return len(build_text(tts["lines"])[0]) if tts else 0
 
 
+def cost_breakdown(lines: list[dict]) -> list[tuple[int, int]]:
+    """التكلفة التقديرية لكل جملة (بنفس الحساب: credit لكل حرف بيتبعت)."""
+    return [(ln["id"], len(build_text([ln])[0])) for ln in lines]
+
+
+def guard_message(total: int, limit: int, per_sentence: list[tuple[int, int]] | None = None) -> str:
+    msg = f"الصوت ده هيستهلك حوالي {total} credit، وده أكتر من حد الموافقة اللي حاطه ({limit} credit للمرة الواحدة)."
+    if per_sentence:
+        shown = "، ".join(f"جملة {i}: {c}" for i, c in per_sentence[:12]) + ("…" if len(per_sentence) > 12 else "")
+        msg += f" التكلفة لكل جملة: {shown}."
+    return msg + " تكمّل؟"
+
+
 def run(pid: str, approved_credits: bool = False) -> None:
     d = store.project_dir(pid)
     proj = store.load(pid)
     st = proj["settings"]
-    text, spans = build_text(store.read_json(d / "tts.json")["lines"])
+    lines = store.read_json(d / "tts.json")["lines"]
+    text, spans = build_text(lines)
+    # حد الموافقة (من صفحة الإعدادات): قبل أي طلب لـ ElevenLabs، فمفيش رصيد بيتصرف لحد ما توافق
+    if not approved_credits and len(text) > eleven_account.guard():
+        raise NeedsCredits(guard_message(len(text), eleven_account.guard(), cost_breakdown(lines)))
     before = subscription()
     left = before["limit"] - before["used"]
     if not approved_credits and left - len(text) < before["limit"] * 0.2:
@@ -85,6 +103,7 @@ def run(pid: str, approved_credits: bool = False) -> None:
     )
     if r.status_code != 200:
         raise RuntimeError(f"ElevenLabs HTTP {r.status_code}: {r.text[:300]}")
+    eleven_account.record("tts_ok")
     data = r.json()
     (d / "audio").mkdir(exist_ok=True)
     import shutil
@@ -139,6 +158,7 @@ def _tts(text: str, settings: dict, seed: int) -> dict:
                       params={"output_format": "mp3_44100_128"}, json=body, timeout=300)
     if r.status_code != 200:
         raise RuntimeError(f"ElevenLabs HTTP {r.status_code}: {r.text[:300]}")
+    eleven_account.record("tts_ok")
     return r.json()
 
 

@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}الإعدادات{% endblock %}
+{% block body %}
+<h1>الإعدادات</h1>
+<div class="card" style="max-width: 820px">
+  <h2>رصيد ElevenLabs</h2>
+  <div class="muted">بيتجاب من ElevenLabs لما تدوس "تحديث" بس (طلب قراية، مش بيصرف رصيد). المفتاح نفسه مش بيظهر هنا خالص.</div>
+  <div id="acct" style="margin-top:12px" class="muted">لسه ما اتحدّثش.</div>
+  <div class="actions"><button class="primary" id="refresh">تحديث الرصيد</button><span id="acctMsg" class="muted"></span></div>
+
+  <h2 style="margin-top:22px">حد المفتاح (Credit limit)</h2>
+  <div class="note warn" style="margin-top:8px">
+    للعرض بس. ElevenLabs ما بيوفّرش طريقة من الـ API تغيّر حد مفتاح شخصي (الموجود بس لمفاتيح service accounts في الـ workspace).
+    لو المفتاح وقف عند حدّه، غيّره من elevenlabs.io ← Developers ← API Keys ← Credit limit.
+  </div>
+
+  <h2 style="margin-top:22px">حد الموافقة قبل الصوت</h2>
+  <div class="muted">لو عمل الصوت (أو إعادة جملة) هيستهلك أكتر من الرقم ده، البرنامج بيوقف ويسألك الأول قبل ما يبعت أي حاجة لـ ElevenLabs.
+    الحد ده إنت اللي بتغيّره بس.</div>
+  <div class="row" style="margin-top:10px; gap:8px; align-items:center">
+    <input type="number" id="guard" min="1" step="1" style="max-width:160px"> <span class="muted">credit للمرة الواحدة</span>
+  </div>
+  <div class="actions"><button class="primary" id="saveGuard">حفظ الحد</button><span id="guardMsg" class="muted"></span></div>
+</div>
+{% endblock %}
+{% block script %}
+<script>
+  const fmt = (n) => Number(n).toLocaleString("ar-EG");
+  const when = (u) => u ? new Date(u * 1000).toLocaleString("ar-EG", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
+  const KEY = { active: "شغال", limited: "وقف عند حدّه (آخر طلب صوت رجع quota_exceeded)", invalid: "مرفوض (المفتاح غلط أو اتلغى)", missing: "مش موجود في .env", unreachable: "مش قادر يوصل لـ ElevenLabs", error: "ElevenLabs رجّع خطأ" };
+  const PERIOD = { monthly_period: "كل شهر", "3_month_period": "كل 3 شهور", "6_month_period": "كل 6 شهور", annual_period: "كل سنة" };
+  function show(a) {
+    const ok = a.key_status === "active" || a.key_status === "limited";
+    $("#acct").classList.toggle("muted", false);
+    $("#acct").innerHTML = ok ? `
+      <div class="note ${a.key_status === "active" ? "ok" : "warn"}">حالة المفتاح: <b>${esc(KEY[a.key_status])}</b></div>
+      <div style="font-size:28px;font-weight:800;margin:6px 0" id="remaining">${fmt(a.credits_remaining)} credit متبقي</div>
+      <div class="muted">مستخدم ${fmt(a.credits_used)} من ${fmt(a.credits_limit)} في الفترة دي${a.refresh_period ? " (بيتجدّد " + esc(PERIOD[a.refresh_period] || a.refresh_period) + ")" : ""}.</div>
+      <div class="muted">التجديد الجاي: ${when(a.reset_unix)} · الباقة: ${esc(a.tier || "—")} · حالة الاشتراك: ${esc(a.subscription_status || "—")}</div>
+      ${a.last_quota_exceeded_at ? `<div class="muted">آخر مرة المفتاح وقف عند حدّه: ${when(a.last_quota_exceeded_at)}</div>` : ""}
+      <div class="muted" style="margin-top:6px">آخر تحديث: ${when(a.checked_at)}</div>`
+      : `<div class="note err">حالة المفتاح: <b>${esc(KEY[a.key_status] || a.key_status)}</b>${a.http ? " (HTTP " + a.http + ")" : ""}</div><div class="muted">آخر محاولة: ${when(a.checked_at)}</div>`;
+  }
+  $("#refresh").onclick = async () => {
+    $("#refresh").disabled = true; $("#acctMsg").textContent = "بيتحدّث…";
+    try { show(await api("/api/eleven/account")); $("#acctMsg").textContent = ""; }
+    catch (e) { $("#acctMsg").textContent = e.message; }
+    $("#refresh").disabled = false;
+  };
+  api("/api/settings").then((s) => { $("#guard").value = s.credit_guard; });
+  $("#saveGuard").onclick = async () => {
+    const v = parseInt($("#guard").value, 10);
+    if (!(v >= 1)) { $("#guardMsg").textContent = "اكتب رقم 1 أو أكتر"; return; }
+    const s = await api("/api/settings", { method: "PUT", body: { credit_guard: v } });
+    $("#guard").value = s.credit_guard; $("#guardMsg").textContent = "✓ اتحفظ";
+  };
+</script>
+{% endblock %}

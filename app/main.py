@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
-from . import prefs, store, worker
+from . import eleven_account, prefs, store, worker
 from .config import APP, ASSETS, DEFAULT_SETTINGS, ELEVEN_KEY, FONTS, MOODS, VIDEO_TYPES
 from .llm import claude_code
 from .pipeline import audio as audio_stage
@@ -78,6 +78,34 @@ def put_style(body: StyleBody):
     prefs.save_style(body.profile)
     prefs.save_pronunciations(body.pronunciations)
     return {"ok": True}
+
+
+# ---------- الإعدادات (ElevenLabs: الرصيد وحد الموافقة) ----------
+@app.get("/settings")
+def page_settings(request: Request):
+    return pages.TemplateResponse(request, "settings.html", {})
+
+
+class GuardBody(BaseModel):
+    credit_guard: int
+
+
+@app.get("/api/settings")
+def get_app_settings():
+    return {"credit_guard": eleven_account.guard(), "default_credit_guard": eleven_account.DEFAULT_GUARD}
+
+
+@app.put("/api/settings")
+def put_app_settings(body: GuardBody):
+    if body.credit_guard < 1:
+        raise HTTPException(400, "الحد لازم يبقى 1 credit أو أكتر")
+    return {"credit_guard": eleven_account.set_guard(body.credit_guard)}
+
+
+@app.get("/api/eleven/account")
+def eleven_info():
+    """الرصيد وحالة المفتاح (طلب قراءة بس، بيتنادى بزرار التحديث). المفتاح نفسه مش في الرد."""
+    return eleven_account.account()
 
 
 @app.get("/library")
@@ -248,9 +276,17 @@ def reopen_audio(pid: str):
     return {"ok": True}
 
 
+class SentenceBody(BaseModel):
+    confirm: bool = False
+
+
 @app.post("/api/projects/{pid}/audio/sentence/{sid}")
-def audio_sentence(pid: str, sid: int):
+def audio_sentence(pid: str, sid: int, body: SentenceBody | None = None):
     _get(pid)
+    # حد الموافقة: لو إعادة الجملة (هي والجمل اللي حواليها) هتعدّي الحد، بنسأل الأول ومش بنبعت حاجة لـ ElevenLabs
+    cost, limit = audio_stage.sentence_cost(pid, sid), eleven_account.guard()
+    if cost > limit and not (body and body.confirm):
+        return {"needs_confirm": True, "cost": cost, "guard": limit, "message": audio_stage.guard_message(cost, limit)}
     worker.enqueue(pid, "audio_sentence", sid=sid)
     return {"ok": True}
 
