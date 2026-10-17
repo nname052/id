@@ -42,7 +42,9 @@ manager.itemEnd = ((orig) => function (u) { pending--; const r = orig.call(this,
 manager.itemError = ((orig) => function (u) { console.warn("3D asset failed", u); return orig.call(this, u); })(manager.itemError);
 const settled = () => new Promise((res) => (pending <= 0 ? res() : waiters.push(res)));
 // شخصيات Rocketbox صورها TGA كبيرة، فبنزّلناها PNG أصغر بنفس الاسم
-manager.setURLModifier((u) => (/\/rocketbox\//.test(u) ? u.replace(/\.tga$/i, ".png") : u));
+// Rocketbox: الصور متحوّلة PNG؛ وصور الـ specular ما اتنزّلتش عن قصد (المواد عندنا مش بتستخدمها)، فبنديها صورة فاضية بدل طلب 404
+const BLANK_PX = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+manager.setURLModifier((u) => (/\/rocketbox\//.test(u) ? (/_specular\.(tga|png)$/i.test(u) ? BLANK_PX : u.replace(/\.tga$/i, ".png")) : u));
 const fbx = new FBXLoader(manager), gltf = new GLTFLoader(manager);
 const cache = {};
 const once = (key, fn) => (cache[key] ??= fn());

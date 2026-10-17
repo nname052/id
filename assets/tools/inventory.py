@@ -7,6 +7,7 @@ from playwright.sync_api import sync_playwright
 
 ROOT = Path(__file__).resolve().parents[2]
 A3 = ROOT / "assets" / "3d"
+PROCEDURAL_PROPS = ["book"]
 EXT = {".glb", ".gltf", ".fbx", ".obj", ".hdr", ".exr"}
 
 # ---------- الرخص (من ملف الرخصة جنب الحاجة لو موجود، أو من المصدر الموثّق في سكريبتات التنزيل) ----------
@@ -181,6 +182,9 @@ def library_factors(out):
             res[lib] = {"value": v, "reason": (f"character median height {med:.2f} m is inside the adult range {HUMAN[0]}-{HUMAN[1]} m: no correction" if v == 1.0
                         else f"character median height {med:.2f} m (stylized); scaled to a {HUMAN[2]} m adult"),
                         "evidence": [{"measure": "h", "median_character_height_m": round(med, 4), "min_m": round(min(hs), 4), "max_m": round(max(hs), 4), "count": len(hs)}]}
+        elif lib == "procedural":
+            res[lib] = {"value": 1.0, "reason": "built in code at real-world size (see real_size_m / size_deviation_pct per item)", "evidence": [
+                {"asset": x["name"], "measure": "bbox", "measured_m": x["scale"]["size_m"], "reference_m": x["real_size_m"], "deviation_pct": x["size_deviation_pct"]} for x in items]}
         elif lib == "hdri":
             res[lib] = {"value": 1.0, "reason": "HDRI images have no spatial size", "evidence": []}
     return res
@@ -220,6 +224,17 @@ def main():
             if meas.get("bones"): e["bones"] = meas["bones"]
             if meas.get("error"): e["error"] = meas["error"]
             out.append(e)
+        # الحاجات المرسومة بالكود (app/player/procedural_props.js): مقاسها متقاس من الموديل المتبني، ومتقارن بالمقاس الحقيقي (±10%)
+        for name in PROCEDURAL_PROPS:
+            meas = pg.evaluate("(n) => window.measureProcedural(n)", name)
+            sz = meas["size_m"]; real = meas["real_m"]
+            dev = [round((a - r) / r * 100, 1) for a, r in zip(sz, real)]
+            out.append({"name": f"{name}_procedural", "type": "prop", "library": "procedural", "path": f"app/player/procedural_props.js#{name}", "format": "js",
+                        "procedural": True, "scale": {"size_m": sz, "basis": meas["basis"], "unit_to_m": 1, "height_m": sz[1], "max_dim_m": max(sz),
+                        **({"surfaces": meas["surfaces"]} if "surfaces" in meas else {})},
+                        "real_size_m": real, "real_size_label": meas["label"], "size_deviation_pct": dev, "size_within_10pct": all(abs(d) <= 10 for d in dev),
+                        "license": "project code (procedural, own work)", "license_clear": True, "source": "this repository",
+                        "license_evidence": "generated in code: app/player/procedural_props.js", "license_file_local": True})
         b.close()
     issues_raw = [x for x in (scale_issue(e) for e in out) if x]
     factors = library_factors(out)

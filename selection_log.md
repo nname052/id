@@ -1,4 +1,4 @@
-# Selection log — Phase 2, Steps 1 and 1.5
+# Selection log — Phase 2, Steps 1, 1.5 and 2
 
 Rules applied:
 - Only assets with `license_clear: true` in `assets_manifest.json` are eligible (all 1,348 are clear; none excluded).
@@ -49,7 +49,8 @@ Rules applied:
 | Prop | `kaykit-furniture/couch` | 1.224 → **0.885** (×0.723) | sofa 0.85 | PASS (+4%) | He sits and reads. |
 | Prop | `kaykit-furniture/lamp_standing` | 2.52 → **1.82** | floor lamp ~1.6 | PASS (+14%, near the limit) | Switching it on = "pick a fixed time". |
 | Prop | `food-kit/cup-tea` | 0.20 → **0.092** | mug 0.10 | PASS (−8%) | Tea beside him = "make it a ritual". |
-| ~~Prop~~ | ~~`kaykit-furniture/book_single`~~ | 0.50 → 0.361 | book 0.22 | **dropped** (+64%) | Drawn oversized; `furniture-kit/books` also fails (+34%). **No book in any library passes.** The hero prop needs a procedural book at real size (box 0.155 × 0.23 × 0.028 m, as in the Phase 1 lab) or a new asset. Open decision for Step 2. |
+| Prop | `procedural/book_procedural` (`app/player/procedural_props.js#book`) | built at 0.155 × 0.028 × 0.23 → measured **0.155 × 0.028 × 0.23** (×1.0) | book 0.155 × 0.23 × 0.028 | PASS (0% on every axis; limit ±10%) | Hero prop: picks up the book and reads. Procedural because no library book passes (see below). Decided by the user in Step 2. |
+| ~~Prop~~ | ~~`kaykit-furniture/book_single`~~ | 0.50 → 0.361 | book 0.22 | **dropped** (+64%) | Drawn oversized; `furniture-kit/books` also fails (+34%). **No book in any library passes.** Replaced by the procedural book above. |
 
 ---
 

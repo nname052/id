@@ -12,6 +12,11 @@ from playwright.sync_api import sync_playwright
 
 name, cam, out = sys.argv[1], sys.argv[2], sys.argv[3]
 opts = json.loads(sys.argv[4]) if len(sys.argv) > 4 else {}
+# معاملات تصحيح المقاس لكل مكتبة (من assets_manifest.json): المشهد بيحمّل كل موديل بمقاسه الحقيقي
+try:
+    opts.setdefault("factors", {k: v["value"] for k, v in json.load(open("assets_manifest.json"))["library_factors"].items()})
+except FileNotFoundError:
+    pass
 FPS = 30
 with sync_playwright() as pw:
     b = pw.chromium.launch(args=["--use-angle=metal"])

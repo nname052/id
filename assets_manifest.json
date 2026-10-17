@@ -555,6 +555,31 @@
      "count": 2
     }
    ]
+  },
+  "procedural": {
+   "value": 1.0,
+   "reason": "built in code at real-world size (see real_size_m / size_deviation_pct per item)",
+   "evidence": [
+    {
+     "asset": "book_procedural",
+     "measure": "bbox",
+     "measured_m": [
+      0.155,
+      0.028,
+      0.23
+     ],
+     "reference_m": [
+      0.155,
+      0.028,
+      0.23
+     ],
+     "deviation_pct": [
+      0.0,
+      0.0,
+      0.0
+     ]
+    }
+   ]
   }
  },
  "scale_check_raw": [
@@ -5111,9 +5136,9 @@
  ],
  "scale_basis": "bounding box measured by three.js loaders (glTF in meters; FBX cm x UnitScaleFactor); characters in bind pose; animation-only files use the skeleton box; HDRIs have no spatial size (pixel size recorded)",
  "counts": {
-  "total": 1348,
+  "total": 1349,
   "character": 57,
-  "prop": 608,
+  "prop": 609,
   "environment": 638,
   "hdri": 5,
   "motion_clip": 40,
@@ -84289,6 +84314,70 @@
     ],
     "height_m": 1.8287,
     "max_dim_m": 1.9445
+   }
+  },
+  {
+   "name": "book_procedural",
+   "type": "prop",
+   "library": "procedural",
+   "path": "app/player/procedural_props.js#book",
+   "format": "js",
+   "procedural": true,
+   "scale": {
+    "size_m": [
+     0.155,
+     0.028,
+     0.23
+    ],
+    "basis": "mesh_bbox",
+    "unit_to_m": 1,
+    "height_m": 0.028,
+    "max_dim_m": 0.23,
+    "surfaces": [
+     [
+      0.0279,
+      0.0362
+     ],
+     [
+      0.0025,
+      0.0357
+     ],
+     [
+      0.0256,
+      0.033
+     ]
+    ]
+   },
+   "real_size_m": [
+    0.155,
+    0.028,
+    0.23
+   ],
+   "real_size_label": "closed book lying flat (w x thickness x height)",
+   "size_deviation_pct": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "size_within_10pct": true,
+   "license": "project code (procedural, own work)",
+   "license_clear": true,
+   "source": "this repository",
+   "license_evidence": "generated in code: app/player/procedural_props.js",
+   "license_file_local": true,
+   "scale_factor": {
+    "value": 1.0,
+    "library": "procedural",
+    "reason": "built in code at real-world size (see real_size_m / size_deviation_pct per item)"
+   },
+   "scale_corrected": {
+    "size_m": [
+     0.155,
+     0.028,
+     0.23
+    ],
+    "height_m": 0.028,
+    "max_dim_m": 0.23
    }
   }
  ],

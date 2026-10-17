@@ -7,6 +7,8 @@ import { makeRetarget, clipTrack } from "/player/clips.js";
 import { setupRig, buildPerformance, applyPose, stepAt, pointAt } from "/player/rig.js";
 import { makeGrasp, fingerPoints, standFor, sdfLocal, handSkin, eachSkin } from "/player/grasp.js";
 import { makeFace } from "/player/face.js";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { makeBook, BOOK } from "/player/procedural_props.js";
 
 const W = 1080, H = 1920;
 const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
@@ -269,22 +271,164 @@ async function sceneClips(scene, opts) {
   };
 }
 
+// ---------- مشهد Phase 2: "إزاي تقرا 20 دقيقة في اليوم" (القعدة، مسك الكتاب، القراية، البصّة للكاميرا) ----------
+// كل الموديلات بتتحمّل بمقاسها المصحَّح (scale_factor من assets_manifest.json لكل مكتبة)
+const gltfL = new GLTFLoader();
+async function placeAsset(scene, path, factor, x, z, rotY = 0) {
+  const g = (await gltfL.loadAsync("/" + path)).scene;
+  g.scale.setScalar(factor); g.rotation.y = rotY; g.position.set(x, 0, z); g.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(g, true); g.position.y -= box.min.y; g.updateMatrixWorld(true); // على الأرض بالظبط
+  g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  scene.add(g); return { g, box: new THREE.Box3().setFromObject(g, true) };
+}
+// أعلى سطح أفقي كبير جوه موديل (سطح الترابيزة/قعدة الكنبة) في منطقة x,z معينة
+function surfaceTop(g, x0, x1, z0, z1, below = 99) {
+  let best = -Infinity; const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), n = new THREE.Vector3();
+  g.traverse((o) => { if (!o.isMesh) return; const pos = o.geometry.attributes.position, idx = o.geometry.index, cnt = idx ? idx.count : pos.count;
+    for (let i = 0; i + 2 < cnt; i += 3) { const ia = idx ? idx.getX(i) : i, ib = idx ? idx.getX(i + 1) : i + 1, ic = idx ? idx.getX(i + 2) : i + 2;
+      a.fromBufferAttribute(pos, ia).applyMatrix4(o.matrixWorld); b.fromBufferAttribute(pos, ib).applyMatrix4(o.matrixWorld); c.fromBufferAttribute(pos, ic).applyMatrix4(o.matrixWorld);
+      n.subVectors(b, a).cross(c.clone().sub(a)); if (n.y <= 0.9 * n.length()) continue;
+      const cx = (a.x + b.x + c.x) / 3, cz = (a.z + b.z + c.z) / 3, cy = (a.y + b.y + c.y) / 3;
+      if (cx >= x0 && cx <= x1 && cz >= z0 && cz <= z1 && cy < below) best = Math.max(best, cy); } });
+  return best;
+}
+async function sceneRead(scene, opts) {
+  const F = opts.factors || {}, f = (lib) => F[lib] ?? 1;
+  const ch = await character(opts.character || "Male_Adult_08", 1.8, "soft");
+  scene.add(ch.root); ch.root.position.set(0, 0, 0); ch.root.updateMatrixWorld(true);
+  const R = setupRig(ch), k = R.k;
+  // المكان: حيطة ورا، كنبة، ترابيزة جانبية على يمينه (عليها الكتاب والشاي)، أباجورة، سجادة
+  const wall = await placeAsset(scene, "assets/3d/kaykit-restaurant/wall.gltf", f("kaykit-restaurant"), 0, -1.35);
+  const rug = await placeAsset(scene, "assets/3d/kaykit-furniture/rug_rectangle_A.gltf", f("kaykit-furniture"), -0.2, 0.15);
+  const couch = await placeAsset(scene, "assets/3d/kaykit-furniture/couch_pillows.gltf", f("kaykit-furniture"), 0, -0.55);
+  const side = await placeAsset(scene, "assets/3d/kaykit-furniture/table_small.gltf", f("kaykit-furniture"), -1.55, -0.3);
+  const lamp = await placeAsset(scene, "assets/3d/kaykit-furniture/lamp_standing.gltf", f("kaykit-furniture"), 1.45, -0.85);
+  const shelf = await placeAsset(scene, "assets/3d/kaykit-furniture/shelf_B_large_decorated.gltf", f("kaykit-furniture"), 2.3, -1.05);
+  const cup = await placeAsset(scene, "assets/3d/food-kit/cup-tea.glb", f("food-kit"), -1.42, -0.42, 0.6);
+  const sb = side.box, sideTop = surfaceTop(side.g, sb.min.x, sb.max.x, sb.min.z, sb.max.z);
+  cup.g.position.y += sideTop - cup.box.min.y; cup.g.updateMatrixWorld(true);
+  const cb = couch.box, seatTop = surfaceTop(couch.g, -0.4, 0.4, cb.min.z, cb.max.z, cb.min.y + 0.6);
+  // الكتاب (مرسوم بالكود بمقاسه الحقيقي) على الترابيزة الجانبية، الكعب ناحيته
+  const book = makeBook(); scene.add(book);
+  const from = new THREE.Vector3(-1.3, sideTop, -0.18), to = new THREE.Vector3(-1.32, sideTop, -0.14);
+  book.position.copy(from); book.rotation.y = 0.25;
+  // القعدة: نقطة الجسم (root) عند الوسط فوق القعدة، فتصحيح التوازن ما بيشدّش الوسط ناحية الرجلين (الوزن على الكنبة مش على الرجلين)،
+  // والرجلين متثبتين على الأرض قدام الركب (feetW). كده من غير أي تعديل في rig.js
+  const sitX = -0.62, hipsZ = cb.max.z - 0.3, rootPos = new THREE.Vector3(sitX, 0, hipsZ - 0.03), face = 0;
+  const seat = { h: seatTop, back: 0 };
+  const thigh = R.side.Left.Lu;
+  const feetW = Object.fromEntries(["Left", "Right"].map((S2) => [S2, { x: sitX + R.side[S2].sign * 0.14 * k, z: hipsZ + thigh * 0.95 + 0.08, lift: 0 }]));
+  const base = await clipLayer(ch, R, [{ name: "sitting_idle", start: -1, offset: 2 }]);
+  // الإيقاع (هادي، محايد): يستقر، يبص للكتاب، يمد إيده، يشيله، يقرا، يرفع عينه للكاميرا، يرجّعه، يستقر
+  const T = { reach: 1.5, grasp: 2.6, lift: 3.0, place: 8.6, release: 9.5, back: 9.7 };
+  const perf = buildPerformance([{ t: 0, body: "sit", head: "forward", l_arm: "rest", r_arm: "rest", face: "neutral" },
+    { t: 3.6, body: "sit_lean", head: "down", l_arm: "cross", r_arm: "rest", face: "thinking", dur: 1.4, ease: "slow" }, // الإيد الشمال مرتاحة على حجره وهو بيقرا (مش سايبة على حرف الكنبة)
+    { t: 7.0, body: "sit", head: "forward", l_arm: "rest", r_arm: "rest", face: "smile", dur: 1.4, ease: "slow" }], k);
+  const pose = (tt, reach, extra = {}) => applyPose(R, { P: perf(tt).P, t: tt, rootPos, face, seat, feetW, energy: 0.3, seed: 0.9, reach: reach || undefined, base: base(tt), ...extra });
+  const grasp = makeGrasp({ R, obj: book, shape: book.userData.shape, from, to, t: T, side: "Right", pose });
+  // القراية: الكتاب بيتمال ناحية وشّه وهو ماسكه (طبقة فوق المسكة: بتلف إطار الإيد كله حوالين نص الكتاب، فالمسكة نفسها ما بتتغيرش)
+  const hold = T.lift + 1.4;
+  { const g0 = grasp(hold); pose(hold, g0.reach); g0.placeObject(); }
+  const C0 = book.localToWorld(new THREE.Vector3(0, BOOK.d / 2, 0)), W0 = grasp(hold).reach.R.point.clone();
+  const left = new THREE.Vector3(1, 0, 0), up = new THREE.Vector3(0, 1, 0), back = new THREE.Vector3(0, 0, -1);
+  const tiltW = (tt) => smooth((tt - (T.lift + 0.1)) / 1.0) * (1 - smooth((tt - (T.place - 0.9)) / 0.8)); // بيبدأ مع الشيل: الكتاب يطلع لمكان القراية في منحنى واحد
+  const readTilt = (gs, tt) => {
+    const w = tiltW(tt); if (!gs.reach || !gs.reach.R || w <= 0) return gs.reach;
+    const r = gs.reach.R, q = new THREE.Quaternion().setFromAxisAngle(left, -58 * Math.PI / 180 * w);
+    const C = C0.clone().addScaledVector(up, 0.24 * w).addScaledVector(back, 0.02 * w).addScaledVector(left, 0.1 * w);
+    return { R: { ...r, point: C.clone().add(r.point.clone().sub(C0).applyQuaternion(q)), fing: r.fing.clone().applyQuaternion(q), palm: r.palm.clone().applyQuaternion(q) } };
+  };
+  // الحطّ: لو مكان المسك (قاعد) أوطى من سطح الترابيزة، الطريق المستقيم بيعدّي الكتاب من تحت حرفها.
+  // طبقة فوق المسكة: الإيد تطلع فوق مكان الحطّ الأول، تعدّي فوقه، وبعدين تنزل رأسي (grasp.js ما اتغيّرش)
+  const Wh = grasp(T.place).reach.R.point.clone(), Wp = grasp(T.release - 1e-3).reach.R.point.clone();
+  const lift = Math.max(0, sideTop + 0.06 - Wp.y) + 0.06;
+  const Wa = Wp.clone().add(new THREE.Vector3(0, lift, 0)), Wm = new THREE.Vector3((Wh.x + Wa.x) / 2, Wa.y + 0.02, (Wh.z + Wa.z) / 2);
+  const cr = (p0, p1, p2, p3, f) => { const f2 = f * f, f3 = f2 * f; return new THREE.Vector3().addScaledVector(p0, -0.5 * f3 + f2 - 0.5 * f).addScaledVector(p1, 1.5 * f3 - 2.5 * f2 + 1).addScaledVector(p2, -1.5 * f3 + 2 * f2 + 0.5 * f).addScaledVector(p3, 0.5 * f3 - 0.5 * f2); };
+  const placePath = (u) => { const P = [Wh, Wh, Wm, Wa, Wp, Wp], n = 3, x = Math.min(0.9999, Math.max(0, u)) * n, i = Math.floor(x); return cr(P[i], P[i + 1], P[i + 2], P[i + 3], x - i); };
+  // نفس الشي في الشيل: الإيد تطلع لفوق الأول، وتخرج برّه الترابيزة، وبعدين تنزل لمكان المسك
+  const LIFT = Math.min(1.1, T.place - T.lift), Wg = grasp(T.lift).reach.R.point.clone();
+  const Wu = Wg.clone().add(new THREE.Vector3(0, 0.07, 0)), Wo = new THREE.Vector3((Wg.x + Wh.x) / 2, Wg.y + 0.07, (Wg.z + Wh.z) / 2);
+  const liftPath = (u) => { const P = [Wg, Wg, Wu, Wo, Wh, Wh], n = 4, x = Math.min(0.9999, Math.max(0, u)) * n, i = Math.min(n - 1, Math.floor(x)); return cr(P[i], P[i + 1], P[Math.min(5, i + 2)], P[Math.min(5, i + 3)], x - i); };
+  const routeLift = (rr, tt) => {
+    if (!rr || !rr.R || tt < T.lift || tt >= T.lift + LIFT) return rr;
+    return { R: { ...rr.R, point: liftPath(smooth((tt - T.lift) / LIFT)) } };
+  };
+  const routePlace = (rr, tt) => {
+    if (!rr || !rr.R || tt < T.place || tt >= T.release) return rr;
+    return { R: { ...rr.R, point: placePath(smooth((tt - T.place) / (T.release - T.place))) } };
+  };
+  // البصّة: بتتنقل بين أهداف بنعومة وبتأخير ~0.2 ثانية (انتباه متأخر، مش لفّة راس فجأة)
+  const shotA = { at: 0, pos: [0.55, 1.3, 2.75], look: [-0.95, 0.78, -0.2], fov: 36, name: "A: medium-wide 3/4" };
+  const shotB = { at: 7.05, pos: [-0.62, 1.12, 1.45], look: [-0.64, 0.98, -0.2], fov: 30, name: "B: medium close-up, eye level" };
+  const shotA2 = { ...shotA, at: 8.35, name: "A2: back to medium-wide (placing the book)" };
+  const camB = new THREE.Vector3(...shotB.pos);
+  const bookC = () => book.localToWorld(new THREE.Vector3(0, BOOK.d / 2, 0));
+  const ahead = new THREE.Vector3(sitX, 1.0, 2.5);
+  const gazeKeys = [[0, () => ahead], [1.0, () => from.clone()], [3.2, bookC], [6.9, () => camB], [8.3, () => to.clone()], [10.1, () => ahead]];
+  // الجسم بيلف ناحية الترابيزة الجانبية وهو بيبص/بيمد إيده (زي الحقيقة: الراس لوحدها ما بتلفّش 90°)
+  const sideTurn = (tt) => -18 * smooth((tt - 1.0) / 0.7) * (1 - smooth((tt - 3.3) / 0.8)) - 14 * smooth((tt - 8.2) / 0.6) * (1 - smooth((tt - 9.9) / 0.7));
+  const headPos = new THREE.Vector3(sitX, 1.12, hipsZ);
+  const gaze = (tt) => {
+    const d = tt - 0.2; let p = gazeKeys[0][1]();
+    for (let i = 1; i < gazeKeys.length; i++) p = p.clone().lerp(gazeKeys[i][1](), smooth((d - gazeKeys[i][0]) / 0.55));
+    // حد ناعم لِلَفّة الراس (±65°): الـ rig فيه حد ثابت 75°، ولو الهدف عدّاه الراس بتقف فجأة (وفي هيكل Biped الكتف متعلق في الرقبة فالإيد بتتنطّ)
+    const v = p.clone().sub(headPos), yaw = Math.atan2(v.x, v.z), lim = 65 * Math.PI / 180;
+    const yaw2 = lim * Math.tanh(yaw / lim) ; const hr = Math.hypot(v.x, v.z);
+    return headPos.clone().add(new THREE.Vector3(Math.sin(yaw2) * hr, v.y, Math.cos(yaw2) * hr));
+  };
+  return {
+    duration: 11.6, words: [], R, cupObj: book, actors: [R], T,
+    frame(tt) {
+      const gs = grasp(tt);
+      let rr = routePlace(readTilt({ ...gs, reach: routeLift(gs.reach, tt) }, tt), tt);
+      // قاعد: ثني الركب اللي الـ rig بيعمله للحاجة الواطية (للواقف) بيتلغي، علشان الوسط ما يغطسش في الكنبة (نفس معادلة rig.js بالعكس)
+      let rc = 0; for (const r of Object.values(rr || {})) if (r && r.w > 0) rc = Math.max(rc, smooth((1.05 * k - r.point.y) / (0.7 * k)) * 0.26 * smooth(r.w));
+      const X = window.__rd || {}; // للتشخيص بس: تعطيل طبقة طبقة
+      if (X.noReach) rr = null; if (X.noCancel) rc = 0;
+      // قاعد: رجوع الوسط لورا مع الميلة (توازن الواقف في rig.js: sin(lean) × 0.15) بيتلغي، علشان الركب ما تتشدّش جوه الكنبة
+      const leanNow = perf(tt).P.body.lean + (gs.bodyAdd.lean || 0), hipFwd = Math.sin(Math.max(0, leanNow) * Math.PI / 180) * 0.15 * k;
+      pose(tt, rr, { bodyAdd: X.noBody ? { crouch: -rc } : { ...gs.bodyAdd, crouch: -rc, shiftZ: hipFwd, turn: (gs.bodyAdd.turn || 0) + sideTurn(tt) }, lookPoint: X.noGaze ? new THREE.Vector3(sitX, 1, 2.5) : gaze(tt), lookW: 1 });
+      gs.placeObject();
+      const ct = gs.mode === "held" ? gs.contact() : null;
+      // الكتاب: لو مش ممسوك لازم يبقى قاعد على الترابيزة (مش طاير ولا غاطس)
+      const bb = new THREE.Box3().setFromObject(book);
+      const s = R.side.Right, hv = handSkin(ch, s); let low = Infinity;
+      eachSkin([...hv.palm, ...hv.fing.flat(2)], (v) => { if (v.x < sb.max.x && v.x > sb.min.x && v.z < sb.max.z && v.z > sb.min.z) low = Math.min(low, v.y); });
+      const over = bb.max.x > sb.min.x && bb.min.x < sb.max.x && bb.max.z > sb.min.z && bb.min.z < sb.max.z;
+      const bookInTable = over && bb.min.y < sideTop - 0.001 && bb.max.y > sb.min.y ? +((sideTop - bb.min.y) * 1000).toFixed(1) : 0; // مم جوه سطح الترابيزة
+      return { bookInTableMM: bookInTable, mode: gs.mode, pen: ct ? Math.min(ct.palm, ct.fingers) : null, palmMM: ct ? +(ct.palm * 1000).toFixed(1) : null,
+        bookBottom: +bb.min.y.toFixed(4), tableTop: +sideTop.toFixed(4), handLowOverTable: isFinite(low) ? +low.toFixed(4) : null,
+        shot: tt >= shotA2.at ? "A2" : tt >= shotB.at ? "B" : "A", tilt: +tiltW(tt).toFixed(3), actors: [R] };
+    },
+    shots: [shotA, shotB, shotA2],
+    cameras: { wide: shotA, close: shotB, reachClose: { pos: [-0.75, 1.15, 0.85], look: [-1.25, 0.78, -0.17], fov: 34 },
+      readClose: { pos: [-0.2, 1.1, 0.95], look: [-0.66, 0.9, 0.0], fov: 34 }, readSide: { pos: [-1.55, 1.05, 0.15], look: [-0.66, 0.85, 0.05], fov: 34 } },
+    info: { seatTop, sideTop, couch: cb, wallH: wall.box.max.y, lampH: lamp.box.max.y, cupH: cup.box.max.y - cup.box.min.y, shelfH: shelf.box.max.y, rug: rug.box.max.y },
+  };
+}
+
 // ---------- الواجهة اللي السكريبت بيستخدمها ----------
 let S, cam, r, scene, prevBones = null, prevVel = null;
 window.setupLab = async (name, camName = "wide", opts = {}) => {
   r = engine(); scene = new THREE.Scene();
   const set = await buildSet(scene, "studio", "soft", "day", PAL, 1);
   lights(scene, set, "day", "soft", PAL);
-  S = name === "duo" ? await sceneDuo(scene) : name === "clips" ? await sceneClips(scene, opts) : await sceneCup(scene, opts);
+  S = name === "duo" ? await sceneDuo(scene) : name === "clips" ? await sceneClips(scene, opts) : name === "read" ? await sceneRead(scene, opts) : await sceneCup(scene, opts);
   await settled();
-  const c = S.cameras[camName] || S.cameras.wide;
+  // "edit": المشهد بيدّي لقطات بأوقات قطع (shots)؛ غير كده كاميرا ثابتة بالاسم
+  const c = camName === "edit" && S.shots ? S.shots[0] : S.cameras[camName] || S.cameras.wide;
   cam = new THREE.PerspectiveCamera(c.fov, W / H, 0.05, 100); cam.position.set(...c.pos); cam.lookAt(new THREE.Vector3(...c.look));
+  S._editMode = camName === "edit" && !!S.shots;
   document.body.appendChild(r.domElement); r.domElement.style.cssText = "position:absolute;left:0;top:0;width:1080px;height:1920px";
   prevBones = null; prevVel = null; window.__S = S;
   return S.duration;
 };
 // بيرسم لحظة t وبيرجّع القياسات (لازم الفريمات تتنادى بالترتيب علشان قياس "النطّة" بين فريمين)
 window.labFrame = (t) => {
+  if (S._editMode) { // القطع: اللقطة اللي وقتها بدأ
+    const sh = S.shots.filter((x) => t >= x.at).pop() || S.shots[0];
+    cam.fov = sh.fov; cam.updateProjectionMatrix(); cam.position.set(...sh.pos); cam.lookAt(new THREE.Vector3(...sh.look));
+  }
   const info = S.frame(t);
   r.render(scene, cam);
   const ms = info.actors.map(measure);

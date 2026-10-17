@@ -76,5 +76,11 @@ window.measure = async (url) => {
     return m;
   } catch (e) { return { error: String(e && e.message || e) }; }
 };
+// الحاجات المرسومة بالكود: بتتبني وتتقاس بنفس الطريقة (الصندوق المحيط بالمتر)
+window.measureProcedural = async (name) => {
+  const { PROCEDURAL } = await import("/player/procedural_props.js");
+  const root = PROCEDURAL[name].make(); const m = measureObject(root, 1); m.unit_to_m = 1; m.clips = [];
+  m.real_m = PROCEDURAL[name].real_m; m.label = PROCEDURAL[name].label; return m;
+};
 window.invReady = true;
 </script></body></html>
