@@ -140,6 +140,65 @@ def estimated_words(pid: str) -> dict:
     return {"source": "estimate", "duration": round(t, 2), "words": out}
 
 
+# ---------- نقط القص عند السكوت الحقيقي ----------
+# توقيت الكلمات من ElevenLabs بيقول الحرف خلص امتى، بس صوت آخر حرف (والنَفَس) بيكمّل بعدها شوية، وأول حرف ممكن يبدأ قبلها.
+# القص على توقيت ثابت من الكلمات (زي "آخر كلمة + 0.12") كان بيقع جوه الصوت: ديل الجملة القديمة أو بداية الجملة اللي بعدها
+# بيترص جنب نفس الصوت من الطلب الجديد ← حرف/مقطع بيتكرر. دلوقتي كل قصّة بتقع على أوطى نقطة طاقة فعلية بين الجملتين.
+ENV_SR, ENV_HOP = 16000, 0.01
+
+
+def _envelope(src) -> "np.ndarray":
+    """طاقة الصوت (dB) كل 10 مللي ثانية. src: مسار ملف أو bytes."""
+    import subprocess
+
+    import numpy as np
+    args = ["ffmpeg", "-v", "error", "-i", "pipe:0" if isinstance(src, (bytes, bytearray)) else str(src), "-ac", "1", "-ar", str(ENV_SR), "-f", "f32le", "-"]
+    raw = subprocess.run(args, input=src if isinstance(src, (bytes, bytearray)) else None, capture_output=True, check=True).stdout
+    x = np.frombuffer(raw, dtype=np.float32)
+    n = int(ENV_SR * ENV_HOP)
+    m = len(x) // n
+    db = 20 * np.log10(np.sqrt((x[: m * n].reshape(m, n) ** 2).mean(axis=1)) + 1e-9)
+    return np.convolve(db, np.ones(3) / 3, mode="same")  # تنعيم 30 مللي ثانية
+
+
+def quiet_point(db, t0: float, t1: float) -> float:
+    """أوطى نقطة طاقة في الفجوة بين جملتين (t0 = آخر كلمة خلصت، t1 = أول كلمة بدأت).
+    توقيت ElevenLabs ساعات بيتأخر/يتقدم ~0.1 ثانية، فلو مفيش سكوت حقيقي جوه الفجوة بنوسّع البحث بالتدريج
+    (0، 0.06، 0.12، 0.2 ثانية) لحد ما نلاقي سكوت (جوه 20 dB من أرضية السكوت حوالين الحد). ومن بين نقط السكوت بناخد الأقرب لنص الفجوة."""
+    import numpy as np
+    lo, hi = max(0, int((t0 - 0.35) / ENV_HOP)), min(len(db), int((t1 + 0.35) / ENV_HOP) + 1)
+    if hi <= lo:
+        return max(0.0, (t0 + t1) / 2)
+    floor = float(db[lo:hi].min())
+    center = (t0 + t1) / 2
+    best = None
+    for pad in (0.0, 0.06, 0.12, 0.2):
+        a, b = max(0, int((t0 - pad) / ENV_HOP)), min(len(db), int((t1 + pad) / ENV_HOP) + 1)
+        if b <= a:
+            continue
+        seg = db[a:b]
+        near = np.where(seg <= seg.min() + 1.0)[0]
+        i = int(near[np.argmin(np.abs((a + near) * ENV_HOP - center))])
+        best = (a + i) * ENV_HOP + ENV_HOP / 2
+        if seg.min() <= floor + 20:  # لقينا سكوت حقيقي
+            break
+    return round(best, 3)
+
+
+def splice_points(old_db, before: list, mine: list, after: list, old_dur: float,
+                  new_db, g_before: list, g_mine: list, g_after: list, new_dur: float, insert: bool = False) -> tuple:
+    """(a, b) في الصوت القديم و (ca, cb) في الطلب الجديد: كل قصّة عند السكوت الحقيقي بين الجملتين."""
+    if insert or not mine:
+        nxt = after[0]["start"] if after else old_dur
+        a = b = quiet_point(old_db, before[-1]["end"], nxt) if before else 0.0
+    else:
+        a = quiet_point(old_db, before[-1]["end"], mine[0]["start"]) if before else quiet_point(old_db, 0.0, mine[0]["start"])
+        b = quiet_point(old_db, mine[-1]["end"], after[0]["start"]) if after else old_dur
+    ca = quiet_point(new_db, g_before[-1]["end"], g_mine[0]["start"]) if g_before else quiet_point(new_db, 0.0, g_mine[0]["start"])
+    cb = quiet_point(new_db, g_mine[-1]["end"], g_after[0]["start"]) if g_after else min(new_dur, quiet_point(new_db, g_mine[-1]["end"], new_dur))
+    return a, b, ca, cb
+
+
 # ---------- إعادة جملة واحدة ----------
 # الجملة لوحدها (نص قصير) بتخلي eleven_v3 يرتجل شخصية الصوت من الأول، فبتطلع كأنها صوت تاني.
 # علشان كده بنبعتها وسط الجمل اللي حواليها في طلب واحد (نفس السياق اللي اتقالت فيه أول مرة)، ونقص جملتنا بس.
@@ -222,14 +281,10 @@ def regen_sentence(pid: str, sid: int, insert: bool = False) -> None:
         # جملة جديدة: مكانها بعد آخر كلمة في الجمل اللي قبلها
         before = [w for w in words if order.get(w["sid"], -1) < idx]
         after = [w for w in words if order.get(w["sid"], -1) > idx]
-        a = b = (before[-1]["end"] + 0.06) if before else 0.0
         mine = []
     else:
         before = [w for w in words if words.index(w) < words.index(mine[0])]
         after = [w for w in words if words.index(w) > words.index(mine[-1])]
-        # الحتة القديمة اللي هتتشال من الصوت الكامل
-        a = max(before[-1]["end"] + 0.02 if before else 0.0, mine[0]["start"] - 0.05)
-        b = min(after[0]["start"] - 0.02 if after else W["duration"], mine[-1]["end"] + 0.12)
 
     # الجملة وسط سياقها في طلب واحد، وبعدين نقص جملتنا من الصوت الجديد
     ctx = _context(lines, idx)
@@ -240,23 +295,25 @@ def regen_sentence(pid: str, sid: int, insert: bool = False) -> None:
     g_mine = [w for w in gen if w["sid"] == sid]
     g_before = [w for w in gen if w["i"] < g_mine[0]["i"]]
     g_after = [w for w in gen if w["i"] > g_mine[-1]["i"]]
-    # القص في نص السكتة اللي بين جملتنا واللي حواليها (من غير ما ناكل نَفَس كلمة)
-    ca = max((g_before[-1]["end"] + g_mine[0]["start"]) / 2 if g_before else 0.0, g_mine[0]["start"] - 0.12)
-    cb = min((g_mine[-1]["end"] + g_after[0]["start"]) / 2 if g_after else gdur + 0.1, g_mine[-1]["end"] + 0.18)
+    voice = d / "audio" / "voice.mp3"
+    new_bytes = base64.b64decode(data["audio_base64"])
+    old_db, new_db = _envelope(voice), _envelope(new_bytes)
+    # كل قصّة (في القديم وفي الجديد) عند أوطى نقطة طاقة فعلية بين الجملتين، مش على توقيت ثابت من الكلمات
+    a, b, ca, cb = splice_points(old_db, before, mine, after, W["duration"], new_db, g_before, g_mine, g_after,
+                                 len(new_db) * ENV_HOP, insert=insert or not mine)
     dur = cb - ca
 
-    voice = d / "audio" / "voice.mp3"
     u = d / "audio" / "undo"  # نسخة للرجوع لو الإعادة ماعجبتكش
     u.mkdir(exist_ok=True)
     shutil.copy(voice, u / "voice.mp3")
     shutil.copy(d / "words.json", u / "words.json")
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
-        (tmp / "new.mp3").write_bytes(base64.b64decode(data["audio_base64"]))
+        (tmp / "new.mp3").write_bytes(new_bytes)
         # نفس علو صوت الجملة القديمة
         ref = (a, b - a) if b - a > 0.3 else ((before[0]["start"], before[-1]["end"] - before[0]["start"]) if before else (0, 2))
-        old_db, new_db = _mean_db(voice, *ref), _mean_db(tmp / "new.mp3", ca, dur)
-        gain = max(-8.0, min(8.0, old_db - new_db)) if old_db is not None and new_db is not None else 0.0
+        old_lvl, new_lvl = _mean_db(voice, *ref), _mean_db(tmp / "new.mp3", ca, dur)
+        gain = max(-8.0, min(8.0, old_lvl - new_lvl)) if old_lvl is not None and new_lvl is not None else 0.0
         run = lambda *args: subprocess.run(["ffmpeg", "-y", "-loglevel", "error", *args], check=True)
         fade = "afade=t=in:d=0.02,areverse,afade=t=in:d=0.04,areverse"
         run("-i", str(voice), "-t", f"{a:.3f}", "-ar", "44100", "-ac", "1", str(tmp / "p1.wav"))
