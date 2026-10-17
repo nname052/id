@@ -88,6 +88,8 @@ def list_all() -> list[dict]:
     out = []
     if VIDEOS.exists():
         for d in sorted(VIDEOS.iterdir(), reverse=True):
+            if not d.is_dir():  # ملفات النظام زي .DS_Store
+                continue
             p = read_json(d / "project.json")
             if p:
                 out.append(p)

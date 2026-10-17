@@ -7,7 +7,7 @@ import re
 import time
 
 from .. import history, prefs, store
-from ..config import ASSETS
+from ..config import ASSETS, MIN_SCENE_SECONDS
 from . import assets, brief as brief_stage, custom, three_d
 from .common import ask, prompt
 
@@ -25,6 +25,8 @@ VISUAL = {"type": "object", "properties": {
     "required": ["kind", "search"], "additionalProperties": False}
 SCENE = {"type": "object", "properties": {
     "sentence_ids": {"type": "array", "items": {"type": "integer"}, "minItems": 1},
+    "idea": {"type": "string"},
+    "idea_en": {"type": "array", "items": {"type": "string"}, "minItems": 1, "maxItems": 5},
     "layout": {"type": "string", "enum": LAYOUTS},
     "headline": {"type": "string"},
     "cue_word": {"type": "string"},
@@ -64,7 +66,7 @@ SCENE = {"type": "object", "properties": {
         "required": ["set", "character", "time", "speaking", "start", "blocking", "performance", "shots"], "additionalProperties": False},
     "enter": {"type": "string", "enum": ["rise", "pop", "draw", "fade", "slide"]},
     "idle": {"type": "string", "enum": ["float", "pulse", "wobble", "none"]}},
-    "required": ["sentence_ids", "layout", "headline", "cue_word", "enter", "idle"], "additionalProperties": False}
+    "required": ["sentence_ids", "idea", "idea_en", "layout", "headline", "cue_word", "enter", "idle"], "additionalProperties": False}
 SCHEMA = {"type": "object", "properties": {
     "identity": {"type": "object", "properties": {
         "palette": {"type": "object", "properties": {k: HEX for k in ("bg", "ink", "accent", "accent2", "surface")},
@@ -99,8 +101,10 @@ WB_SCHEMA = {"type": "object", "properties": {
     "pace": SCHEMA["properties"]["pace"], "text_size": SCHEMA["properties"]["text_size"],
     "scenes": {"type": "array", "minItems": 1, "maxItems": 20, "items": {"type": "object", "properties": {
         "sentence_ids": {"type": "array", "items": {"type": "integer"}, "minItems": 1},
+        "idea": {"type": "string"},
+        "idea_en": {"type": "array", "items": {"type": "string"}, "minItems": 1, "maxItems": 5},
         "board": {"type": "array", "minItems": 1, "maxItems": 4, "items": WB_ITEM}},
-        "required": ["sentence_ids", "board"], "additionalProperties": False}}},
+        "required": ["sentence_ids", "idea", "idea_en", "board"], "additionalProperties": False}}},
     "required": ["identity", "pace", "text_size", "scenes"], "additionalProperties": False}
 
 
@@ -221,6 +225,72 @@ def fix_3d(scenes: list, pid: str, voice_gender: str) -> None:
         store.log(pid, f"3D: غيّرنا الشخصيات علشان ما تتكررش/تتخلطش: {mapping}")
 
 
+def _kw(words) -> set:
+    out = set()
+    for w in words or []:
+        for t in re.findall(r"[a-z]+", str(w).lower()):
+            if len(t) > 2:
+                out.add(t[:-1] if t.endswith("s") and len(t) > 4 else t)
+    return out
+
+
+def matches_idea(search, idea_en) -> bool:
+    """صورة بتوضّح الفكرة: كلمات البحث عنها فيها كلمة على الأقل من كلمات الفكرة. لو المشهد مالوش idea_en (خطط قديمة) بنعدّيه."""
+    return not idea_en or bool(_kw(search) & _kw(idea_en))
+
+
+def merge_short(raw_scenes: list, timing: dict, min_s: float = MIN_SCENE_SECONDS) -> tuple[list, int]:
+    """مشهد وقته على الشاشة أقل من الحد بيندمج في اللي قبله (أول مشهد بياخد اللي بعده). بيرجّع المشاهد وعدد الدمج.
+    الوقت بيتحسب بالظبط زي المشغّل: المشهد بيبدأ قبل أول كلمة فيه بـ 0.2 ثانية (الأول من 0) ويخلص لما اللي بعده يبدأ."""
+    scs, merged = [dict(s) for s in raw_scenes], 0
+    first, total = timing["first"], timing["total"]
+    start = lambda k: 0.0 if k == 0 else max(0.0, min(first.get(i, 1e9) for i in scs[k]["sentence_ids"]) - 0.2)  # noqa: E731
+    dur = lambda k: (start(k + 1) if k + 1 < len(scs) else total) - start(k)  # noqa: E731
+    changed = True
+    while changed and len(scs) > 1:
+        changed = False
+        for k in range(len(scs) - 1):  # آخر مشهد بيكمّل لآخر الفيديو
+            if dur(k) >= min_s:
+                continue
+            a, b = (k, k + 1) if k == 0 else (k - 1, k)
+            A, B = scs[a], scs[b]
+            A["sentence_ids"] = A["sentence_ids"] + B["sentence_ids"]
+            if "board" in A and "board" in B:  # السبورة: عناصر التانية بتتضاف، وأرقام الأسهم/الدواير بتتزحزح
+                off = len(A["board"])
+                A["board"] = A["board"] + [{**it, **{f: it[f] + off for f in ("from", "to", "target") if isinstance(it.get(f), int)}} for it in B["board"]]
+            if B.get("idea_en"):
+                A["idea_en"] = list(dict.fromkeys((A.get("idea_en") or []) + B["idea_en"]))[:8]
+            del scs[b]
+            merged += 1
+            changed = True
+            break
+    return scs, merged
+
+
+def _words_for(pid: str) -> dict:
+    from . import audio
+    W = store.read_json(store.project_dir(pid) / "words.json")
+    return W if (W and W.get("source") in ("elevenlabs", "user")) else audio.estimated_words(pid)
+
+
+def sentence_seconds(pid: str) -> dict:
+    """مدة كل جملة: من الصوت الحقيقي لو موجود، وإلا تقدير."""
+    secs = {}
+    for w in _words_for(pid)["words"]:
+        a, b = secs.get(w["sid"], (w["start"], w["end"]))
+        secs[w["sid"]] = (min(a, w["start"]), max(b, w["end"]))
+    return {k: round(b - a + 0.35, 3) for k, (a, b) in secs.items()}  # + السكتة بعد الجملة
+
+
+def scene_timing(pid: str) -> dict:
+    """أول كلمة في كل جملة + طول الفيديو (نفس حساب المشغّل)."""
+    W = _words_for(pid)
+    first = {}
+    for w in W["words"]:
+        first[w["sid"]] = min(first.get(w["sid"], w["start"]), w["start"])
+    return {"first": first, "total": W["duration"] + 2.2}
+
+
 def finalize(sc: dict, i: int, vtype: str, pid: str, used: set, recent: set, toon: str) -> dict:
     """مشهد من Claude ← مشهد جاهز للمشغّل: بيدوّر على ملفات الصور، وبيحوّل الشكل لو الصورة مش موجودة."""
     out = {**sc, "id": sc.get("id") or f"s{i + 1:02d}"}
@@ -229,6 +299,10 @@ def finalize(sc: dict, i: int, vtype: str, pid: str, used: set, recent: set, too
         # كل عنصر رسمة/أيقونة بيدوّر على ملفه، واللي ما لقيناش ليه رسمة بيتكتب كلام بدلها
         out.update(layout="board", headline="", cue_word="", enter="fade", idle="none")
         for j, it in enumerate(out["board"]):
+            if it["kind"] in ("illustration", "icon") and not matches_idea(it.get("search"), sc.get("idea_en")):
+                out.setdefault("rejected", []).append({"search": it.get("search"), "idea_en": sc.get("idea_en")})
+                it["kind"], it["text"] = "text", it.get("text") or " ".join(it.get("search") or [])[:24]
+                continue
             if it["kind"] in ("illustration", "icon"):
                 v = resolve_visual({"kind": it["kind"], "search": it.get("search") or []}, pid, used, recent, toon, f"{i}b{j}")
                 if v and v["kind"] in ("illustration", "icon", "emoji"):
@@ -236,7 +310,9 @@ def finalize(sc: dict, i: int, vtype: str, pid: str, used: set, recent: set, too
                 else:
                     it["kind"], it["text"] = "text", it.get("text") or " ".join(it.get("search") or [])[:24]
         return out
-    if sc.get("visual"):
+    if sc.get("visual") and sc["visual"].get("kind") != "character" and not matches_idea(sc["visual"].get("search"), sc.get("idea_en")):
+        out.setdefault("rejected", []).append({"search": sc["visual"].get("search"), "idea_en": sc.get("idea_en")})
+    elif sc.get("visual"):
         v = resolve_visual(sc["visual"], pid, used, recent, toon, f"{i}v")
         if v:
             out["visuals"].append(v)
@@ -258,7 +334,9 @@ def _system(pid: str, proj: dict, vtype: str) -> tuple[str, dict]:
     d = store.project_dir(pid)
     script = store.read_json(d / "script.json")
     n = len(script["sentences"])
-    sentences = "\n".join(f"{s['id']}: {s['text']}" for s in script["sentences"])
+    secs = sentence_seconds(pid)
+    # مدة كل جملة بالثواني جنبها: علشان المشهد ياخد وقت كفاية، وعدد عناصر السبورة يناسب الوقت
+    sentences = "\n".join(f"{s['id']} ({secs.get(s['id'], 0):.1f} ث): {s['text']}" for s in script["sentences"])
     b = store.read_json(d / "brief.json")
     common = dict(sentences=sentences, min_scenes=max(3, (n + 1) // 2), max_scenes=n, recent=history.summary(skip_pid=pid) or "(مفيش)",
                   brief=brief_stage.as_text(b) if b else "(مفيش رؤية: اختار إنت)")
@@ -325,10 +403,17 @@ def run(pid: str, instruction: str | None = None) -> None:
         user += f"\n\nالخطة الحالية (مختصرة):\n{old.get('raw')}\n\nالمطلوب تعديله: {instruction}"
     data = ask(pid, "scenes", system, user, sch)
 
+    raw, n_merged = merge_short(data["scenes"], scene_timing(pid))
+    if n_merged:
+        store.log(pid, f"⏱ اتدمج {n_merged} مشهد قصير (أقل من {MIN_SCENE_SECONDS} ثانية) في اللي قبله")
+    data["scenes"] = raw
     used: set = set()
     recent = history.recent_assets(skip_pid=pid)
     toon = _character(pid, recent)
     scenes = [finalize(sc, i, vtype, pid, used, recent, toon) for i, sc in enumerate(data["scenes"])]
+    rejected = sum(len(s.get("rejected", [])) for s in scenes)
+    if rejected:
+        store.log(pid, f"✗ اترفضت {rejected} صورة مالهاش علاقة بفكرة مشهدها (المشهد بقى كلام)")
     if vtype == "3d":
         fix_3d(scenes, pid, proj["settings"].get("voice_gender", ""))
 
@@ -337,6 +422,7 @@ def run(pid: str, instruction: str | None = None) -> None:
         ident = {**ident, "background": "board", "look3d": "soft"}
     plan = {"version": 2, "type": vtype, "created": int(time.time()), "style": (b or {}).get("style"), "identity": ident,
             "palette": ident["palette"], "pace": data["pace"], "text_size": data["text_size"], "character": toon, "scenes": scenes,
+            "min_scene": MIN_SCENE_SECONDS, "merged_short_scenes": n_merged, "rejected_visuals": rejected,
             "raw": [{k: v for k, v in sc.items() if k in ("sentence_ids", "layout", "headline", "board")} for sc in data["scenes"]]}
     files = [v["asset"] for s in scenes for v in s["visuals"]] + [it["visual"]["asset"] for s in scenes for it in s["items"] if it.get("visual")]
     plan["credits"] = assets.credits_for(files)

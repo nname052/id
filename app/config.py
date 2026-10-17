@@ -30,6 +30,8 @@ LLM_MODEL = ENV.get("LLM_MODEL", "opus")
 TTS_MODEL = "eleven_v4"
 # عدد آخر الفيديوهات اللي ممنوع نكرر منها أي شكل (رسمة، أيقونة، إيموجي، شخصية، خلفية، خط عناوين)
 SHAPE_WINDOW = int(ENV.get("SHAPE_WINDOW") or 5)
+# أقل وقت لكل فكرة (مشهد) على الشاشة بالثواني: المشاهد الأقصر بتندمج في اللي قبلها
+MIN_SCENE_SECONDS = float(ENV.get("MIN_SCENE_SECONDS") or 2.5)
 DEFAULT_STABILITY = 0.5  # الكلام العادي (القسم 5.3 في التصميم)
 
 W, H, FPS = 1080, 1920, 30

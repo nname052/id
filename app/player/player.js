@@ -80,7 +80,8 @@
   // دخول الصورة بالحركة المختارة + حركة هادية بعدها + رسم الأيقونة خط بخط
   function animate(el, t, enter = "rise", idle = "float") {
     if (!el) return;
-    const p = clamp(t / ((enter === "draw" ? 1.0 : 0.6) * PACE));
+    // دخول أهدى: 0.9 ثانية (والرسم خط بخط 1.4) بدل 0.6/1.0، علشان العين تلحق الفكرة
+    const p = clamp(t / ((enter === "draw" ? 1.4 : 0.9) * PACE));
     el.style.opacity = enter === "fade" ? easeOut(p) : clamp(p * 3);
     el.style.transform = `${enterStyle(enter, p)} ${p >= 1 ? idleStyle(idle, t) : ""}`;
     if (el._paths) el._paths.forEach((x) => {
@@ -92,7 +93,7 @@
   // العنوان بيدخل، وآخر كلمة بيتعلّم تحتها
   function headIn(el, t, axis = "y") {
     if (!el) return;
-    const p = easeOut((t - 0.15 * PACE) / (0.45 * PACE));
+    const p = easeOut((t - 0.15 * PACE) / (0.7 * PACE));
     el.style.opacity = p;
     el.style.transform = axis === "x" ? `translateX(${(1 - p) * -60}px)` : `translateY(${(1 - p) * 40}px)`;
     const hl = el.querySelector(".hl");
@@ -181,7 +182,7 @@
         rows.appendChild(row);
         fit($(".lb", row), 600, 44);
       }
-      const span = clamp((sc.end - sc.start - 1.2) / sc.items.length, 0.35, 1.4);
+      const span = clamp((sc.end - sc.start - 1.2) / sc.items.length, 0.5, 1.4);
       return (t) => { headIn($(".hd", el), t);
         [...rows.children].forEach((r, i) => { const t0 = 0.5 + i * span, p = clamp((t - t0) / (0.45 * PACE));
           r.style.opacity = clamp(p * 2); r.style.transform = `translateX(${(1 - easeOut(p)) * -160}px)`; animate($(".vis", r), t - t0, "pop", "none"); }); };
@@ -289,7 +290,7 @@
       // نجرّب كام لحظة قبل التصدير: لو الكود بيقع، المشهد بيرجع لشكل جاهز
       // ونراقب لو الكود حط قيمة مش رقم (NaN) في أي شكل: ده معناه حسبة غلط هتبوّظ الرسم
       const orig = Element.prototype.setAttribute; let bad = null;
-      Element.prototype.setAttribute = function (k, v) { if (/NaN|undefined|Infinity/.test(String(v))) bad = `${k}=${v}`; return orig.call(this, k, v); };
+      Element.prototype.setAttribute = function (k, v) { if (/NaN|undefined|Infinity/.test(String(v))) { bad = `${k}=${v}`; return; } return orig.call(this, k, v); };
       try { for (const t of [0, 0.3, 1, ctx.duration / 2, ctx.duration]) scene.renderAt(t, ctx); }
       finally { Element.prototype.setAttribute = orig; }
       if (bad || /NaN/.test(root.innerHTML)) throw new Error("custom scene produced " + (bad || "NaN"));
@@ -344,6 +345,20 @@
     const firstWord = (sids) => words.find((w) => sids.includes(w.sid));
     P.scenes.forEach((sc, i) => { const fw = firstWord(sc.sentence_ids); sc.start = i === 0 ? 0 : Math.max(0, (fw ? fw.start : 0) - 0.2); });
     P.scenes.forEach((sc, i) => { sc.end = i < P.scenes.length - 1 ? P.scenes[i + 1].start : DURATION; });
+    // حد أدنى لوقت كل فكرة على الشاشة (الخطة بتدمج المشاهد القصيرة، وده تأمين على التوقيت الحقيقي للصوت):
+    // مشهد أقصر من الحد بيندمج في اللي قبله (اللي قبله بيفضل لحد آخره)، وأول مشهد قصير بياخد اللي بعده
+    const MIN_SCENE = P.min_scene || 2.5;
+    for (let changed = true; changed && P.scenes.length > 1;) {
+      changed = false;
+      for (let i = 0; i < P.scenes.length - 1; i++) {
+        const sc = P.scenes[i];
+        if (sc.end - sc.start >= MIN_SCENE) continue;
+        if (i === 0) { const nx = P.scenes[1]; sc.end = nx.end; sc.sentence_ids = [...sc.sentence_ids, ...nx.sentence_ids]; P.scenes.splice(1, 1); }
+        else { const pv = P.scenes[i - 1]; pv.end = sc.end; pv.sentence_ids = [...pv.sentence_ids, ...sc.sentence_ids]; P.scenes.splice(i, 1); }
+        changed = true; break;
+      }
+    }
+    window.__sceneTimes = P.scenes.map((sc) => ({ id: sc.id, start: +sc.start.toFixed(3), end: +sc.end.toFixed(3) }));
     // الصورة بتظهر مع كلمتها، بس مش متأخر أكتر من 0.8 ثانية (علشان المكان ما يفضلش فاضي)
     P.scenes.forEach((sc) => {
       const w = words.find((w) => sc.sentence_ids.includes(w.sid) && norm(w.word) === norm(sc.cue_word));
