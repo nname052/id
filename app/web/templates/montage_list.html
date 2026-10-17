@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}المونتاج{% endblock %}
+{% block body %}
+<h1>المونتاج</h1>
+<div class="card" style="max-width: 820px">
+  <h2>ارفع فيديو صوّرته</h2>
+  <div class="muted">فيديو mp4 أو mov، أو صوت m4a. الملف الأصلي بيتحفظ زي ما هو، والشغل كله على نسخة منه.</div>
+  <div class="row" style="margin-top:12px; gap:8px; align-items:center; flex-wrap:wrap">
+    <input type="file" id="file" accept=".mp4,.mov,.m4a,video/mp4,video/quicktime,audio/mp4">
+    <button class="primary" id="upload">رفع وتحليل</button>
+  </div>
+  <div id="msg" style="margin-top:10px"></div>
+</div>
+<h2 style="margin-top:24px">المونتاجات</h2>
+<div id="list" class="muted">مفيش لسه.</div>
+{% endblock %}
+{% block script %}
+<script>
+  const when = (u) => new Date(u * 1000).toLocaleString("ar-EG", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
+  async function load() {
+    const rows = await api("/api/montage");
+    $("#list").innerHTML = rows.length ? rows.map((m) => `<a class="card" style="display:block;margin-bottom:8px" href="/montage/${m.id}">
+      <b>${esc(m.title)}</b> <span class="muted">· ${m.sources} ملف · ${when(m.created)}${m.export === "done" ? " · ✓ اتصدّر" : ""}</span></a>`).join("") : "مفيش لسه.";
+  }
+  $("#upload").onclick = async () => {
+    const f = $("#file").files[0];
+    if (!f) { $("#msg").innerHTML = `<div class="note warn">اختار ملف الأول.</div>`; return; }
+    $("#upload").disabled = true; $("#msg").innerHTML = `<div class="muted">بيترفع…</div>`;
+    const fd = new FormData(); fd.append("file", f);
+    try {
+      const r = await fetch("/api/montage", { method: "POST", body: fd });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
+      location.href = `/montage/${d.id}`;
+    } catch (e) { $("#msg").innerHTML = `<div class="note err">${esc(e.message)}</div>`; $("#upload").disabled = false; }
+  };
+  load();
+</script>
+{% endblock %}

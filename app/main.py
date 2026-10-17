@@ -15,6 +15,7 @@ from . import eleven_account, prefs, store, worker
 from .config import APP, ASSETS, DEFAULT_SETTINGS, ELEVEN_KEY, FONTS, MOODS, VIDEO_TYPES
 from .llm import claude_code
 from .pipeline import audio as audio_stage
+from .montage import router as montage_router
 
 PORT = int(os.environ.get("APP_PORT", "8000"))
 app = FastAPI(title="TikTok Motion")
@@ -22,6 +23,7 @@ app.mount("/static", StaticFiles(directory=APP / "web" / "static"), name="static
 app.mount("/player", StaticFiles(directory=APP / "player"), name="player")
 app.mount("/assets", StaticFiles(directory=ASSETS), name="assets")
 app.mount("/fonts", StaticFiles(directory=FONTS), name="fonts")
+app.include_router(montage_router)  # قسم المونتاج: منفصل (مساراته وحالته في app/montage)
 pages = Jinja2Templates(directory=APP / "web" / "templates")
 pages.env.globals["v"] = int(time.time())  # رقم نسخة لملفات الواجهة: بيتغيّر مع كل تشغيل، فالمتصفح ما يستخدمش نسخة قديمة
 
