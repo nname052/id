@@ -30,6 +30,19 @@ function cup(scene, r = 0.042, h = 0.105) {
   scene.add(g); return g;
 }
 
+// حاجات تانية للمسك (نفس النظام): صندوق بمقاسات حقيقية (متر)، الأصل في نص القاعدة
+function boxObj(scene, w, h, d, color, top = null) {
+  const g = new THREE.Group(), m = new THREE.MeshStandardMaterial({ color, roughness: 0.5 });
+  const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.y = h / 2; b.castShadow = true; g.add(b);
+  if (top) { const s = new THREE.Mesh(new THREE.PlaneGeometry(w * 0.9, d * 0.92), new THREE.MeshStandardMaterial({ color: top, roughness: 0.2 })); s.rotation.x = -Math.PI / 2; s.position.y = h + 0.0005; g.add(s); }
+  scene.add(g); return g;
+}
+const OBJECTS = {
+  cup: { shape: { kind: "cylinder", r: 0.042, h: 0.105 }, make: (sc) => cup(sc, 0.042, 0.105) },
+  phone: { shape: { kind: "box", w: 0.072, h: 0.009, d: 0.15 }, make: (sc) => boxObj(sc, 0.072, 0.009, 0.15, "#1d1f24", "#0b0d12"), yaw: 0.25 },
+  book: { shape: { kind: "box", w: 0.155, h: 0.028, d: 0.23 }, make: (sc) => boxObj(sc, 0.155, 0.028, 0.23, "#7b2d26"), yaw: -0.15 },
+};
+
 // ---------- قياسات ----------
 const MASS = { Hips: 0.14, Spine: 0.1, Spine1: 0.1, Spine2: 0.12, Neck: 0.03, Head: 0.07, LeftArm: 0.03, RightArm: 0.03, LeftForeArm: 0.02, RightForeArm: 0.02,
   LeftHand: 0.01, RightHand: 0.01, LeftUpLeg: 0.1, RightUpLeg: 0.1, LeftLeg: 0.045, RightLeg: 0.045, LeftFoot: 0.015, RightFoot: 0.015 };
@@ -89,7 +102,7 @@ async function sceneCup(scene, opts) {
   const R = setupRig(ch), k = R.k;
   // سطح بارتفاع الوقوف (رخامة مطبخ 0.92م): الحاجة على بعد 12 سم من الحرف، والشخص بيقف بنفسه في المكان المريح (standFor)
   const tb = table(scene, 0, 0.5, opts.top || 0.92);
-  const c = cup(scene, 0.042, 0.105);
+  const OB = OBJECTS[opts.obj || "cup"], c = OB.make(scene); c.rotation.y = OB.yaw || 0;
   const edgeZ = tb.z - tb.d / 2;
   const from = new THREE.Vector3(-0.12, tb.top, edgeZ + 0.12), to = new THREE.Vector3(0.04, tb.top, edgeZ + 0.13);
   const stand = standFor(R, from, { point: new THREE.Vector3(0, 0, edgeZ), normal: new THREE.Vector3(0, 0, -1) }, "Right");
@@ -102,7 +115,7 @@ async function sceneCup(scene, opts) {
   };
   // إيقاع هادي: المد حوالي ثانية، والشيل والحطّ بهدوء
   const T = { reach: 1.1, grasp: 2.15, lift: 2.5, place: 3.75, release: 4.75, back: 5.0 };
-  const grasp = makeGrasp({ R, obj: c, shape: { kind: "cylinder", r: 0.042, h: 0.105 }, from, to, t: T, side: "Right", pose });
+  const grasp = makeGrasp({ R, obj: c, shape: OB.shape, from, to, t: T, side: "Right", pose });
   const face = makeFace(ch.face, [], false, 3);
   // تشخيص: الإيد وصلت فين واتجاهها قد إيه قريب من المطلوب لحظة المسك
   window.labGripDetail = (tt) => {

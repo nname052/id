@@ -80,8 +80,9 @@ export function makeGrasp(cfg) {
       const palm = UP.clone().negate();
       let fing = shape.kind === "box" && shape.w < shape.d ? new THREE.Vector3(1, 0, 0).applyQuaternion(q) : new THREE.Vector3(0, 0, 1).applyQuaternion(q);
       if (fing.dot(bodyFwd()) < 0) fing.negate();
-      const palmC = base.clone().addScaledVector(UP, shape.h + 0.03 * k);
-      const wrist = palmC.clone().addScaledVector(fing, -0.07 * k).addScaledVector(UP, 0.015 * k);
+      // مفاصل الصوابع بتقعد بعد الحرف البعيد بسنة، فالصوابع تلف على الحرف لتحت والإبهام على الحرف القريب (مسكة قرصة)
+      const palmC = base.clone().addScaledVector(UP, shape.h + 0.022 * k).addScaledVector(fing, extentAlong(shape, q, fing) - 0.035 * k);
+      const wrist = palmC.clone().addScaledVector(fing, -0.07 * k).addScaledVector(UP, 0.02 * k);
       return { wrist, fing, palm, a: UP.clone() };
     }
     // من الجنب: الإيد جاية من ناحيتها (برّه + شوية من ناحية الكتف)، الكف بيبص للحاجة، والإبهام لفوق (زي الحقيقة)
