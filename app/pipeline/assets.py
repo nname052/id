@@ -112,10 +112,12 @@ def candidates(kind: str, terms: list[str], exclude: set | None = None, k: int =
 def pick(kind: str, terms: list[str], used: set, recent: set, seed: int) -> dict | None:
     """بيختار من أحسن النتايج: اللي ما اتستخدمش في الفيديو ده ولا في آخر فيديوهات، وبتنوّع ثابت حسب الفيديو."""
     import random
-    cands = candidates(kind, terms, used, k=8)
-    fresh = [c for c in cands if c["file"] not in recent] or cands
+    # ممنوع تكرار أي رسمة/أيقونة اتستخدمت في الفيديو ده أو في آخر SHAPE_WINDOW فيديوهات (مفيش رجوع للمكرر):
+    # لو مفيش بديل جديد محلي، الأيقونة بتتجاب من Iconify، وغير كده المشهد بيكمّل من غير الصورة دي (الكود بيحوّله لشكل كلام)
+    blocked = set(used) | set(recent)
+    fresh = candidates(kind, terms, blocked, k=8)
     if not fresh:
-        return search(kind, terms, used) if kind == "icon" else None  # أيقونة من Iconify لو مفيش محلي
+        return search(kind, terms, blocked) if kind == "icon" else None
     top = fresh[0]["score"]
     good = [c for c in fresh if c["score"] >= top - 1.5][:4]  # النتايج القريبة من الأحسن بس
     choice = random.Random(seed).choice(good)

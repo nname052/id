@@ -28,6 +28,8 @@ ELEVEN_KEY = ENV.get("ELEVENLABS_API_KEY", "")
 DEFAULT_VOICE = ENV.get("ELEVENLABS_VOICE_ID") or "ihycSANIrpHfhWoaq1g3"  # Ahmad (مصري)
 LLM_MODEL = ENV.get("LLM_MODEL", "opus")
 TTS_MODEL = "eleven_v4"
+# عدد آخر الفيديوهات اللي ممنوع نكرر منها أي شكل (رسمة، أيقونة، إيموجي، شخصية، خلفية، خط عناوين)
+SHAPE_WINDOW = int(ENV.get("SHAPE_WINDOW") or 5)
 DEFAULT_STABILITY = 0.5  # الكلام العادي (القسم 5.3 في التصميم)
 
 W, H, FPS = 1080, 1920, 30

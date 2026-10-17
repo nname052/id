@@ -124,9 +124,39 @@ def _seed(*parts) -> int:
 
 
 def _character(pid: str, recent: set) -> str:
-    """شخصية كرتون واحدة للفيديو كله (نفس الشخص في كل مشاهده)، ومختلفة عن آخر الفيديوهات لو ينفع."""
-    options = [c for c in TOON if not any(c in a for a in recent)] or TOON
-    return options[_seed(pid, "char") % len(options)]
+    """شخصية كرتون واحدة للفيديو كله (نفس الشخص في كل مشاهده)، ومختلفة عن آخر الفيديوهات.
+    الشخصيات 4 بس (أقل من نافذة التكرار)، فلو كلهم اتستخدموا بناخد اللي اتستخدم من أطول وقت."""
+    options = [c for c in TOON if not any(c in a for a in recent)]
+    if options:
+        return options[_seed(pid, "char") % len(options)]
+    last = {}
+    for k, h in enumerate(history.recent(history.KEEP)):
+        for c in TOON:
+            if any(c in a for a in h.get("assets", [])):
+                last[c] = k
+    return min(TOON, key=lambda c: last.get(c, -1))
+
+
+def _fresh(choice: str, pool: list, recent_vals: list, pid: str, salt: str) -> str:
+    """القيمة اللي اختارها Claude لو ما اتستخدمتش في آخر الفيديوهات، وإلا بديل ما اتستخدمش (أو الأقدم استخدامًا)."""
+    if choice not in recent_vals:
+        return choice
+    free = [x for x in pool if x not in recent_vals]
+    if free:
+        return free[_seed(pid, salt) % len(free)]
+    last = {x: i for i, x in enumerate(recent_vals)}  # آخر مرة اتستخدم فيها (الأكبر = الأحدث)
+    return min(pool, key=lambda x: last.get(x, -1))
+
+
+def fresh_identity(ident: dict, pid: str, vtype: str) -> dict:
+    """الخلفية وخط العناوين ما يتكرروش من آخر SHAPE_WINDOW فيديوهات (بالكود، مش بس طلب من Claude)."""
+    ident = dict(ident)
+    fonts = WB_FONTS if vtype == "whiteboard" else HEADING_FONTS
+    ident["font_heading"] = _fresh(ident.get("font_heading"), fonts, history.recent_values("font_heading", skip_pid=pid), pid, "font")
+    if vtype != "whiteboard":
+        bgs = SCHEMA["properties"]["identity"]["properties"]["background"]["enum"]
+        ident["background"] = _fresh(ident.get("background"), bgs, history.recent_values("background", skip_pid=pid), pid, "bg")
+    return ident
 
 
 def resolve_visual(v: dict | None, pid: str, used: set, recent: set, toon: str, salt: str) -> dict | None:
@@ -302,7 +332,7 @@ def run(pid: str, instruction: str | None = None) -> None:
     if vtype == "3d":
         fix_3d(scenes, pid, proj["settings"].get("voice_gender", ""))
 
-    ident = data["identity"]
+    ident = fresh_identity(data["identity"], pid, vtype)
     if vtype == "whiteboard":
         ident = {**ident, "background": "board", "look3d": "soft"}
     plan = {"version": 2, "type": vtype, "created": int(time.time()), "style": (b or {}).get("style"), "identity": ident,
