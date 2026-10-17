@@ -1,0 +1,57 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Asset Inventory</title>
+<!-- أداة جرد: بتحمّل كل ملف 3D وبتقيس مقاسه الحقيقي بالمتر (من الصندوق المحيط بعد الـ skinning)، ومدة الحركات، ومقاس صور الـ HDRI -->
+<script type="importmap">{ "imports": { "three": "/assets/vendor/three/three.module.js", "three/addons/": "/assets/vendor/three/addons/" } }</script>
+</head><body>
+<script type="module">
+import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { FBXLoader } from "three/addons/loaders/FBXLoader.js";
+import { HDRLoader } from "three/addons/loaders/HDRLoader.js";
+
+// الصور مش محتاجينها للقياس: بنبدّلها بصورة 1×1 (أسرع، ومن غير طلبات ناقصة)
+const BLANK = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+const manager = new THREE.LoadingManager();
+manager.setURLModifier((u) => (/\.(png|jpe?g|tga|bmp|webp|gif|dds|ktx2?)(\?|$)/i.test(u) ? BLANK : u));
+const gltf = new GLTFLoader(manager), fbx = new FBXLoader(manager), hdr = new HDRLoader();
+const r4 = (x) => +x.toFixed(4);
+
+function measureObject(root, unitToM) {
+  root.updateMatrixWorld(true);
+  let meshes = 0, skinned = 0, bones = 0;
+  root.traverse((o) => { if (o.isMesh) { meshes++; if (o.isSkinnedMesh) skinned++; } if (o.isBone) bones++; });
+  const out = { meshes, skinned, bones };
+  if (meshes) {
+    const box = new THREE.Box3().setFromObject(root, true);
+    if (!box.isEmpty()) { const s = box.getSize(new THREE.Vector3()).multiplyScalar(unitToM); out.size_m = [r4(s.x), r4(s.y), r4(s.z)]; out.basis = "mesh_bbox"; }
+  }
+  if (!out.size_m && bones) { // ملف حركة من غير جسم: طول الهيكل نفسه
+    const box = new THREE.Box3(), v = new THREE.Vector3();
+    root.traverse((o) => { if (o.isBone) box.expandByPoint(o.getWorldPosition(v)); });
+    const s = box.getSize(new THREE.Vector3()).multiplyScalar(unitToM); out.size_m = [r4(s.x), r4(s.y), r4(s.z)]; out.basis = "skeleton_bbox";
+  }
+  return out;
+}
+
+window.measure = async (url) => {
+  try {
+    if (/\.hdr$/i.test(url)) {
+      const tex = await hdr.loadAsync(url); const img = tex.image; tex.dispose();
+      return { kind: "image", pixels: [img.width, img.height], basis: "image_pixels" };
+    }
+    let root, clips = [], unitToM = 1;
+    if (/\.fbx$/i.test(url)) {
+      root = await fbx.loadAsync(url); clips = root.animations || [];
+      unitToM = ((root.userData && root.userData.unitScaleFactor) || 1) / 100; // وحدة FBX = سنتيمتر × UnitScaleFactor
+    } else {
+      const g = await gltf.loadAsync(url); root = g.scene; clips = g.animations || [];   // glTF بالمتر
+    }
+    const m = measureObject(root, unitToM);
+    m.unit_to_m = unitToM;
+    m.clips = clips.map((c) => ({ name: c.name, duration_s: r4(c.duration) }));
+    root.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) [].concat(o.material).forEach((mt) => mt.dispose && mt.dispose()); });
+    return m;
+  } catch (e) { return { error: String(e && e.message || e) }; }
+};
+window.invReady = true;
+</script></body></html>
