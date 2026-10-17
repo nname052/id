@@ -42,9 +42,9 @@ def ask(system: str, prompt: str, schema: dict, model: str = "opus", timeout: in
             p = subprocess.run(cmd, input=json.dumps(message) + "\n", capture_output=True, text=True,
                                timeout=timeout, cwd=work, env=_env())
         except FileNotFoundError:
-            raise LLMError("مش لاقي أمر claude. سطّب Claude Code وسجّل دخول.")
+            raise LLMError("أداة الذكاء الاصطناعي مش متسطّبة على الجهاز. سطّبها وسجّل دخول.")
         except subprocess.TimeoutExpired:
-            raise LLMError(f"Claude ما ردّش في {timeout} ثانية")
+            raise LLMError(f"الذكاء الاصطناعي ما ردّش في {timeout} ثانية")
     events = []
     for line in p.stdout.splitlines():
         line = line.strip()
@@ -56,12 +56,12 @@ def ask(system: str, prompt: str, schema: dict, model: str = "opus", timeout: in
     rate = next((e.get("rate_limit_info") or e for e in reversed(events) if e.get("type") == "rate_limit_event"), None)
     result = next((e for e in reversed(events) if e.get("type") == "result"), None)
     if rate and str(rate.get("status", "")).startswith("rejected"):
-        raise LimitReached("وصلت لحد استخدام Claude", rate.get("resets_at") or rate.get("resetsAt"))
+        raise LimitReached("وصلت لحد استخدام الذكاء الاصطناعي", rate.get("resets_at") or rate.get("resetsAt"))
     if not result:
         text = (p.stdout + p.stderr)[-600:]
         if any(w in text.lower() for w in ("login", "log in", "/login", "unauthorized")):
-            raise LLMError("Claude مش مسجّل دخول: شغّل claude واكتب /login")
-        raise LLMError(f"رد غير متوقع من Claude: {text}")
+            raise LLMError("أداة الذكاء الاصطناعي مش مسجّلة دخول: سجّل دخول من التيرمينال (/login)")
+        raise LLMError(f"رد غير متوقع من الذكاء الاصطناعي: {text}")
     if result.get("is_error"):
         msg = str(result.get("result", ""))
         if "limit" in msg.lower():
@@ -72,7 +72,7 @@ def ask(system: str, prompt: str, schema: dict, model: str = "opus", timeout: in
         try:
             data = json.loads(result.get("result") or "")
         except (json.JSONDecodeError, TypeError):
-            raise LLMError("Claude ما رجّعش JSON")
+            raise LLMError("الذكاء الاصطناعي ما رجّعش JSON")
     return {"data": data, "rate_limit": rate}
 
 

@@ -5,19 +5,19 @@
 <div class="card" style="max-width: 820px">
   <h2>رصيد ElevenLabs</h2>
   <div class="muted">بيتجاب من ElevenLabs لما تدوس "تحديث" بس (طلب قراية، مش بيصرف رصيد). المفتاح نفسه مش بيظهر هنا خالص.</div>
-  <div id="acct" style="margin-top:12px" class="muted">لسه ما اتحدّثش.</div>
+  <div id="acct" style="margin-top:var(--s3)" class="muted">لسه ما اتحدّثش.</div>
   <div class="actions"><button class="primary" id="refresh">تحديث الرصيد</button><span id="acctMsg" class="muted"></span></div>
 
-  <h2 style="margin-top:22px">حد المفتاح (Credit limit)</h2>
-  <div class="note warn" style="margin-top:8px">
+  <h2 style="margin-top:var(--s5)">حد المفتاح (Credit limit)</h2>
+  <div class="note warn" style="margin-top:var(--s2)">
     للعرض بس. ElevenLabs ما بيوفّرش طريقة من الـ API تغيّر حد مفتاح شخصي (الموجود بس لمفاتيح service accounts في الـ workspace).
     لو المفتاح وقف عند حدّه، غيّره من elevenlabs.io ← Developers ← API Keys ← Credit limit.
   </div>
 
-  <h2 style="margin-top:22px">حد الموافقة قبل الصوت</h2>
+  <h2 style="margin-top:var(--s5)">حد الموافقة قبل الصوت</h2>
   <div class="muted">لو عمل الصوت (أو إعادة جملة) هيستهلك أكتر من الرقم ده، البرنامج بيوقف ويسألك الأول قبل ما يبعت أي حاجة لـ ElevenLabs.
     الحد ده إنت اللي بتغيّره بس.</div>
-  <div class="row" style="margin-top:10px; gap:8px; align-items:center">
+  <div class="row" style="margin-top:var(--s3); gap:var(--s2); align-items:center">
     <input type="number" id="guard" min="1" step="1" style="max-width:160px"> <span class="muted">credit للمرة الواحدة</span>
   </div>
   <div class="actions"><button class="primary" id="saveGuard">حفظ الحد</button><span id="guardMsg" class="muted"></span></div>
@@ -34,11 +34,11 @@
     $("#acct").classList.toggle("muted", false);
     $("#acct").innerHTML = ok ? `
       <div class="note ${a.key_status === "active" ? "ok" : "warn"}">حالة المفتاح: <b>${esc(KEY[a.key_status])}</b></div>
-      <div style="font-size:28px;font-weight:800;margin:6px 0" id="remaining">${fmt(a.credits_remaining)} credit متبقي</div>
+      <div style="font:800 var(--fs-h1) var(--font-head);margin:var(--s2) 0" id="remaining">${fmt(a.credits_remaining)} credit متبقي</div>
       <div class="muted">مستخدم ${fmt(a.credits_used)} من ${fmt(a.credits_limit)} في الفترة دي${a.refresh_period ? " (بيتجدّد " + esc(PERIOD[a.refresh_period] || a.refresh_period) + ")" : ""}.</div>
       <div class="muted">التجديد الجاي: ${when(a.reset_unix)} · الباقة: ${esc(a.tier || "—")} · حالة الاشتراك: ${esc(a.subscription_status || "—")}</div>
       ${a.last_quota_exceeded_at ? `<div class="muted">آخر مرة المفتاح وقف عند حدّه: ${when(a.last_quota_exceeded_at)}</div>` : ""}
-      <div class="muted" style="margin-top:6px">آخر تحديث: ${when(a.checked_at)}</div>`
+      <div class="muted" style="margin-top:var(--s2)">آخر تحديث: ${when(a.checked_at)}</div>`
       : `<div class="note err">حالة المفتاح: <b>${esc(KEY[a.key_status] || a.key_status)}</b>${a.http ? " (HTTP " + a.http + ")" : ""}</div><div class="muted">آخر محاولة: ${when(a.checked_at)}</div>`;
   }
   $("#refresh").onclick = async () => {

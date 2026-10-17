@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 {% block title %}المشروع{% endblock %}
 {% block body %}
-<div class="row" style="margin-bottom:6px">
+<div class="row" style="margin-bottom:var(--s2)">
   <h1 id="title" class="grow" style="margin:0">…</h1>
   <button id="rename" title="تغيير العنوان">✎</button>
 </div>
-<div class="muted" id="sub" style="margin-bottom:14px"></div>
+<div class="muted" id="sub" style="margin-bottom:var(--s4)"></div>
 <div class="stages" id="stages"></div>
 <div class="layout">
   <div class="card" id="panel"><span class="spinner"></span></div>
@@ -29,10 +29,10 @@
   let VIEW = null; // مرحلة فاتحها بإيدك علشان تعدّلها (غير المرحلة الحالية)
 
   const busy = (txt) => `<div class="row"><span class="spinner"></span><b>${esc(txt)}</b></div>`;
-  const RUNNING_TEXT = { script: "Claude بيكتب السكريبت…", scenes: "Claude بيخطط المشاهد وبيدوّر في المكتبات…", tts: "بنجهّز النص للنطق…",
+  const RUNNING_TEXT = { script: "بنكتب السكريبت…", scenes: "بنخطط المشاهد وبندوّر في المكتبات…", tts: "بنجهّز النص للنطق…",
     audio: "ElevenLabs بيولّد الصوت…", render: "بنصدّر الفيديو…", audio_sentence: "بنعيد الجملة…", audio_review: "بنراجع النطق…",
-    brief: "Claude بيكتب الرؤية الإخراجية…", edit_script: "بنعدّل الجزء اللي غيّرته بس (النطق، والصوت، والمشاهد)…",
-    edit_tts: "بنعيد صوت الجمل اللي عدّلتها بس…", edit_scene: "Claude بيعدّل المشهد ده بس…",
+    brief: "بنكتب الرؤية الإخراجية…", edit_script: "بنعدّل الجزء اللي غيّرته بس (النطق، والصوت، والمشاهد)…",
+    edit_tts: "بنعيد صوت الجمل اللي عدّلتها بس…", edit_scene: "بنعدّل المشهد ده بس…",
     audio_user: "بنظبط توقيت كل كلمة على صوتك…" };
 
   // المرحلة اللي محتاجة انتباهك دلوقتي
@@ -50,7 +50,7 @@
       const st = p.stages[k].status, open = VIEW === k ? " open" : "";
       return `<button type="button" class="stage ${st}${open}" data-view="${k}" title="افتح المرحلة دي علشان تشوفها أو تعدّلها">${n}${STATUS_NAMES[st] ? " · " + STATUS_NAMES[st] : ""}</button>`; }).join("");
     const u = p.usage || {}, el = u.elevenlabs || {};
-    $("#usage").innerHTML = `طلبات Claude: ${u.claude_calls || 0} (${Object.entries(u.claude_by_stage || {}).map(([k, v]) => `${k}: ${v}`).join("، ")})` +
+    $("#usage").innerHTML = `طلبات الذكاء الاصطناعي: ${u.claude_calls || 0} (${Object.entries(u.claude_by_stage || {}).map(([k, v]) => `${k}: ${v}`).join("، ")})` +
       (el.actual != null ? ` · ElevenLabs: متوقع ${el.expected}، فعلي ${el.actual}، متبقي ${el.left}` : "");
     $("#log").textContent = (p.log || []).join("\n");
   }
@@ -68,7 +68,7 @@
     if (st.status === "failed") return `<div class="note err">حصلت مشكلة: ${esc(st.error)}</div><div class="actions"><button class="primary" data-act="resume">↻ حاول تاني</button></div>`;
     if (st.status === "waiting_limit") {
       const at = p.resets_at ? new Date(p.resets_at * 1000).toLocaleTimeString("ar-EG", { hour: "numeric", minute: "2-digit" }) : "";
-      return `<div class="note warn">وقفنا لأنك وصلت لحد استخدام Claude${at ? `، وبيتجدد الساعة ${at}` : ""}. كل اللي اتعمل محفوظ.</div><div class="actions"><button class="primary" data-act="resume">كمّل</button></div>`;
+      return `<div class="note warn">وقفنا لأنك وصلت لحد استخدام الذكاء الاصطناعي${at ? `، وبيتجدد الساعة ${at}` : ""}. كل اللي اتعمل محفوظ.</div><div class="actions"><button class="primary" data-act="resume">كمّل</button></div>`;
     }
     if (st.status === "needs_credits") return `<div class="note warn">${esc(st.error)}</div><div class="actions"><button class="primary" data-act="resume">موافق، كمّل</button></div>`;
     return null;
@@ -116,7 +116,7 @@
     const notes = (sc.notes || []).length ? `<div class="note ok">ظبطت سكريبتك: ${sc.notes.map(esc).join("، ")}</div>` : "";
     return `<h2>${STAGE_NAMES.script}</h2>${notes}
       <div class="muted">${sc.sentences.length} جملة · ${words} كلمة · حوالي ${Math.round(words / 2.2)} ثانية. عدّل أي كلمة، أو زوّد/شيل جملة.</div>
-      <div class="sentences" style="margin-top:12px">${sc.sentences.map(sentRow).join("")}</div>
+      <div class="sentences" style="margin-top:var(--s3)">${sc.sentences.map(sentRow).join("")}</div>
       <div class="actions">${edit
         ? `<button class="primary" data-act="save-script">💾 احفظ (هيتعدّل اللي غيّرته بس)</button>`
         : `<button class="primary" data-act="approve" data-stage="script">✓ موافق، جهّز الإحساس والنطق</button>
@@ -130,7 +130,7 @@
     const show = (t) => esc(t).replace(/\[([^\]]+)\]/g, '<span class="tag">$1</span>');
     return `<h2>${STAGE_NAMES.tts}</h2>
       <div class="muted">ده الكلام زي ما الصوت هيقوله: الإحساس بين [ ] بالإنجليزي (زي [whispers] همس، [laughs] ضحكة، [curious] سؤال)، و "?" للسؤال، و "..." للتردد، و "," علشان الكلام يفضل متواصل. عدّل أي سطر براحتك (من غير ما تغيّر الكلمات).</div>
-      <div class="sentences tts-edit" style="margin-top:12px">${lines.map((l, i) => `<div class="s" data-id="${l.id}"><span class="n">${i + 1}</span>
+      <div class="sentences tts-edit" style="margin-top:var(--s3)">${lines.map((l, i) => `<div class="s" data-id="${l.id}"><span class="n">${i + 1}</span>
         <div class="grow"><div class="tts-view">${show(l.tts)}</div><textarea rows="1" class="tts" dir="rtl">${esc(l.tts)}</textarea>
         ${Object.keys(l.pronounce || {}).length ? `<div class="muted">نطق: ${Object.entries(l.pronounce).map(([w, s]) => `${esc(w)} ← ${esc(s)}`).join("، ")}</div>` : ""}</div></div>`).join("")}</div>
       <div class="actions">${edit
@@ -149,14 +149,14 @@
     const sentText = (ids) => ids.map((id) => esc((sents.find((s) => s.id === id) || {}).text || "")).join(" ");
     return `<h2>${STAGE_NAMES.brief}</h2>
       <div class="muted">${p.direction ? `طلب الإخراج بتاعك: «${esc(p.direction)}»` : "ما كتبتش طلب إخراج، فده اقتراحي. وافق أو اطلب تعديل."}</div>
-      <div class="note ok" style="margin-top:10px"><b>${esc(STYLE_NAMES[b.style] || b.style)}</b> · ${esc(b.concept)}</div>
+      <div class="note ok" style="margin-top:var(--s3)"><b>${esc(STYLE_NAMES[b.style] || b.style)}</b> · ${esc(b.concept)}</div>
       <div class="brief-grid">
         <div><b>الشكل والإحساس</b><div>${esc(b.look)}</div></div>
         <div><b>الشخصيات</b><div>${esc(b.characters)}</div></div>
         <div><b>الكاميرا والحركة</b><div>${esc(b.camera)}</div></div>
         <div><b>المختلف المرة دي</b><div>${esc(b.different)}</div></div>
       </div>
-      <div class="scenes" style="margin-top:12px">${b.beats.map((x, i) => `<div class="scene-card"><div class="thumb">${i + 1}</div>
+      <div class="scenes" style="margin-top:var(--s3)">${b.beats.map((x, i) => `<div class="scene-card"><div class="thumb">${i + 1}</div>
         <div class="grow"><div class="muted">${sentText(x.sentence_ids)}</div><div>🎬 ${esc(x.idea)}</div></div></div>`).join("")}</div>
       <div class="actions">
         <button class="primary" data-act="approve" data-stage="brief">✓ موافق، خطط المشاهد</button>
@@ -183,7 +183,7 @@
   function identityHTML(plan) {
     const id = plan.identity;
     if (!id) return "";
-    return `<div class="muted" style="margin-top:8px">هوية الفيديو: ${Object.values(id.palette).map((c) => `<span class="swatch" style="background:${c}"></span>`).join("")}
+    return `<div class="muted" style="margin-top:var(--s2)">هوية الفيديو: ${Object.values(id.palette).map((c) => `<span class="swatch" style="background:${c}"></span>`).join("")}
       · خط <b>${esc(id.font_heading)}</b> · خلفية ${esc(id.background)} · انتقال ${esc(id.transition)}</div>`;
   }
 
@@ -191,7 +191,7 @@
     const plan = p.plan || { scenes: [] }, sents = (p.script || { sentences: [] }).sentences;
     return `<h2>${STAGE_NAMES.scenes}</h2>
       <div class="muted">شغّل المعاينة على الشمال (من غير صوت، والتوقيت تقريبي لحد ما الصوت يتعمل).</div>${identityHTML(plan)}
-      <div class="scenes" style="margin-top:12px">${plan.scenes.map((sc, i) => `<div class="scene-card"><div class="thumb">${thumb(sc)}</div>
+      <div class="scenes" style="margin-top:var(--s3)">${plan.scenes.map((sc, i) => `<div class="scene-card"><div class="thumb">${thumb(sc)}</div>
         <div class="grow"><div class="hd">${i + 1}. ${esc(sc.headline)}</div>
         <div class="muted">${sc.sentence_ids.map((id) => esc((sents.find((s) => s.id === id) || {}).text || "")).join(" ")}</div>
         <span class="badge">${KIND[sc.layout || sc.kind] || sc.layout || sc.kind}</span>
@@ -202,7 +202,7 @@
             + "<br>🎥 " + (sc.scene3d.shots || []).map((x) => `${esc(x.type)} ${esc(x.height)} ${esc(x.move)}`).join(" | ")
             : (sc.scene3d.actions || []).map((a) => esc(a.anim)).join(" ← ") + " · كاميرا " + esc(sc.scene3d.camera || "")}</div>` : ""}
         ${sc.custom_brief && sc.layout === "custom" ? `<div class="muted">✦ ${esc(sc.custom_brief)}</div>` : ""}
-        <div class="row" style="margin-top:6px"><button class="mini" data-act="edit-scene" data-scene="${sc.id}">✎ عدّل المشهد ده بس</button></div></div></div>`).join("")}</div>
+        <div class="row" style="margin-top:var(--s2)"><button class="mini" data-act="edit-scene" data-scene="${sc.id}">✎ عدّل المشهد ده بس</button></div></div></div>`).join("")}</div>
       <div class="actions">${edit ? "" : `
         <button class="primary" data-act="approve" data-stage="scenes">✓ موافق، اعمل الصوت</button>
         <input type="text" id="instr" class="grow" placeholder="اطلب تعديل للخطة كلها: ألوان أهدى، مشاهد أسرع…">
@@ -223,7 +223,7 @@
         <audio id="rec-play" controls hidden></audio>
         <button id="rec-send" data-act="rec-send" hidden>✓ استخدم التسجيل ده</button>
       </div>
-      <div class="row" style="margin-top:10px"><label class="btn">⬆ أو ارفع ملف صوت<input type="file" id="voice-file" accept="audio/*,.m4a,.mp3,.wav" hidden></label></div>`;
+      <div class="row" style="margin-top:var(--s3)"><label class="btn">⬆ أو ارفع ملف صوت<input type="file" id="voice-file" accept="audio/*,.m4a,.mp3,.wav" hidden></label></div>`;
   }
   let recorder = null, recChunks = [], recBlob = null, recStart = 0, recTimer = null;
   async function recToggle() {
@@ -265,16 +265,16 @@
         <div class="grow">${ws.map((w) => badI.has(w.i) ? `<b style="color:var(--err)" title="اتسمعت: ${esc((bad.find((b) => b.i === w.i) || {}).heard || "")}">${esc(w.word)}</b>` : esc(w.word)).join(" ")}
           <div class="muted tts-line" title="النص اللي بيروح للصوت: التشكيل والإحساس">🎙 ${esc(ln.tts).replace(/\[([^\]]+)\]/g, '<span class="badge" dir="ltr">$1</span>')}</div>
           ${bad.length ? `<div class="muted" style="color:var(--err)">ممكن تكون اتنطقت غلط: ${bad.map((b) => `«${esc(b.word)}» (اتسمعت «${esc(b.heard || "؟")}»)`).join("، ")}</div>` : ""}
-          <div class="row" style="margin-top:6px">
-            <button data-act="fixword" data-sid="${ln.id}" style="padding:4px 10px;font-size:13px">✎ صلّح نطق كلمة</button>
-            ${userVoice ? "" : `<button data-act="regensent" data-sid="${ln.id}" style="padding:4px 10px;font-size:13px">↻ أعد الجملة (${cost(li)} credit)</button>`}
+          <div class="row" style="margin-top:var(--s2)">
+            <button data-act="fixword" data-sid="${ln.id}" style="padding:4px 10px;font-size:var(--fs-sm)">✎ صلّح نطق كلمة</button>
+            ${userVoice ? "" : `<button data-act="regensent" data-sid="${ln.id}" style="padding:4px 10px;font-size:var(--fs-sm)">↻ أعد الجملة (${cost(li)} credit)</button>`}
           </div></div></div>`;
     }).join("");
     return `<h2>${STAGE_NAMES.audio}</h2>
       <audio id="voice" controls style="width:100%" src="/files/${PID}/audio/voice.mp3?v=${Date.now()}"></audio>
       <div class="muted">استهلك ${el.actual ?? "?"} credit (المتبقي ${el.left ?? "?"}). اسمع كل جملة لوحدها، ولو كلمة اتنطقت غلط صلّحها وأعد الجملة دي بس.</div>
       ${p.review ? `<div class="note ${Object.keys(flags).length ? "warn" : "ok"}">${Object.keys(flags).length ? "المراجعة لقت كلمات ممكن تكون اتنطقت غلط (باللون الأحمر)." : "✓ المراجعة ما لقتش كلمات غلط."}</div>` : ""}
-      <div class="scenes" style="margin-top:12px">${rows}</div>
+      <div class="scenes" style="margin-top:var(--s3)">${rows}</div>
       <div class="actions">
         <button class="primary" data-act="approve" data-stage="audio">✓ موافق، صدّر الفيديو</button>
         ${p.can_undo ? `<button data-act="undo-sent">↶ رجّع الصوت زي ما كان قبل آخر إعادة</button>` : ""}
@@ -286,7 +286,7 @@
   function doneHTML(p) {
     return `<h2>✓ الفيديو جاهز</h2>
       <div class="row"><a class="btn primary" href="/files/${PID}/output/video.mp4?download=1">⬇ نزّل MP4</a><a class="btn" href="/library">المكتبة</a></div>
-      ${p.credits_text ? `<div class="note ok" style="margin-top:14px">حط السطر ده في وصف الفيديو (الرخصة بتطلبه):<br><b dir="ltr">${esc(p.credits_text)}</b></div>` : ""}
+      ${p.credits_text ? `<div class="note ok" style="margin-top:var(--s4)">حط السطر ده في وصف الفيديو (الرخصة بتطلبه):<br><b dir="ltr">${esc(p.credits_text)}</b></div>` : ""}
       <div class="actions"><button data-act="regen" data-stage="render">↻ صدّر تاني</button><button data-act="back-audio">🎙 راجع الصوت أو صلّح جملة</button></div>`;
   }
 

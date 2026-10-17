@@ -4,20 +4,20 @@
 <h1>ذوقي</h1>
 <div class="card" style="max-width: 820px">
   <h2>تفضيلاتك الثابتة</h2>
-  <div class="muted">Claude بيطلّعها لوحده من أفكار الفيديوهات والتعديلات اللي بتطلبها، وبتتبعت مع كل فيديو جديد. تقدر تعدّل فيها أو تضيف براحتك.</div>
-  <textarea id="profile" rows="12" style="margin-top:10px" placeholder="مثلًا:&#10;- السكريبت دسم وفيه معلومات&#10;- الحركة متوسطة السرعة&#10;- من غير ألوان صفرا"></textarea>
+  <div class="muted">بتتطلّع لوحدها من أفكار الفيديوهات والتعديلات اللي بتطلبها، وبتتبعت مع كل فيديو جديد. تقدر تعدّل فيها أو تضيف براحتك.</div>
+  <textarea id="profile" rows="12" style="margin-top:var(--s3)" placeholder="مثلًا:&#10;- السكريبت دسم وفيه معلومات&#10;- الحركة متوسطة السرعة&#10;- من غير ألوان صفرا"></textarea>
 
-  <h2 style="margin-top:22px">قاموس النطق</h2>
+  <h2 style="margin-top:var(--s5)">قاموس النطق</h2>
   <div class="muted">لو كلمة اتنطقت غلط، اكتبها هنا ونطقها الصح (بالتشكيل). بتتطبّق على كل الفيديوهات الجاية.</div>
-  <div id="pron" style="margin-top:10px"></div>
-  <button id="add" style="margin-top:6px">+ كلمة</button>
+  <div id="pron" style="margin-top:var(--s3)"></div>
+  <button id="add" style="margin-top:var(--s2)">+ كلمة</button>
 
   <div class="actions"><button class="primary" id="save">حفظ</button><span id="msg" class="muted"></span></div>
 </div>
 {% endblock %}
 {% block script %}
 <script>
-  const row = (w = "", t = "") => `<div class="row" style="margin-bottom:6px"><input type="text" class="w grow" placeholder="الكلمة زي ما بتتكتب" value="${esc(w)}">
+  const row = (w = "", t = "") => `<div class="row" style="margin-bottom:var(--s2)"><input type="text" class="w grow" placeholder="الكلمة زي ما بتتكتب" value="${esc(w)}">
     <span>←</span><input type="text" class="t grow" placeholder="نطقها الصح (مشكّل)" value="${esc(t)}"><button class="danger rm">✕</button></div>`;
   api("/api/style").then((d) => {
     $("#profile").value = d.profile || "";

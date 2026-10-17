@@ -5,13 +5,13 @@
 <div class="card" style="max-width: 820px">
   <h2>ارفع فيديو صوّرته</h2>
   <div class="muted">فيديو mp4 أو mov، أو صوت m4a. الملف الأصلي بيتحفظ زي ما هو، والشغل كله على نسخة منه.</div>
-  <div class="row" style="margin-top:12px; gap:8px; align-items:center; flex-wrap:wrap">
+  <div class="row" style="margin-top:var(--s3); gap:var(--s2); align-items:center; flex-wrap:wrap">
     <input type="file" id="file" accept=".mp4,.mov,.m4a,video/mp4,video/quicktime,audio/mp4">
     <button class="primary" id="upload">رفع وتحليل</button>
   </div>
-  <div id="msg" style="margin-top:10px"></div>
+  <div id="msg" style="margin-top:var(--s3)"></div>
 </div>
-<h2 style="margin-top:24px">المونتاجات</h2>
+<h2 style="margin-top:var(--s5)">المونتاجات</h2>
 <div id="list" class="muted">مفيش لسه.</div>
 {% endblock %}
 {% block script %}
@@ -19,7 +19,7 @@
   const when = (u) => new Date(u * 1000).toLocaleString("ar-EG", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
   async function load() {
     const rows = await api("/api/montage");
-    $("#list").innerHTML = rows.length ? rows.map((m) => `<a class="card" style="display:block;margin-bottom:8px" href="/montage/${m.id}">
+    $("#list").innerHTML = rows.length ? rows.map((m) => `<a class="card" style="display:block;margin-bottom:var(--s2)" href="/montage/${m.id}">
       <b>${esc(m.title)}</b> <span class="muted">· ${m.sources} ملف · ${when(m.created)}${m.export === "done" ? " · ✓ اتصدّر" : ""}</span></a>`).join("") : "مفيش لسه.";
   }
   $("#upload").onclick = async () => {

@@ -1,36 +1,36 @@
 {% extends "base.html" %}
 {% block title %}مونتاج{% endblock %}
 {% block body %}
-<div class="row" style="justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px">
+<div class="row" style="justify-content:space-between; align-items:center; flex-wrap:wrap; gap:var(--s2)">
   <h1 id="title">مونتاج</h1><a class="btn" href="/montage">← كل المونتاجات</a>
 </div>
 
-<div class="card" style="margin-bottom:16px">
+<div class="card" style="margin-bottom:var(--s4)">
   <h2>الملفات</h2>
   <div id="sources" class="muted">بيحمّل…</div>
-  <div class="row" style="margin-top:10px; gap:8px; align-items:center; flex-wrap:wrap">
+  <div class="row" style="margin-top:var(--s3); gap:var(--s2); align-items:center; flex-wrap:wrap">
     <input type="file" id="more" accept=".mp4,.mov,.m4a,video/mp4,video/quicktime,audio/mp4"><button id="addSrc">+ ملف تاني</button><span id="addMsg"></span>
   </div>
 </div>
 
-<div class="card" style="margin-bottom:16px">
+<div class="card" style="margin-bottom:var(--s4)">
   <h2>المشاهد</h2>
   <div class="muted">PySceneDetect قطّع كل فيديو لمشاهد. دوس "+" علشان تضيف المشهد للتعديل.</div>
-  <div id="scenes" style="margin-top:8px"></div>
+  <div id="scenes" style="margin-top:var(--s2)"></div>
 </div>
 
 <div class="card">
   <h2>التعديل (بالترتيب)</h2>
   <div class="muted">رتّب الأجزاء بـ ↑ ↓، احذف بـ ✕، وتقدر تعدّل البداية والنهاية بالثانية.</div>
-  <div id="edit" style="margin-top:8px"></div>
-  <div class="row" style="margin-top:10px; gap:8px; align-items:center; flex-wrap:wrap">
+  <div id="edit" style="margin-top:var(--s2)"></div>
+  <div class="row" style="margin-top:var(--s3); gap:var(--s2); align-items:center; flex-wrap:wrap">
     <span>المقاس:</span>
     <label><input type="radio" name="aspect" value="9:16" checked> 9:16 (طولي)</label>
     <label><input type="radio" name="aspect" value="16:9"> 16:9 (عرضي)</label>
     <span class="muted" id="total"></span>
   </div>
   <div class="actions"><button id="saveEdit">حفظ التعديل</button><button class="primary" id="export">تصدير MP4</button><span id="editMsg" class="muted"></span></div>
-  <div id="exportBox" style="margin-top:10px"></div>
+  <div id="exportBox" style="margin-top:var(--s3)"></div>
 </div>
 {% endblock %}
 {% block script %}
@@ -54,11 +54,11 @@
     }).join("");
   }
   function renderScenes() {
-    $("#scenes").innerHTML = M.sources.filter((s) => s.analysis).map((s) => `<div style="margin:6px 0"><b class="muted">${esc(s.id)}</b>
-      <div class="row" style="flex-wrap:wrap;gap:6px;margin-top:4px">${s.analysis.scenes.map((c) => `<button class="addScene" data-src="${s.id}" data-a="${c.start}" data-b="${c.end}">+ ${c.index}: ${sec(c.start)}–${sec(c.end)}</button>`).join("")}</div></div>`).join("") || `<span class="muted">لسه بيتحلّل…</span>`;
+    $("#scenes").innerHTML = M.sources.filter((s) => s.analysis).map((s) => `<div style="margin:var(--s2) 0"><b class="muted">${esc(s.id)}</b>
+      <div class="row" style="flex-wrap:wrap;gap:var(--s2);margin-top:var(--s1)">${s.analysis.scenes.map((c) => `<button class="addScene" data-src="${s.id}" data-a="${c.start}" data-b="${c.end}">+ ${c.index}: ${sec(c.start)}–${sec(c.end)}</button>`).join("")}</div></div>`).join("") || `<span class="muted">لسه بيتحلّل…</span>`;
   }
   function renderEdit() {
-    $("#edit").innerHTML = EDIT.map((g, i) => `<div class="row" style="gap:6px;align-items:center;margin-bottom:6px" data-i="${i}">
+    $("#edit").innerHTML = EDIT.map((g, i) => `<div class="row" style="gap:var(--s2);align-items:center;margin-bottom:var(--s2)" data-i="${i}">
       <b style="min-width:24px">${i + 1}</b><span class="muted">${esc(g.source)}</span>
       <input type="number" step="0.01" class="a" value="${sec(g.start)}" style="max-width:100px"> → <input type="number" step="0.01" class="b" value="${sec(g.end)}" style="max-width:100px">
       <span class="muted">(${sec(g.end - g.start)} ث)</span>

@@ -6,8 +6,8 @@
   <!-- واحد من الاتنين: موضوع (Claude بيكتب السكريبت) أو سكريبت جاهز (Claude بيظبطه بس) -->
   <label class="field">هتبدأ بإيه؟</label>
   <div class="types two" id="srcmode">
-    <button type="button" class="type on" data-v="topic"><b>💡 عندي موضوع</b><span>اكتب الفكرة، و Claude يكتب السكريبت ويوريهولك</span></button>
-    <button type="button" class="type" data-v="script"><b>📝 عندي سكريبت جاهز</b><span>اكتب الكلام بنفسك، و Claude يظبطه وينسّقه ويضيف الإحساس من غير ما يغيّر أفكارك</span></button>
+    <button type="button" class="type on" data-v="topic"><b>💡 عندي موضوع</b><span>اكتب الفكرة، وإحنا نكتب السكريبت ويوريهولك</span></button>
+    <button type="button" class="type" data-v="script"><b>📝 عندي سكريبت جاهز</b><span>اكتب الكلام بنفسك، وإحنا نظبطه وينسّقه ويضيف الإحساس من غير ما يغيّر أفكارك</span></button>
   </div>
   <div id="box-topic"><label class="field" for="prompt">موضوع الفيديو</label>
     <textarea id="prompt" rows="3" placeholder="مثلًا: فيديو عن الخوف من الفشل، وإزاي التأجيل بيضيّع الفرص"></textarea></div>
@@ -57,12 +57,12 @@
       <div class="list" id="vlist"></div>
     </div>
   </div>
-  <div class="muted" style="margin-top:6px">▶ بيشغّل عينة الصوت مجانًا. اسمع قبل ما تختار.</div>
+  <div class="muted" style="margin-top:var(--s2)">▶ بيشغّل عينة الصوت مجانًا. اسمع قبل ما تختار.</div>
   <div id="vwarn"></div></div>
 
-  <label class="row" style="margin-top:14px"><input type="checkbox" id="subs" checked> ترجمة على الشاشة (الكلمة اللي بتتقال بتنوّر)</label>
+  <label class="row" style="margin-top:var(--s4)"><input type="checkbox" id="subs" checked> ترجمة على الشاشة (الكلمة اللي بتتقال بتنوّر)</label>
 
-  <details style="margin-top:12px"><summary class="muted">إعدادات متقدمة</summary>
+  <details style="margin-top:var(--s3)"><summary class="muted">إعدادات متقدمة</summary>
     <label class="field">ثبات الصوت</label>
     <div class="chips" id="stability">
       <span class="chip" data-v="0">إبداعي (للهمس والتمثيل)</span><span class="chip on" data-v="0.5">طبيعي (الأفضل للكلام)</span><span class="chip" data-v="1">ثابت</span>
@@ -70,7 +70,7 @@
   </details>
 
   <div id="stylebox"></div>
-  <div class="row" style="margin-top:20px">
+  <div class="row" style="margin-top:var(--s5)">
     <span class="muted grow" id="cost"></span>
     <button class="primary" id="go">ابدأ ▶</button>
   </div>
@@ -135,7 +135,7 @@
   api("/api/style").then((d) => {
     if (!d.profile) return;
     const pts = d.profile.split("\n").filter((l) => l.trim()).length;
-    $("#stylebox").innerHTML = `<div class="note ok" style="margin-top:14px">✓ ذوقك هيتطبق على الفيديو ده (${pts} تفضيل): السكريبت، والمشاهد، والإيقاع، وحجم الكلام، والنطق. <a href="/style">شوفه أو عدّله</a></div>`;
+    $("#stylebox").innerHTML = `<div class="note ok" style="margin-top:var(--s4)">✓ ذوقك هيتطبق على الفيديو ده (${pts} تفضيل): السكريبت، والمشاهد، والإيقاع، وحجم الكلام، والنطق. <a href="/style">شوفه أو عدّله</a></div>`;
   });
   api("/api/usage").then((u) => { if (u.elevenlabs && u.elevenlabs.limit) $("#cost").textContent += ` (المتبقي ${(u.elevenlabs.limit - u.elevenlabs.used).toLocaleString("ar-EG")})`; });
 
