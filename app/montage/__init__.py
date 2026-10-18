@@ -16,6 +16,7 @@ from pydantic import BaseModel
 
 from ..config import APP
 from ..store import write_json
+from .. import trash
 from . import export as exporter
 from . import media, nl, stages, state
 
@@ -116,10 +117,13 @@ def get_montage(mid: str):
 
 @router.delete("/api/montage/{mid}")
 def delete_montage(mid: str):
-    if not state.load(mid):
+    m = state.load(mid)
+    if not m:
         raise HTTPException(404, "المونتاج ده مش موجود")
-    state.delete(mid)
-    return {"ok": True}
+    if stages._busy(m):
+        raise HTTPException(409, "فيه شغل شغال على المونتاج ده دلوقتي، استنى لما يخلص")
+    trash.move("montage", mid, m.get("title") or mid)   # مش بيتمسح: بيروح للمحذوفات أسبوع
+    return {"ok": True, "trash_days": trash.KEEP_DAYS}
 
 
 @router.post("/api/montage/{mid}/sources/{sid}/analyze")

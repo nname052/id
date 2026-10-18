@@ -172,7 +172,10 @@ def view(m: dict) -> dict:
     s7, prev = out[-1], docs.get("s7_preview")
     final = None
     if prev and (vdir(m["id"], "s7_preview", s7["current"]) / "preview.mp4").exists():
+        pv = vdir(m["id"], "s7_preview", s7["current"])
+        poster = next((n for n in ("f_start.jpg", "f_mid.jpg") if (pv / n).exists()), None)   # صورة غلاف (الفيديو كان بيبان أسود لحد ما تدوس تشغيل)
         final = {"url": _url(m["id"], "s7_preview", s7["current"], "preview.mp4") + f"?v={s7['current']}", "version": s7["current"],
+                 "poster": _url(m["id"], "s7_preview", s7["current"], poster) + f"?v={s7['current']}" if poster else None,
                  "status": s7["status"], "summary": s7["summary"], "aspect": (prev.get("data") or {}).get("aspect", "9:16")}
     cues = []
     if docs.get("s4_subs"):

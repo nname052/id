@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
-from . import eleven_account, prefs, store, worker
+from . import eleven_account, prefs, store, trash, worker
 from .config import APP, ASSETS, DEFAULT_SETTINGS, ELEVEN_KEY, FONTS, MOODS, VIDEO_TYPES
 from .llm import claude_code
 from .pipeline import audio as audio_stage
@@ -40,6 +40,8 @@ async def _no_stale_files(request: Request, call_next):
 @app.on_event("startup")
 def _start() -> None:
     worker.start(PORT)
+    trash.purge_expired()     # اللي عدّى عليه أسبوع في المحذوفات بيتمسح نهائي
+    trash.start_janitor()
 
 
 # ---------- الصفحات ----------
@@ -223,8 +225,41 @@ def rename(pid: str, body: Patch):
 
 @app.delete("/api/projects/{pid}")
 def delete(pid: str):
-    _get(pid)
-    store.delete(pid)
+    p = _get(pid)
+    if p.get("status") == "running":
+        raise HTTPException(409, "الفيديو ده شغال دلوقتي، استنى لما يخلص")
+    trash.move("video", pid, p.get("title") or p.get("prompt") or pid)   # مش بيتمسح: بيروح للمحذوفات أسبوع
+    return {"ok": True, "trash_days": trash.KEEP_DAYS}
+
+
+# ---------- المحذوفات ----------
+@app.get("/trash")
+def page_trash(request: Request):
+    return pages.TemplateResponse(request, "trash.html", {"days": trash.KEEP_DAYS})
+
+
+@app.get("/api/trash")
+def trash_list():
+    return trash.items()
+
+
+@app.post("/api/trash/{tid}/restore")
+def trash_restore(tid: str):
+    try:
+        m = trash.restore(tid)
+    except KeyError as e:
+        raise HTTPException(404, str(e)) from e
+    except FileExistsError as e:
+        raise HTTPException(409, str(e)) from e
+    return {"ok": True, "kind": m["kind"], "id": m["id"], "url": f"/montage/{m['id']}" if m["kind"] == "montage" else f"/p/{m['id']}"}
+
+
+@app.delete("/api/trash/{tid}")
+def trash_purge(tid: str):
+    try:
+        trash.purge(tid)
+    except KeyError as e:
+        raise HTTPException(404, str(e)) from e
     return {"ok": True}
 
 

@@ -116,7 +116,7 @@
     const key = f ? f.url : "";
     if (el.dataset.key !== key) {
       el.dataset.key = key;
-      el.innerHTML = f ? `<video controls playsinline preload="metadata" src="${f.url}"></video>`
+      el.innerHTML = f ? `<video controls playsinline preload="metadata" src="${f.url}"${f.poster ? ` poster="${f.poster}"` : ""}></video>`
         : `<div class="empty">لسه مفيش معاينة. اكتب طلبك (اختياري) ودوس «اعمل المونتاج».</div>`;
     }
     const st = f ? f.status : "empty";

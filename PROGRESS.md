@@ -130,7 +130,14 @@
     - المعاينة v5، ونسخة في `docs/montage_step5_preview.mp4` (مش في git).
     - 4–6 جرافيك، كلها مربوطة بالكلام، وولا واحد فوق الوش أو الترجمة.
     - الصوت −13.85 LUFS، ومفيش فريمات متكررة.
-  - **ملاحظة:** المونتاجات القديمة اختفت من `videos/_montage` يوم 2026-10-18 الساعة 21:58، والسيرفر بتاعي كان واقف وقتها. الوحيد الباقي اترفع 21:08.
+  - المونتاجات القديمة المستخدم هو اللي مسحها (قبل ما يبقى فيه سلة).
+- **سلة المحذوفات (`app/trash.py`، صفحة «المحذوفات»):**
+  - حذف أي فيديو أو مونتاج بقى بينقله لـ `videos/_trash` بدل ما يمسحه.
+  - من الصفحة تقدر «ترجّعه» بنفس الملفات بالظبط، أو «تمسحه نهائي».
+  - بعد 7 أيام بيتمسح لوحده: بيتفحص لما التطبيق يشتغل، وكل ساعة، ولما الصفحة تتفتح.
+  - الرجوع بيرفض لو فيه حاجة بنفس الرقم، والحذف بيرفض لو فيه شغل شغال على العنصر.
+  - **الاختبار:** `tests/trash_rules.py` PASS، واتجرّب في الموقع (حذف ← المحذوفات ← رجوع).
+- **معاينة المونتاج:** بقى ليها صورة غلاف (فريم من الفيديو) بدل مربع أسود لحد ما تدوس تشغيل.
 
 ## الخطوة الجاية
 - **المونتاج Step 5 (اللي فاضل):**
@@ -251,6 +258,7 @@
 - `data/history.json`: سجل منع التكرار.
 - `data/app_settings.json`: حد الموافقة. الاتنين في gitignore.
 - `app/pipeline/drawn.py`: الأيقونات اللي بيرسمها التطبيق. `tests/wb_layout.mjs`: اختبار توزيع السبورة (`node tests/wb_layout.mjs`).
+- `app/trash.py` و `app/web/templates/trash.html`: سلة المحذوفات (أسبوع).
 - `tests/`: اختبارات المونتاج (`montage_cut_points.py`، `montage_versions.py`، `montage_edit_rules.py`). بتشتغل بـ `.venv/bin/python tests/<file>.py`.
 - `docs/montage_step3/`: لقطات التصميم الجديد وفريمات المعاينة.
 - تقارير كل مرحلة: `phase1_report.md`، `phase2_step*_report.md`، `phase3_report.md`، `quality_fixes_report.md`، `montage_step1_report.md`، `montage_step2_report.md`، `montage_step3_report.md`، `montage_step4_report.md`، `tags_report.md`، `wb_polish_report.md`.

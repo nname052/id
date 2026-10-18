@@ -25,7 +25,7 @@
     const b = e.target.closest("button[data-act]"); if (!b) return;
     const card = b.closest(".vcard"), id = card.dataset.id, title = $(".ttl", card).textContent;
     if (b.dataset.act === "play") { $("#modal").innerHTML = `<video controls autoplay src="/files/${id}/output/video.mp4"></video>`; $("#modal").hidden = false; }
-    if (b.dataset.act === "del" && confirm(`تمسح "${title}" نهائي؟`)) { await api(`/api/projects/${id}`, { method: "DELETE" }); load(); }
+    if (b.dataset.act === "del" && confirm(`تحذف "${title}"؟\nهيروح «المحذوفات» وتقدر ترجّعه لمدة أسبوع، وبعدها بيتمسح نهائي.`)) { await api(`/api/projects/${id}`, { method: "DELETE" }); load(); }
   };
   $("#modal").onclick = (e) => { if (e.target.id === "modal") { $("#modal").hidden = true; $("#modal").innerHTML = ""; } };
   load();

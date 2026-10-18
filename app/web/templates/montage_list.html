@@ -36,11 +36,11 @@
       <div class="ft"><button class="danger" data-act="del" aria-label="حذف ${esc(m.title)}">🗑 حذف</button></div></div>`).join("")
       : `<span class="muted">مفيش لسه.</span>`;
   }
-  // الحذف: بتأكيد، وبيمسح المونتاج كله من التطبيق (النسخة المرفوعة والمراحل والتصدير). الملف الأصلي اللي على جهازك برّه التطبيق مابيتلمسش
+  // الحذف: بتأكيد، والمونتاج بيروح «المحذوفات» أسبوع (تقدر ترجّعه)، وبعدها بيتمسح نهائي
   $("#list").addEventListener("click", async (e) => {
     const b = e.target.closest("button[data-act=del]"); if (!b) return;
     const card = b.closest(".m-item"), title = card.dataset.title;
-    if (!confirm(`تمسح مونتاج "${title}" نهائي؟\nهيتمسح من التطبيق: الملف المرفوع ونسخ المراحل والفيديو المتصدّر. الملف الأصلي اللي على جهازك برّه التطبيق مش هيتلمس.`)) return;
+    if (!confirm(`تحذف مونتاج "${title}"؟\nهيروح «المحذوفات» وتقدر ترجّعه زي ما هو لمدة أسبوع، وبعدها بيتمسح نهائي. الملف الأصلي اللي على جهازك برّه التطبيق مش هيتلمس.`)) return;
     b.disabled = true;
     try { await api(`/api/montage/${card.dataset.id}`, { method: "DELETE" }); load(); }
     catch (err) { b.disabled = false; $("#msg").innerHTML = `<div class="note err">${esc(err.message || "الحذف فشل")}</div>`; }

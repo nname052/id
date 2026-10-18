@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}المحذوفات{% endblock %}
+{% block body %}
+<div class="page-head">
+  <div><h1>المحذوفات</h1><div class="sub">أي فيديو أو مونتاج بتحذفه بيفضل هنا {{ days }} أيام. تقدر ترجّعه زي ما هو، وبعدها بيتمسح نهائي لوحده.</div></div>
+</div>
+<div id="list" class="stack"><span class="spinner"></span></div>
+<div id="msg" role="status"></div>
+{% endblock %}
+{% block script %}
+<script>
+  const size = (b) => b > 1e9 ? `${(b / 1e9).toFixed(2)} GB` : b > 1e6 ? `${(b / 1e6).toFixed(0)} MB` : `${Math.round(b / 1e3)} KB`;
+  const when = (u) => new Date(u * 1000).toLocaleString("ar-EG", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
+  async function load() {
+    const rows = await api("/api/trash");
+    $("#list").innerHTML = rows.length ? rows.map((t) => `<div class="card file-row" data-tid="${t.tid}" data-title="${esc(t.title)}">
+        <div class="ic">${t.kind === "montage" ? "✂" : "▶"}</div>
+        <div><div class="nm">${esc(t.title)}</div>
+          <div class="meta"><span>${t.kind === "montage" ? "مونتاج" : "فيديو"}</span><span>اتحذف ${when(t.deleted_at)}</span><span>${size(t.size)}</span>
+          <span class="pill ${t.days_left <= 1 ? "failed" : ""}">${t.days_left <= 1 ? "بيتمسح نهائي النهارده" : `فاضل ${t.days_left} أيام`}</span></div></div>
+        <div class="row"><button class="primary" data-act="restore">↩ رجّعه</button><button class="danger" data-act="purge">امسح نهائي</button></div></div>`).join("")
+      : `<div class="card muted">مفيش حاجة محذوفة.</div>`;
+  }
+  $("#list").addEventListener("click", async (e) => {
+    const b = e.target.closest("button[data-act]"); if (!b) return;
+    const row = b.closest("[data-tid]"), tid = row.dataset.tid, title = row.dataset.title;
+    if (b.dataset.act === "purge" && !confirm(`تمسح "${title}" نهائي دلوقتي؟ مش هتقدر ترجّعه بعد كده.`)) return;
+    b.disabled = true;
+    try {
+      if (b.dataset.act === "restore") {
+        const r = await api(`/api/trash/${tid}/restore`, { method: "POST" });
+        $("#msg").innerHTML = `<div class="note ok">✓ رجع "${esc(title)}". <a href="${r.url}">افتحه</a></div>`;
+      } else {
+        await api(`/api/trash/${tid}`, { method: "DELETE" });
+        $("#msg").innerHTML = `<div class="note ok">اتمسح نهائي.</div>`;
+      }
+      load();
+    } catch (err) { b.disabled = false; $("#msg").innerHTML = `<div class="note err">${esc(err.message || "حصل خطأ")}</div>`; }
+  });
+  load();
+</script>
+{% endblock %}
