@@ -39,12 +39,66 @@ export function placeHand(st) {
 }
 
 // ---------- أماكن العناصر على السبورة ----------
-function zones(n) {
-  const T = 250, B = 1180, L = 80, R = 1000, Wd = R - L, Hd = B - T;
-  if (n <= 1) return [{ x: L, y: T + 40, w: Wd, h: Hd - 80 }];
-  if (n === 2) return [{ x: L, y: T, w: Wd, h: Hd / 2 - 20 }, { x: L, y: T + Hd / 2 + 20, w: Wd, h: Hd / 2 - 20 }];
-  if (n === 3) return [{ x: L, y: T, w: Wd, h: Hd * 0.42 }, { x: L + Wd / 2 + 20, y: T + Hd * 0.47, w: Wd / 2 - 20, h: Hd * 0.53 }, { x: L, y: T + Hd * 0.47, w: Wd / 2 - 20, h: Hd * 0.53 }];
-  return [0, 1, 2, 3].map((i) => ({ x: i % 2 ? L : L + Wd / 2 + 20, y: i < 2 ? T : T + Hd / 2 + 20, w: Wd / 2 - 20, h: Hd / 2 - 20 }));
+// ليه: قبل كده الأماكن كانت ثابتة على عدد العناصر (عنصرين = نص فوق ونص تحت) واتحسبت قبل ما الوقت يشيل الزيادة، فلما عنصر يتشال
+// الرسمة الباقية كانت بتفضل في النص اللي فوق ونص السبورة فاضي (فراغ لحد 600 بكسل). كمان الرسومات كان حواليها فراغ جوه ملفها نفسه.
+// دلوقتي: كل عنصر بيتقاس شكله الحقيقي (الرسمة على قد حدودها، والكلام على قد سطوره)، وبنجرّب كل تقسيمات الصفوف (عنصر أو اتنين أو تلاتة
+// في الصف، بنفس ترتيب الرسم) وبنختار اللي بيملا المساحة أكتر من غير ما حاجة تصغر قوي، وبعدين المجموعة كلها بتتوسّط في المنطقة.
+// والتوزيع بيتعاد على العناصر اللي فضلت بعد ما الوقت يشيل الزيادة.
+export const REGION = { x: 64, y: 180, w: 952, h: 1050 };   // فوق الترجمة (بتبدأ عند 1270)
+const GAP = { x: 44, y: 56 }, ARROW_GAP = 150;   // لو فيه سهم بين العناصر: مسافة كفاية إن السهم يبان سهم
+function partitions(n) { // كل تقسيمات n عنصر (بالترتيب) لصفوف، كل صف 1–3
+  if (!n) return [[]];
+  const out = [];
+  for (let k = 1; k <= Math.min(3, n); k++) for (const rest of partitions(n - k)) out.push([k, ...rest]);
+  return out;
+}
+// items: [{opts: [{a: العرض/الارتفاع, hmax, lines?}], art: bool, minH}] ← [{x, y, w, h, opt}] بنفس الترتيب
+export function layoutBoard(items, R = REGION, arrows = false) {
+  const n = items.length, GAP_X = arrows ? ARROW_GAP : GAP.x, GAP_Y = arrows ? ARROW_GAP : GAP.y;
+  if (!n) return [];
+  let best = null;
+  const combos = (i) => (i === n ? [[]] : combos(i + 1).flatMap((c) => items[i].opts.map((_, k) => [k, ...c])));
+  const allOpts = combos(0);
+  for (const parts of partitions(n)) {
+    for (const oc of allOpts) {
+      let i = 0;
+      const rows = parts.map((k) => { const its = []; for (let j = 0; j < k; j++, i++) its.push({ i, o: items[i].opts[oc[i]] }); return its; });
+      // ارتفاع كل صف: العناصر بتملا العرض، ومحدودة بأقصى ارتفاع لكل عنصر (الكلام ما يكبرش عن حد معيّن)
+      rows.forEach((r) => {
+        const sumA = r.reduce((s, x) => s + x.o.a, 0), h = (R.w - GAP_X * (r.length - 1)) / sumA;
+        r.forEach((x) => (x.h = Math.min(h, x.o.hmax)));
+        r.h = Math.max(...r.map((x) => x.h));
+      });
+      const gaps = GAP_Y * (rows.length - 1), tot = rows.reduce((s, r) => s + r.h, 0);
+      const k = Math.min(1, (R.h - gaps) / tot);
+      let area = 0, minRel = Infinity, pen = 0;
+      rows.forEach((r) => r.forEach((x) => {
+        x.h *= k; x.w = x.h * x.o.a;
+        const it = items[x.i], ar = x.w * x.h;
+        area += ar * (it.art ? 1.25 : 1);
+        minRel = Math.min(minRel, ar / ((R.w * R.h) / n));
+        if (x.h < it.minH) pen += (it.minH - x.h) / it.minH;
+        if (it.art && x.o.a > 0 && (x.w < 260 || x.h < 220)) pen += 0.5;   // رسمة أصغر من إنها تتشاف
+      }));
+      rows.forEach((r) => (r.h *= k));
+      const score = area / (R.w * R.h) + 0.3 * Math.min(1, minRel) - 1.2 * pen - 0.02 * rows.length;
+      if (!best || score > best.score) best = { score, rows: rows.map((r) => r.map((x) => ({ ...x }))), rh: rows.map((r) => r.h) };
+    }
+  }
+  // المكان الفعلي: الصفوف متوسّطة رأسيًا (الزيادة بتتوزّع على المسافات بين الصفوف لحد حد معيّن والباقي فوق وتحت)،
+  // وجوه الصف أول عنصر على اليمين (قراية عربي) والمسافة الزيادة بتتوزّع بين العناصر
+  const rows = best.rows, rh = best.rh;
+  const used = rh.reduce((s, h) => s + h, 0) + GAP_Y * (rows.length - 1);
+  const extra = R.h - used, grow = rows.length > 1 ? Math.min(90, (extra * 0.5) / (rows.length - 1)) : 0;
+  let y = R.y + (extra - grow * (rows.length - 1)) / 2;
+  const out = new Array(n);
+  rows.forEach((r, ri) => {
+    const wsum = r.reduce((s, x) => s + x.w, 0), free = R.w - wsum, g = r.length > 1 ? Math.min(free / (r.length - 1), Math.max(GAP_X, free / (r.length + 1))) : 0;
+    let x = R.x + R.w - (R.w - wsum - g * (r.length - 1)) / 2;
+    r.forEach((it) => { x -= it.w; out[it.i] = { x, y: y + (rh[ri] - it.h) / 2, w: it.w, h: it.h, opt: it.o }; x -= g; });
+    y += rh[ri] + GAP_Y + grow;
+  });
+  return out;
 }
 
 // خط إيد متعرّج شوية (ثابت لنفس البذرة)
@@ -62,64 +116,86 @@ function smoothD(pts) { // منحنى ناعم بيعدّي على النقط
 
 // ---------- مشهد سبورة ----------
 // sc.board = [{kind, text, value, visual, target, from, to, color, cue_word}] ، و sc.visuals متوصّلة بالترتيب للعناصر اللي فيها صورة
+const TEXT_FS = 168, NUM_FS = 320, MIN_FS = 54;
 export async function createBoard(sc, el, ctx) {
   const P = ctx.palette, ink = P.ink || "#1d1d1f", colorOf = (c) => (c === "accent" ? P.accent : c === "accent2" ? P.accent2 : ink);
   const font = ctx.font || "Marhey", PACE = ctx.pace || 1;
   el.classList.add("board");
   const items = sc.board || [];
-  const content = items.filter((x) => !["arrow", "underline", "circle"].includes(x.kind));
-  const zs = zones(content.length);
+  const under = svgEl("svg", { width: 1080, height: 1920, viewBox: "0 0 1080 1920", class: "wb-marks wb-under" });   // تحت العناصر: الهايلايتر والضل
+  el.appendChild(under);
   const svgLayer = svgEl("svg", { width: 1080, height: 1920, viewBox: "0 0 1080 1920", class: "wb-marks" });
   const els = [];
-  let zi = 0;
   for (const [i, it] of items.entries()) {
     const e = { it, i, kind: it.kind, color: colorOf(it.color) };
     if (["illustration", "icon", "emoji"].includes(it.kind) && it.visual) {
-      const z = zs[zi++];
       const box = document.createElement("div");
       box.className = `wb-art ${it.kind}`;
-      box.style.cssText = `left:${z.x}px;top:${z.y}px;width:${z.w}px;height:${z.h}px;color:${e.color}`;
+      box.style.cssText = `left:0;top:0;width:400px;height:400px;color:${e.color}`;
       box.innerHTML = await text(`/assets/${it.visual.asset}`);
       const sv = box.querySelector("svg");
-      sv.setAttribute("width", z.w); sv.setAttribute("height", z.h); sv.setAttribute("preserveAspectRatio", "xMidYMid meet");
+      sv.setAttribute("width", 400); sv.setAttribute("height", 400); sv.setAttribute("preserveAspectRatio", "xMidYMid meet");
       el.appendChild(box);
-      // كل الأشكال اللي هتترسم: حدود بالحبر، والألوان بتظهر بعد ما الحدود تخلص
       const shapes = [...sv.querySelectorAll("path, circle, line, polyline, polygon, rect, ellipse")].filter((s) => !s.closest("defs, clipPath, mask"));
+      // الرسمة على قد حدودها الحقيقية (من غير الفراغ اللي جوه ملفها): viewBox جديد على حدود الأشكال
+      const vb0 = sv.viewBox.baseVal && sv.viewBox.baseVal.width ? sv.viewBox.baseVal : { x: 0, y: 0, width: 400, height: 400 };
+      if (!sv.getAttribute("viewBox")) sv.setAttribute("viewBox", `0 0 ${vb0.width} ${vb0.height}`);
+      const sr = sv.getBoundingClientRect(), kk = Math.min(sr.width / vb0.width, sr.height / vb0.height);
+      const ox = sr.left + (sr.width - vb0.width * kk) / 2, oy = sr.top + (sr.height - vb0.height * kk) / 2;
+      let u = null;
+      for (const s of shapes) { const r = s.getBoundingClientRect(); if (r.width + r.height < 0.5) continue;
+        const q = { l: (r.left - ox) / kk + vb0.x, t: (r.top - oy) / kk + vb0.y, r: (r.right - ox) / kk + vb0.x, b: (r.bottom - oy) / kk + vb0.y };
+        u = u ? { l: Math.min(u.l, q.l), t: Math.min(u.t, q.t), r: Math.max(u.r, q.r), b: Math.max(u.b, q.b) } : q; }
+      if (u && u.r - u.l > 1 && u.b - u.t > 1) {
+        const pad = Math.max(u.r - u.l, u.b - u.t) * (it.kind === "icon" ? 0.08 : 0.03);   // مكان لسُمك خط الأيقونة
+        u = { l: Math.max(vb0.x, u.l - pad), t: Math.max(vb0.y, u.t - pad), r: Math.min(vb0.x + vb0.width, u.r + pad), b: Math.min(vb0.y + vb0.height, u.b + pad) };
+        sv.setAttribute("viewBox", `${u.l} ${u.t} ${u.r - u.l} ${u.b - u.t}`);
+        e.aspect = (u.r - u.l) / (u.b - u.t);
+      } else e.aspect = vb0.width / vb0.height;
+      e.aspect = clamp(e.aspect, 0.35, 3.2);
+      // كل الأشكال اللي هتترسم: حدود بالحبر، والألوان بتظهر بعد ما الحدود تخلص
       e.shapes = shapes.map((s) => {
         const cs = getComputedStyle(s), fill = s.getAttribute("fill") || cs.fill;
         const L = (() => { try { return s.getTotalLength(); } catch { return 0; } })();
         // لون الرسمة الأساسي (بنفسجي unDraw) بيبقى لون القلم
         if (/6c63ff/i.test(fill)) s.setAttribute("fill", P.accent);
         s.style.vectorEffect = "non-scaling-stroke";
-        if (it.kind === "icon") { s.style.stroke = e.color; s.style.strokeWidth = "7px"; }
+        // أيقونة متملية (من مجموعة مش خطوط): الحدود بالقلم وبعدين الملي، زي الرسمة (مش ظاهرة كاملة قبل ما القلم يرسمها)
+        const solid = it.kind === "icon" && fill && fill !== "none" && !/^rgba\(0, 0, 0, 0\)$/.test(fill);
+        // الملي بلون التأكيد وشفاف (زي قلم فسفوري) بدل بقعة سودا: أيقونة النحلة المتملية كانت بتبان كتلة
+        if (it.kind === "icon") { s.style.stroke = e.color; s.style.strokeWidth = solid ? "4.5px" : "7px"; if (solid) { s.style.fill = e.color === ink ? P.accent : e.color; s.style.fillOpacity = 0; } }
         else { s._fill = s.getAttribute("fill") || cs.fill; s.style.stroke = ink; s.style.strokeWidth = "2.6px"; s.style.fillOpacity = 0; }
-        // مع non-scaling-stroke الشرطة بتتقاس ببكسل الشاشة، والطول من getTotalLength بوحدات الرسمة الصغيرة:
-        // لو استخدمنا الطول زي ما هو، الخط بيطلع متقطّع (شرط) حتى بعد ما يخلص. فبنحوّله لطول على الشاشة
-        const m = s.getCTM(), Ls = L * (m ? Math.hypot(m.a, m.b) : 1);
-        s.style.strokeDasharray = `${Ls} ${Ls}`; s.style.strokeDashoffset = Ls;
-        return { s, L, Ls };
+        return { s, L, solid };
       }).filter((x) => x.L > 0.5);
-      // أصغر الأشكال (تفاصيل صغيرة جدًا) ما بتاخدش وقت رسم: بتظهر مع الألوان
       e.total = e.shapes.reduce((n, x) => n + x.L, 0);
-      e.box = box; e.zone = z; e.dur = (it.kind === "illustration" ? 2.8 : it.kind === "emoji" ? 1.6 : 1.4) * PACE;
+      e.box = box; e.svg = sv; e.dur = (it.kind === "illustration" ? 2.8 : it.kind === "emoji" ? 1.6 : 1.4) * PACE;
+      // أيقونة لوحدها ما تكبرش لحد ما تبقى خطوط رفيعة في مساحة فاضية؛ الرسمة الكبيرة مالهاش حد
+      e.opts = [{ a: e.aspect, hmax: it.kind === "illustration" ? 1e9 : 640 }]; e.art = true; e.minH = it.kind === "illustration" ? 300 : 200;
     } else if (["text", "number"].includes(it.kind)) {
-      const z = zs[zi++];
       const t = it.kind === "number" ? String(it.value || it.text || "") : String(it.text || "");
       const words = t.split(/\s+/).filter(Boolean);
-      const lines = words.length > 3 && it.kind === "text" ? [words.slice(0, Math.ceil(words.length / 2)).join(" "), words.slice(Math.ceil(words.length / 2)).join(" ")] : [t];
       const wrap = document.createElement("div");
       wrap.className = `wb-text ${it.kind}`;
-      wrap.style.cssText = `left:${z.x}px;top:${z.y}px;width:${z.w}px;height:${z.h}px;color:${e.color};font-family:"${font}"`;
-      wrap.innerHTML = lines.map((l) => `<div class="ln"><span>${esc(l)}</span></div>`).join("");
+      wrap.style.cssText = `left:0;top:0;width:auto;height:auto;color:${e.color};font-family:"${font}";font-size:100px`;
       el.appendChild(wrap);
-      // حجم الخط: أكبر حاجة تدخل في المكان
-      let fs = it.kind === "number" ? Math.min(z.h * 0.75, 300) : Math.min(150, z.h / (lines.length * 1.35));
-      wrap.style.fontSize = fs + "px";
-      while (fs > 44 && ([...wrap.querySelectorAll("span")].some((s) => s.offsetWidth > z.w - 20) || wrap.scrollHeight > z.h + 2)) { fs *= 0.93; wrap.style.fontSize = fs + "px"; }
-      e.lines = [...wrap.querySelectorAll(".ln span")];
-      // الأرقام والكلام اللاتيني بيتكتبوا من الشمال لليمين، والعربي من اليمين للشمال
-      e.ltr = it.kind === "number" || !/[\u0600-\u06FF]/.test(t);
-      e.box = wrap; e.zone = z;
+      // تقسيمات السطور الممكنة (سطر، سطرين متوازنين، 3 لو الكلام طويل)، وكل تقسيمة ليها شكل (عرض/ارتفاع) بيدخل في التوزيع
+      const splits = [[t]];
+      if (it.kind === "text" && words.length > 1) {
+        let b2 = null; for (let k = 1; k < words.length; k++) { const a = words.slice(0, k).join(" "), b = words.slice(k).join(" "), d = Math.abs(a.length - b.length); if (!b2 || d < b2.d) b2 = { d, l: [a, b] }; }
+        splits.push(b2.l);
+        if (words.length >= 5) { const k1 = Math.round(words.length / 3), k2 = Math.round((2 * words.length) / 3); splits.push([words.slice(0, k1), words.slice(k1, k2), words.slice(k2)].map((w) => w.join(" "))); }
+        if (words.length > 3) splits.shift();   // كلام طويل على سطر واحد بيبقى رفيع وصغير
+      }
+      const FS = it.kind === "number" ? NUM_FS : TEXT_FS;
+      e.opts = splits.map((lines) => { wrap.innerHTML = lines.map((l) => `<div class="ln"><span>${esc(l)}</span></div>`).join("");
+        const wmax = Math.max(...[...wrap.querySelectorAll("span")].map((s) => s.offsetWidth)) + 24;
+        return { lines, a: wmax / (lines.length * 130), hmax: lines.length * 1.3 * FS }; });
+      e.minH = MIN_FS * 1.3;
+      // الأرقام والكلام اللاتيني بيتكتبوا من الشمال لليمين، والعربي من اليمين للشمال. «رقم» فيه كلام عربي («أقل من ¼») عربي:
+      // قبل كده أي number كان LTR فالكلام كان بيتقلب
+      e.ltr = !/[\u0600-\u06FF]/.test(t);
+      wrap.style.direction = e.ltr ? "ltr" : "rtl";
+      e.box = wrap; e.txt = t;
       e.dur = clamp((0.3 + 0.085 * t.length) * PACE, 0.8, 2.4);
     } else {
       e.mark = true; e.dur = (it.kind === "circle" ? 0.9 : 0.7) * PACE;
@@ -128,42 +204,121 @@ export async function createBoard(sc, el, ctx) {
   }
   el.appendChild(svgLayer);
 
-  // العلامات (سهم / خط تحت / دايرة): بتتبني بعد ما مكان العناصر اتعرف
-  const rectOf = (idx) => { const t = els[idx]; if (!t || !t.box) return null;
+  // تحطيط عنصر في مكانه (وأي حاجة اتحسبت على المكان القديم بتتمسح وتتحسب تاني)
+  const place = (e, z) => {
+    e.zone = z;
+    e.box.style.left = z.x + "px"; e.box.style.top = z.y + "px"; e.box.style.width = z.w + "px"; e.box.style.height = z.h + "px";
+    if (e.shapes) {
+      e.svg.setAttribute("width", z.w); e.svg.setAttribute("height", z.h);
+      // مع non-scaling-stroke الشرطة بتتقاس ببكسل الشاشة، والطول من getTotalLength بوحدات الرسمة: بنحوّله لطول على الشاشة
+      e.shapes.forEach((x) => { const m = x.s.getCTM(); x.Ls = x.L * (m ? Math.hypot(m.a, m.b) : 1);
+        x.s.style.strokeDasharray = `${x.Ls} ${x.Ls}`; x.s.style.strokeDashoffset = x.Ls; delete x.p0; delete x.p1; delete x.pieces; });
+      delete e.tl;
+    } else {
+      const lines = z.opt.lines;
+      e.box.innerHTML = lines.map((l) => `<div class="ln"><span>${esc(l)}</span></div>`).join("");
+      let fs = Math.min(e.kind === "number" ? NUM_FS : TEXT_FS, z.h / (lines.length * 1.3));
+      e.box.style.fontSize = fs + "px";
+      while (fs > 44 && ([...e.box.querySelectorAll("span")].some((s) => s.offsetWidth > z.w + 4) || e.box.scrollHeight > z.h + 4)) { fs *= 0.95; e.box.style.fontSize = fs + "px"; }
+      e.lines = [...e.box.querySelectorAll(".ln span")]; e.fs = fs;
+    }
+  };
+  const relayout = (live) => { const content = live.filter((e) => !e.mark), arrows = live.some((e) => e.kind === "arrow");
+    const zs = layoutBoard(content.map((e) => ({ opts: e.opts, art: !!e.art, minH: e.minH })), REGION, arrows);
+    content.forEach((e, k) => place(e, zs[k])); };
+
+  // العلامات (سهم / خط تحت / دايرة) واللمسات: بتتبني بعد ما مكان العناصر اتعرف (وبتتعاد لو التوزيع اتغيّر)
+  const rectOf = (idx) => { const t = els[idx]; if (!t || !t.box || t.dropped) return null;
     if (t.lines) { const r = t.lines.map((s) => ({ x: s.offsetLeft + t.box.offsetLeft, y: s.offsetTop + t.box.offsetTop, w: s.offsetWidth, h: s.offsetHeight }));
       const x0 = Math.min(...r.map((q) => q.x)), y0 = Math.min(...r.map((q) => q.y)), x1 = Math.max(...r.map((q) => q.x + q.w)), y1 = Math.max(...r.map((q) => q.y + q.h));
       return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 }; }
-    return { x: t.zone.x + t.zone.w * 0.1, y: t.zone.y + t.zone.h * 0.08, w: t.zone.w * 0.8, h: t.zone.h * 0.84 }; };
-  const contentIdx = els.filter((x) => !x.mark).map((x) => x.i);
-  for (const e of els.filter((x) => x.mark)) {
-    const it = e.it, seed = 31 + e.i * 7;
-    const tgt = rectOf(Number.isInteger(it.target) ? it.target : contentIdx[contentIdx.length - 1]);
-    let d = null, head = null;
-    if (it.kind === "underline" && tgt) {
-      const y = tgt.y + tgt.h * 0.96;
-      d = smoothD(wobble([[tgt.x + tgt.w + 10, y], [tgt.x + tgt.w * 0.66, y + 6], [tgt.x + tgt.w * 0.33, y + 2], [tgt.x - 10, y + 8]], seed, 3));
-    } else if (it.kind === "circle" && tgt) {
-      const cx = tgt.x + tgt.w / 2, cy = tgt.y + tgt.h / 2, rx = tgt.w / 2 + 34, ry = tgt.h / 2 + 26, pts = [];
-      for (let a = 0; a <= 1.08; a += 0.04) pts.push([cx + Math.cos(-Math.PI / 2 + a * Math.PI * 2) * rx * (1 + 0.03 * Math.sin(a * 9)), cy + Math.sin(-Math.PI / 2 + a * Math.PI * 2) * ry]);
-      d = smoothD(pts);
-    } else if (it.kind === "arrow") {
-      const a = rectOf(Number.isInteger(it.from) ? it.from : contentIdx[0]), b = rectOf(Number.isInteger(it.to) ? it.to : contentIdx[contentIdx.length - 1]);
-      if (a && b && a !== b) {
-        const ac = [a.x + a.w / 2, a.y + a.h / 2], bc = [b.x + b.w / 2, b.y + b.h / 2];
-        const edge = (r, from, to) => { const dx = to[0] - from[0], dy = to[1] - from[1]; const s = Math.min(Math.abs((r.w / 2 + 20) / (dx || 1e-6)), Math.abs((r.h / 2 + 20) / (dy || 1e-6)), 1);
-          return [from[0] + dx * s, from[1] + dy * s]; };
-        const p0 = edge(a, ac, bc), p1 = edge(b, bc, ac), mid = [(p0[0] + p1[0]) / 2 + (p1[1] - p0[1]) * 0.15, (p0[1] + p1[1]) / 2 - (p1[0] - p0[0]) * 0.15];
-        d = smoothD([p0, mid, p1]);
-        const ang = Math.atan2(p1[1] - mid[1], p1[0] - mid[0]), L = 34;
-        head = pathD([[p1[0] - L * Math.cos(ang - 0.45), p1[1] - L * Math.sin(ang - 0.45)], p1, [p1[0] - L * Math.cos(ang + 0.45), p1[1] - L * Math.sin(ang + 0.45)]]);
+    return { x: t.zone.x + t.zone.w * 0.04, y: t.zone.y + t.zone.h * 0.04, w: t.zone.w * 0.92, h: t.zone.h * 0.92 }; };
+  const buildMarks = (live) => {
+    svgLayer.replaceChildren(); under.replaceChildren();
+    const contentIdx = live.filter((x) => !x.mark).map((x) => x.i);
+    for (const e of live.filter((x) => x.mark)) {
+      const it = e.it, seed = 31 + e.i * 7;
+      delete e.path; delete e.head; e.skip = false;
+      const tgt = rectOf(Number.isInteger(it.target) ? it.target : contentIdx[contentIdx.length - 1]);
+      let d = null, head = null;
+      if (it.kind === "underline" && tgt) {
+        const y = tgt.y + tgt.h * 0.96;
+        d = smoothD(wobble([[tgt.x + tgt.w + 10, y], [tgt.x + tgt.w * 0.66, y + 6], [tgt.x + tgt.w * 0.33, y + 2], [tgt.x - 10, y + 8]], seed, 3));
+      } else if (it.kind === "circle" && tgt) {
+        const cx = tgt.x + tgt.w / 2, cy = tgt.y + tgt.h / 2, rx = Math.min(tgt.w / 2 + 34, 530), ry = Math.min(tgt.h / 2 + 26, 600), pts = [];
+        for (let a = 0; a <= 1.08; a += 0.04) pts.push([cx + Math.cos(-Math.PI / 2 + a * Math.PI * 2) * rx * (1 + 0.03 * Math.sin(a * 9)), cy + Math.sin(-Math.PI / 2 + a * Math.PI * 2) * ry]);
+        d = smoothD(pts);
+      } else if (it.kind === "arrow") {
+        const a = rectOf(Number.isInteger(it.from) ? it.from : contentIdx[0]), b = rectOf(Number.isInteger(it.to) ? it.to : contentIdx[contentIdx.length - 1]);
+        if (a && b && a !== b) {
+          const ac = [a.x + a.w / 2, a.y + a.h / 2], bc = [b.x + b.w / 2, b.y + b.h / 2];
+          const edge = (r, from, to) => { const dx = to[0] - from[0], dy = to[1] - from[1]; const s = Math.min(Math.abs((r.w / 2 + 20) / (dx || 1e-6)), Math.abs((r.h / 2 + 20) / (dy || 1e-6)), 1);
+            return [from[0] + dx * s, from[1] + dy * s]; };
+          const p0 = edge(a, ac, bc), p1 = edge(b, bc, ac), mid = [(p0[0] + p1[0]) / 2 + (p1[1] - p0[1]) * 0.15, (p0[1] + p1[1]) / 2 - (p1[0] - p0[0]) * 0.15];
+          // سهم أقصر من 70 بكسل (العنصرين لازقين) ما بيبانش سهم: بيتشال
+          if (Math.hypot(p1[0] - p0[0], p1[1] - p0[1]) > 70) {
+            d = smoothD([p0, mid, p1]);
+            const ang = Math.atan2(p1[1] - mid[1], p1[0] - mid[0]), L = 34;
+            head = pathD([[p1[0] - L * Math.cos(ang - 0.45), p1[1] - L * Math.sin(ang - 0.45)], p1, [p1[0] - L * Math.cos(ang + 0.45), p1[1] - L * Math.sin(ang + 0.45)]]);
+          }
+        }
+      }
+      if (!d) { e.skip = true; continue; }
+      const path = svgEl("path", { d, fill: "none", stroke: e.color === ink ? P.accent : e.color, "stroke-width": 9, "stroke-linecap": "round", "stroke-linejoin": "round" });
+      svgLayer.appendChild(path);
+      e.path = path; e.L = path.getTotalLength(); path.style.strokeDasharray = e.L; path.style.strokeDashoffset = e.L;
+      if (head) { e.head = svgEl("path", { d: head, fill: "none", stroke: path.getAttribute("stroke"), "stroke-width": 9, "stroke-linecap": "round", opacity: 0 }); svgLayer.appendChild(e.head); }
+    }
+    buildTouches(live);
+  };
+
+  // ---------- لمسات احترافية (من غير الإيد، وكل واحدة مربوطة بعنصر) ----------
+  // 1) هايلايتر: الكلمة المهمة (لون التأكيد) بيتعلّم وراها بقلم فسفوري بعد ما تتكتب، إلا لو عليها خط أو دايرة من الخطة.
+  // 2) ضل خفيف تحت الرسمة الكبيرة (بيظهر مع التلوين) علشان ما تبانش طايرة في الهوا.
+  // 3) شرطتين تلاتة «لمعة» جنب أول رسمة/رقم (بقلم التأكيد) بعد ما يخلص، لو جنبه مكان فاضي.
+  let touches = [];
+  const buildTouches = (live) => {
+    touches = [];
+    const marked = new Set(live.filter((x) => x.mark && !x.skip).map((x) => x.it.target).filter(Number.isInteger));
+    const key = live.find((x) => x.lines && x.kind === "text" && x.it.color === "accent" && !marked.has(x.i));
+    if (key) {
+      const r = rectOf(key.i), seed = 91 + key.i * 13, h = Math.min(r.h * 0.42, 70), y = r.y + r.h * 0.62;
+      const pts = wobble([[r.x + r.w + 14, y], [r.x + r.w * 0.5, y + 3], [r.x - 14, y - 2]], seed, 2);
+      const p = svgEl("path", { d: smoothD(pts), fill: "none", stroke: key.color === ink ? P.accent : key.color, "stroke-width": h, "stroke-linecap": "round", opacity: 0.2 });
+      under.appendChild(p); const L = p.getTotalLength(); p.style.strokeDasharray = L; p.style.strokeDashoffset = L;
+      touches.push({ kind: "hl", el: p, L, of: key, d: 0.45 });
+    }
+    for (const a of live.filter((x) => x.kind === "illustration" && x.zone)) {
+      const z = a.zone, s = svgEl("ellipse", { cx: z.x + z.w / 2, cy: z.y + z.h + 10, rx: z.w * 0.36, ry: Math.max(10, z.w * 0.025), fill: ink, opacity: 0 });
+      under.appendChild(s); touches.push({ kind: "shadow", el: s, of: a });
+    }
+    // اللمسة بتتغيّر من مشهد للتاني (شرط / نجمة صغيرة / مفيش) علشان ما تبقاش نفس العلامة في كل سبورة
+    const deco = ["ticks", "star", "none"][[...String(sc.id)].reduce((h, c) => h + c.charCodeAt(0), 0) % 3];
+    const hero = deco !== "none" && live.find((x) => (x.art || x.kind === "number") && x.zone);
+    if (hero) {
+      // عند الركن اللي فوق (ناحية المكان الفاضي)، ومش لازقة في عنصر تاني
+      const z = hero.kind === "number" ? rectOf(hero.i) : hero.zone, right = z.x + z.w + 90 < 1060;
+      const cx = right ? z.x + z.w - z.w * 0.04 : z.x + z.w * 0.04, cy = z.y + z.h * 0.04, dir = right ? 1 : -1;
+      const others = live.filter((x) => x !== hero && x.zone && !x.mark);
+      const clash = others.some((o) => cx + dir * 80 > o.zone.x - 10 && cx + dir * 80 < o.zone.x + o.zone.w + 10 && cy - 90 < o.zone.y + o.zone.h && cy + 20 > o.zone.y);
+      if (!clash && cx > 30 && cx < 1050 && cy > 150) {
+        const add = (d, k) => { const p = svgEl("path", { d, fill: "none", stroke: P.accent, "stroke-width": 8, "stroke-linecap": "round", "stroke-linejoin": "round" });
+          svgLayer.appendChild(p); const L = p.getTotalLength(); p.style.strokeDasharray = L; p.style.strokeDashoffset = L;
+          touches.push({ kind: "tick", el: p, L, of: hero, k, d: 0.16 }); };
+        if (deco === "ticks") {
+          // 3 شرط قصيرة متفرّقة حوالين نقطة (مش لازقة في بعض، علشان ما تبانش سهم)
+          [[8, 34], [46, 44], [84, 34]].forEach(([deg, len], k) => {
+            const vx = Math.cos((deg * Math.PI) / 180) * dir, vy = -Math.sin((deg * Math.PI) / 180), r0 = 40;
+            add(pathD([[cx + vx * r0, cy + vy * r0], [cx + vx * (r0 + len), cy + vy * (r0 + len)]]), k); });
+        } else {
+          // نجمة 4 أطراف بخط إيد
+          const sx = cx + dir * 62, sy = cy - 58, R1 = 30, R2 = 9, pts = [];
+          for (let k = 0; k <= 8; k++) { const a = -Math.PI / 2 + (k * Math.PI) / 4, r = k % 2 ? R2 : R1; pts.push([sx + Math.cos(a) * r, sy + Math.sin(a) * r]); }
+          add(pathD(wobble(pts, 77, 1.5)), 0);
+        }
       }
     }
-    if (!d) { e.skip = true; continue; }
-    const path = svgEl("path", { d, fill: "none", stroke: e.color === ink ? P.accent : e.color, "stroke-width": 9, "stroke-linecap": "round", "stroke-linejoin": "round" });
-    svgLayer.appendChild(path);
-    e.path = path; e.L = path.getTotalLength(); path.style.strokeDasharray = e.L; path.style.strokeDashoffset = e.L;
-    if (head) { e.head = svgEl("path", { d: head, fill: "none", stroke: path.getAttribute("stroke"), "stroke-width": 9, "stroke-linecap": "round", opacity: 0 }); svgLayer.appendChild(e.head); }
-  }
+  };
 
   // ---------- طريق القلم جوه الرسمة ----------
   // الإيد الحقيقية ما بتنطّش من خط لخط: بترسم الخط اللي أقرب لمكانها، وبعدين ترفع القلم وتتنقل للي بعده بسرعة محدودة.
@@ -178,11 +333,12 @@ export async function createBoard(sc, el, ctx) {
     // كل خط ممكن يكون فيه كذا حتة منفصلة (path بأكتر من M): بنلاقي أماكن القطع بالعيّنات، والقلم بيرسم حتة حتة
     // وبيرفع ويتنقل بين الحتت (ترتيب الحتت جوه الخط زي ما هو، علشان الظهور يمشي على الخط صح)
     e.shapes.forEach((x) => {
-      const n = Math.min(200, Math.max(2, Math.ceil(x.L / 8))), step = x.L / n, pcs = [];
+      // العيّنات كل ~8 بكسل على الشاشة (مش بوحدات ملف الرسمة): أيقونة 24 وحدة مرسومة 600 بكسل كانت بتتقسم كل عيّنة لحتة لوحدها والإيد بتنط
+      const n = Math.min(400, Math.max(2, Math.ceil((x.Ls || x.L) / 8))), step = x.L / n, stepPx = (x.Ls || x.L) / n, pcs = [];
       let l0 = 0, prev = ptAt(e, x, 0);
       for (let i = 1; i <= n; i++) {
         const q = ptAt(e, x, i * step);
-        if (dist(prev, q) > Math.max(25, step * 3)) { pcs.push({ l0, l1: (i - 1) * step }); l0 = i * step; }
+        if (dist(prev, q) > Math.max(25, stepPx * 3)) { pcs.push({ l0, l1: (i - 1) * step }); l0 = i * step; }
         prev = q;
       }
       pcs.push({ l0, l1: x.L });
@@ -193,9 +349,11 @@ export async function createBoard(sc, el, ctx) {
     });
     // رسمة معقدة (خطوطها أطول من اللي إيد تلحق ترسمه في وقتها): القلم بيرسم الخطوط الأساسية (الأطول) بس،
     // والتفاصيل الصغيرة بتظهر مع التلوين، زي فيديوهات السبورة الحقيقية
+    // كل الأطوال هنا ببكسل الشاشة (Ls)، مش بوحدات ملف الرسمة: أيقونة 100 وحدة معروضة 640 بكسل كان القلم بيجري فيها 4200 بكسل/ث
+    const px = (x) => x.Ls || x.L;
     const budget = DRAW_SPEED * e.dur * 0.7;
     let acc = 0;
-    [...e.shapes].sort((a, b) => b.L - a.L).forEach((x) => { x.noHand = acc + x.L > budget && acc > 0; if (!x.noHand) acc += x.L; });
+    [...e.shapes].sort((a, b) => px(b) - px(a)).forEach((x) => { x.noHand = acc + px(x) > budget && acc > 0; if (!x.noHand) acc += px(x); });
     const nnOrder = (list) => { const rest = [...list], out = []; if (!rest.length) return out;
       let cur = rest.reduce((b, x) => (x.p0.x - x.p0.y * 0.3 > b.p0.x - b.p0.y * 0.3 ? x : b), rest[0]).p0;
       while (rest.length) { let bi = 0; for (let i = 1; i < rest.length; i++) if (dist(cur, rest[i].p0) < dist(cur, rest[bi].p0)) bi = i;
@@ -208,9 +366,9 @@ export async function createBoard(sc, el, ctx) {
       order = nnOrder(e.shapes.filter((x) => !x.noHand));
       mv = order.reduce((m, x, i) => m + x.inner + (i ? Math.max(0.03, dist(order[i - 1].p1, x.p0) / MOVE_SPEED) : 0), 0);
       if (mv <= e.dur * 0.4 || order.length <= 1) break;
-      order.reduce((m, x) => (x.L < m.L ? x : m), order[0]).noHand = true;
+      order.reduce((m, x) => (px(x) < px(m) ? x : m), order[0]).noHand = true;
     }
-    const drawT = Math.max(0.1, e.dur - mv), tot = order.reduce((n, x) => n + Math.max(x.L, 4), 0);
+    const drawT = Math.max(0.1, e.dur - mv), tot = order.reduce((n, x) => n + Math.max(px(x), 4), 0);
     e.drawSpeed = order.length ? tot / drawT : 0; e.handShapes = order.length; e.allShapes = e.shapes.length;
     let t = 0; e.tl = [];
     const moveTo = (a, b) => { const d = Math.max(0.03, dist(a, b) / MOVE_SPEED); e.tl.push({ move: true, a, b, t0: t, t1: t + d }); t += d; };
@@ -218,7 +376,7 @@ export async function createBoard(sc, el, ctx) {
       if (i) moveTo(order[i - 1].p1, x.p0);
       x.pieces.forEach((g, k) => {
         if (k) moveTo(x.pieces[k - 1].p1, g.p0);
-        const d = drawT * Math.max(g.l1 - g.l0, 4 / x.pieces.length) / tot;
+        const d = drawT * Math.max(((g.l1 - g.l0) * px(x)) / x.L, 4 / x.pieces.length) / tot;
         e.tl.push({ x, l0: g.l0, l1: g.l1, t0: t, t1: t + d }); t += d;
       });
     });
@@ -263,8 +421,9 @@ export async function createBoard(sc, el, ctx) {
   const beginPt = (e) => (e.shapes ? (e.shapes.length ? topRight(e) : null) : pen(e, 0.001));
   const endPt = (e) => (e.shapes ? { x: e.zone.x + e.zone.w / 2, y: e.zone.y + e.zone.h / 2 } : pen(e, 0.999));
   // التوقيت: كل عنصر مع كلمته، ومن غير ما عنصرين يترسموا في نفس الوقت.
-  // لو الوقت مش مكفي: الرسم يسرع لحد 70% بس (مش لربع السرعة)، والزيادة (العلامات الأول، وبعدين آخر العناصر) بتتشال بدل ما كله يجري
-  let live = els.filter((e) => !e.skip);
+  // لو الوقت مش مكفي: الرسم يسرع لحد 70% بس (مش لربع السرعة)، والزيادة (العلامات الأول، وبعدين آخر العناصر) بتتشال بدل ما كله يجري،
+  // وبعد كل عنصر بيتشال، التوزيع بيتعاد على اللي فاضل (علشان ما يفضلش مكانه فاضي)
+  let live = els.slice();
   const avail = ctx.duration - 0.45;
   // وقت نقل الإيد بين عنصرين (حسب المسافة، بسرعة محدودة): العنصر اللي بعده بيستنى الإيد توصل
   // تقدير مأمون: من أبعد ركن في مكان العنصر اللي قبله (القلم ممكن يخلص في أي حتة فيه)
@@ -278,20 +437,25 @@ export async function createBoard(sc, el, ctx) {
     for (const e of live) { e.dur = e.dur0 * k; const cue = cues && e.it.cue_word ? ctx.cue(e.it.cue_word) : 0;
       const earliest = tc + (prev ? travel(prev, e) : 0.25);
       e.start = Math.max(earliest, Math.min(cue > 0 ? cue - 0.1 : earliest, avail - e.dur)); tc = e.start + e.dur; prev = e; } return tc; };
-  live.forEach((e) => (e.dur0 = e.dur));
+  els.forEach((e) => (e.dur0 = e.dur));
   const kFit = () => clamp((avail - 0.25 - 0.35 * live.length) / live.reduce((n, e) => n + e.dur0, 0), 0.7, 1);
-  let end = timeIt(1, true);
-  if (end > avail) end = timeIt(kFit(), true);
-  if (end > avail) end = timeIt(kFit(), false);
-  while (end > avail && live.length > 1) {
+  for (let guard = 0; guard < 12; guard++) {
+    relayout(live);
+    buildMarks(live);
+    live = live.filter((e) => !e.skip);
+    let end = timeIt(1, true);
+    if (end > avail) end = timeIt(kFit(), true);
+    if (end > avail) end = timeIt(kFit(), false);
+    if (end <= avail || live.length <= 1) break;
     const drop = [...live].reverse().find((e) => e.mark) || live[live.length - 1];
-    drop.skip = true; drop.dropped = true; if (drop.box) drop.box.style.display = "none"; if (drop.path) drop.path.style.display = "none";
+    drop.dropped = true; if (drop.box) drop.box.style.display = "none";
     live = live.filter((e) => e !== drop);
-    end = timeIt(kFit(), false);
   }
   el.dataset.dropped = els.filter((e) => e.dropped).length;
-  // للفحص بس (قراية): كل عنصر بيترسم امتى وبياخد قد إيه (بالنسبة لبداية المشهد)
-  (window.__wbDebug ??= []).push({ scene: sc.id, items: live.map((e) => ({ kind: e.kind, start: +e.start.toFixed(3), dur: +e.dur.toFixed(3) })), dropped: +el.dataset.dropped });
+  // للفحص بس (قراية): كل عنصر بيترسم امتى وبياخد قد إيه (بالنسبة لبداية المشهد) ومكانه
+  (window.__wbDebug ??= []).push({ scene: sc.id, items: live.map((e) => ({ kind: e.kind, start: +e.start.toFixed(3), dur: +e.dur.toFixed(3),
+    zone: e.zone ? [e.zone.x, e.zone.y, e.zone.w, e.zone.h].map(Math.round) : null, fs: e.fs ? Math.round(e.fs) : undefined })), dropped: +el.dataset.dropped,
+    touches: touches.map((x) => x.kind) });
   (window.__wbStats ??= []).push(() => ({ scene: sc.id, items: live.map((e) => ({ kind: e.kind, drawSpeed: e.drawSpeed ? Math.round(e.drawSpeed) : null, handShapes: e.handShapes ?? null, allShapes: e.allShapes ?? null })) }));
 
   let last = { x: 1200, y: 1700 };
@@ -307,7 +471,7 @@ export async function createBoard(sc, el, ctx) {
         e.shapes.forEach((x) => { if (!x.noHand) x.s.style.strokeDashoffset = x.Ls * (1 - x._rev / x.L); });
         // الألوان بتتملا في آخر جزء من الرسم وبعده
         const fp = clamp((t - e.start - e.dur * 0.7) / (e.dur * 0.6));
-        if (e.kind !== "icon") e.shapes.forEach((x) => (x.s.style.fillOpacity = fp));
+        e.shapes.forEach((x) => { if (e.kind !== "icon") x.s.style.fillOpacity = fp; else if (x.solid) x.s.style.fillOpacity = 0.22 * fp; });
         e.shapes.forEach((x) => { if (x.noHand) { x.s.style.strokeDashoffset = 0; x.s.style.strokeOpacity = fp; } }); // التفاصيل مع التلوين
       } else if (e.lines) {
         const g = lineSeg(e, p);
@@ -317,7 +481,15 @@ export async function createBoard(sc, el, ctx) {
         e.path.style.strokeDashoffset = e.L * (1 - p);
         if (e.head) e.head.setAttribute("opacity", p >= 0.98 ? 1 : 0);
       }
-      if (p > 0 && p < 1) { const pt = pen(e, p); if (pt) { handSt = { ...pt, visible: true }; last = pt; } }
+      // من أول لحظة في العنصر (p = 0 بالظبط كانت بتتحسب «بين عنصرين» والإيد كانت بتنط لنقطة الدخول فريم واحد)
+      if (t >= e.start && p < 1) { const pt = pen(e, p); if (pt) { handSt = { ...pt, visible: true }; last = pt; } }
+    }
+    // اللمسات: بعد العنصر بتاعها ما يخلص
+    for (const x of touches) {
+      const o = x.of, done = o.start + o.dur;
+      if (x.kind === "hl") x.el.style.strokeDashoffset = x.L * (1 - ease(clamp((t - done - 0.05) / (x.d * PACE))));
+      else if (x.kind === "shadow") x.el.setAttribute("opacity", 0.07 * clamp((t - o.start - o.dur * 0.7) / (o.dur * 0.6)));
+      else if (x.kind === "tick") x.el.style.strokeDashoffset = x.L * (1 - ease(clamp((t - done - 0.1 - x.k * 0.1) / (x.d * PACE))));
     }
     // بين عنصرين: الإيد بتتنقل من آخر نقطة لأول نقطة في اللي بعده. وفي الآخر بتمشي بره السبورة
     if (!handSt) {

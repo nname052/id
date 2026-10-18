@@ -257,7 +257,7 @@
     },
     // مشهد سبورة بيضاء: إيد بقلم بترسم وتكتب (player_wb.js)
     async board(sc, el) {
-      const wb = (WB = await import("/player/player_wb.js?v=1"));
+      const wb = (WB = await import("/player/player_wb.js?v=2"));
       await wb.handLayer($("#stage"));
       const sw = sceneWords(sc);
       return await wb.createBoard(sc, el, { duration: sc.end - sc.start, palette: ID.palette, font: ID.font_heading, pace: PACE,
@@ -302,6 +302,9 @@
   function buildBackground(kind) {
     const bg = $("#bg");
     bg.className = `bg-${kind}`;
+    // السبورة مش لازم أبيض سادة: ورقة نقط أو مربعات أو ورق دافي، ثابتة لنفس الفيديو (من رقمه) وبتتغيّر من فيديو للتاني
+    if (kind === "board") { const st = ID.board_style || ["dots", "grid", "paper", "dots"][[...String(PID)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % 4];
+      bg.dataset.style = st; }
     bg.innerHTML = `<div class="l1"></div><div class="l2"></div><canvas id="grain" width="270" height="480"></canvas>`;
     const g = $("#grain").getContext("2d"), img = g.createImageData(270, 480), r = rand(7);
     for (let i = 0; i < img.data.length; i += 4) { const v = 110 + r() * 145; img.data[i] = img.data[i + 1] = img.data[i + 2] = v; img.data[i + 3] = 255; }

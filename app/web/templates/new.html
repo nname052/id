@@ -61,6 +61,7 @@
   <div id="vwarn"></div></div>
 
   <label class="row" style="margin-top:var(--s4)"><input type="checkbox" id="subs" checked> ترجمة على الشاشة (الكلمة اللي بتتقال بتنوّر)</label>
+  <label class="row" style="margin-top:var(--s2)"><input type="checkbox" id="endq" {{ 'checked' if defaults.end_question }}> اختم بسؤال للجمهور (يلا بينا: يخلّي الناس تكتب كومنت)</label>
 
   <details style="margin-top:var(--s3)"><summary class="muted">إعدادات متقدمة</summary>
     <label class="field">ثبات الصوت</label>
@@ -154,7 +155,7 @@
     try {
       const r = await api("/api/projects", { method: "POST", body: { prompt, direction: $("#direction").value.trim(), user_script: uscript, settings: { voice_source: vsource(),
         duration: +$("#duration").value, dialect: dialect(), mood: mood(), voice_id: voice.voice_id, voice_name: voice.name,
-        subtitles: $("#subs").checked, stability: +stability(), video_type: vtype(), voice_gender: voice.gender || "" } } });
+        subtitles: $("#subs").checked, end_question: $("#endq").checked, stability: +stability(), video_type: vtype(), voice_gender: voice.gender || "" } } });
       location.href = `/p/${r.id}`;
     } catch (e) { $("#msg").innerHTML = `<div class="note err">${esc(e.message)}</div>`; $("#go").disabled = false; }
   };

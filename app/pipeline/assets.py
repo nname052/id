@@ -16,6 +16,7 @@ _cache: dict = {}
 _lock = threading.Lock()
 
 # مجموعات Iconify اللي رخصتها مفتوحة ومن غير ما تحتاج تذكر حد (أو MIT/Apache/ISC اللي بتطلب الرخصة في الكود بس، مش في الفيديو)
+STROKE_SETS = ["lucide", "tabler", "iconoir", "hugeicons", "ph", "solar"]
 OPEN_ICON_SETS = ["mdi", "ph", "tabler", "lucide", "material-symbols", "fluent", "iconoir", "solar", "mingcute", "ri", "carbon", "hugeicons"]
 
 
@@ -149,6 +150,8 @@ def fetch_icon(terms: list[str], exclude: set | None = None) -> dict | None:
             icons = r.json().get("icons", []) if r.ok else []
         except requests.RequestException:
             return None
+        # مجموعات الخطوط الأول (بتترسم بالقلم خط بخط زي المكتبة المحلية)، وبعدين المتملية
+        icons = sorted(icons, key=lambda f: STROKE_SETS.index(f.split(":")[0]) if f.split(":")[0] in STROKE_SETS else len(STROKE_SETS))
         for full in icons:
             prefix, name = full.split(":", 1)
             if prefix not in OPEN_ICON_SETS:

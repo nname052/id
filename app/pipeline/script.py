@@ -82,13 +82,20 @@ def flatten(data: dict) -> dict:
     return {"sentences": sentences, "scenes": scenes}
 
 
+# القفلة: من غير سؤال للجمهور، إلا لو صاحب الفيديو فعّل «اختم بسؤال» (كان كل فيديو بيخلص بسؤال، والمستخدم طلب يبقى اختياري ومقفول)
+ENDINGS = {
+    False: "آخر جملة قفلة قوية (خلاصة، أو جملة تفضل في الدماغ، أو رجوع ذكي للهوك). **ممنوع تخلّص بسؤال للجمهور** ولا «اكتبولي في الكومنت».",
+    True: "آخر جملة سؤال قصير للجمهور على قد الموضوع، يخلّي الناس تكتب كومنت (سؤال واحد بس، في آخر جملة).",
+}
+
+
 def run(pid: str, instruction: str | None = None) -> None:
     proj = store.load(pid)
     st = proj["settings"]
     words = int(st["duration"] * WORDS_PER_SECOND)
     dialect = DIALECTS.get(st["dialect"], DIALECTS["egyptian"])
     system = prompt("script", dialect_rule=dialect, mood=MOODS.get(st["mood"], st["mood"]), words=words,
-                    max_words=int(words * 1.15), duration=st["duration"])
+                    max_words=int(words * 1.15), duration=st["duration"], ending=ENDINGS[bool(st.get("end_question"))])
     user = f"فكرة الفيديو: {proj['prompt']}"
     if prefs.style():
         user += f"\n\nذوق صاحب القناة الثابت (طبّقه):\n{prefs.style()}"

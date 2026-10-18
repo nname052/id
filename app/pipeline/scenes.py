@@ -8,7 +8,7 @@ import time
 
 from .. import history, prefs, store
 from ..config import ASSETS, MIN_SCENE_SECONDS
-from . import assets, brief as brief_stage, custom, three_d
+from . import assets, brief as brief_stage, custom, drawn, three_d
 from .common import ask, prompt
 
 LAYOUTS = ["hero", "kinetic", "split", "stat", "list", "versus", "quote", "question", "icon_row", "card", "character", "custom", "scene3d"]
@@ -163,8 +163,45 @@ def fresh_identity(ident: dict, pid: str, vtype: str) -> dict:
     return ident
 
 
-def resolve_visual(v: dict | None, pid: str, used: set, recent: set, toon: str, salt: str) -> dict | None:
-    """بيلاقي الملف للصورة: من النوع المطلوب، ولو مفيش بينزل للنوع اللي بعده."""
+# كلمات عامة: لو دي بس اللي اتطابقت، الشكل مش على قد المعنى («decreasing number» ← أيقونة الرقم 0 بدل مخ)
+GENERIC = {"number", "numbers", "counter", "decreasing", "increasing", "big", "small", "simple", "icon", "illustration", "sign", "symbol",
+           "shape", "line", "lines", "text", "word", "words", "thing", "object", "concept", "idea", "abstract", "one", "two", "three", "side",
+           "every", "minute", "lost", "test", "cells", "person", "people", "man", "woman"}
+
+
+def _stem(w: str) -> str:
+    return w[:-1] if len(w) > 3 and w.endswith("s") and not w.endswith("ss") else w
+
+
+def relevant(hit: dict, terms: list[str], kind: str = "icon") -> bool:
+    """الشكل على قد المعنى.
+    - أيقونة/إيموجي: اسمها لازم فيه كلمة من **أول** كلمة بحث (الحاجة نفسها). ليه: «honeycomb cell, wax cap» جابت قبعة تخرّج
+      (cap)، و«bees, flapping wings» جابت إيموجي فلوس بجناحات: الكلمة الجانبية كانت كفاية.
+    - رسمة (مشهد كامل): كلمة مش عامة من أي كلمة بحث في اسمها، أو كلمتين في كلماتها."""
+    stem = lambda ws: {_stem(w) for w in ws if w not in GENERIC and len(w) > 2}
+    name = {_stem(w) for w in assets._words(hit.get("name", ""))}
+    if kind in ("icon", "emoji"):
+        head = stem(assets._words(terms[0])) if terms else set()
+        if not head:
+            head = stem(assets._words(" ".join(terms)))
+        return not head or bool(head & name)
+    q = stem(assets._words(" ".join(terms)))
+    if not q:
+        return True
+    if q & name:
+        return True
+    words = set(assets._words(" ".join([hit.get("name", ""), *map(str, hit.get("tags") or [])])))
+    for it in assets._load()["items"]:   # كلمات المكتبة للعنصر ده (الـ keywords)
+        if it["file"] == hit.get("file"):
+            words |= set(it["words"])
+            break
+    return len(q & {_stem(w) for w in words}) >= 2
+
+
+def resolve_visual(v: dict | None, pid: str, used: set, recent: set, toon: str, salt: str, idea: list | None = None,
+                   icon_only: bool = False) -> dict | None:
+    """بيلاقي الملف للصورة: من النوع المطلوب، ولو مفيش بينزل للنوع اللي بعده.
+    الترتيب: المكتبات المحلية (لازم على قد المعنى) ← أيقونة أونلاين للكلمة الأساسية ← رسمة جديدة بيرسمها التطبيق للفكرة."""
     if not v:
         return None
     if v["kind"] == "character":
@@ -177,17 +214,31 @@ def resolve_visual(v: dict | None, pid: str, used: set, recent: set, toon: str, 
                     "pose": pose, "asset_name": f"{toon} · {pose}", "license": "CC0 (Kenney)"}
         v = {**v, "kind": "illustration"}
     order = {"illustration": ["illustration", "icon", "emoji"], "icon": ["icon", "illustration"], "emoji": ["emoji", "icon"]}[v["kind"]]
+    if icon_only:
+        order = ["icon"]
     terms = v.get("search") or []
+    take = lambda kind, hit: (used.add(hit["file"]) or {"kind": kind, "asset": hit["file"], "asset_name": hit["name"], "license": hit.get("license"),
+                                                        "fetched": hit.get("fetched", False)})
     for kind in order:
         q = assets.emoji_terms(v.get("emoji_name") or " ".join(terms)) if kind == "emoji" else terms
         if not q:
             continue
         hit = assets.pick(kind, q, used, recent, _seed(pid, salt, kind))
-        if hit:
-            used.add(hit["file"])
-            return {"kind": kind, "asset": hit["file"], "asset_name": hit["name"], "license": hit.get("license"),
-                    "fetched": hit.get("fetched", False)}
-    return None
+        if hit and relevant(hit, terms if kind != "emoji" else (terms or [v.get("emoji_name") or ""]), kind):
+            return take(kind, hit)
+    if v["kind"] == "emoji" or not terms:
+        return None
+    blocked = set(used) | set(recent)
+    # أيقونة أونلاين (مجموعات رخصتها مفتوحة) للكلمة الأساسية، وبعدين للجملة كلها
+    for q in ([terms[0]], terms):
+        hit = assets.fetch_icon(q, blocked)
+        if hit and relevant(hit, terms, "icon"):
+            return take("icon", hit)
+    # مفيش حاجة على قد المعنى: التطبيق بيرسمها
+    got = drawn.reuse(terms, blocked) or drawn.draw(pid, terms, idea, blocked)
+    if got:
+        used.add(got["asset"])
+    return got
 
 
 def fix_3d(scenes: list, pid: str, voice_gender: str) -> None:
@@ -304,7 +355,7 @@ def finalize(sc: dict, i: int, vtype: str, pid: str, used: set, recent: set, too
                 it["kind"], it["text"] = "text", it.get("text") or " ".join(it.get("search") or [])[:24]
                 continue
             if it["kind"] in ("illustration", "icon"):
-                v = resolve_visual({"kind": it["kind"], "search": it.get("search") or []}, pid, used, recent, toon, f"{i}b{j}")
+                v = resolve_visual({"kind": it["kind"], "search": it.get("search") or []}, pid, used, recent, toon, f"{i}b{j}", sc.get("idea_en"))
                 if v and v["kind"] in ("illustration", "icon", "emoji"):
                     it["visual"] = v; it["kind"] = v["kind"]; out["visuals"].append(v)
                 else:
@@ -313,7 +364,7 @@ def finalize(sc: dict, i: int, vtype: str, pid: str, used: set, recent: set, too
     if sc.get("visual") and sc["visual"].get("kind") != "character" and not matches_idea(sc["visual"].get("search"), sc.get("idea_en")):
         out.setdefault("rejected", []).append({"search": sc["visual"].get("search"), "idea_en": sc.get("idea_en")})
     elif sc.get("visual"):
-        v = resolve_visual(sc["visual"], pid, used, recent, toon, f"{i}v")
+        v = resolve_visual(sc["visual"], pid, used, recent, toon, f"{i}v", sc.get("idea_en"))
         if v:
             out["visuals"].append(v)
     for j, it in enumerate(sc.get("items") or []):
@@ -328,6 +379,67 @@ def finalize(sc: dict, i: int, vtype: str, pid: str, used: set, recent: set, too
     if out["layout"] == "scene3d" and not out.get("scene3d"):
         out["layout"] = "kinetic"
     return out
+
+
+# ---------- مراجعة معنى الرسومات (طلب واحد للفيديو كله) ----------
+# ليه: أسماء رسومات unDraw عناوين مشاهد قصيرة، والكلمات لوحدها ما تعرفش المعنى: «man, bed, holding head, tired» جابت «holding flowers»،
+# و«hand reaching donut box» جابت «dialog box»، و«dropper nectar drop» جابت «mic drop». فبعد الاختيار بالكلمات، طلب واحد بيقارن فكرة كل
+# مشهد باسم الرسمة اللي اتختارت، واللي مش على قد المعنى بيتبدّل بأيقونة على قد الكلمة الأساسية أو برسمة جديدة بيرسمها التطبيق.
+JUDGE_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["verdicts"], "properties": {"verdicts": {"type": "array", "items": {
+    "type": "object", "additionalProperties": False, "required": ["n", "fits", "why", "draw_instead"],
+    "properties": {"n": {"type": "integer"}, "fits": {"type": "boolean"}, "why": {"type": "string"},
+                   "draw_instead": {"type": "array", "items": {"type": "string"}, "description": "لو fits=false: 1–3 كلمات إنجليزي للحاجة الأساسية اللي تترسم بدلها"}}}}}}
+JUDGE_SYSTEM = """إنت مراجع صور لفيديو شرح. لكل عنصر عندك: فكرة المشهد، والحاجة المطلوب تترسم، واسم الرسمة اللي اتختارت من مكتبة (الاسم بيوصف الرسمة).
+قرّر: الرسمة دي **بتوضّح الحاجة المطلوبة نفسها** للي بيتفرج؟ (fits=true) ولا مجرد كلمة مشتركة ومعناها حاجة تانية؟ (fits=false)
+أمثلة: «holding flowers» لراجل تعبان ماسك راسه = false. «dialog box» لعلبة دونات = false. «alarm clock» لواحد نايم والمنبه جنبه = true.
+«mint tea» لمعلقة عسل في كوباية شاي = true. اكتب السبب في كلمات قليلة.
+لو false: `draw_instead` = الحاجة الأساسية اللي **تتشاف** وتوضّح الفكرة كأيقونة واحدة (1–3 كلمات إنجليزي، أهم كلمة الأول)،
+زي ["ambulance phone call"] أو ["donut box"] أو ["tired man in bed"]. مش كلمة عامة زي hand أو man لوحدها."""
+
+
+def replacement(want: list[str], pid: str, used: set, recent: set, idea: list | None) -> dict | None:
+    """بديل لرسمة اترفضت: أيقونة اسمها فيه **كل** كلمات الحاجة المطلوبة (donut box ← لازم donut و box)، وإلا التطبيق بيرسمها.
+    ليه: البديل بالكلمة الواحدة كان بيكرر نفس الغلطة («stroke FAST signs» ← mail-fast، «drooping mouth face» ← وش عادي)."""
+    need = {_stem(w) for w in assets._words(want[0]) if w not in GENERIC and len(w) > 2} if want else set()
+    blocked = set(used) | set(recent)
+    for hit in assets.candidates("icon", want, blocked, k=8) + [h for h in [assets.fetch_icon([want[0]], blocked)] if h]:
+        if need and need <= {_stem(w) for w in assets._words(hit.get("name", ""))}:
+            hit = assets.ensure_local(hit)
+            used.add(hit["file"])
+            return {"kind": "icon", "asset": hit["file"], "asset_name": hit["name"], "license": hit.get("license"), "fetched": hit.get("fetched", False)}
+    got = drawn.draw(pid, want, idea, blocked)
+    if got:
+        used.add(got["asset"])
+    return got
+
+
+def judge_board_visuals(scenes: list, pid: str, used: set, recent: set, toon: str, ask_fn=None) -> dict:
+    slots = [(sc, it) for sc in scenes for it in sc.get("board") or [] if it.get("visual") and not it["visual"].get("drawn")]
+    report = {"checked": len(slots), "rejected": [], "replaced": []}
+    if not slots:
+        return report
+    lines = [f"{n}. فكرة المشهد: {sc.get('idea') or ''} ({' '.join(sc.get('idea_en') or [])}) · المطلوب يترسم: {', '.join(it.get('search') or [])}"
+             f" · الرسمة المختارة: «{it['visual'].get('asset_name')}» ({it['visual']['kind']})" for n, (sc, it) in enumerate(slots)]
+    try:
+        res = (ask_fn or (lambda sy, us, sc: ask(pid, "scenes", sy, us, sc)))(JUDGE_SYSTEM, "\n".join(lines), JUDGE_SCHEMA)
+    except Exception as e:  # المراجعة تحسين: لو فشلت الاختيار بالكلمات بيفضل
+        report["error"] = str(e)[:200]
+        return report
+    for vd in res.get("verdicts") or []:
+        if vd.get("fits") is not False or not (0 <= vd.get("n", -1) < len(slots)):
+            continue
+        sc, it = slots[vd["n"]]
+        old = it["visual"]
+        report["rejected"].append({"scene": sc["id"], "search": it.get("search"), "asset": old["asset"], "why": vd.get("why"), "instead": vd.get("draw_instead")})
+        want = [w for w in vd.get("draw_instead") or [] if w.strip()][:3] or it.get("search") or []
+        new = replacement(want, pid, used | {old["asset"]}, recent, sc.get("idea_en"))
+        if new:
+            it["search"] = want
+        if new and new["asset"] != old["asset"]:
+            it["visual"], it["kind"] = new, new["kind"]
+            sc["visuals"] = [new if v is old or v.get("asset") == old["asset"] else v for v in sc.get("visuals") or []]
+            report["replaced"].append({"scene": sc["id"], "from": old["asset"], "to": new["asset"]})
+    return report
 
 
 # ---------- مشاهد الكاتب (السكريبت بيقود تنوّع الصور) ----------
@@ -399,7 +511,7 @@ def fill_empty_boards(scenes: list, script: dict, pid: str, used: set, recent: s
         v = None
         if w and w.get("draw_en"):
             for kind in ("illustration", "icon"):
-                v = resolve_visual({"kind": kind, "search": w["draw_en"]}, pid, used, recent, toon, f"{i}w{kind}")
+                v = resolve_visual({"kind": kind, "search": w["draw_en"]}, pid, used, recent, toon, f"{i}w{kind}", w["draw_en"])
                 if v and v["kind"] in ("illustration", "icon", "emoji"):
                     break
                 v = None
@@ -506,6 +618,12 @@ def run(pid: str, instruction: str | None = None) -> None:
     if vtype == "3d":
         fix_3d(scenes, pid, proj["settings"].get("voice_gender", ""))
     boards = fill_empty_boards(scenes, script, pid, used, recent, toon) if vtype == "whiteboard" else {"empty_before": [], "filled": [], "empty_after": []}
+    judged = judge_board_visuals(scenes, pid, used, recent, toon) if vtype == "whiteboard" else None
+    if judged and judged["rejected"]:
+        store.log(pid, f"🔎 مراجعة معنى الرسومات: {judged['checked']} اتراجعت · {len(judged['rejected'])} مش على قد المعنى · اتبدّل {len(judged['replaced'])}")
+    drawn_n = sum(1 for sc in scenes for v in sc.get("visuals") or [] if v.get("drawn"))
+    if drawn_n:
+        store.log(pid, f"✏️ {drawn_n} أيقونة رسمها التطبيق بنفسه (مالقيناش في المكتبات حاجة على قد المعنى)")
     ws = writer_scenes(script)
     follow = [follows_writer(sc, next((ws[x] for x in sc["sentence_ids"] if x in ws), None), vtype) for sc in scenes]
     writer_check = {"scenes": len(scenes), "with_writer_visual": sum(f is not None for f in follow), "followed": sum(bool(f) for f in follow),
@@ -518,7 +636,7 @@ def run(pid: str, instruction: str | None = None) -> None:
         ident = {**ident, "background": "board", "look3d": "soft"}
     plan = {"version": 2, "type": vtype, "created": int(time.time()), "style": (b or {}).get("style"), "identity": ident,
             "palette": ident["palette"], "pace": data["pace"], "text_size": data["text_size"], "character": toon, "scenes": scenes,
-            "min_scene": MIN_SCENE_SECONDS, "merged_short_scenes": n_merged, "rejected_visuals": rejected, "writer_check": writer_check,
+            "min_scene": MIN_SCENE_SECONDS, "merged_short_scenes": n_merged, "rejected_visuals": rejected, "writer_check": writer_check, "visual_judge": judged,
             "raw": [{k: v for k, v in sc.items() if k in ("sentence_ids", "layout", "headline", "board")} for sc in data["scenes"]]}
     files = [v["asset"] for s in scenes for v in s["visuals"]] + [it["visual"]["asset"] for s in scenes for it in s["items"] if it.get("visual")]
     plan["credits"] = assets.credits_for(files)

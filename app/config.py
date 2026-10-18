@@ -48,6 +48,7 @@ DEFAULT_SETTINGS = {
     "video_type": "regular",  # whiteboard | regular | 3d
     "voice_gender": "",       # male | female (علشان الشخصية اللي بتتكلم تبقى من نفس النوع)
     "voice_source": "eleven", # eleven | record | upload (صوتك إنت: بيتسجّل أو يترفع بعد المشاهد)
+    "end_question": False,    # سؤال للجمهور في آخر الفيديو: مقفول إلا لو صاحب الفيديو طلبه
 }
 
 VIDEO_TYPES = {
