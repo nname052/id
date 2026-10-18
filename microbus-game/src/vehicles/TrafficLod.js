@@ -6,7 +6,7 @@
 //  القريبة (Tier A) بتفضل العربية الكاملة بتفاصيلها؛ دي للمسافة المتوسطة والبعيدة (Tier B/C)
 // =====================================================================
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 const texAvg = new WeakMap();
 const cache = new Map();
@@ -77,8 +77,10 @@ export function bakeLod(root, key) {
     g.setAttribute('color', new THREE.BufferAttribute(carr, 3));
     parts.push(g);
   });
-  const geo = parts.length ? mergeGeometries(parts, false) : null;
+  let geo = parts.length ? mergeGeometries(parts, false) : null;
   for (const g of parts) g.dispose();
+  // نفس الرؤوس المكررة (من التحويل لـ non-indexed) بتتدمج → ذاكرة أقل بحوالي 3 مرات
+  if (geo) { const ix = mergeVertices(geo, 1e-4); geo.dispose(); geo = ix; }
   if (geo) geo.computeBoundingSphere();
   cache.set(key, geo);
   return geo;

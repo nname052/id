@@ -88,11 +88,46 @@ export class ShibinWorld {
     const curb = M.curb.clone(); curb.side = DS;
     // دهان الخطوط: نفس خامة الخريطة القديمة بالوشين (اتجاه الأشرطة بيتحدد من اتجاه الخط)
     const paint = M.paint.clone(); paint.side = DS;
+    // خطوط باهتة/متآكلة في حتت (مش بيضا نضيفة طول الطريق)
+    paint.onBeforeCompile = (sh) => {
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec2 vPW;').replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvPW = (modelMatrix * vec4(transformed, 1.0)).xz;');
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec2 vPW;\nfloat hP(vec2 p) { return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5453); }')
+        .replace('#include <map_fragment>', '#include <map_fragment>\n{ float w = hP(floor(vPW / 7.0)); float g = hP(floor(vPW * 3.0)); diffuseColor.rgb *= mix(0.62, 1.0, w) * mix(0.85, 1.0, g); }');
+    };
+    paint.customProgramCacheKey = () => 'shibin-paint-worn';
+    // الأسفلت: رقع جديدة أغمق، غطيان بلاعات، بقع زيت — كله حسابات في الـ shader (من غير صور ولا draw calls زيادة)
+    const asphalt = this.M.asphalt.clone();
+    asphalt.onBeforeCompile = (sh) => {
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec2 vAW;').replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvAW = (modelMatrix * vec4(transformed, 1.0)).xz;');
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
+varying vec2 vAW;
+float hA(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float nA(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(hA(i), hA(i + vec2(1, 0)), f.x), mix(hA(i + vec2(0, 1)), hA(i + vec2(1, 1)), f.x), f.y); }`)
+        .replace('#include <map_fragment>', `#include <map_fragment>
+{
+  // رقع (ترقيع) مستطيلة
+  vec2 pc = floor(vAW / vec2(6.0, 4.0)); float ph = hA(pc);
+  vec2 pf = fract(vAW / vec2(6.0, 4.0));
+  float patchM = step(0.86, ph) * step(0.12, pf.x) * step(pf.x, 0.88) * step(0.15, pf.y) * step(pf.y, 0.85);
+  diffuseColor.rgb *= mix(1.0, 0.72, patchM);
+  // تفاوت لون الأسفلت + بقع زيت/تراب
+  float n = nA(vAW * 0.08) * 0.6 + nA(vAW * 0.35) * 0.4;
+  diffuseColor.rgb *= mix(0.86, 1.08, n);
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.5, 0.46, 0.4) * dot(diffuseColor.rgb, vec3(0.33)) * 1.7, smoothstep(0.62, 0.8, nA(vAW * 0.05 + 7.0)) * 0.35);
+  // غطا بلاعة كل حوالي 25م
+  vec2 mc = floor(vAW / 25.0); vec2 mp = (mc + vec2(0.3 + 0.4 * hA(mc + 3.1), 0.3 + 0.4 * hA(mc + 7.7))) * 25.0;
+  float md = length(vAW - mp);
+  float man = step(md, 0.38) * step(0.55, hA(mc + 1.3));
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.2, 0.2, 0.21) * (0.8 + 0.4 * step(0.5, fract(md * 9.0))), man);
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.5), step(0.38, md) * step(md, 0.44) * step(0.55, hA(mc + 1.3)) * 0.6);
+}`);
+    };
+    asphalt.customProgramCacheKey = () => 'shibin-asphalt-wear';
     const foot = new THREE.MeshStandardMaterial({ color: 0xa89878, roughness: 1 });
     const plain = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 });
     const concrete = new THREE.MeshStandardMaterial({ color: 0x9c9890, roughness: 0.9, side: DS });
     const pitch = new THREE.MeshStandardMaterial({ color: 0x3f8f3a, roughness: 0.95 });
-    this.mats = { water, ballast, rail, bank, foot, plain, concrete, pitch, curb, paint, bld: buildingMaterial(M), bldLow: buildingMaterial(M, { low: true }) };
+    this.mats = { asphalt, water, ballast, rail, bank, foot, plain, concrete, pitch, curb, paint, bld: buildingMaterial(M), bldLow: buildingMaterial(M, { low: true }) };
   }
 
   setNight(on) {
@@ -135,7 +170,7 @@ export class ShibinWorld {
     g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
     g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
     g.setIndex(idx); g.computeVertexNormals();
-    const m = new THREE.Mesh(g, this.M.asphalt); m.receiveShadow = true; m.name = 'ramps';
+    const m = new THREE.Mesh(g, this.mats.asphalt); m.receiveShadow = true; m.name = 'ramps';
     this.group.add(m);
   }
 
@@ -494,7 +529,7 @@ export class ShibinWorld {
     const M = this.M;
     if (R.asphalt) {
       const g = flatGeo(R.asphalt.v, R.asphalt.i, 0, 1 / 7, [0.92, 0.92, 0.92]);
-      const m = new THREE.Mesh(g, M.asphalt); m.receiveShadow = true; m.name = 'asphalt';
+      const m = new THREE.Mesh(g, this.mats.asphalt); m.receiveShadow = true; m.name = 'asphalt';
       T.group.add(m);
     }
     if (R.foot) { const m = new THREE.Mesh(flatGeo(R.foot.v, R.foot.i, 0.03, 1 / 4), this.mats.foot); m.receiveShadow = true; T.group.add(m); }
@@ -594,7 +629,7 @@ export class ShibinWorld {
       const g = new THREE.BufferGeometry();
       g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
       g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.setIndex(idx);
-      const m = new THREE.Mesh(g, M.asphalt); m.receiveShadow = true; m.castShadow = true; m.name = 'deck'; T.group.add(m);
+      const m = new THREE.Mesh(g, this.mats.asphalt); m.receiveShadow = true; m.castShadow = true; m.name = 'deck'; T.group.add(m);
     }
     if (cidx.length) {
       const g = new THREE.BufferGeometry();
