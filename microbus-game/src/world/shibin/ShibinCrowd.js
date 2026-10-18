@@ -128,14 +128,24 @@ export class ShibinCrowd {
       if (c.v > 0.3 && dx * dx + dz * dz < 4.5 * 4.5) { C.blocked = false; return; }
       // عربية واقفة (حتى لو في نص لفة): مايعدّيش من جواها — يستنى لحد ما تتحرك أو يلف حواليها مش هيحصل
       const lon = dx * c.lastDx + dz * c.lastDz, lat = dx * -c.lastDz + dz * c.lastDx;
-      if (Math.abs(lon) < c.len / 2 + 0.5 && Math.abs(lat) < c.width / 2 + 0.5) { C.blocked = true; return; } // (العربية مش هتستناه هو كمان → مفيش قفلة)
+      if (Math.abs(lon) < c.len / 2 + 0.5 && Math.abs(lat) < c.width / 2 + 0.5) {
+        // العربية بتفضل واقفة له؛ هو يرجع لناحيته بعد 1.5 ث. لو محبوس من الناحيتين (نادر) العربيات تتجاهله
+        C.blockT = (C.blockT || 0) + dt;
+        C.blocked = C.back && C.blockT > 3;
+        if (C.blockT > 1.5 && !C.back) { // استنى كتير: يرجع لناحيته
+          [C.x0, C.tx] = [C.tx, C.x0]; [C.z0, C.tz] = [C.tz, C.z0];
+          C.t = 1 - C.t; C.ux = -C.ux; C.uz = -C.uz; C.back = true; C.blockT = 0;
+        }
+        return;
+      }
     }
-    C.blocked = false;
+    C.blocked = false; C.blockT = 0;
     C.t = t1 - (p.speed * 1.15 * dt) / C.len;
     C.t += (p.speed * 1.15 * dt) / C.len;
     const u = Math.min(1, C.t);
     C.x = C.x0 + (C.tx - C.x0) * u; C.z = C.z0 + (C.tz - C.z0) * u;
     if (u >= 1) {
+      if (C.back) { p.cross = null; this._pos(p); return; } // رجع لناحيته
       p.cross = null; p.side = -p.side; p.dir = -p.dir; this._pos(p);
       if (!this._ok(p.x, p.z)) { p.side = -p.side; this._pos(p); } // (نادرًا) الناحية التانية مش رصيف هنا: يفضل على ناحيته
     }
