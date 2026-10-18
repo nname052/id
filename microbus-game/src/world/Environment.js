@@ -17,9 +17,9 @@ export const TIME_PRESETS = {
     lampsOn: true, windows: 0.35, envIntensity: 0.8,
   },
   night: {
-    label: 'ليل', elevation: 30, azimuth: 60, sunColor: 0x8aa0d0, sunIntensity: 0.12, hemi: 0.05,
-    turbidity: 2, rayleigh: 0.2, mie: 0.002, mieG: 0.7, fog: 0x0d1018, fogNear: 30, fogFar: 300, exposure: 1.1,
-    lampsOn: true, windows: 1.0, envIntensity: 0.12, night: true,
+    label: 'ليل', elevation: 30, azimuth: 60, sunColor: 0x8aa0d0, sunIntensity: 0.22, hemi: 0.13,
+    turbidity: 2, rayleigh: 0.2, mie: 0.002, mieG: 0.7, fog: 0x10141e, fogNear: 30, fogFar: 300, exposure: 1.35,
+    lampsOn: true, windows: 1.0, envIntensity: 0.2, night: true,
   },
 };
 

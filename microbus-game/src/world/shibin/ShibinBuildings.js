@@ -126,6 +126,22 @@ vec3 fcol = vec3(1.0); vec3 fem = vec3(0.0);
   } else if (y >= top) {
     fcol = vec3(0.6, 0.59, 0.56) * (0.92 + 0.08 * h1(vec2(floor(u), seed)));
   } else fcol = wall;
+  // ===== العُمر والتراب (رخيص: حسابات بس من غير صور) =====
+  if (face < 3.5) {
+    // بقع دهان/ترميم كبيرة، وتراب الدلتا (بيج رمادي) على كل الواجهة
+    float patchN = h1(floor(vec2(u / 4.5, y / 3.2)) + seed * 1.7);
+    fcol *= mix(0.9, 1.05, patchN);
+    fcol = mix(fcol, vec3(0.62, 0.58, 0.5) * dot(fcol, vec3(0.33)) * 1.6, 0.1);
+    // خطوط مطر تحت الشبابيك (عمود رفيع بيغمق لتحت)
+    if (y >= GF_ && y < top) {
+      float fx = fract(wc.x), fy = fract(wc.y);
+      float st = step(0.42, fx) * step(fx, 0.58) * smoothstep(0.3, 0.0, fy) * step(0.4, h1(vec2(bay, seed + row)));
+      fcol *= 1.0 - 0.13 * st;
+    }
+    // وسخ تحت الدروة (فوق) ووسخ الشارع (تحت)
+    fcol *= 1.0 - 0.12 * smoothstep(top - 1.2, top, y) * step(y, top);
+    fcol *= mix(0.8, 1.0, smoothstep(0.0, 1.0, y));
+  }
 }
 diffuseColor.rgb *= fcol;`)
       .replace('#include <emissivemap_fragment>', 'totalEmissiveRadiance = fem;')
@@ -133,7 +149,7 @@ diffuseColor.rgb *= fcol;`)
     // البعيد: شبابيك بسيطة من غير صور (أخف)
     if (low) sh.fragmentShader = sh.fragmentShader.replace('fcol = brick ? tB : tP * vec3(0.86, 0.84, 0.8);', 'vec2 ff = fract(wc); fcol = wall * (ff.x > 0.22 && ff.x < 0.78 && ff.y > 0.28 && ff.y < 0.8 ? 0.32 : 1.0);');
   };
-  mat.customProgramCacheKey = () => (low ? 'shibin-bld-low-2' : 'shibin-bld-2');
+  mat.customProgramCacheKey = () => (low ? 'shibin-bld-low-3' : 'shibin-bld-3');
   return mat;
 }
 
@@ -203,3 +219,71 @@ export function buildRealBuilding(b, mat) {
 }
 
 export const BUILDING_DIMS = { GF, FH, PARAPET };
+
+// =====================================================================
+//  إكسسوارات العمارات (للمربعات القريبة بس): على السطح خزان مية + دش + أوضة سلم،
+//  وعلى الواجهة تكييفات. كل نوع InstancedMesh واحدة للمربع (2 draw calls) ومن غير ضل.
+// =====================================================================
+let _kit = null;
+function kitParts() {
+  if (_kit) return _kit;
+  const c = new THREE.Color();
+  const col = (g, rgb, m) => {
+    g = g.index ? g.toNonIndexed() : g.clone(); if (m) g.applyMatrix4(m);
+    for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal') g.deleteAttribute(k);
+    c.setRGB(rgb[0], rgb[1], rgb[2], THREE.SRGBColorSpace);
+    const n = g.attributes.position.count, a = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) { a[i * 3] = c.r; a[i * 3 + 1] = c.g; a[i * 3 + 2] = c.b; }
+    g.setAttribute('color', new THREE.BufferAttribute(a, 3)); return g;
+  };
+  const M = (x, y, z, rx = 0, ry = 0) => new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, 0)), new THREE.Vector3(1, 1, 1));
+  const merge = (list) => {
+    const pos = [], nor = [], cl = [];
+    for (const g of list) { pos.push(...g.attributes.position.array); nor.push(...g.attributes.normal.array); cl.push(...g.attributes.color.array); }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(cl, 3));
+    return g;
+  };
+  const roof = merge([
+    col(new THREE.CylinderGeometry(0.55, 0.55, 1.1, 6, 1, true), [0.1, 0.1, 0.11], M(1.2, 0.85, 0.6)),      // خزان بلاستيك أسود
+    col(new THREE.CircleGeometry(0.55, 6).rotateX(-Math.PI / 2), [0.12, 0.12, 0.13], M(1.2, 1.4, 0.6)),
+    col(new THREE.BoxGeometry(1.2, 0.3, 1.2), [0.55, 0.53, 0.5], M(1.2, 0.15, 0.6)),                // قاعدة الخزان
+    col(new THREE.CylinderGeometry(0.5, 0.5, 1.0, 6, 1, true), [0.85, 0.85, 0.82], M(-0.2, 0.8, 1.4)),        // خزان أبيض
+    col(new THREE.CircleGeometry(0.5, 6).rotateX(-Math.PI / 2), [0.8, 0.8, 0.78], M(-0.2, 1.3, 1.4)),
+    col(new THREE.CylinderGeometry(0.42, 0.06, 0.18, 7, 1, true), [0.82, 0.82, 0.8], M(-1.4, 1.05, -0.6, -0.9, 0.5)), // دش
+    col(new THREE.BoxGeometry(0.05, 0.9, 0.05), [0.3, 0.3, 0.3], M(-1.4, 0.45, -0.6)),
+    col(new THREE.BoxGeometry(2.4, 2.4, 2.6), [0.66, 0.62, 0.56], M(0.4, 1.2, -1.8)),                // أوضة السلم
+    col(new THREE.BoxGeometry(0.9, 1.9, 0.05), [0.28, 0.2, 0.14], M(0.4, 0.95, -0.48)),               // باب السطح
+  ]);
+  const ac = merge([
+    col(new THREE.BoxGeometry(0.8, 0.52, 0.42), [0.86, 0.86, 0.84], M(0, 0, 0)),
+    col(new THREE.CircleGeometry(0.19, 6), [0.25, 0.25, 0.26], M(0.12, 0, 0.215)),
+      ]);
+  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8 });
+  return (_kit = { roof, ac, mat });
+}
+
+/** أماكن الإكسسوارات لعمارات مربع: { roofs: [[x,y,z,yaw]], acs: [...] } — بتتملي في NearInstancer (القريب من الكاميرا بس) */
+export function tileKitItems(list) {
+  const roofs = [], acs = [];
+  for (let i = 0; i < list.length; i++) {
+    const [cx, cz, w, d, a, floors] = list[i];
+    const r = (k) => { const v = Math.sin((cx * 12.9898 + cz * 78.233 + k * 37.719) * 0.01) * 43758.5453; return v - Math.floor(v); };
+    const h = GF + floors * FH + PARAPET;
+    const ca = Math.cos(a), sa = Math.sin(a);
+    const at = (lx, lz) => [cx + lx * ca + lz * sa, cz - lx * sa + lz * ca];
+    if (w > 7 && d > 7 && r(1) < 0.75) {
+      const [x, z] = at((r(2) - 0.5) * (w - 6), (r(3) - 0.5) * (d - 6));
+      roofs.push([x, h - PARAPET + 0.02, z, a + Math.floor(r(4) * 4) * Math.PI / 2]);
+    }
+    const nAC = floors > 0 ? Math.floor(r(5) * 3.2) : 0;
+    for (let k = 0; k < nAC; k++) {
+      const fl = Math.floor(r(10 + k) * floors), lx = (r(20 + k) - 0.5) * (w - 2);
+      const [x, z] = at(lx, d / 2 + 0.22);
+      acs.push([x, GF + fl * FH + 0.55, z, a]);
+    }
+  }
+  return { roofs, acs };
+}
+
+export function kitGeometries() { const K = kitParts(); return K; }

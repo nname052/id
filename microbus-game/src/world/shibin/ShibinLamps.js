@@ -11,7 +11,8 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { edgePoint } from './ShibinData.js';
 import { canvas, tex } from '../../render/textures.js';
 
-const CLASSES = new Set(['trunk', 'primary', 'secondary', 'tertiary', 'trunk_link', 'primary_link', 'secondary_link']);
+const CLASSES = new Set(['trunk', 'primary', 'secondary', 'tertiary', 'trunk_link', 'primary_link', 'secondary_link', 'residential', 'unclassified']);
+const SMALL = new Set(['residential', 'unclassified']);
 const STEP = 34, POLE_H = 7.2, ARM = 1.7, CELL = 100;
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(1, 1, 1), _p = new THREE.Vector3(), _up = new THREE.Vector3(0, 1, 0);
 
@@ -23,7 +24,7 @@ function glowTexture(size = 64, inner = 'rgba(255,226,170,1)', mid = 'rgba(255,1
 }
 
 export class ShibinLamps {
-  constructor(world, { mobile = false, max } = {}) {
+  constructor(world, { mobile = false, max, extra = [] } = {}) {
     this.world = world;
     this.R = mobile ? 170 : 260;
     this.max = max ?? (mobile ? 80 : 150);
@@ -31,6 +32,13 @@ export class ShibinLamps {
     this.lamps = [];
     this.grid = new Map();
     this._build();
+    // أعمدة زيادة (الكورنيش): أماكنها اتأكدت قبل كده إنها برا الأسفلت
+    for (const e of extra) {
+      const L = { x: e.x, z: e.z, y: e.y ?? 0.04, ax: e.ax, az: e.az, elevated: false, ok: true, col: false };
+      this.lamps.push(L);
+      const ck = Math.floor(L.x / CELL) * 100003 + Math.floor(L.z / CELL);
+      let a = this.grid.get(ck); if (!a) this.grid.set(ck, (a = [])); a.push(L);
+    }
     this._meshes();
     this.near = []; // أماكن رؤوس الأعمدة القريبة (Vector3) — للأنوار الحقيقية
     this._t = 0;
@@ -42,7 +50,8 @@ export class ShibinLamps {
       if (!CLASSES.has(e.cls) || e.closed || e.length < 24) continue;
       const both = e.width >= 12; // الطرق العريضة: عواميد على الناحيتين
       let k = 0;
-      for (let s = 10; s < e.length - 8; s += STEP, k++) {
+      const step = SMALL.has(e.cls) ? 46 : STEP;
+      for (let s = 10; s < e.length - 8; s += step, k++) {
         edgePoint(e, s, q);
         // بعيد عن التقاطعات
         const dFrom = s, dTo = e.length - s;
@@ -78,8 +87,8 @@ export class ShibinLamps {
     this.poles = new THREE.InstancedMesh(poleGeo, this.poleMat, N);
     this.heads = new THREE.InstancedMesh(headGeo, this.headMat, N);
     // بقعة النور على الأرض: مستطيل مسطح بتدرّج، additive (مفيش حسابات إضاءة)
-    const poolGeo = new THREE.PlaneGeometry(11, 11).rotateX(-Math.PI / 2);
-    this.poolMat = new THREE.MeshBasicMaterial({ map: glowTexture(128, 'rgba(255,214,150,0.7)', 'rgba(255,196,120,0.34)'), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3, opacity: 1 });
+    const poolGeo = new THREE.PlaneGeometry(14, 14).rotateX(-Math.PI / 2);
+    this.poolMat = new THREE.MeshBasicMaterial({ map: glowTexture(128, 'rgba(255,214,150,0.85)', 'rgba(255,196,120,0.42)'), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3, opacity: 1 });
     this.pools = new THREE.InstancedMesh(poolGeo, this.poolMat, N);
     // الهالة حوالين الراس
     this.glowGeo = new THREE.BufferGeometry();

@@ -6,9 +6,10 @@
 // =====================================================================
 import * as THREE from 'three';
 import { REGION_BASE, loadJSON, dropCache, buildGraph, edgePoint, edgesNear } from './ShibinData.js';
-import { buildingMaterial, buildTileBuildings, buildRealBuilding } from './ShibinBuildings.js';
+import { buildingMaterial, buildTileBuildings, buildRealBuilding, tileKitItems, kitGeometries } from './ShibinBuildings.js';
 import { canvas, tex } from '../../render/textures.js';
 import { ShibinLamps } from './ShibinLamps.js';
+import { buildLandmarks, NearInstancer } from './ShibinLandmarks.js';
 
 const LOAD_R = 650, UNLOAD_R = 900, DETAIL_R = 380, LOWMAT_R = 520;
 const SIDE_Y = 0.15, WATER_Y = -0.55, WATER_FLOOR = -0.9;
@@ -54,10 +55,22 @@ export class ShibinWorld {
     }
     this._materials();
     this._buildRamps();
+    { const K = kitGeometries();
+      this.kitRoof = new NearInstancer(K.roof, K.mat, { R: this.low ? 110 : 160, max: this.low ? 120 : 260, name: 'roof-kit' });
+      this.kitAC = new NearInstancer(K.ac, K.mat, { R: this.low ? 70 : 110, max: this.low ? 160 : 360, name: 'ac-kit' });
+      this.group.add(this.kitRoof.mesh, this.kitAC.mesh); }
     this._ground();
     this._gates();
     this._landmarkSigns();
-    this.lamps = new ShibinLamps(this, { mobile: this.low });
+    // ملامح شبين (الاستاد/الكورنيش/الشجر/يافطات المحلات) من OSM
+    let features = null;
+    try { features = await loadJSON(B + 'landmarks/features.json'); } catch { /* الملف اختياري */ }
+    try {
+      this.landmarksLayer = buildLandmarks(this, features, { mobile: this.low });
+      this.group.add(this.landmarksLayer.group);
+    } catch (e) { console.warn('[landmarks]', e); this.landmarksLayer = null; }
+    this.features = features;
+    this.lamps = new ShibinLamps(this, { mobile: this.low, extra: this.landmarksLayer?.lampSpots || [] });
     this.group.add(this.lamps.group);
     this.stats.loadMs = Math.round(performance.now() - t0);
     return this;
@@ -85,6 +98,7 @@ export class ShibinWorld {
   setNight(on) {
     for (const m of [this.mats.bld, this.mats.bldLow]) m.userData.U.uNight.value = on ? 1 : 0;
     this.lamps?.setNight(on);
+    this.landmarksLayer?.setNight(on);
   }
 
   /**
@@ -182,6 +196,33 @@ export class ShibinWorld {
     const mat = this.M.dirt.clone();
     mat.map = this.M.dirt.map.clone(); mat.map.wrapS = mat.map.wrapT = THREE.RepeatWrapping; mat.map.needsUpdate = true;
     mat.color.set(0xb9ab8c);
+    // جوه المدينة الأرض تراب/أسمنت مترب (مش غيطان خضرا): ماسك من شبكة الطرق نفسها (كل حتة قريبة من شوارع كتير = مدينة)
+    {
+      const N = 512, c = canvas(N, N), x = c.getContext('2d');
+      x.fillStyle = '#000'; x.fillRect(0, 0, N, N);
+      const sx = N / w, sz = N / d, ox = (x0 - pad), oz = (z0 - pad);
+      x.strokeStyle = 'rgba(255,255,255,0.35)'; x.lineCap = 'round'; x.lineJoin = 'round'; x.lineWidth = 70 * sx;
+      for (const e of this.graph.edges) {
+        if (e.cls === 'track' || e.cls === 'service' && e.length > 300) continue;
+        x.beginPath(); e.pts.forEach((q, i) => { const X = (q.x - ox) * sx, Z = (q.z - oz) * sz; if (i) x.lineTo(X, Z); else x.moveTo(X, Z); }); x.stroke();
+      }
+      const mask = tex(c, { repeat: false, srgb: false });
+      mask.wrapS = mask.wrapT = THREE.ClampToEdgeWrapping; mask.minFilter = THREE.LinearFilter; mask.generateMipmaps = false;
+      const U = { uMask: { value: mask }, uMB: { value: new THREE.Vector4(ox, oz, w, d) } };
+      mat.onBeforeCompile = (sh) => {
+        Object.assign(sh.uniforms, U);
+        sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec2 vGW;').replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvGW = (modelMatrix * vec4(transformed, 1.0)).xz;');
+        sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform sampler2D uMask; uniform vec4 uMB; varying vec2 vGW;')
+          .replace('#include <map_fragment>', `#include <map_fragment>
+{
+  float urb = smoothstep(0.25, 0.75, texture2D(uMask, (vGW - uMB.xy) / uMB.zw).r);
+  float lum = dot(diffuseColor.rgb, vec3(0.3, 0.55, 0.15));
+  vec3 dust = vec3(0.62, 0.57, 0.5) * (0.75 + 0.5 * lum);
+  diffuseColor.rgb = mix(diffuseColor.rgb, dust, urb * 0.85);
+}`);
+      };
+      mat.customProgramCacheKey = () => 'shibin-ground-urban';
+    }
     const m = new THREE.Mesh(g, mat);
     m.position.set((x0 + x1) / 2, -0.02, (z0 + z1) / 2);
     m.receiveShadow = true; m.name = 'ground';
@@ -377,6 +418,8 @@ export class ShibinWorld {
   updateVisibility(cam, viewDist = 560) {
     const TS = this.TS, cx = cam.x, cz = cam.z;
     this.lamps?.update(0.25, cam);
+    this.landmarksLayer?.update(0.25, cam);
+    this._kitT = (this._kitT || 0) - 0.25; if (this._kitT <= 0) { this._kitT = 0.5; this.kitRoof?.update(cam); this.kitAC?.update(cam); }
     const tiles = this.meta.tiles;
     const r = Math.min(LOAD_R, viewDist + 120);
     const i0 = Math.floor((cx - r) / TS), i1 = Math.floor((cx + r) / TS), j0 = Math.floor((cz - r) / TS), j1 = Math.floor((cz + r) / TS);
@@ -435,6 +478,7 @@ export class ShibinWorld {
     T.group.traverse((o) => {
       if (!o.geometry) return;
       // الصندوق المشترك بتاع العمارات مايتمسحش: بنفصل الـ attributes المشتركة الأول وبعدين نمسح الخاصة بالمربع
+      if (o.userData.sharedGeo) { o.dispose(); return; } // إكسسوارات العمارات: الـ geometry مشتركة بين كل المربعات
       if (o.isInstancedMesh) {
         const g = o.geometry;
         for (const n of ['position', 'normal', 'aFace']) g.deleteAttribute(n);
@@ -442,6 +486,7 @@ export class ShibinWorld {
       } else o.geometry.dispose();
     });
     this.stats.buildings -= T.nB;
+    this.kitRoof?.removeTag(T.name); this.kitAC?.removeTag(T.name);
   }
 
   // ---------- الطرق ----------
@@ -605,6 +650,10 @@ export class ShibinWorld {
     if (Bd.gen?.length) {
       const { mesh, colliders } = buildTileBuildings(Bd.gen, this.mats.bld);
       T.group.add(mesh); T.bld = mesh; T.nB = Bd.gen.length;
+      // خزانات/دشات/أوض سلم/تكييفات: بتترسم للعمارات القريبة من الكاميرا بس (instancing واحد لكل نوع)
+      const kit = tileKitItems(Bd.gen);
+      for (const [x, y, z, yaw] of kit.roofs) this.kitRoof.add(x, y, z, yaw, 1, 1, T.name);
+      for (const [x, y, z, yaw] of kit.acs) this.kitAC.add(x, y, z, yaw, 1, 1, T.name);
       for (const c of colliders) this._addCollider(c, T);
       this.stats.buildings += T.nB;
     }
