@@ -1,6 +1,6 @@
 # حالة المشروع
 
-آخر تحديث: 2026-10-18 · الفرع: `autovideo-motion-v2` (الشغل كله هنا بس، وممنوع نلمس `claude/festive-bohr-xry4vg`) · آخر حاجة: المونتاج Step 3 (`montage_step3_report.md`)
+آخر تحديث: 2026-10-18 · الفرع: `autovideo-motion-v2` (الشغل كله هنا بس، وممنوع نلمس `claude/festive-bohr-xry4vg`) · آخر حاجة: المونتاج Step 3، commit `2d6cbb4` (`montage_step3_report.md`)
 
 ## اتعمل
 - **التطبيق الأساسي (Phase 1 للتطبيق، `e8d5917` وبعده):** تطبيق ويب محلي على الماك اسمه **مشهد (Mashhad)**. بتكتب فكرة ← سكريبت ← brief ← مشاهد ← صوت ElevenLabs ← تصدير MP4، وكل مرحلة محتاجة موافقة من الصفحة. فيه 3 أنواع فيديو: whiteboard، عادي، 3D.

@@ -1,6 +1,6 @@
 # Montage, Step 3: full automatic editor + site redesign
 
-Branch: `autovideo-motion-v2`. Free tools only: FFmpeg 9, PySceneDetect, faster-whisper medium on CPU, OpenCV, and Chromium for text rendering. No paid APIs, no GPU, no ElevenLabs credits. `grasp.js`, `rig.js`, the motion/scene code and the "New video" pipeline logic were not changed; on the project page only the UI changed (C3/C6).
+Commit: `2d6cbb4` (branch `autovideo-motion-v2`). Free tools only: FFmpeg 9, PySceneDetect, faster-whisper medium on CPU, OpenCV, and Chromium for text rendering. No paid APIs, no GPU, no ElevenLabs credits. `grasp.js`, `rig.js`, the motion/scene code and the "New video" pipeline logic were not changed; on the project page only the UI changed (C3/C6).
 
 **Main test file:** your real phone recording `IMG_2240.mov`.
 - iPhone, 1080×1920, 34.54 s, nominally 60 fps (average 59.728 = variable), speech at −42.2 LUFS.
