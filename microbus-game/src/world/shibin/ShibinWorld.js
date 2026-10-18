@@ -323,20 +323,28 @@ float nA(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
       if (!L.inside_region || L.kind === 'street' || L.kind === 'canal') continue;
       // أقرب شارع للمعلم → اليافطة على الرصيف ناحية المعلم (عمرها ما تبقى على الأسفلت)
       const near = edgesNear(this.graph, L.x, L.z, 160).filter((e) => !e.closed && !e.elevated);
-      let best = null;
+      const cands = [];
       for (const e of near) for (let i = 0; i < e.pts.length - 1; i++) {
         const a = e.pts[i], b = e.pts[i + 1], ex = b.x - a.x, ez = b.z - a.z, l2 = ex * ex + ez * ez || 1e-9;
         const t = Math.max(0, Math.min(1, ((L.x - a.x) * ex + (L.z - a.z) * ez) / l2));
         const px = a.x + ex * t, pz = a.z + ez * t, d = Math.hypot(L.x - px, L.z - pz);
-        if (!best || d < best.d) best = { e, px, pz, d, dx: ex / Math.sqrt(l2), dz: ez / Math.sqrt(l2) };
+        cands.push({ e, px, pz, d, dx: ex / Math.sqrt(l2), dz: ez / Math.sqrt(l2) });
+      }
+      cands.sort((a, b) => a.d - b.d);
+      // أقرب مكان اليافطة فيه مش على طريق تاني (تقاطع/مطلع كوبري) ولا تحت كوبري
+      let best = null, nx = 0, nz = 0, sx = 0, sz = 0;
+      for (const c of cands.slice(0, 40)) {
+        let qx = -c.dz, qz = c.dx;
+        if ((L.x - c.px) * qx + (L.z - c.pz) * qz < 0) { qx = -qx; qz = -qz; }
+        const sw = SIDEWALK[c.e.cls.replace('_link', '')] || 0;
+        const off = c.e.half + Math.max(0.5, sw - 0.4);
+        const x = c.px + qx * off, z = c.pz + qz * off;
+        const r = this.nearestRoad(x, z, 30);
+        if (r && r.e !== c.e && r.d < r.e.half + 1.5 || this._underDeck(x, z)) continue;
+        best = c; nx = qx; nz = qz; sx = x; sz = z; break;
       }
       if (!best) continue;
       const { e } = best;
-      let nx = -best.dz, nz = best.dx;
-      if ((L.x - best.px) * nx + (L.z - best.pz) * nz < 0) { nx = -nx; nz = -nz; }
-      const sw = SIDEWALK[e.cls.replace('_link', '')] || 0;
-      const off = e.half + Math.max(0.5, sw - 0.4);
-      const sx = best.px + nx * off, sz = best.pz + nz * off;
       const c = canvas(640, 160), x = c.getContext('2d');
       x.fillStyle = '#0d4f8c'; x.fillRect(0, 0, 640, 160);
       x.strokeStyle = '#fff'; x.lineWidth = 6; x.strokeRect(8, 8, 624, 144);
