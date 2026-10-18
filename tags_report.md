@@ -1,6 +1,6 @@
 # Script & audio-tag rules: tags that match the sentence, scripts that drive the visuals
 
-**Status: open — not accepted by the user.** Branch `autovideo-motion-v2`.
+**Status: open — not accepted by the user.** Commit `7500d62` (branch `autovideo-motion-v2`).
 
 - **Credits:** no ElevenLabs credits spent (no audio generated).
 - **Not changed:** `grasp.js`/`rig.js`, motion/scene code, the montage editor, audio mixing/loudness, and the site layout. The only UI change is one help sentence on the voice-prep step.
