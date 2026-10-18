@@ -95,9 +95,11 @@ def validate(lines: list[dict], tone: str, scene_of: dict) -> tuple[list[dict], 
             log.append({"id": ln["id"], "beat": beat, "action": "beat→none", "why": f"الدليل «{ln.get('evidence')}» مش كلمات من الجملة"})
             stats["beats_without_evidence"] += 1
             beat = "none"
-        if beat in ("joke", "secret") and not ln.get("writer_beat") and not cue_ok(beat, ln["display"]):
+        # الهمس: علامة سر صريحة في الجملة دايمًا (حتى لو الكاتب علّم عليها): الكاتب علّم «وكمان هي اتعلمت حاجة أهم...» كسر وهي تشويق مش سر
+        if (beat == "secret" and not cue_ok(beat, ln["display"])) or (beat == "joke" and not ln.get("writer_beat") and not cue_ok(beat, ln["display"])):
             log.append({"id": ln["id"], "beat": beat, "action": "beat→none",
-                        "why": f"{'نكتة' if beat == 'joke' else 'سر'} مستنتج من غير علامة صريحة في الجملة ومن غير ما الكاتب يعلّم عليه"})
+                        "why": "سر من غير كلمة سر صريحة في الجملة (التشويق مش سر)" if beat == "secret"
+                        else "نكتة مستنتجة من غير علامة صريحة في الجملة ومن غير ما الكاتب يعلّم عليها"})
             stats["beats_without_evidence"] += 1
             beat = "none"
         if tone == "serious" and beat in ("joke", "secret"):

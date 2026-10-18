@@ -31,10 +31,11 @@ def main() -> int:
         L(5, "وكمان بتعمل كده كل يوم.", "[laughs] وكمان بتعمل كده كل يوم.", "joke", "كل يوم", True),           # صوت تاني في نفس المشهد
         L(6, "حوالي اتنين في المية بس.", "[surprised] حوالي اتنين في المية بس.", "surprise", "اتنين في المية"),
         L(7, "الحل بسيط.", "[sighs] الحل بسيط.", "reflective", "كلام مش في الجملة"),                          # دليل مش من الجملة
+        L(8, "وكمان هي اتعلمت حاجة أهم.", "[whispers] وكمان هي اتعلمت حاجة أهم.", "secret", "حاجة أهم", True),   # تشويق مش سر (حتى لو الكاتب علّمه)
     ]
     out, rep = tags.validate(lines, "light", {4: 1, 5: 1})
     got = {o["id"]: tags.tags_of(o["tts"]) for o in out}
-    want = {0: [], 1: [], 2: [], 3: ["whispers"], 4: ["chuckles"], 5: [], 6: ["surprised"], 7: []}
+    want = {0: [], 1: [], 2: [], 3: ["whispers"], 4: ["chuckles"], 5: [], 6: ["surprised"], 7: [], 8: []}
     for k, v in want.items():
         if got[k] != v:
             fails.append(f"line {k}: got {got[k]}, want {v}")

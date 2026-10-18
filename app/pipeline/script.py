@@ -13,8 +13,9 @@ VISUALS = {"whiteboard_drawing": "رسمة بخط اليد لموقف/حاجة",
 SENT = {"type": "object", "properties": {"text": {"type": "string"}, "beat": {"type": "string", "enum": list(tagrules.BEATS)}},
         "required": ["text", "beat"], "additionalProperties": False}
 SCENE = {"type": "object", "properties": {"visual": {"type": "string", "enum": list(VISUALS)}, "draw": {"type": "string"},
+                                           "draw_en": {"type": "array", "items": {"type": "string"}, "minItems": 2, "maxItems": 5},
                                            "sentences": {"type": "array", "items": SENT, "minItems": 1, "maxItems": 4}},
-         "required": ["visual", "draw", "sentences"], "additionalProperties": False}
+         "required": ["visual", "draw", "draw_en", "sentences"], "additionalProperties": False}
 VAGUE = {"فكرة", "فكره", "معلومة", "معلومه", "كلام", "نص", "شرح", "حاجة", "حاجه", "موضوع", "الفكرة", "المعلومة", "مفهوم", "رسالة", "نصيحة",
          "idea", "concept", "text", "message", "something"}
 NUM = re.compile(r"[0-9٠-٩]|واحد|اتنين|تلات|اربع|أربع|خمس|ست|سبع|تمان|تسع|عشر|مية|ألف|الف|نص|ربع|تلت|أكتر|اكتر|أقل|اقل|ضعف|%")
@@ -76,7 +77,8 @@ def flatten(data: dict) -> dict:
                 sentences.append({"id": len(sentences), "text": t, "beat": x.get("beat", "none"), "scene": k})
                 ids.append(sentences[-1]["id"])
         if ids:
-            scenes.append({"index": k, "visual": sc["visual"], "draw": sc["draw"].strip(), "sentence_ids": ids})
+            scenes.append({"index": k, "visual": sc["visual"], "draw": sc["draw"].strip(), "draw_en": [w.strip().lower() for w in sc.get("draw_en") or [] if w.strip()],
+                           "sentence_ids": ids})
     return {"sentences": sentences, "scenes": scenes}
 
 
@@ -126,7 +128,7 @@ def fix_empty_boards(data: dict, ask_fn, dialect: str) -> tuple[dict, dict]:
     scenes = list(data["scenes"])
     for sc in got.get("scenes", []):
         if 0 <= sc["index"] < len(scenes) and any(f["index"] == sc["index"] for f in flagged):
-            scenes[sc["index"]] = {k: sc[k] for k in ("visual", "draw", "sentences")}
+            scenes[sc["index"]] = {k: sc[k] for k in ("visual", "draw", "draw_en", "sentences")}
             report["rewritten"].append(sc["index"])
     data = {**data, "scenes": scenes}
     report["flagged_after"] = check_scenes(scenes)

@@ -115,5 +115,40 @@ Both are stopped at the voice-prep review; no audio, scenes or render were run.
 - **Old projects:** their `tts.json` was not regenerated (to avoid touching existing videos). They get the new rules the next time their voice prep is redone.
 - **Unused prompt files:** `tts_tags.md`, `tts_prep_egyptian.md`, `tts_prep_msa.md`, `tts_prep_white.md` aren't loaded by any code and still contain the old wording. I left them untouched and am flagging them for you.
 
+## Part 2 (after your go-ahead): the script now drives the visuals
+**Root cause:** the scene planner never saw the writer's `visual`/`draw`, so scenes could still end up as text only.
+
+**Also found by eye:** the whiteboard player drops the **last** board elements when a scene is short. A board planned as «اتعلّمت» (text) + illustration lost its illustration and became text only. Seen in the light test before the fix.
+
+**Fix (rule level, no change to player/motion code):**
+- **Script:** each scene also returns `draw_en` (English search words for what to draw).
+- **Scene planning:**
+  - `scenes._system()` passes a «مشاهد الكاتب» block (sentence ids, visual type, mapped layout, `draw`, `draw_en`) into `whiteboard_plan.md` / `scene_plan.md`, with the reason written in the prompt.
+  - The writer's `draw_en` words count as matching the scene idea, so their drawings aren't rejected.
+- **Code checks after planning:**
+  - `drawing_first()` puts the first drawing/icon/number at the start of every board, so a short scene drops text, never the drawing.
+  - `fill_empty_boards()` puts the writer's drawing into any board left with text only.
+  - `follows_writer()` counts whether each scene did the visual type the writer asked for.
+  - All of it is stored in `plan.json → writer_check`.
+
+**Results (same 2 test projects, re-planned in the app; no audio; checked by reading + by eye in the player):**
+
+| | Serious (stroke) | Light (cats) |
+|---|---|---|
+| Scenes | 7 | 6 |
+| Followed the writer's visual type | 6/7 (s03: the writer asked for a character, the planner merged two sentences and used two icons) | 6/6 |
+| Empty boards in the plan | 0 | 0 |
+| **Boards with no drawing after the player's time fit** (`__wbDebug`) | **0** | **0** (before `drawing_first`: s03 was text only) |
+| Boards reordered | 0 | 2 |
+| Page errors | 0 | 0 |
+
+**Frames:** `docs/tag_audit/boards_serious_stroke.jpg`, `docs/tag_audit/boards_light_cats.jpg`, one frame at 80% of each scene with its time.
+
+**Limits seen by eye:**
+- **Library matches:** some drawings only loosely match the writer's description, because the libraries don't contain everything. For example, «شخص بيجري وكوباية مكسورة» got a phone with a person, and «مخ وعداد» got a rounded-shape icon.
+- **One more tag fix along the way:** the whisper now always needs an explicit secret cue. The writer had marked «وكمان هي اتعلمت حاجة أهم...» (a teaser) as a secret; that [whispers] is now removed, and the rule and the script prompt say so.
+
+**Tests:** `tests/visual_rules.py` (writer block, follows-writer check, filling an empty board, drawing-first reordering) and `tests/tag_rules.py`: **PASS**.
+
 ## What only you can judge
 Whether the delivery sounds natural **by ear**: that a [chuckles] actually sounds like a light laugh at the joke, that [serious]/[warmly] land right, and whether fewer tags make the voice flatter or more natural. No audio was generated in this run.

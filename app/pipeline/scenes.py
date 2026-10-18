@@ -330,6 +330,90 @@ def finalize(sc: dict, i: int, vtype: str, pid: str, used: set, recent: set, too
     return out
 
 
+# ---------- مشاهد الكاتب (السكريبت بيقود تنوّع الصور) ----------
+WRITER_MAP = {  # نوع الصورة اللي الكاتب طلبه ← اللي لازم يبان في المشهد
+    "whiteboard": {"whiteboard_drawing": "illustration (رسمة لـ draw)", "character": "illustration لشخص بيعمل اللي في draw",
+                   "graphic": "icon كبيرة + text قصير", "chart": "number كبير + circle أو arrow"},
+    "regular": {"whiteboard_drawing": "hero أو card برسمة (illustration) لـ draw", "character": "character (شخصية الكرتون بوضعية بتعمل draw)",
+                "graphic": "icon_row أو hero بأيقونة", "chart": "stat (رقم + chart) أو versus"},
+    "3d": {"whiteboard_drawing": "hero أو card برسمة", "character": "scene3d (الشخصية بتمثّل draw)", "graphic": "icon_row أو hero بأيقونة",
+           "chart": "stat أو versus"},
+}
+
+
+def writer_scenes(script: dict) -> dict:
+    """رقم الجملة ← مشهد الكاتب (visual + draw + draw_en)."""
+    return {sid: sc for sc in script.get("scenes") or [] for sid in sc.get("sentence_ids", [])}
+
+
+def writer_block(script: dict, vtype: str) -> str:
+    if not script.get("scenes"):
+        return "(السكريبت ده قديم ومفيهوش مشاهد كاتب: اختار إنت، ونوّع)"
+    m = WRITER_MAP["3d" if vtype == "3d" else "whiteboard" if vtype == "whiteboard" else "regular"]
+    return "\n".join(f"- جمل {sc['sentence_ids']}: {sc['visual']} ← {m.get(sc['visual'], '')} · يترسم: «{sc['draw']}» · بحث: {sc.get('draw_en') or []}"
+                     for sc in script["scenes"])
+
+
+def follows_writer(sc: dict, w: dict | None, vtype: str) -> bool | None:
+    """المشهد ده عمل نوع الصورة اللي الكاتب طلبه؟ (None = مفيش طلب)"""
+    if not w:
+        return None
+    v = w["visual"]
+    if vtype == "whiteboard":
+        kinds = {it.get("kind") for it in sc.get("board") or []}
+        return {"whiteboard_drawing": bool(kinds & {"illustration"}), "character": bool(kinds & {"illustration"}),
+                "graphic": bool(kinds & {"icon", "illustration", "emoji"}), "chart": "number" in kinds}[v]
+    lay = sc.get("layout")
+    return {"whiteboard_drawing": lay in ("hero", "card", "split", "list", "icon_row", "character") and bool(sc.get("visuals") or sc.get("items")),
+            "character": lay in ("character", "scene3d"), "graphic": bool(sc.get("visuals") or any(i.get("visual") for i in sc.get("items") or [])),
+            "chart": lay in ("stat", "versus")}[v]
+
+
+def drawing_first(board: list) -> list:
+    """أول رسمة/أيقونة/رقم في السبورة بتبقى أول عنصر. ليه: المشغّل لما الوقت ما يكفيش بيشيل العلامات وبعدين **آخر** العناصر
+    (اتشاف في مشهد «اتعلّمت»: الكلمة فضلت والرسمة اتشالت، فالسبورة بقت كلام بس). أرقام الأسهم/الدواير بتتظبط على الترتيب الجديد."""
+    k = next((i for i, it in enumerate(board) if it.get("kind") in ("illustration", "icon", "emoji", "number")), None)
+    if not k:
+        return board
+    order = [k] + [i for i in range(len(board)) if i != k]
+    new_of = {old: new for new, old in enumerate(order)}
+    return [{**board[i], **{f: new_of[board[i][f]] for f in ("from", "to", "target") if isinstance(board[i].get(f), int) and board[i][f] in new_of}}
+            for i in order]
+
+
+def fill_empty_boards(scenes: list, script: dict, pid: str, used: set, recent: set, toon: str) -> dict:
+    """سبورة مفيهاش ولا رسمة ولا أيقونة ولا رقم (كلام بس) = سبورة فاضية: بنحط فيها الحاجة اللي الكاتب قال تترسم (draw_en)."""
+    ws = writer_scenes(script)
+    rep = {"empty_before": [], "filled": [], "empty_after": [], "reordered": []}
+    for sc in scenes:
+        if sc.get("layout") == "board":
+            nb = drawing_first(sc["board"])
+            if nb is not sc["board"]:
+                rep["reordered"].append(sc["id"])
+                sc["board"] = nb
+    for i, sc in enumerate(scenes):
+        if sc.get("layout") != "board" or any(it.get("kind") in ("illustration", "icon", "emoji", "number") for it in sc.get("board") or []):
+            continue
+        rep["empty_before"].append(sc["id"])
+        w = next((ws[x] for x in sc["sentence_ids"] if x in ws), None)
+        v = None
+        if w and w.get("draw_en"):
+            for kind in ("illustration", "icon"):
+                v = resolve_visual({"kind": kind, "search": w["draw_en"]}, pid, used, recent, toon, f"{i}w{kind}")
+                if v and v["kind"] in ("illustration", "icon", "emoji"):
+                    break
+                v = None
+        if not v:
+            rep["empty_after"].append(sc["id"])
+            continue
+        first = next((s["text"].split()[0] for s in script["sentences"] if s["id"] == sc["sentence_ids"][0]), "")
+        board = [{**it, **{f: it[f] + 1 for f in ("from", "to", "target") if isinstance(it.get(f), int)}} for it in sc["board"]]
+        sc["board"] = ([{"kind": v["kind"], "visual": v, "search": w["draw_en"], "color": "ink", "cue_word": first, "from_writer": True}] + board)[:4]
+        sc["visuals"].append(v)
+        rep["filled"].append(sc["id"])
+    return rep
+
+
 def _system(pid: str, proj: dict, vtype: str) -> tuple[str, dict]:
     d = store.project_dir(pid)
     script = store.read_json(d / "script.json")
@@ -339,7 +423,7 @@ def _system(pid: str, proj: dict, vtype: str) -> tuple[str, dict]:
     sentences = "\n".join(f"{s['id']} ({secs.get(s['id'], 0):.1f} ث): {s['text']}" for s in script["sentences"])
     b = store.read_json(d / "brief.json")
     common = dict(sentences=sentences, min_scenes=max(3, (n + 1) // 2), max_scenes=n, recent=history.summary(skip_pid=pid) or "(مفيش)",
-                  brief=brief_stage.as_text(b) if b else "(مفيش رؤية: اختار إنت)")
+                  brief=brief_stage.as_text(b) if b else "(مفيش رؤية: اختار إنت)", writer=writer_block(script, vtype))
     vg = proj["settings"].get("voice_gender", "")
     voice = {"male": "راجل", "female": "ست"}.get(vg, "غير محدد")
     speakers = "، ".join(c for c in three_d.SPEAKERS if not vg or three_d.GENDER[c] == vg)
@@ -407,6 +491,11 @@ def run(pid: str, instruction: str | None = None) -> None:
     if n_merged:
         store.log(pid, f"⏱ اتدمج {n_merged} مشهد قصير (أقل من {MIN_SCENE_SECONDS} ثانية) في اللي قبله")
     data["scenes"] = raw
+    wsc = writer_scenes(script)
+    for sc in data["scenes"]:   # رسمة بكلمات بحث الكاتب بتعدّي فحص «الصورة ليها علاقة بالفكرة» (الكاتب هو اللي حدد الفكرة البصرية)
+        extra = [w for x in sc["sentence_ids"] if x in wsc for w in wsc[x].get("draw_en") or []]
+        if extra:
+            sc["idea_en"] = list(dict.fromkeys((sc.get("idea_en") or []) + extra))[:10]
     used: set = set()
     recent = history.recent_assets(skip_pid=pid)
     toon = _character(pid, recent)
@@ -416,13 +505,20 @@ def run(pid: str, instruction: str | None = None) -> None:
         store.log(pid, f"✗ اترفضت {rejected} صورة مالهاش علاقة بفكرة مشهدها (المشهد بقى كلام)")
     if vtype == "3d":
         fix_3d(scenes, pid, proj["settings"].get("voice_gender", ""))
+    boards = fill_empty_boards(scenes, script, pid, used, recent, toon) if vtype == "whiteboard" else {"empty_before": [], "filled": [], "empty_after": []}
+    ws = writer_scenes(script)
+    follow = [follows_writer(sc, next((ws[x] for x in sc["sentence_ids"] if x in ws), None), vtype) for sc in scenes]
+    writer_check = {"scenes": len(scenes), "with_writer_visual": sum(f is not None for f in follow), "followed": sum(bool(f) for f in follow),
+                    "not_followed": [sc["id"] for sc, f in zip(scenes, follow) if f is False], **boards}
+    if boards["empty_before"]:
+        store.log(pid, f"🖍 سبورة فاضية: {len(boards['empty_before'])} ← اتملت برسمة الكاتب {len(boards['filled'])} · فاضل {len(boards['empty_after'])}")
 
     ident = fresh_identity(data["identity"], pid, vtype)
     if vtype == "whiteboard":
         ident = {**ident, "background": "board", "look3d": "soft"}
     plan = {"version": 2, "type": vtype, "created": int(time.time()), "style": (b or {}).get("style"), "identity": ident,
             "palette": ident["palette"], "pace": data["pace"], "text_size": data["text_size"], "character": toon, "scenes": scenes,
-            "min_scene": MIN_SCENE_SECONDS, "merged_short_scenes": n_merged, "rejected_visuals": rejected,
+            "min_scene": MIN_SCENE_SECONDS, "merged_short_scenes": n_merged, "rejected_visuals": rejected, "writer_check": writer_check,
             "raw": [{k: v for k, v in sc.items() if k in ("sentence_ids", "layout", "headline", "board")} for sc in data["scenes"]]}
     files = [v["asset"] for s in scenes for v in s["visuals"]] + [it["visual"]["asset"] for s in scenes for it in s["items"] if it.get("visual")]
     plan["credits"] = assets.credits_for(files)
