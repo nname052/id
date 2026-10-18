@@ -361,7 +361,7 @@ function buildCorniche(W, canals, out) {
             if ((kiosk -= 2.5) <= 0) {
               kiosk = 160 + R() * 120;
               const kx = cx + nx * (hw + 2.4), kz = cz + nz * (hw + 2.4);
-              if (!onRoad(kx, kz, 1.2)) { out.kiosk.add(kx, 0.04, kz, Math.atan2(nx, nz)); W._addCollider({ cx: kx, cz: kz, hx: 1.2, hz: 0.9, angle: Math.atan2(nx, nz), restitution: 0.1, kind: 'prop' }, null); }
+              if (!onRoad(kx, kz, 1.2) && !W._underDeck?.(kx, kz)) { out.kiosk.add(kx, 0.04, kz, Math.atan2(nx, nz)); W._addCollider({ cx: kx, cz: kz, hx: 1.2, hz: 0.9, angle: Math.atan2(nx, nz), restitution: 0.1, kind: 'prop' }, null); }
             }
             if ((lamp -= 2.5) <= 0) { lamp = 27; out.lamps.push({ x: rx - nx * 0.3, z: rz - nz * 0.3, y: 0.04, ax: -nx, az: -nz }); }
           }
@@ -428,6 +428,9 @@ function poiSigns(W, pois, group, skipNames) {
     let nx = -r.dz, nz = r.dx;
     if ((p.p[0] - r.x) * nx + (p.p[1] - r.z) * nz < 0) { nx = -nx; nz = -nz; }
     const off = r.e.half + 0.9, sx = r.x + nx * off, sz = r.z + nz * off;
+    // مكان اللافتة نفسه مايبقاش على طريق تاني (تقاطع/منزل كوبري) ولا تحت كوبري
+    const q = W.nearestRoad(sx, sz, 30);
+    if (q && q.d < q.e.half + 0.6 || W._underDeck?.(sx, sz)) return;
     const yaw = Math.atan2(nx, nz);
     const m = T(sx, 2.75, sz, yaw);
     const u0 = col / COLS, u1 = (col + 1) / COLS, v1 = 1 - row / rows, v0 = 1 - (row + 1) / rows;
