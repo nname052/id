@@ -24,7 +24,7 @@ import numpy as np
 
 from ..store import write_json
 from . import brief as briefs
-from . import cuts, graphics, look, media, motion, speech, state, vision
+from . import cuts, director, graphics, look, media, motion, speech, state, vision
 from . import export as exporter
 
 PIPE = ["s1_analyze", "s2_cut", "s3_look", "s4_subs", "s5_graphics", "s6_audio", "s7_preview"]
@@ -980,7 +980,12 @@ def run_s5(ctx):
     specs, log, last_end, last_explainer = [], [], -9.0, -99.0
     subs_rects = [{"left": o["x"] / W, "right": (o["x"] + o["w"]) / W, "top": o["y"] / H, "bottom": (o["y"] + o["h"]) / H, "start": o["start"], "end": o["end"]}
                   for o in inp.get("subs", [])]
-    for it in its:
+    # مخرج الجرافيك: رسمة/أيقونة/إيموجي متحرك على قد الكلام (من المكتبات أو بيترسم)، مربوط بكلمة في سطر. لو فشل: القواعد القديمة
+    dplan = director.plan(inp["cues"], (ctx["m"].get("brief") or {}).get("text", "")) \
+        if prm["graphics"] != "off" and prm.get("director", "on") == "on" and inp.get("cues") else {"items": []}
+    if dplan.get("items"):
+        specs, log = _director_specs(dplan, its, inp, prm, samples, speaker, W, H, removed)
+    for it in ([] if dplan.get("items") else its):
         entry = {"idea": it["id"], "text": it["text"][:60], "start": it["start"], "end": it["end"]}
         if prm["graphics"] == "off":
             log.append({**entry, "decision": "skip", "why": "الجرافيك مقفول من الطلب"}); continue
@@ -1052,7 +1057,7 @@ def run_s5(ctx):
         lag_ms = round((g["start"] - first["start"]) * 1000) if first else None
         spoken = {cuts.norm(w["word"]) for c in it["cues"] for w in c["words"]}
         shown = [cuts.norm(x) for x in (g.get("title") or "").split()] + [cuts.norm(y) for x in g.get("items") or [] for y in (x["label"] if isinstance(x, dict) else x).split()]
-        maps = all(x in spoken for x in shown if x) and bool(shown or g["kind"] == "counter")
+        maps = all(x in spoken for x in shown if x) and bool(shown or g["kind"] in ("counter", "sticker", "clock"))
         checks.append({"id": f"g{len(checks) + 1}", "kind": g["kind"], "mode": g["mode"], "face_overlap": face_hit, "subtitle_overlap": sub_hit,
                        "start_lag_ms": lag_ms, "maps_to_speech": maps, "motion": True})
     for g in rendered:
@@ -1064,8 +1069,12 @@ def run_s5(ctx):
           "modes": {m: sum(g["mode"] == m for g in rendered) for m in ("overlay", "pip", "explainer", "split", "inset")},
           "styles": [g.get("style") for g in rendered]}
     data = {**{k: v for k, v in inp.items() if k not in ("cards", "ideas", "cards_check", "card_zone", "gfx", "gfx_log", "gfx_check")},
-            "cards": [], "gfx": rendered, "gfx_log": log, "gfx_check": {**cc, "items": checks}, "mood": prm["mood"]}
-    report = [f"{len(rendered)} جرافيك لـ {len(its)} فكرة · الأنواع: " + "، ".join(f"{g['kind']}" for g in rendered) + f" · طرق العرض: {cc['modes']}",
+            "cards": [], "gfx": rendered, "gfx_log": log, "gfx_check": {**cc, "items": checks}, "mood": prm["mood"],
+            "director": {"topic_en": dplan.get("topic_en"), "error": dplan.get("error"), "items": len(dplan.get("items") or []),
+                         "rejected": [{"cue": r.get("cue"), "template": r.get("template"), "why": r.get("reject")} for r in dplan.get("rejected") or []]}}
+    credits = sorted({"Animated emoji by Google (CC BY 4.0)" for g in rendered if g.get("kind") == "sticker"})
+    data["credits"] = credits
+    report = ([f"⚠ اكتب في وصف الفيديو: {', '.join(credits)} (شرط رخصة الإيموجي المتحرك)"] if credits else []) + [f"{len(rendered)} جرافيك لـ {len(its)} فكرة · الأنواع: " + "، ".join(f"{g['kind']}" for g in rendered) + f" · طرق العرض: {cc['modes']}",
               f"فوق الوش: {cc['face_overlaps']} · فوق الترجمة: {cc['subtitle_overlaps']} · أكبر فرق بين بداية الجرافيك وأول كلمة: {cc['max_start_lag_ms']} مللي · مربوط بالكلام: {cc['maps_to_speech']}/{len(rendered)}"]
     for e in log:
         report.append(f"{e['idea']} ({e['start']:.2f}–{e['end']:.2f}) «{e['text'][:40]}»: " + (f"اتشال ← {e['why']}" if e["decision"] == "skip" else
@@ -1075,6 +1084,68 @@ def run_s5(ctx):
         t = g["start"] + min(2.0, (g["end"] - g["start"]) * 0.6)
         stills.append(_gfx_still(ctx, inp, g, t, vd / f"gfx_{k + 1}.jpg"))
     return data, report, stills
+
+
+def _director_specs(dplan, its, inp, prm, samples, speaker, W, H, removed):
+    """خطة المخرج ← مواصفات بالتوقيت والمكان: جرافيك واحد في نفس الوقت (0.4 ث بين كل اتنين)، والمدة على قد النوع (1.6–3.5 ث).
+    الـ sticker جنب الوش، والشرح الطويل (رسمة/مقياس/عدّاد/قايمة) ممكن «صورتك مصغّرة»، والباقي overlay في مساحة فاضية."""
+    specs, log, used, last_pip = [], [], set(), -99.0
+    items = dplan["items"]
+    for n, it in enumerate(items):
+        idea = next((i for i in its if any(abs(c["start"] - inp["cues"][it["cue_i"]]["start"]) < 1e-6 for c in i["cues"])), its[-1] if its else None)
+        entry = {"idea": idea["id"] if idea else "-", "text": inp["cues"][it["cue_i"]]["text"][:60], "start": it["at"], "end": it["cue_end"]}
+        if cuts.norm(" ".join(it.get("words") or [])) in removed:
+            log.append({**entry, "decision": "skip", "why": "إنت شلت الجرافيك ده"}); continue
+        start = round(it["at"], 3)
+        if specs and start < specs[-1]["end"] + 0.4:
+            log.append({**entry, "decision": "skip", "why": "الجرافيك اللي قبله لسه على الشاشة (واحد بس في نفس الوقت)"}); continue
+        sp = director.to_spec(it, used, (dplan.get("topic_en") or "").split())
+        if not sp:
+            log.append({**entry, "decision": "skip", "why": f"مفيش شكل على قد «{' '.join(it.get('visual_en') or [])}» ولا اترسم"}); continue
+        nxt = items[n + 1]["at"] - 0.4 if n + 1 < len(items) else inp["total"] - 0.05
+        dur = min(director.duration(it), 3.5)
+        end = round(min(start + dur, max(start + 1.4, nxt), inp["total"] - 0.05), 3)
+        if end - start < 1.2:
+            log.append({**entry, "decision": "skip", "why": "مفيش وقت كفاية يتشاف"}); continue
+        sp.update(start=start, end=end, idea=entry["idea"])
+        big = sp["kind"] in ("illus", "meter", "counter", "checklist") and end - start >= 2.6 and speaker and start - last_pip >= 8
+        if big:
+            sp["mode"], sp["mode_why"] = "pip", "شرح: صورتك مصغّرة والشرح في باقي الشاشة"
+        elif sp["kind"] == "sticker":
+            fb = _speaker_box(samples, inp["segments"], start, end)
+            sp["mode"], sp["mode_why"] = "overlay", "رد فعل: إيموجي متحرك جنب الوش"
+            if fb:
+                w, h = motion.SIZES["sticker"]
+                right = fb[2] + 0.02 + w <= 0.84
+                left = (fb[2] + 0.02) if right else max(0.04, fb[0] - 0.02 - w)
+                top = max(0.06, min(0.6 - h, fb[1] - h * 0.3))
+                sp["rect"] = {"left": round(left, 3), "top": round(top, 3), "right": round(left + w, 3), "bottom": round(top + h, 3)}
+        else:
+            sp["mode"], sp["mode_why"] = "overlay", "فوق الفيديو في مساحة فاضية"
+        if sp["mode"] == "overlay" and "rect" not in sp:
+            win = [x for t in np.linspace(start, end, 8) for x in vision.window(samples, out_to_src(inp["segments"], float(t))[1], out_to_src(inp["segments"], float(t))[1])]
+            rect = motion.place(sp["kind"], vision.occupancy(win), inp["aspect"])
+            if rect is None and speaker and start - last_pip >= 8:
+                sp["mode"], sp["mode_why"] = "pip", "مفيش مساحة فاضية من غير ما يغطيك: صورتك مصغّرة والشرح في باقي الشاشة"
+            elif rect is None:
+                log.append({**entry, "decision": "skip", "why": "مفيش مساحة فاضية"}); continue
+            else:
+                sp["rect"] = rect
+        if sp["mode"] == "pip":
+            fb = _speaker_box(samples, inp["segments"], start, end) or [0.35, 0.3, 0.65, 0.48]
+            fcx, fcy, fh = (fb[0] + fb[2]) / 2, (fb[1] + fb[3]) / 2, fb[3] - fb[1]
+            side = int(min(W, H, max(fh * H * 2.3, 0.28 * W))) // 2 * 2
+            cx0 = int(min(max(0, fcx * W - side / 2), W - side)); cy0 = int(min(max(0, fcy * H - side * 0.42), H - side))
+            sp["pip"] = motion.pip_geom(W, H, inp["aspect"])
+            sp["crop"], sp["target"] = [cx0, cy0, side, side], [sp["pip"][0], sp["pip"][1], sp["pip"][2], sp["pip"][2]]
+            last_pip = start
+        sp["style"], sp["enter"] = motion.style_for(len(specs), specs[-1].get("style") if specs else None, sp["kind"])
+        if sp["mode"] != "overlay" or sp["kind"] == "illus":
+            sp["style"] = "dark" if sp["mode"] != "overlay" else ("light" if sp["style"] in ("marker", "glass") else sp["style"])
+        specs.append(sp)
+        log.append({**entry, "decision": sp["mode"], "kind": sp["kind"], "why": sp["why"] + (f" · الشكل: {sp.get('visual_name') or sp.get('emoji_file') or ''}" + (" (مرسوم)" if sp.get("drawn") else "")),
+                    "mode_why": sp["mode_why"], "start": start, "end": end})
+    return specs, log
 
 
 def _gfx_still(ctx, inp, g, t, out) -> dict:
@@ -1137,6 +1208,13 @@ def run_s6(ctx):
     raw, stem = vd / "mix_raw.wav", (vd / "music_ducked.wav" if music else None)
     exporter.render_audio(inp["segments"], inp["transitions"], srcs, raw, fps=inp["fps"], cleanup=",".join(clean), music=music,
                           duck=bool(prm["duck"]), music_stem=stem, pre_gain_db=pre, duck_release=int(prm.get("duck_release", 350)))
+    # مؤثرات الصوت (whoosh مع السحبة والزووم، flash مع الفلاش، pop خفيف مع دخول الجرافيك): بيعملها التطبيق، وبتتقفل بـ «من غير مؤثرات»
+    events = exporter.sfx_events(inp["transitions"], inp.get("gfx", [])) if prm.get("sfx", "on") == "on" else []
+    if events:
+        exporter.sfx_track(events, inp["total"], vd / "sfx.wav")
+        exporter.mix_sfx(raw, vd / "sfx.wav", vd / "mix_sfx.wav")
+        raw.unlink(missing_ok=True)
+        raw = vd / "mix_sfx.wav"
     norm = exporter.normalize(raw, vd / "audio.wav", float(prm["target_lufs"]), float(prm["true_peak"]))
     raw.unlink(missing_ok=True)
     # الدوشة في نفس السكتات اللي فضلت في الإخراج: المصدر (بنفس الكسب) مقابل بعد التنضيف والعلو
@@ -1155,13 +1233,14 @@ def run_s6(ctx):
     audio = {"file": "audio.wav", "target_lufs": float(prm["target_lufs"]), "true_peak": float(prm["true_peak"]), "before": norm["before"], "after": norm["after"],
              "source_lufs": L0, "pre_gain_db": pre, "cleanup": clean, "noise_floor_source_db": nf_kept, "noise_floor_if_only_gain_db": round(nf_kept + float(prm["target_lufs"]) - L0, 1), "noise_floor_after_db": after_nf,
              "music": music_sid, "duck": bool(prm["duck"]) if music else None, "crossfades": len(inp["transitions"]),
-             "crossfade_ms": [t["audio_ms"] for t in inp["transitions"]], "cut_jumps": jumps}
+             "crossfade_ms": [t["audio_ms"] for t in inp["transitions"]], "cut_jumps": jumps, "sfx": events}
     report = [f"علو الصوت: المصدر {L0} LUFS ← بعد {norm['after']['integrated_lufs']} LUFS (الهدف {prm['target_lufs']}) · Peak {norm['after']['true_peak_dbtp']} dBTP",
               f"crossfade {', '.join(sorted({str(x) for x in audio['crossfade_ms']})) or '—'} مللي في كل قصّة ({audio['crossfades']} قصّة) · أكبر نطّة علو حوالين قصّة: "
               f"{max([j['jump_db'] for j in jumps] or [0]):.1f} dB",
               f"تنضيف: {' ← '.join(clean)} · كسب قبل التنضيف +{pre:.1f} dB",
               f"الدوشة في السكتات اللي فضلت: المصدر {nf_kept} dB · لو علّينا الصوت لـ {norm['after']['integrated_lufs']} LUFS من غير تنضيف كانت هتبقى "
               f"{round(nf_kept + float(prm['target_lufs']) - L0, 1)} dB ← بعد التنضيف {after_nf} dB"]
+    report.append(f"مؤثرات صوت: {len(events)} (" + ", ".join(f"{e['sfx']} {e['t']:.2f}" for e in events) + ")" if events else "من غير مؤثرات صوت")
     if music:
         env = speech.envelope(stem)
         mask = np.zeros(len(env), dtype=bool)

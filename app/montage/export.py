@@ -246,3 +246,89 @@ def grade_source(src: dict, out: Path, *, fps: int, fps_method: str, aspect: str
     _run(args + ["-filter_complex", ";".join(ch), "-filter_complex_threads", "8", "-map", f"[{cur}]", "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", str(crf),
                  "-pix_fmt", "yuv420p", "-r", str(fps), "-fps_mode", "cfr", str(out)], "تلوين")
     return {"file": str(out)}
+
+
+# ---------- مؤثرات صوت (بيعملها التطبيق، من غير ملفات من بره) ----------
+SR = 48000
+
+
+def _whoosh(d: float = 0.42, seed: int = 1) -> "np.ndarray":
+    """ضوضاء وردي بفلتر بيتحرك من واطي لعالي ورجوع، وظرف بيعلى ويوطى: صوت «سحبة»."""
+    import numpy as np
+    n = int(SR * d)
+    rng = np.random.default_rng(seed)
+    w = rng.standard_normal(n)
+    spec = np.fft.rfft(w)
+    f = np.fft.rfftfreq(n, 1 / SR)
+    spec /= np.sqrt(np.maximum(f, 20))            # وردي
+    w = np.fft.irfft(spec, n)
+    out = np.zeros(n)
+    hop = 512
+    for i in range(0, n, hop):                      # فلتر bandpass بيتحرك (FFT على قطع صغيرة)
+        seg = w[i:i + hop * 2]
+        if len(seg) < 8:
+            break
+        c = 350 + 2600 * np.sin(np.pi * min(1.0, i / n))
+        S = np.fft.rfft(seg * np.hanning(len(seg)))
+        ff = np.fft.rfftfreq(len(seg), 1 / SR)
+        S *= np.exp(-((np.log(np.maximum(ff, 1)) - np.log(c)) ** 2) / 0.5)
+        out[i:i + len(seg)] += np.fft.irfft(S, len(seg))[:len(out) - i]
+    t = np.linspace(0, 1, n)
+    env = np.sin(np.pi * t) ** 1.6
+    out = out * env
+    return out / (np.abs(out).max() + 1e-9)
+
+
+def _pop(d: float = 0.11) -> "np.ndarray":
+    import numpy as np
+    t = np.arange(int(SR * d)) / SR
+    x = np.sin(2 * np.pi * (520 + 1900 * np.exp(-t * 45)) * t) * np.exp(-t * 38)
+    return x / (np.abs(x).max() + 1e-9)
+
+
+def _flash(d: float = 0.3) -> "np.ndarray":
+    import numpy as np
+    t = np.arange(int(SR * d)) / SR
+    rng = np.random.default_rng(7)
+    x = rng.standard_normal(len(t)) * np.exp(-t * 14)
+    x = np.convolve(x, np.ones(6) / 6, mode="same")
+    return x / (np.abs(x).max() + 1e-9)
+
+
+SFX = {"whoosh": (_whoosh, 0.22, -0.18), "pop": (_pop, 0.16, 0.0), "flash": (_flash, 0.14, -0.05)}   # (الصوت، الكسب، إزاحة البداية)
+
+
+def sfx_events(transitions: list[dict], gfx: list[dict]) -> list[dict]:
+    """مؤثر مع كل انتقال ظاهر (سحبة/زووم ← whoosh، فلاش ← flash) ومع دخول كل جرافيك (pop خفيف)."""
+    ev = []
+    for tr in transitions:
+        k = tr["kind"]
+        if k in ("whip", "whip_r", "zoom"):
+            ev.append({"t": tr["t"], "sfx": "whoosh", "why": f"انتقال {k}"})
+        elif k == "flash":
+            ev.append({"t": tr["t"], "sfx": "flash", "why": "فلاش"})
+    for g in gfx:
+        ev.append({"t": g["start"], "sfx": "pop", "why": f"دخول جرافيك {g.get('kind')}"})
+    return sorted(ev, key=lambda e: e["t"])
+
+
+def sfx_track(events: list[dict], total: float, out: Path) -> Path:
+    import wave
+    import numpy as np
+    buf = np.zeros(int(SR * (total + 1)))
+    for k, e in enumerate(events):
+        fn, gain, off = SFX[e["sfx"]]
+        x = (fn(seed=k + 1) if e["sfx"] == "whoosh" else fn()) * gain
+        i = max(0, int((e["t"] + off) * SR))
+        j = min(len(buf), i + len(x))
+        buf[i:j] += x[:j - i]
+    pcm = (np.clip(buf, -1, 1) * 32767).astype(np.int16)
+    with wave.open(str(out), "wb") as w:
+        w.setnchannels(2); w.setsampwidth(2); w.setframerate(SR)
+        w.writeframes(np.repeat(pcm[:, None], 2, axis=1).tobytes())
+    return out
+
+
+def mix_sfx(voice: Path, sfx: Path, out: Path) -> None:
+    _run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(voice), "-i", str(sfx), "-filter_complex",
+          "[0:a][1:a]amix=inputs=2:duration=first:normalize=0[a]", "-map", "[a]", "-c:a", "pcm_s16le", str(out)], "مؤثرات الصوت")

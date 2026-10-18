@@ -308,7 +308,11 @@ def propose(key: str, doc: dict, text: str, wbs: dict) -> dict:
     elif key == "s6_audio":
         music = _has(r"(المزيكا|مزيكا|الموسيقى|موسيقى|music)", t)
         up, down = _has(UP, t), _has(DOWN, t)
-        if m := re.search(r"(-?\d+(?:\.\d+)?)\s*lufs", t):
+        if _has(r"(من غير مؤثرات|بلاش مؤثرات|شيل المؤثرات|no sfx|no sound effects)", t):
+            ch["sfx"] = "off"
+        elif _has(r"(مؤثرات|sfx|sound effects)", t):
+            ch["sfx"] = "on"
+        elif m := re.search(r"(-?\d+(?:\.\d+)?)\s*lufs", t):
             ch["target_lufs"] = max(-30.0, min(-8.0, float(m.group(1))))
         elif _has(r"(دوشة|الدوشة|ضوضاء|وش|noise|hiss)", t):
             ch["denoise"] = "off" if _has(r"(من غير|بلاش|off|no)", t) else "strong"

@@ -1,7 +1,7 @@
 """اختبار قواعد الموشن جرافيك والرؤية والمحاذاة (من غير ميديا):
 - الاختيار من الكلام: رقم ← counter، نفي («عنديش … كتير») ← مقياس قليل مش كتير، كلمة ليها أيقونة ← keyword من نفس العبارة بس.
 - جملة نص من غير أي عنصر حركة ← مرفوضة.
-- طريقة العرض بقاعدة: شرح طويل فيه كمية ← explainer؛ من غير متكلم ← overlay بس.
+- طريقة العرض بقاعدة: شرح طويل فيه كمية ← صورتك مصغّرة (pip)؛ من غير متكلم ← overlay بس.
 - المكان: مفيش مستطيل فوق الوش/الشخص ولا في منطقة الترجمة؛ لو مفيش مكان ← None.
 - محاذاة الكلمات على فترات الكلام (VAD) بنهاية الكلمة.
 الاستخدام: .venv/bin/python tests/montage_motion_rules.py
@@ -34,11 +34,11 @@ def main() -> int:
     ws = [W("ممكن", 0, .3), W("يكون", .3, .6), W("عنديش", .6, 1), W("اصحاب", 1, 1.3), W("كتير", 1.3, 1.7), W("ممكن", 2.5, 2.8), W("يكون", 2.8, 3.2),
           W("التفاعل", 4, 4.6), W("مع", 4.6, 4.8), W("المجتمع", 4.8, 5.4), W("بسيط", 5.4, 5.9)]
     g = motion.choose(idea(ws), True, {})
-    if g.get("kind") != "meter" or g.get("level", 1) > 0.4 or g.get("mode") != "explainer":
-        fails.append(f"negated quantity → low meter, explainer: {g}")
+    if g.get("kind") != "meter" or g.get("level", 1) > 0.4 or g.get("mode") != "pip":
+        fails.append(f"negated quantity → low meter, pip: {g}")
     g2 = motion.choose(idea(ws), False, {})
     if g2.get("mode") != "overlay":
-        fails.append(f"no speaker → no explainer: {g2.get('mode')}")
+        fails.append(f"no speaker → no pip: {g2.get('mode')}")
     # keyword من نفس العبارة (ما يعدّيش السكتة)
     ws = [W("انا", 0, .1), W("شايف", .1, .3), W("ان", .3, .4), W("دي", .4, .6), W("حاجة", .6, 1), W("كويسة", 1, 1.5), W("يكون", 5.4, 5.6), W("شخص", 5.6, 6)]
     g = motion.choose(idea(ws), True, {})

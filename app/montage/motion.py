@@ -42,7 +42,7 @@ SEQ = ("اول", "تاني", "تالت", "رابع", "بعدين", "خطوه", "
 NUMW = {"اتنين": 2, "تلاته": 3, "تلات": 3, "اربعه": 4, "خمسه": 5, "سته": 6, "سبعه": 7, "تمانيه": 8, "تسعه": 9, "عشره": 10, "عشرين": 20, "تلاتين": 30,
         "اربعين": 40, "خمسين": 50, "ميه": 100, "الف": 1000}
 AR_DIG = str.maketrans("0123456789", "٠١٢٣٤٥٦٧٨٩")
-ENTER, EXIT = 0.45, 0.35
+ENTER, EXIT = 0.28, 0.22   # دخول وخروج سريع (كان 0.45/0.35: الجرافيك كان بيبان بطيء)
 SUB_BAND = (0.60, 0.83)      # منطقة الترجمة محجوزة (من الارتفاع)، مفيش جرافيك فيها
 EXPLAIN_MIN = 4.5            # فكرة فيها رقم/كمية وطولها ≥ كده ← explainer
 
@@ -208,8 +208,8 @@ def choose(idea: dict, speaker: bool, brief: dict, used_icons: set | None = None
 
 
 # ---------- 2) المكان ----------
-SIZES = {"keyword": (0.80, 0.135), "counter": (0.66, 0.17), "meter": (0.80, 0.18), "bars": (0.80, 0.20), "timeline": (0.84, 0.125), "lower_third": (0.70, 0.11),
-         "title": (0.90, 0.17)}
+SIZES = {"keyword": (0.80, 0.15), "counter": (0.66, 0.17), "meter": (0.80, 0.18), "bars": (0.80, 0.20), "timeline": (0.84, 0.125), "lower_third": (0.70, 0.11),
+         "title": (0.90, 0.17), "illus": (0.84, 0.30), "sticker": (0.30, 0.17), "checklist": (0.84, 0.22), "vs": (0.88, 0.16), "clock": (0.74, 0.16)}
 STYLES = ("dark", "light", "accent", "glass", "marker")   # بتتبادل: مفيش جرافيكين ورا بعض بنفس الشكل
 ENTERS = ("pop", "slide", "wipe", "drop")
 PIP = {"9:16": (0.29, 0.055, 0.42), "16:9": (0.06, 0.12, 0.36)}   # صورتك المصغّرة: (x, y, القطر) نسبة من العرض/الارتفاع/العرض
@@ -299,6 +299,8 @@ html,body{margin:0;background:transparent;overflow:hidden}
 .hl{position:absolute;z-index:-1;background:var(--accent);border-radius:calc(var(--u)*.35);transform-origin:right center}
 .ring{position:absolute;border-radius:50%}
 .blob{position:absolute;border-radius:50%;background:var(--accent);opacity:.12}
+.badge svg,#art svg{width:100%;height:100%;overflow:visible}
+#art{display:grid;place-items:center}
 """
 
 JS = r"""
@@ -331,6 +333,8 @@ function setup(spec, dur){
       <div class="t" id="title" style="position:absolute;inset-inline:${u*2}px;text-align:center;top:${top+u*8.2}px;font-size:${u*2.4}px"></div>`;
     else if (k === 'bars') h += S.items.map((it,i)=>`<div class="t" id="bl${i}" style="position:absolute;inset-inline:${u*2.5}px;top:${top+u*i*5.4}px;font-size:${u*2.3}px">${it.label}</div>
       <div class="track" style="position:absolute;inset-inline:${u*2.5}px;top:${top+u*(3+i*5.4)}px;height:${u*1.5}px"><div class="fill" id="bf${i}" style="width:0;${i?'opacity:.55':''}"></div></div>`).join('');
+    else if (k === 'illus') h += `<div id="art" style="position:absolute;left:${u*2.5}px;right:${u*2.5}px;top:${top}px;height:${S.H*0.2}px">${S.svg}</div>
+      <div class="t" id="title" style="position:absolute;inset-inline:${u*2}px;text-align:center;top:${top+S.H*0.2+u*1.2}px;font-size:${u*2.7}px;text-wrap:balance"></div>`;
     else if (k === 'timeline') h += S.items.map((it,i)=>`<div id="st${i}" class="row" style="right:${u*3}px;left:${u*3}px;top:${top+u*i*3.6}px">
         <div class="badge" style="width:${u*2.6}px;height:${u*2.6}px;font-weight:800;font-size:${u*1.4}px">${(i+1).toLocaleString('ar-EG')}</div>
         <div class="t" style="font-size:${u*2.1}px">${it}</div></div>`).join('');
@@ -339,6 +343,7 @@ function setup(spec, dur){
       <div id="ul" style="position:absolute;left:30%;width:0;height:${u*.35}px;top:${top+u*10.6}px;background:var(--accent);border-radius:9px"></div>`;
     r.innerHTML = h;
     if (document.getElementById('title')) S.tw = words(document.getElementById('title'), S.title || '');
+    prepDraw();
     return;
   }
   if (k === 'title') {
@@ -351,9 +356,36 @@ function setup(spec, dur){
       w.insertAdjacentHTML('afterbegin', `<span class="hl" id="hl" style="inset:${-u*.1}px ${-u*.35}px ${-u*.05}px ${-u*.35}px"></span>`); }
     return;
   }
-  if (k === 'keyword') {
+  if (k === 'sticker') {
+    // إيموجي متحرك (Lottie) جنب الوش، من غير كارت
+    r.innerHTML = `<div id="lot" style="position:absolute;inset:0"></div>`;
+    S.anim = lottie.loadAnimation({container: document.getElementById('lot'), renderer: 'svg', loop: true, autoplay: false, animationData: S.lottie});
+    return;
+  }
+  if (k === 'illus') {
+    h += `<div id="art" style="position:absolute;left:${u*1.2}px;right:${u*1.2}px;top:${u*1}px;bottom:${u*4.4}px">${S.svg}</div>
+      <div class="t" id="title" style="position:absolute;inset-inline:${u*1.2}px;bottom:${u*1}px;text-align:center;font-size:${u*2}px"></div>`;
+  } else if (k === 'checklist') {
+    h += S.items.map((it,i)=>`<div class="row" id="ck${i}" style="right:${u*1.4}px;left:${u*1.4}px;top:${u*(1.1+i*3.1)}px">
+      <svg width="${u*2.4}" height="${u*2.4}" viewBox="0 0 24 24" style="flex:none"><circle cx="12" cy="12" r="11" fill="var(--accent)"/>
+      <path id="cm${i}" d="M7 12.5l3.2 3.2L17 9" fill="none" stroke="var(--bg)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="16" stroke-dashoffset="16"/></svg>
+      <div class="t" style="font-size:${u*1.9}px">${it}</div></div>`).join('');
+  } else if (k === 'vs') {
+    h += `<div class="t" id="va" style="position:absolute;right:${u*1}px;width:38%;top:calc(50% - ${u*1.5}px);text-align:center;font-size:${u*2.2}px">${S.items[0]}</div>
+      <div class="t" id="vb" style="position:absolute;left:${u*1}px;width:38%;top:calc(50% - ${u*1.5}px);text-align:center;font-size:${u*2.2}px;opacity:.75">${S.items[1]}</div>
+      <div class="badge" id="vsb" style="position:absolute;left:calc(50% - ${u*1.8}px);top:calc(50% - ${u*1.8}px);width:${u*3.6}px;height:${u*3.6}px;font-weight:900;font-size:${u*1.4}px;direction:ltr">VS</div>`;
+  } else if (k === 'clock') {
+    const R = u*3.2, c = R + u/2;
+    h += `<svg width="${c*2}" height="${c*2}" style="position:absolute;right:${u*1.2}px;top:calc(50% - ${c}px)">
+      <circle cx="${c}" cy="${c}" r="${R}" fill="none" stroke="var(--accent)" stroke-width="${u*.42}"/>
+      ${[...Array(12)].map((_,i)=>`<line x1="${c}" y1="${c-R+u*.55}" x2="${c}" y2="${c-R+u*(i%3?0.9:1.25)}" stroke="var(--ink)" stroke-width="${u*.17}" stroke-linecap="round" transform="rotate(${i*30} ${c} ${c})"/>`).join('')}
+      <line id="hh" x1="${c}" y1="${c}" x2="${c}" y2="${c-R*.5}" stroke="var(--ink)" stroke-width="${u*.36}" stroke-linecap="round"/>
+      <line id="mh" x1="${c}" y1="${c}" x2="${c}" y2="${c-R*.78}" stroke="var(--accent)" stroke-width="${u*.24}" stroke-linecap="round"/>
+      <circle cx="${c}" cy="${c}" r="${u*.4}" fill="var(--accent)"/></svg>
+      <div class="t" id="title" style="position:absolute;right:${c*2+u*2.2}px;left:${u}px;top:calc(50% - ${u*1.4}px);font-size:${u*2.1}px"></div>`;
+  } else if (k === 'keyword') {
     h += `<div class="row" id="row" style="inset:${full?'auto':'0'} ${u*1.2}px ${full?'auto':'0'};${full?`top:${S.cy-u*3}px;height:${u*6}px;`:''}">
-      <div class="badge" id="badge" style="width:${u*3.6}px;height:${u*3.6}px;padding:${u*.75}px">${S.icon_svg}</div>
+      <div class="badge" id="badge" style="width:${u*(S.svg?5.4:3.6)}px;height:${u*(S.svg?5.4:3.6)}px;padding:${u*(S.svg?.85:.75)}px">${S.icon_svg}</div>
       <div><div class="t" id="title" style="font-size:${u*2.2}px"></div><div id="ul" style="height:${u*.32}px;width:0;background:var(--accent);border-radius:9px;margin-top:${u*.35}px"></div></div></div>`;
   } else if (k === 'meter' && full) {
     h += `<div class="badge" id="badge" style="position:absolute;left:calc(50% - ${u*3}px);top:${S.cy-u*13.5}px;width:${u*6}px;height:${u*6}px;padding:${u*1.2}px">${S.icon_svg}</div>
@@ -391,6 +423,24 @@ function setup(spec, dur){
   }
   r.innerHTML = h;
   if (document.getElementById('title')) S.tw = words(document.getElementById('title'), S.title || '');
+  prepDraw();
+}
+// الأيقونة/الرسمة بتترسم خط بخط بسرعة، وبعدين الألوان بتتملا (زي السبورة بس أسرع)
+function prepDraw(){
+  const host = document.querySelector('#art svg, .badge svg'); S.draw = [];
+  if (!host) return;
+  for (const el of host.querySelectorAll('path,circle,line,polyline,polygon,rect,ellipse')) {
+    if (el.closest('defs,clipPath,mask')) continue;
+    let L = 0; try { L = el.getTotalLength(); } catch(e) {}
+    if (!(L > 0)) continue;
+    const cs = getComputedStyle(el), filled = cs.fill && cs.fill !== 'none' && !/rgba\(0, 0, 0, 0\)/.test(cs.fill);
+    el.style.vectorEffect = 'non-scaling-stroke';
+    const m = el.getCTM(), Ls = L * (m ? Math.hypot(m.a, m.b) : 1);
+    if (S.kind === 'illus') { el.style.stroke = 'var(--ink)'; el.style.strokeWidth = (S.u*.09)+'px'; }
+    el.style.strokeDasharray = `${Ls} ${Ls}`; el.style.strokeDashoffset = Ls;
+    if (filled) el.style.fillOpacity = 0;
+    S.draw.push({el, Ls, filled});
+  }
 }
 function render(t){
   const r = document.getElementById('root'), u = S.u, k = S.kind;
@@ -412,7 +462,7 @@ function render(t){
   const panel = document.getElementById('panel'); if (panel) panel.style.boxShadow = `0 ${u*.4}px ${u*(1.4+0.15*Math.sin(t*2))}px rgba(0,0,0,.28)`;
   const badge = document.getElementById('badge');
   if (badge) { const b = back(seg(t, .15, .6)); badge.style.transform = `scale(${b * (1 + 0.025*Math.sin(t*3.2))}) rotate(${(1-b)*-25}deg)`; }
-  if (S.tw) S.tw.forEach((w,i)=>{ const a = eo(seg(t, .12 + i*.14, .32 + i*.14)); w.style.opacity = a; w.style.transform = `translateY(${(1-a)*u*.7}px)`; });
+  if (S.tw) S.tw.forEach((w,i)=>{ const a = eo(seg(t, .1 + i*.08, .26 + i*.08)); w.style.opacity = a; w.style.transform = `translateY(${(1-a)*u*.7}px)`; });
   const ul = document.getElementById('ul'); if (ul) ul.style.width = (eo(seg(t, .3 + (S.tw||[]).length*.14, .85 + (S.tw||[]).length*.14))*100)+'%';
   if (k === 'meter') {
     const p = eo(seg(t, .7, 1.9)) * S.level; document.getElementById('fill').style.width = (p*100)+'%';
@@ -429,6 +479,29 @@ function render(t){
     const n = S.items.length; const ln = document.getElementById('line'); if (ln) ln.style.width = (eo(seg(t, .3, .3+n*.5))*100)+'%';
     S.items.forEach((it,i)=>{ const a = back(seg(t, .3+i*.5, .7+i*.5)); const el = document.getElementById('st'+i); el.style.opacity = clamp(a); el.style.transform = `scale(${0.5+0.5*a})`; });
   }
+  if (S.draw && S.draw.length) {
+    const p = eo(seg(t, .08, k === 'illus' ? .85 : .55)), f = seg(t, k === 'illus' ? .6 : .4, k === 'illus' ? 1.1 : .75);
+    S.draw.forEach(d => { d.el.style.strokeDashoffset = d.Ls * (1 - p); d.el.style.strokeOpacity = p > 0.002 ? 1 : 0; if (d.filled) d.el.style.fillOpacity = f; });
+  }
+  // حركة على قد الشكل بعد ما يترسم: قلب بينبض، جرس بيتهز، موبايل بيرن، لمبة بتنور، وغير كده طفو خفيف
+  const idl = document.querySelector('.badge svg, #art svg');
+  if (idl && t > .6) { const q = t - .6, I = S.idle || 'float';
+    idl.style.transformOrigin = I === 'swing' ? '50% 8%' : '50% 50%';
+    idl.style.transform = I === 'beat' ? `scale(${1 + .09*Math.max(0, Math.sin(q*7))})` : I === 'swing' ? `rotate(${12*Math.sin(q*9)*Math.exp(-q*1.2)}deg)`
+      : I === 'buzz' ? `translateX(${(Math.sin(q*60)*S.u*.12)*(Math.sin(q*3)>0?1:0)}px)` : I === 'spin' ? `rotate(${q*90}deg)` : `translateY(${Math.sin(q*3)*S.u*.15}px)`;
+    if (I === 'glow') idl.style.filter = `drop-shadow(0 0 ${S.u*(.3+.3*Math.sin(q*5))}px var(--accent))`; }
+  if (k === 'sticker' && S.anim) {
+    const L = Math.max(1, S.lottie.op - S.lottie.ip); S.anim.goToAndStop(S.lottie.ip + ((t * S.lottie.fr) % L), true);
+    const a = back(seg(t, 0, .32)); r.style.transform = `scale(${a}) rotate(${(1-a)*-25 + 4*Math.sin(t*5)}deg)`; r.style.clipPath = 'none';
+  }
+  if (k === 'checklist') S.items.forEach((it,i)=>{ const a = eo(seg(t, .15+i*.32, .4+i*.32)), el = document.getElementById('ck'+i);
+    el.style.opacity = a; el.style.transform = `translateX(${(1-a)*S.u*3}px)`; document.getElementById('cm'+i).setAttribute('stroke-dashoffset', 16*(1-eo(seg(t, .35+i*.32, .6+i*.32)))); });
+  if (k === 'vs') { const a = eo(seg(t,.05,.35)), b = eo(seg(t,.25,.55)), c = back(seg(t,.45,.75));
+    document.getElementById('va').style.transform = `translateX(${(1-a)*S.u*5}px)`; document.getElementById('va').style.opacity = a;
+    document.getElementById('vb').style.transform = `translateX(${-(1-b)*S.u*5}px)`; document.getElementById('vb').style.opacity = b*.75;
+    document.getElementById('vsb').style.transform = `scale(${c}) rotate(${(1-c)*180}deg)`; }
+  if (k === 'clock') { const sp = eo(seg(t, 0, 1.4)); const cx = document.getElementById('mh').getAttribute('x1'), cy = document.getElementById('mh').getAttribute('y1');
+    document.getElementById('mh').setAttribute('transform', `rotate(${sp*720 + t*30} ${cx} ${cy})`); document.getElementById('hh').setAttribute('transform', `rotate(${sp*60 + t*2.5} ${cx} ${cy})`); }
   if (k === 'lower_third') { const a = eo(seg(t, 0, .5)); document.getElementById('lbar').style.transform = `scaleY(${a})`; }
 }
 """
@@ -441,6 +514,7 @@ def render(specs: list[dict], W: int, H: int, fps: int, out_root: Path, mood: st
     css = (f"@font-face{{font-family:Card;src:url(data:font/ttf;base64,{_font('Alexandria-Variable.ttf')});font-weight:100 900}}"
            f":root{{{';'.join(f'--{k}:{v}' for k, v in pal.items())}}}" + CSS)
     js = JS.replace("%ENTER%", str(ENTER)).replace("%EXIT%", str(EXIT))
+    lot = (ASSETS / "vendor" / "lottie_svg.min.js").read_text(encoding="utf-8") if any(x.get("kind") == "sticker" for x in specs) else ""
     out = []
     with sync_playwright() as p:
         b = p.chromium.launch()
@@ -455,7 +529,7 @@ def render(specs: list[dict], W: int, H: int, fps: int, out_root: Path, mood: st
             else:
                 w, h, x, y = W, H, 0, 0
             u = round(min(w, H * 0.6) / 30) if mode == "overlay" else round(W / 30)
-            spec = {**{kk: v for kk, v in sp.items() if kk not in ("rect",)}, "u": u, "icon_svg": _icon_svg(sp.get("icon") or "sparkles"), "H": H,
+            spec = {**{kk: v for kk, v in sp.items() if kk not in ("rect",)}, "u": u, "icon_svg": sp.get("svg") or _icon_svg(sp.get("icon") or "sparkles"), "H": H,
                     "cy": int(H * 0.42) if mode == "explainer" else int(h * 0.16) if mode == "split" else int(h * 0.5)}   # split: المحتوى في أول النص التحتاني (50–60%)، فوق الترجمة
             if mode == "inset":   # المحتوى تحت المتكلم الصغير (فوق) وفوق الترجمة
                 spec["cy"] = int(H * 0.47)
@@ -463,7 +537,7 @@ def render(specs: list[dict], W: int, H: int, fps: int, out_root: Path, mood: st
                 spec["pip"] = sp["pip"]
                 spec["cy"] = sp["pip"][1] + sp["pip"][2] + int(H * 0.04)
             pg = b.new_page(viewport={"width": w, "height": h})
-            pg.set_content(f"<html><head><style>{css}</style></head><body><div id='root'></div><script>{js}</script></body></html>")
+            pg.set_content(f"<html><head><style>{css}</style></head><body><div id='root'></div><script>{lot}</script><script>{js}</script></body></html>")
             pg.evaluate("document.fonts.ready")
             dur = sp["end"] - sp["start"]
             pg.evaluate("([s, d]) => setup(s, d)", [spec, dur])
