@@ -1,7 +1,9 @@
-"""اختبار نسخ المراحل في المونتاج (من غير ميديا: المراحل نفسها بتتبدل بدوال سريعة، ومنطق النسخ/الحالة هو الحقيقي):
-- إعادة S2 بتعلّم S3 و S4 "قديمة" (stale) من غير ما تمسحهم.
-- الرجوع لنسخة قديمة بيرجّع JSON بنفس البايتات بالظبط.
-- التصدير (S4) مقفول قبل الموافقة على S3.
+"""اختبار نسخ المراحل في المونتاج (من غير ميديا: المراحل نفسها بتتبدل بدوال سريعة، ومنطق النسخ/الحالة/الطلب هو الحقيقي):
+- زرار «اعمل المونتاج» بيعمل الـ 7 مراحل لحد المعاينة الكاملة.
+- التصدير مقفول قبل الموافقة على المعاينة الكاملة.
+- تعديل مرحلة واحدة (cascade) ← نسخة جديدة منها بس، واللي بعدها بيتعاد، واللي قبلها ما بيتلمسش.
+- إعادة S2 بتعلّم اللي بعدها "قديمة" من غير ما تمسحهم، والرجوع لنسخة قديمة بيرجّع JSON بنفس البايتات بالظبط.
+- تغيير الطلب (brief) بيعلّم المرحلة اللي بتستخدم الحاجة دي بس "قديمة".
 الاستخدام: .venv/bin/python tests/montage_versions.py
 """
 
@@ -17,13 +19,18 @@ from app.montage import stages, state  # noqa: E402
 def fake(key):
     def run(ctx):
         n = len(state.load(ctx["mid"])["stages"].get(key, {}).get("versions", [])) + 1
-        # كل تشغيل بيطلع بيانات مختلفة (زي إعادة حقيقية بتوقيتات مختلفة)
-        data = {"s1": 1, "aspect": "9:16", "segments": [{"id": "g1", "source": "s1", "start": 0.1 * n, "end": 5.0}], "run": n, "t": time.time()}
-        if key == "s4_export":
-            data.update(file="exports/fake.mp4", probe={"duration": 4.9}, expected_duration=4.9)
-        (ctx["vd"] / "preview.mp4").write_bytes(b"fake")
-        return data, [f"{key} run {n}"]
+        data = {"aspect": "9:16", "segments": [{"id": "g1", "source": "s1", "start": 0.1 * n, "end": 5.0}], "run": n, "t": time.time(),
+                "params_seen": ctx["params"]}
+        if key == "s7_preview":
+            (ctx["vd"] / "preview.mp4").write_bytes(b"fake")
+            data.update(probe={"duration": 4.9}, fps=30, frames=147)
+        return data, [f"{key} run {n}"], []
     return run
+
+
+def versions(mid):
+    m = state.load(mid)
+    return {k: len((m["stages"].get(k) or {}).get("versions", [])) for k in stages.PIPE}
 
 
 def main() -> int:
@@ -37,65 +44,72 @@ def main() -> int:
                 "edit": {"segments": [], "aspect": "9:16"}, "export": None})
     st = lambda k: stages.status(state.load(mid), k)  # noqa: E731
 
-    def run(k):
-        stages.start(mid, k, sync=True)
-        r = state.load(mid)["stages"][k]
-        if r["job"] != "idle":
-            fails.append(f"{k} failed: {r['error']}")
-
-    run("s1_analyze"); run("s2_cut"); run("s3_audio")
-    # التصدير قبل الموافقة: لازم يترفض
+    # 1) ضغطة واحدة ← كل المراحل لحد المعاينة الكاملة
+    todo = stages.run_all(mid, sync=True)
+    if todo != stages.PIPE or any(st(k) != "ready" for k in stages.PIPE):
+        fails.append(f"one click: todo={todo}, status={ {k: st(k) for k in stages.PIPE} }")
+    # 2) التصدير قبل الموافقة: مرفوض
     try:
-        stages.start(mid, "s4_export", sync=True)
-        fails.append("S4 ran before approval")
+        stages.export(mid); fails.append("export allowed before approval")
     except stages.Blocked as e:
-        print(f"S4 before approval → refused: {e}")
-    stages.approve(mid, "s3_audio")
-    run("s4_export")
-    before = {k: st(k) for k in stages.BASIC}
+        print(f"export before approval → refused: {e}")
+    stages.approve(mid, "s7_preview")
+    exp = stages.export(mid)
+    if not (state.mdir(mid) / exp["file"]).exists():
+        fails.append("export file missing")
+
+    # 3) تعديل مرحلة واحدة (الترجمة) ← نسخة جديدة منها بس + اللي بعدها اتعاد، واللي قبلها زي ما هو
+    before = versions(mid)
+    stages.start(mid, "s4_subs", {"size": "large"}, origin="edit", note="الترجمة أكبر", sync=True, cascade=True)
+    after = versions(mid)
+    changed = [k for k in stages.PIPE if after[k] != before[k]]
+    if changed != ["s4_subs", "s5_graphics", "s6_audio", "s7_preview"] or any(after[k] - before[k] != 1 for k in changed):
+        fails.append(f"revision: changed {changed} ({before} → {after})")
+    doc = stages.read_stage(mid, "s4_subs", state.load(mid)["stages"]["s4_subs"]["current"])
+    if doc["params"]["size"] != "large" or doc["user_params"].get("size") != "large":
+        fails.append("revision params not applied")
+    if any(st(k) != "ready" for k in stages.PIPE):
+        fails.append(f"after revision not all fresh: { {k: st(k) for k in stages.PIPE} }")
+    if stages.status(state.load(mid), "s7_preview") == "approved":
+        fails.append("new preview should need approval again")
+    try:
+        stages.export(mid); fails.append("export allowed for the new (unapproved) preview")
+    except stages.Blocked:
+        pass
+
+    # 4) إعادة S2 ← اللي بعدها قديم (من غير مسح)، والرجوع لـ v1 بنفس البايتات
     v1_bytes = (stages.vdir(mid, "s2_cut", 1) / "stage.json").read_bytes()
-
-    # إعادة S2 ← S3 و S4 قديمة
-    run("s2_cut")
-    after_redo = {k: st(k) for k in stages.BASIC}
-    if after_redo["s2_cut"] != "ready" or after_redo["s3_audio"] != "stale" or after_redo["s4_export"] != "stale":
-        fails.append(f"after S2 redo expected s3/s4 stale, got {after_redo}")
-    if not (stages.vdir(mid, "s3_audio", 1) / "stage.json").exists() or not (stages.vdir(mid, "s4_export", 1) / "stage.json").exists():
+    stages.start(mid, "s2_cut", sync=True)
+    after_redo = {k: st(k) for k in stages.PIPE}
+    if after_redo["s2_cut"] != "ready" or any(after_redo[k] != "stale" for k in stages.PIPE[2:]):
+        fails.append(f"after S2 redo expected later stages stale, got {after_redo}")
+    if not (stages.vdir(mid, "s3_look", 1) / "stage.json").exists():
         fails.append("stale stages were deleted")
-    v2_bytes = (stages.vdir(mid, "s2_cut", 2) / "stage.json").read_bytes()
-    if v2_bytes == v1_bytes:
-        fails.append("redo produced identical JSON (test not meaningful)")
-    # الموافقة على S3 وهي قديمة: مرفوضة، والتصدير لسه مقفول
-    try:
-        stages.approve(mid, "s3_audio"); fails.append("approved a stale stage")
-    except stages.Blocked:
-        pass
-    try:
-        stages.check_can_run(state.load(mid), "s4_export"); fails.append("S4 allowed while S3 is stale")
-    except stages.Blocked:
-        pass
-
-    # الرجوع لـ v1 ← نفس البايتات بالظبط
     stages.revert(mid, "s2_cut", 1)
-    m = state.load(mid)
-    cur = m["stages"]["s2_cut"]["current"]
-    cur_bytes = (stages.vdir(mid, "s2_cut", cur) / "stage.json").read_bytes()
-    byte_equal = cur == 1 and cur_bytes == v1_bytes
+    cur = state.load(mid)["stages"]["s2_cut"]["current"]
+    byte_equal = cur == 1 and (stages.vdir(mid, "s2_cut", cur) / "stage.json").read_bytes() == v1_bytes
     if not byte_equal:
         fails.append("revert did not restore byte-equal JSON")
-    after_revert = {k: st(k) for k in stages.BASIC}
-    # S3 v1 كانت مبنية على S2 v1، فبعد الرجوع بقت سليمة تاني (مش قديمة)
-    if after_revert["s3_audio"] == "stale":
-        fails.append(f"after revert S3 (built on S2 v1) should be valid again, got {after_revert}")
-    # تبديل الوضع ما بيمسحش نسخ
-    stages.set_mode(mid, "advanced"); stages.set_mode(mid, "basic")
-    if len(state.load(mid)["stages"]["s2_cut"]["versions"]) != 2:
-        fails.append("mode switch changed saved versions")
+    if st("s3_look") == "stale":
+        fails.append("after revert S3 (built on S2 v1) should be valid again")
 
-    print(f"before redo: {before}")
+    # 5) الطلب: تغيير حجم الترجمة ← الترجمة (واللي بعدها) قديمة، والقصّ والصورة لأ
+    state.update(mid, lambda mm: mm.update(brief={"text": "ترجمة كبيرة", "saved": time.time()}))
+    bst = {k: st(k) for k in stages.PIPE}
+    if bst["s4_subs"] != "stale" or bst["s2_cut"] == "stale" or bst["s3_look"] == "stale":
+        fails.append(f"brief change staleness wrong: {bst}")
+    todo2 = stages.run_all(mid, sync=True)
+    seen = stages.read_stage(mid, "s4_subs", state.load(mid)["stages"]["s4_subs"]["current"])
+    if todo2[0] != "s4_subs" or seen["brief"].get("sub_size") != "large":
+        fails.append(f"brief rerun: todo={todo2}, brief used={seen['brief']}")
+    if any(stages.read_stage(mid, k, state.load(mid)["stages"][k]["current"]).get("brief") is None for k in stages.PIPE):
+        fails.append("some stage did not record the brief it used")
+
+    print(f"one click: {todo}")
+    print(f"revision (s4 + cascade): versions {before} → {after}")
     print(f"after S2 redo: {after_redo}")
-    print(f"S2 v1 JSON: {len(v1_bytes)} bytes · after revert current=v{cur}, byte-equal: {byte_equal}")
-    print(f"after revert: {after_revert}")
+    print(f"revert S2 → v{cur}, byte-equal: {byte_equal}")
+    print(f"brief 'ترجمة كبيرة' → stale: {[k for k, v in bst.items() if v == 'stale']}, rerun: {todo2}")
     print("PASS" if not fails else "FAIL:\n  " + "\n  ".join(fails))
     return 1 if fails else 0
 

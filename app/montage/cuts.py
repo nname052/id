@@ -13,6 +13,7 @@ import numpy as np
 
 HOP = 0.01
 SENT_END = re.compile(r"[.!?؟…]$")
+COMMA = re.compile(r"[،,؛;:]$")
 FILLERS = {"اه", "آه", "اا", "ااه", "امم", "ام", "ممم", "هممم", "يعني", "uh", "um", "umm", "hmm", "eh"}
 MIN_PAUSE = 0.35     # سكتة أطول من كده بين كلمتين = حد وحدة
 MAX_PAUSE = 0.7      # سكتة أطول من كده جوه الجزء بتتشال (قصّة عند السكتة)
@@ -147,8 +148,10 @@ def quiet_point(env, lo: float, hi: float, target: float) -> float:
     return round(min(max(best * HOP, lo), hi), 3)
 
 
-def plan_segments(units: list[dict], words: list[dict], env, duration: float, max_pause: float = MAX_PAUSE) -> list[dict]:
-    """الوحدات المختارة ← أجزاء (source, start, end). القصّ بيقع في السكتة اللي حوالين الوحدة بس."""
+def plan_segments(units: list[dict], words: list[dict], env, duration: float, max_pause: float = MAX_PAUSE,
+                  out_pad: float = OUT_PAD, in_pad: float = IN_PAD) -> list[dict]:
+    """الوحدات المختارة ← أجزاء (source, start, end). القصّ بيقع في السكتة اللي حوالين الوحدة بس.
+    max_pause = حد "الهوا الميت": سكتة أطول من كده بين جملتين بتتقص. out_pad/in_pad = النفَس اللي بيفضل بعد/قبل الكلام عند القصّة."""
     segs, cur = [], None
 
     def prev_end(u):    # آخر كلمة قبل الوحدة (أو بداية الملف)
@@ -162,7 +165,7 @@ def plan_segments(units: list[dict], words: list[dict], env, duration: float, ma
     def close():
         u = cur["last_unit"]
         lo, hi = u["end"] + EDGE, next_start(u) - EDGE
-        t = u["end"] if hi < lo else quiet_point(env, lo, min(hi, u["end"] + 0.35), u["end"] + OUT_PAD)
+        t = u["end"] if hi < lo else quiet_point(env, lo, min(hi, u["end"] + out_pad + 0.2), u["end"] + out_pad)
         if hi < lo:
             t = round((u["end"] + next_start(u)) / 2, 3)
         cur["seg"].update(end=t, cut_out={"t": t, "kind": "source_end" if t >= duration - 0.01 else ("pause" if u["end_kind"] == "source_end" else u["end_kind"]), "window": [round(u["end"], 3), round(next_start(u), 3)]})
@@ -180,7 +183,7 @@ def plan_segments(units: list[dict], words: list[dict], env, duration: float, ma
                 close()
             pe = prev_end(u)
             lo, hi = pe + EDGE, u["start"] - EDGE
-            t = quiet_point(env, max(lo, u["start"] - 0.3), hi, u["start"] - IN_PAD) if hi >= lo else round((pe + u["start"]) / 2, 3)
+            t = quiet_point(env, max(lo, u["start"] - in_pad - 0.2), hi, u["start"] - in_pad) if hi >= lo else round((pe + u["start"]) / 2, 3)
             kind = "source_start" if t <= 0.01 else ("pause" if u["start_kind"] == "source_start" else u["start_kind"])
             cur = {"seg": {"source": u["source"], "start": t, "units": [u["id"]], "text": u["text"],
                            "cut_in": {"t": t, "kind": kind, "window": [round(pe, 3), round(u["start"], 3)]}}, "last_unit": u}
@@ -227,7 +230,7 @@ def cut_report(segments: list[dict], words_by_source: dict, env_by_source: dict 
     return {"cuts": len(cuts), "inside_word": inside, "inside_raw_whisper_span": inside_raw, "above_silence": loud, "by_kind": kinds, "list": cuts}
 
 
-# ---------- الإيقاع (المتقدم S2c) ----------
+# ---------- أهمية الفكرة (للكروت) ----------
 def importance(seg: dict, first: bool) -> float:
     text = seg.get("text", "")
     dur = max(0.1, seg["end"] - seg["start"])
@@ -237,59 +240,150 @@ def importance(seg: dict, first: bool) -> float:
     return round(min(1.0, score), 2)
 
 
-def rhythm(segments: list[dict], unit_index: dict) -> list[dict]:
-    """المدة حسب أهمية الفكرة: المهم بياخد نفَس أطول بعده وسرعته طبيعية، والأقل أهمية بيتشد (سرعة أعلى شوية وسكتة أقصر).
-    حدود القصّ بتفضل جوه نفس السكتة (window) فعمرها ما تدخل في كلمة."""
-    out = []
-    for k, s in enumerate(segments):
-        s = {**s}
-        imp = importance(s, k == 0)
-        s["importance"] = imp
-        s["speed"] = 1.0 if imp >= 0.6 else (1.05 if imp >= 0.45 else 1.1)
-        lo, hi = s["cut_out"]["window"]
-        before = s["end"]
-        if s["cut_out"]["kind"] not in ("source_end",):
-            hold = 0.3 if imp >= 0.6 else 0.08
-            t = round(min(max(lo + hold, lo + EDGE), hi - EDGE if hi - EDGE > lo + EDGE else lo + EDGE), 3)
-            s["end"] = t; s["cut_out"] = {**s["cut_out"], "t": t}
-        s["rhythm"] = {"importance": imp, "speed": s["speed"], "end_before": before, "end_after": s["end"],
-                       "duration_before": round(before - s["start"], 3), "duration_after": round((s["end"] - s["start"]) / s["speed"], 3)}
-        out.append(s)
+# ---------- الانتقالات بين الأجزاء ----------
+def plan_transitions(segments: list[dict], scene_cuts: dict, pace: str = "normal", fps: int = 30, dissolve_frames: int | None = None,
+                     audio_ms: int = 60) -> list[dict]:
+    """لكل قصّة بين جزئين: نوعها (مزج قصير ولا قطع صريح) وسببه، و crossfade للصوت في كل قصّة.
+    - نفس اللقطة (jump cut): مزج قصير (8–12 فريم) يخفي النطّة.
+    - لقطة مختلفة / ملف تاني: قطع صريح (المزج بين صورتين مختلفتين بيبان غلط).
+    - الطلب قال إيقاع سريع: قطع صريح مقصود (jump cut)."""
+    df = dissolve_frames or (12 if fps >= 50 else 10)
+    out, t = [], 0.0
+    for k, (a, b) in enumerate(zip(segments, segments[1:])):
+        t += (a["end"] - a["start"]) / float(a.get("speed") or 1.0)
+        cuts_src = scene_cuts.get(a["source"], [])
+        shot = a["source"] != b["source"] or b["start"] < a["end"] or any(a["end"] - 0.05 <= c <= b["start"] + 0.05 for c in cuts_src) \
+            or any(b["start"] - 0.05 <= c <= a["end"] + 0.05 for c in cuts_src)
+        if shot:
+            kind, why = "hard", "لقطة مختلفة: قطع صريح (المزج بين صورتين مختلفتين بيبان غلط)"
+        elif pace == "fast":
+            kind, why = "hard", "طلبك إيقاع سريع: jump cut مقصود"
+        else:
+            kind, why = "dissolve", f"jump cut في نفس اللقطة: مزج {df} فريم يخفي النطّة"
+        out.append({"index": k + 1, "after": a["id"], "before": b["id"], "t": round(t, 3), "kind": kind, "frames": df if kind == "dissolve" else 0,
+                    "fps": fps, "audio_ms": audio_ms, "reason": why})
     return out
 
 
-# ---------- الترجمة (المتقدم S2d) ----------
-SAFE = {"9:16": {"left": 0.06, "right": 0.84, "top": 0.12, "bottom": 0.72},   # بعيد عن أزرار تيك توك (يمين) والكابشن (تحت)
-        "16:9": {"left": 0.08, "right": 0.92, "top": 0.08, "bottom": 0.90}}
+# ---------- الترجمة ----------
+SAFE = {"9:16": {"left": 0.08, "right": 0.84, "top": 0.62, "bottom": 0.80},   # تحت، فوق كابشن تيك توك (آخر 20%) وبعيد عن الأزرار (يمين)
+        "16:9": {"left": 0.10, "right": 0.90, "top": 0.74, "bottom": 0.92}}
+SUB_POS = {"bottom": 0.0, "raised": -0.06, "low": 0.04}   # إزاحة نهاية الترجمة (من ارتفاع الفريم) جوه منطقة تحت
+DANGLING = {norm(w) for w in ("في", "مع", "من", "على", "عن", "و", "او", "أو", "اللي", "بس", "لو", "إن", "ان", "يا", "ده", "دي", "لأن", "عشان",
+                              "علشان", "لما", "بتاع", "بتاعي", "ال", "and", "or", "the", "to", "of", "a", "in", "with", "but")}
 
 
-def subtitle_cues(segments: list[dict], words_by_source: dict, max_chars: int = 32, max_dur: float = 2.8) -> list[dict]:
-    """الكلام على توقيت الإخراج: كل سطر كلمات متتالية من نفس الجزء (≤ max_chars حرف و ≤ max_dur ثانية)."""
-    cues, t_off = [], 0.0
+STARTERS = {norm(w) for w in ("بس", "او", "أو", "لكن", "لأن", "لان", "عشان", "علشان", "اللي", "لو", "ممكن", "مش", "يعني", "بالعكس", "كمان", "and", "but", "or", "because")}
+TIED = {norm(w) for w in ("بتاعي", "بتاعك", "بتاعه", "بتاعها", "بتاعنا", "كده", "خالص", "جدا", "أوي", "اوي", "كتير", "ده", "دي", "دول")}
+
+
+def out_words(segments: list[dict], words_by_source: dict) -> list[dict]:
+    """كل كلمة متقالة في الإخراج بتوقيتها على تايملاين الإخراج (بعد القصّ)."""
+    out, t_off = [], 0.0
     for s in segments:
         sp = float(s.get("speed") or 1.0)
-        ws = [w for w in words_by_source.get(s["source"], []) if s["start"] <= (w["start"] + w["end"]) / 2 <= s["end"]]
-        line = []
-
-        def flush():
-            if line:
-                a = t_off + (line[0]["start"] - s["start"]) / sp
-                b = t_off + (line[-1]["end"] - s["start"]) / sp
-                cues.append({"start": round(max(t_off, a), 3), "end": round(b, 3), "text": " ".join(w["word"] for w in line), "segment": s["id"]})
-                line.clear()
-
-        for w in ws:
-            txt = " ".join(x["word"] for x in line + [w])
-            # السطر بيخلص عند سكتة (حد جملة) أو لما يطول
-            if line and (w["start"] - line[-1]["end"] >= 0.25 or len(txt) > max_chars or (w["end"] - line[0]["start"]) > max_dur):
-                flush()
-            line.append(w)
-            if SENT_END.search(w["word"]):
-                flush()
-        flush()
+        for i, w in enumerate(words_by_source.get(s["source"], [])):
+            if s["start"] <= (w["start"] + w["end"]) / 2 <= s["end"]:
+                out.append({"word": w["word"], "start": round(t_off + (max(w["start"], s["start"]) - s["start"]) / sp, 3),
+                            "end": round(t_off + (min(w["end"], s["end"]) - s["start"]) / sp, 3), "p": w.get("p", 1.0),
+                            "segment": s["id"], "source": s["source"], "src_i": w.get("src_i", i)})
         t_off += (s["end"] - s["start"]) / sp
-    for a, b in zip(cues, cues[1:]):   # السطر يفضل لحد اللي بعده بشوية (من غير ما يتداخلوا)
-        a["end"] = round(min(b["start"], a["end"] + 0.25), 3)
+    return out
+
+
+def subtitle_cues(segments: list[dict], words_by_source: dict, max_chars: int = 30, min_dur: float = 1.2, max_dur: float = 5.0,
+                  gap_break: float = 0.25) -> list[dict]:
+    """سطور الترجمة على توقيت الكلمات:
+    - السطر بيخلص عند سكتة (≥ gap_break) أو نهاية جملة، أو لما يطول (أطول من max_chars ← بيتقسم عند أكبر سكتة جواه)، وعمره ما يخلص بحرف جر/عطف معلّق.
+    - كل سطر على الشاشة بين min_dur و max_dur ثانية: السطر القصير بيتدمج مع اللي جنبه (سطرين بالكتير)، أو بيفضل في السكتة اللي بعده."""
+    ws = out_words(segments, words_by_source)
+    total = sum((s["end"] - s["start"]) / float(s.get("speed") or 1.0) for s in segments)
+    # 1) عبارات عند السكتات / نهاية الجملة / تغيير الجزء
+    phrases, cur = [], []
+    for k, w in enumerate(ws):
+        cur.append(w)
+        nxt = ws[k + 1] if k + 1 < len(ws) else None
+        clause = COMMA.search(w["word"]) and len(" ".join(x["word"] for x in cur)) >= 10
+        if nxt is None or nxt["segment"] != w["segment"] or nxt["start"] - w["end"] >= gap_break or SENT_END.search(w["word"]) or clause:
+            phrases.append(cur); cur = []
+
+    # 2) عبارة طويلة (أكتر من سطرين أو max_dur) ← تتقسم عند أكبر فراغ جواها، وقبل كلمة بتبدأ عبارة (و/بس/أو/لأن/اللي…)،
+    #    ومش بعد كلمة معلّقة ولا بين كلمة واللي بيكمّلها (زي «التفاعل | بتاعي»)
+    def split(p):
+        if len(" ".join(x["word"] for x in p)) <= max_chars * 2 and p[-1]["end"] - p[0]["start"] <= max_dur or len(p) < 2:
+            return [p]
+
+        def score(i):
+            a, b = norm(p[i - 1]["word"]), norm(p[i]["word"])
+            return ((p[i]["start"] - p[i - 1]["end"]) * 4 + 0.6 * bool(COMMA.search(p[i - 1]["word"])) + 0.4 * (b in STARTERS or b.startswith("و"))
+                    - 1.0 * (a in DANGLING) - 0.8 * (b in TIED) - 0.04 * abs(i - len(p) / 2))
+        best = max(range(1, len(p)), key=score)
+        return split(p[:best]) + split(p[best:])
+    lines = [x for p in phrases for x in split(p)]
+    forced = sum(len(split(p)) - 1 for p in phrases)
+    # كلمة معلّقة في آخر السطر ← تروح لأول اللي بعده (لو نفس الجزء)
+    for a, b in zip(lines, lines[1:]):
+        while len(a) > 1 and norm(a[-1]["word"]) in DANGLING and a[-1]["segment"] == b[0]["segment"]:
+            b.insert(0, a.pop())
+
+    # 3) سطر أقصر من min_dur ومفيش مكان بعده ← يندمج مع اللي جنبه (سطرين بالكتير)
+    merged = True
+    while merged:
+        merged = False
+        for i, ln in enumerate(lines):
+            room = (lines[i + 1][0]["start"] if i + 1 < len(lines) else total) - ln[0]["start"]
+            if room >= min_dur or len(lines) == 1:
+                continue
+            for j in (i + 1, i - 1):   # اللي بعده الأول، وبعدين اللي قبله
+                if not 0 <= j < len(lines):
+                    continue
+                a, b = (ln, lines[j]) if j > i else (lines[j], ln)
+                if len(" ".join(x["word"] for x in a + b)) <= max_chars * 2 and b[-1]["end"] - a[0]["start"] <= max_dur:
+                    lines[min(i, j)] = a + b
+                    del lines[max(i, j)]
+                    merged = True
+                    break
+            if merged:
+                break
+    # 4) لسه فيه سطر قصير (الكلام متواصل والدمج يطلّع أكتر من سطرين): نحرّك الحد بينه وبين اللي جنبه لحد ما الاتنين ياخدوا وقت كفاية
+    def room(k):
+        return (lines[k + 1][0]["start"] if k + 1 < len(lines) else total) - lines[k][0]["start"]
+    for i in range(len(lines)):
+        if room(i) >= min_dur:
+            continue
+        for j in (i + 1, i - 1):
+            if not 0 <= j < len(lines):
+                continue
+            a_i, b_i = min(i, j), max(i, j)
+            both = lines[a_i] + lines[b_i]
+            end_b = lines[b_i + 1][0]["start"] if b_i + 1 < len(lines) else total
+            opts = []
+            for k in range(1, len(both)):
+                p1, p2 = both[:k], both[k:]
+                if (len(" ".join(x["word"] for x in p1)) <= max_chars * 2 and len(" ".join(x["word"] for x in p2)) <= max_chars * 2
+                        and p2[0]["start"] - p1[0]["start"] >= min_dur and end_b - p2[0]["start"] >= min_dur and norm(p1[-1]["word"]) not in DANGLING):
+                    opts.append((p2[0]["start"] - p1[-1]["end"] - 0.3 * (norm(p2[0]["word"]) in TIED), k))
+            if opts:
+                k = max(opts)[1]
+                lines[a_i], lines[b_i] = both[:k], both[k:]
+                break
+    cues = []
+    for i, ln in enumerate(lines):
+        nxt = lines[i + 1][0]["start"] if i + 1 < len(lines) else total
+        start = ln[0]["start"]
+        end = max(ln[-1]["end"] + 0.2, start + min_dur)
+        end = min(end, nxt - 0.04, start + max_dur, total)
+        cues.append({"start": round(start, 3), "end": round(end, 3), "text": " ".join(w["word"] for w in ln).rstrip("،,.؛;:"), "segment": ln[0]["segment"],
+                     "words": [{k: w[k] for k in ("word", "start", "end", "p", "source", "src_i")} for w in ln],
+                     "p_mean": round(float(np.mean([w["p"] for w in ln])), 3)})
+    # لسه أقصر من min_dur (مفيش دمج ينفع): بياخد من السكتة اللي قبله (يظهر قبل أول كلمة بشوية، مش بعد ما الكلام يخلص)
+    for k, c in enumerate(cues):
+        short = min_dur - (c["end"] - c["start"])
+        if short > 0:
+            floor = cues[k - 1]["end"] + 0.04 if k else 0.0
+            c["start"] = round(max(floor, c["start"] - short), 3)
+    for c in cues:
+        c["id"] = f"c{cues.index(c) + 1}"
     if cues:
-        cues[-1]["end"] = round(min(t_off, cues[-1]["end"] + 0.25), 3)
+        cues[0]["forced_breaks"] = forced
     return cues

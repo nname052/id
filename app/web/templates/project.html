@@ -3,8 +3,9 @@
 {% block body %}
 <div class="row" style="margin-bottom:var(--s2)">
   <h1 id="title" class="grow" style="margin:0">…</h1>
-  <button id="rename" title="تغيير العنوان">✎</button>
+  <button id="rename">✎ تغيير العنوان</button>
 </div>
+<div id="renameBox" hidden></div>
 <div class="muted" id="sub" style="margin-bottom:var(--s4)"></div>
 <div class="stages" id="stages"></div>
 <div class="layout">
@@ -109,7 +110,7 @@
   }
 
   const sentRow = (s, i) => `<div class="s" data-id="${s.id ?? ""}"><span class="n">${i + 1}</span><textarea rows="1" class="sent">${esc(s.text)}</textarea>
-    <button class="mini" data-act="add-sent" title="جملة جديدة بعد دي">＋</button><button class="mini" data-act="del-sent" title="شيل الجملة">✕</button></div>`;
+    <button class="mini" data-act="add-sent" title="جملة جديدة بعد دي">＋ جملة</button><button class="mini" data-act="del-sent" title="شيل الجملة">✕ شيل</button></div>`;
   function scriptHTML(p, edit) {
     const sc = p.script || { sentences: [] };
     const words = sc.sentences.reduce((n, s) => n + s.text.split(/\s+/).length, 0);
@@ -261,7 +262,7 @@
       const badI = new Set(bad.map((b) => b.i));
       const start = ws.length ? ws[0].start : 0, end = ws.length ? ws[ws.length - 1].end : 0;
       return `<div class="scene-card" style="align-items:flex-start">
-        <button class="play-seg" data-a="${start}" data-b="${end}" title="اسمع الجملة">▶</button>
+        <button class="play-seg" data-a="${start}" data-b="${end}" title="اسمع الجملة">▶ اسمع</button>
         <div class="grow">${ws.map((w) => badI.has(w.i) ? `<b style="color:var(--err)" title="اتسمعت: ${esc((bad.find((b) => b.i === w.i) || {}).heard || "")}">${esc(w.word)}</b>` : esc(w.word)).join(" ")}
           <div class="muted tts-line" title="النص اللي بيروح للصوت: التشكيل والإحساس">🎙 ${esc(ln.tts).replace(/\[([^\]]+)\]/g, '<span class="badge" dir="ltr">$1</span>')}</div>
           ${bad.length ? `<div class="muted" style="color:var(--err)">ممكن تكون اتنطقت غلط: ${bad.map((b) => `«${esc(b.word)}» (اتسمعت «${esc(b.heard || "؟")}»)`).join("، ")}</div>` : ""}
@@ -314,6 +315,7 @@
     if (b.dataset.act === "rec-send") { b.disabled = true; sendVoice(recBlob, "voice.webm").then(tick).catch((err) => { alert(err.message); b.disabled = false; }); return; }
     if (b.dataset.act === "voice-again") { await api(`/api/projects/${PID}/audio/need-voice`, { method: "POST" }); lastKey = ""; tick(); return; }
     if (b.dataset.act === "close-view") { VIEW = null; dirty = false; lastKey = ""; header(P); panel(P); return; }
+    if (b.dataset.act === "inline-cancel") { b.closest(".inline-editor").remove(); dirty = !!$(".inline-editor"); return; }
     b.disabled = true;
     try {
       const stage = b.dataset.stage;
@@ -323,8 +325,16 @@
         await api(`/api/projects/${PID}/edit/tts`, { method: "POST", body: { lines: $$(".tts-edit .s").map((r) => ({ id: +r.dataset.id, tts: r.querySelector(".tts").value })) } });
         VIEW = null;
       }
-      if (b.dataset.act === "edit-scene") {
-        const ins = prompt("عاوز تغيّر إيه في المشهد ده؟ (مثلًا: الشخصية تبقى قاعدة، الكاميرا من تحت، رسمة بدل أيقونة)");
+      if (b.dataset.act === "edit-scene") {   // محرر مضمّن تحت المشهد (بدل نافذة prompt)
+        b.disabled = false; dirty = true;
+        const host = b.closest(".grow"); if ($(".inline-editor", host)) return;
+        host.insertAdjacentHTML("beforeend", `<div class="inline-editor"><label class="field-label" for="sc-${b.dataset.scene}">عاوز تغيّر إيه في المشهد ده؟</label>
+          <textarea id="sc-${b.dataset.scene}" rows="2" placeholder="مثلًا: الشخصية تبقى قاعدة، الكاميرا من تحت، رسمة بدل أيقونة"></textarea>
+          <div class="btn-row"><button class="primary" data-act="edit-scene-save" data-scene="${b.dataset.scene}">عدّل المشهد ده بس</button><button data-act="inline-cancel">إلغاء</button></div></div>`);
+        $(`#sc-${b.dataset.scene}`).focus(); return;
+      }
+      if (b.dataset.act === "edit-scene-save") {
+        const ins = $(`#sc-${b.dataset.scene}`).value.trim();
         if (!ins) { b.disabled = false; return; }
         await api(`/api/projects/${PID}/edit/scene/${b.dataset.scene}`, { method: "POST", body: { instruction: ins } }); VIEW = null;
       }
@@ -336,14 +346,24 @@
       if (b.dataset.act === "back-audio") await api(`/api/projects/${PID}/stages/audio/reopen`, { method: "POST" });
       if (b.dataset.act === "undo-sent") await api(`/api/projects/${PID}/audio/undo`, { method: "POST" });
       if (b.dataset.act === "regensent") await regenSentence(b.dataset.sid);
-      if (b.dataset.act === "fixword") {
+      if (b.dataset.act === "fixword") {   // محرر مضمّن تحت الجملة (بدل نافذتين prompt)
+        b.disabled = false; dirty = true;
+        const host = b.closest(".grow"); if ($(".inline-editor", host)) return;
+        const words = [...new Set([...host.childNodes].filter((n) => n.nodeType === 3 || n.tagName === "B").map((n) => n.textContent).join(" ").trim().split(/\s+/).filter(Boolean))];
+        host.insertAdjacentHTML("beforeend", `<div class="inline-editor">
+          <div class="grid2"><div><label class="field-label" for="fw-${b.dataset.sid}">الكلمة اللي اتنطقت غلط</label>
+            <input type="text" id="fw-${b.dataset.sid}" list="fwl-${b.dataset.sid}" placeholder="زي ما هي مكتوبة في الجملة"><datalist id="fwl-${b.dataset.sid}">${words.map((w) => `<option value="${esc(w)}">`).join("")}</datalist></div>
+          <div><label class="field-label" for="ff-${b.dataset.sid}">تتنطق إزاي (بالتشكيل)</label><input type="text" id="ff-${b.dataset.sid}" placeholder="مثلًا: ضَجِيج"></div></div>
+          <div class="help">النطق ده بيتحفظ في «ذوقي ← قاموس النطق» ويتطبّق على كل الفيديوهات، وبعدها الجملة دي بس بتتعاد.</div>
+          <div class="btn-row"><button class="primary" data-act="fixword-save" data-sid="${b.dataset.sid}">احفظ وأعد الجملة دي</button><button data-act="inline-cancel">إلغاء</button></div></div>`);
+        $(`#fw-${b.dataset.sid}`).focus(); return;
+      }
+      if (b.dataset.act === "fixword-save") {
         // الكلمة الغلط ← نطقها الصح في القاموس (بيفضل لكل الفيديوهات) ← إعادة الجملة دي بس
-        const word = prompt("الكلمة اللي اتنطقت غلط (زي ما هي مكتوبة في الجملة):");
-        if (!word) { b.disabled = false; return; }
-        const fix = prompt(`اكتب «${word}» زي ما المفروض تتنطق (بالتشكيل، مثلًا: ضَجِيج):`);
-        if (!fix) { b.disabled = false; return; }
+        const word = $(`#fw-${b.dataset.sid}`).value.trim(), fix = $(`#ff-${b.dataset.sid}`).value.trim();
+        if (!word || !fix) { b.disabled = false; return; }
         const st = await api("/api/style");
-        st.pronunciations[word.trim()] = fix.trim();
+        st.pronunciations[word] = fix;
         await api("/api/style", { method: "PUT", body: st });
         await regenSentence(b.dataset.sid);
       }
@@ -351,7 +371,17 @@
       await tick();
     } catch (err) { alert(err.message); b.disabled = false; }
   });
-  $("#rename").onclick = async () => { const t = prompt("العنوان الجديد", P.title || ""); if (t) { await api(`/api/projects/${PID}`, { method: "PATCH", body: { title: t } }); tick(); } };
+  // تغيير العنوان: محرر مضمّن تحت العنوان (بدل نافذة prompt)
+  $("#rename").onclick = () => {
+    const box = $("#renameBox"); box.hidden = false;
+    box.innerHTML = `<div class="inline-editor" style="margin-bottom:var(--s3)"><label class="field-label" for="newTitle">العنوان الجديد</label>
+      <input type="text" id="newTitle" value="${esc(P.title || "")}"><div class="btn-row"><button class="primary" id="titleSave">حفظ</button><button id="titleCancel">إلغاء</button></div></div>`;
+    $("#newTitle").focus();
+  };
+  $("#renameBox").addEventListener("click", async (e) => {
+    if (e.target.id === "titleCancel") { $("#renameBox").hidden = true; return; }
+    if (e.target.id === "titleSave") { const t = $("#newTitle").value.trim(); if (t) { await api(`/api/projects/${PID}`, { method: "PATCH", body: { title: t } }); $("#renameBox").hidden = true; tick(); } }
+  });
 
   async function tick() {
     try { P = await api(`/api/projects/${PID}`); header(P); panel(P); phone(P); } catch (e) { $("#panel").innerHTML = `<div class="note err">${esc(e.message)}</div>`; }

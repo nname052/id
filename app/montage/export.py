@@ -1,29 +1,18 @@
-"""تصدير المونتاج: الأجزاء المختارة بالترتيب ← MP4 واحد (H.264 + AAC) بالمقاس المختار.
+"""رندر المونتاج: الأجزاء ← فيديو واحد كامل (H.264 + AAC) بفريمات ثابتة.
 
-- القطع بإعادة ترميز (re-encode) علشان يبقى مظبوط على الفريم (مش على أقرب keyframe).
-- 9:16 من مصدر عرضه أكبر (زي 16:9): قصّ من النص (center-safe crop) بارتفاع الصورة كله.
-- 16:9 من مصدر أضيق (طولي): الصورة كلها في النص وجنبها أسود (من غير قصّ أي حاجة من الكلام).
-- مصدر صوت بس (m4a): صورة سودا بطول الجزء. مصدر من غير صوت: سكوت بطول الجزء.
-- الإخراج ملف جديد في exports/، والمصدر عمره ما بيتكتب عليه.
+- كل قصّة: يا إما مزج قصير (xfade، 8–12 فريم) يا إما قطع صريح، حسب خطة الانتقالات.
+  المزج بيستخدم "مقابض": فريمات من المصدر قبل/بعد القصّة، فالمدة الكلية ما بتتغيرش والصوت فاضل متزامن بالظبط.
+- الصوت (مرحلة الصوت): crossfade قصير (30–80 مللي) في كل قصّة بنفس الطريقة، وتنضيف خفيف، وتوطية مزيكا، و loudnorm.
+- الإطار: 9:16 من مصدر أعرض ← قصّ من النص. 16:9 من مصدر أضيق ← الصورة في النص وجنبها أسود.
+- فريمات ثابتة (fps) طول الفيديو؛ لو المصدر متغيّر/غريب بنملى/نحوّل بالمزج (minterpolate blend) مش بالتكرار.
+- الترجمة والكروت: صور شفافة فوق الفيديو؛ الكروت بتدخل بحركة واحدة (طلوع + ظهور) وتخرج باختفاء.
+- الإخراج ملف جديد دايمًا، والمصدر عمره ما بيتكتب عليه.
 """
 
 import subprocess
-from datetime import datetime
 from pathlib import Path
 
 SIZES = {"9:16": (1080, 1920), "16:9": (1920, 1080)}
-FPS = 30
-
-
-def _video_chain(src: dict, W: int, H: int, dur: float) -> str:
-    sw, sh = src.get("width") or W, src.get("height") or H
-    if sw / sh > W / H:      # المصدر أعرض من الإخراج: قصّ من النص على العرض
-        fit = f"crop=w='trunc(ih*{W}/{H}/2)*2':h=ih:x='(iw-ow)/2':y=0,scale={W}:{H}"
-    elif sw / sh < W / H:    # المصدر أضيق: الصورة كلها في النص وجنبها أسود
-        fit = f"scale=-2:{H},pad={W}:{H}:'(ow-iw)/2':0:black"
-    else:
-        fit = f"scale={W}:{H}"
-    return f"fps={FPS},{fit},setsar=1,format=yuv420p,trim=duration={dur:.3f},setpts=PTS-STARTPTS"
 
 
 def size(aspect: str, scale: float = 1.0) -> tuple[int, int]:
@@ -31,120 +20,160 @@ def size(aspect: str, scale: float = 1.0) -> tuple[int, int]:
     return int(round(W * scale / 2)) * 2, int(round(H * scale / 2)) * 2
 
 
-def render(segments: list[dict], sources: dict, aspect: str, out_dir: Path, *, scale: float = 1.0, crf: int = 20, preset: str = "medium",
-           audio_file: Path | None = None, overlays: list[dict] | None = None, out_path: Path | None = None) -> Path:
-    """segments: [{source, start, end, speed?}] بالترتيب؛ sources: {id: {path, has_video, has_audio, width, height}}
-    scale < 1 = معاينة بدقة أقل. audio_file = تراك صوت جاهز (مرحلة الصوت) بدل صوت الأجزاء.
-    overlays = [{png, x, y, start, end}] صور شفافة فوق الفيديو (سطور الترجمة)."""
-    if aspect not in SIZES:
-        raise ValueError("المقاس لازم يبقى 9:16 أو 16:9")
-    segs = [s for s in segments if float(s["end"]) - float(s["start"]) > 0.04]
-    if not segs:
-        raise ValueError("مفيش أجزاء في التعديل")
-    if not any(sources[s["source"]]["has_video"] for s in segs):
-        raise ValueError("التعديل لازم يكون فيه جزء واحد على الأقل من فيديو")
-    W, H = size(aspect, scale)
-    args, chains, labels = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y"], [], []
-    total = 0.0
-    n_in = 0
-    for k, s in enumerate(segs):
-        src = sources[s["source"]]
-        a, b = float(s["start"]), float(s["end"])
-        dur = b - a
-        sp = float(s.get("speed") or 1.0)
-        out_dur = dur / sp
-        total += out_dur
-        vsp = f",setpts=PTS/{sp:.4f}" if sp != 1.0 else ""
-        asp = f",atempo={sp:.4f}" if sp != 1.0 else ""
-        # كل جزء مدخل لوحده: -ss قبل -i مع إعادة الترميز مظبوط على الفريم في FFmpeg الحديث
-        args += ["-ss", f"{a:.3f}", "-t", f"{dur:.3f}", "-i", str(src["path"])]
-        i = n_in; n_in += 1
-        if src["has_video"]:
-            chains.append(f"[{i}:v]{_video_chain(src, W, H, dur)}{vsp}[v{k}]")
+def fit_chain(src: dict, W: int, H: int, crop_x: float = 0.5) -> str:
+    sw, sh = src.get("width") or W, src.get("height") or H
+    if sw / sh > W / H + 0.01:      # المصدر أعرض: قصّ (crop_x = مركز القصّة من عرض المصدر)
+        return (f"crop=w='trunc(ih*{W}/{H}/2)*2':h=ih:x='max(0,min(iw-ow,iw*{crop_x:.4f}-ow/2))':y=0,"
+                f"scale={W}:{H}:flags=lanczos")
+    if sw / sh < W / H - 0.01:      # المصدر أضيق: الصورة كلها في النص وجنبها أسود
+        return f"scale=-2:{H}:flags=lanczos,pad={W}:{H}:'(ow-iw)/2':0:black"
+    return f"scale={W}:{H}:flags=lanczos"
+
+
+def handles(segments: list[dict], transitions: list[dict], sources: dict, fps: int, audio: bool = False) -> list[tuple[float, float]]:
+    """لكل جزء: (قبل، بعد) بالثواني اللي هتتاخد من المصدر علشان المزج/الـ crossfade يتعمل حوالين القصّة من غير ما المدة تتغيّر."""
+    hs = [[0.0, 0.0] for _ in segments]
+    for k, tr in enumerate(transitions):
+        a, b = segments[k], segments[k + 1]
+        if audio:
+            want = tr.get("audio_ms", 60) / 2000
+        elif tr["kind"] == "dissolve" and sources[a["source"]]["has_video"] and sources[b["source"]]["has_video"]:
+            want = (tr["frames"] // 2) / fps
         else:
-            chains.append(f"color=c=black:s={W}x{H}:r={FPS}:d={out_dur:.3f},format=yuv420p,setsar=1[v{k}]")
-        if src["has_audio"]:
-            chains.append(f"[{i}:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,apad,atrim=duration={dur:.3f},asetpts=PTS-STARTPTS{asp}[a{k}]")
-        else:
-            chains.append(f"anullsrc=r=48000:cl=stereo,atrim=duration={out_dur:.3f}[a{k}]")
-        labels.append(f"[v{k}][a{k}]")
-    chains.append(f"{''.join(labels)}concat=n={len(segs)}:v=1:a=1[v0][a]")
-    vlab = "v0"
-    for k, ov in enumerate(overlays or []):   # كل سطر ترجمة صورة شفافة بتظهر في وقتها بس
-        args += ["-loop", "1", "-t", f"{total:.3f}", "-i", str(ov["png"])]
-        i = n_in; n_in += 1
-        chains.append(f"[{vlab}][{i}:v]overlay=x={int(ov['x'])}:y={int(ov['y'])}:enable='between(t,{ov['start']:.3f},{ov['end']:.3f})'[o{k}]")
-        vlab = f"o{k}"
-    amap = "[a]"
-    if audio_file:   # التراك الجاهز بدل صوت الأجزاء (اللي بيتصرّف في anullsink)
-        args += ["-i", str(audio_file)]
-        amap = f"{n_in}:a"; n_in += 1
-        chains.append("[a]anullsink")
-    out_dir.mkdir(parents=True, exist_ok=True)
-    out = out_path or out_dir / f"montage_{datetime.now():%Y%m%d_%H%M%S}_{aspect.replace(':', 'x')}.mp4"
-    args += ["-filter_complex", ";".join(chains), "-map", f"[{vlab}]", "-map", amap,
-             "-c:v", "libx264", "-preset", preset, "-crf", str(crf), "-pix_fmt", "yuv420p", "-r", str(FPS),
-             "-c:a", "aac", "-b:a", "192k" if scale >= 1 else "128k", "-ar", "48000", "-t", f"{total:.3f}", "-movflags", "+faststart", str(out)]
+            continue
+        hs[k][1] = max(0.0, min(want, sources[a["source"]]["duration"] - a["end"]))
+        hs[k + 1][0] = max(0.0, min(want, b["start"]))
+        if not audio:   # بالفريم بالظبط
+            hs[k][1] = int(hs[k][1] * fps + 1e-6) / fps
+            hs[k + 1][0] = int(hs[k + 1][0] * fps + 1e-6) / fps
+    return [tuple(h) for h in hs]
+
+
+def _run(args: list[str], what: str) -> None:
     r = subprocess.run(args, capture_output=True, text=True)
-    if r.returncode != 0 or not out.exists():
-        out.unlink(missing_ok=True)
-        raise RuntimeError(f"FFmpeg: {r.stderr.strip()[-400:]}")
-    return out
+    if r.returncode != 0:
+        raise RuntimeError(f"FFmpeg ({what}): {r.stderr.strip()[-500:]}")
 
 
-def render_audio(segments: list[dict], sources: dict, out_wav: Path, *, music: dict | None = None, duck: bool = True,
-                 music_stem: Path | None = None) -> float:
-    """صوت التعديل لوحده (بنفس القصّ والسرعة) + مزيكا تحت الكلام لو موجودة، والمزيكا بتوطى لوحدها وقت الكلام (sidechain).
-    music: {path, gain_db}. music_stem = نسخة من المزيكا بعد التوطية لوحدها (علشان نقيس التوطية). بيرجّع المدة."""
-    args, chains, labels, n_in, total = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y"], [], [], 0, 0.0
+def render_video(segments: list[dict], transitions: list[dict], sources: dict, aspect: str, out: Path, *, fps: int, fps_method: str = "same",
+                 look_vf: str = "", crop_x: float = 0.5, audio_file: Path | None = None, subs: list[dict] | None = None,
+                 cards: list[dict] | None = None, card_rise: float = 0.0, enter: float = 0.35, exit_: float = 0.25,
+                 scale: float = 1.0, crf: int = 18, preset: str = "medium") -> dict:
+    """الفيديو الكامل. segments: [{source, start, end}] (مدة كل جزء مضبوطة على الفريم)، transitions: من cuts.plan_transitions."""
+    W, H = size(aspect, scale)
+    hs = handles(segments, transitions, sources, fps)
+    args, ch, n_in = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y"], [], 0
+    lens = []
     for k, s in enumerate(segments):
         src = sources[s["source"]]
-        a, b = float(s["start"]), float(s["end"])
-        dur, sp = b - a, float(s.get("speed") or 1.0)
-        total += dur / sp
-        args += ["-ss", f"{a:.3f}", "-t", f"{dur:.3f}", "-i", str(src["path"])]
-        if src["has_audio"]:
-            chains.append(f"[{n_in}:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,apad,atrim=duration={dur:.3f},asetpts=PTS-STARTPTS"
-                          + (f",atempo={sp:.4f}" if sp != 1.0 else "") + f"[s{k}]")
+        h0, h1 = hs[k]
+        a, b = s["start"] - h0, s["end"] + h1
+        nf = int(round((b - a) * fps))
+        lens.append(nf)
+        if src["has_video"]:
+            args += ["-ss", f"{a:.4f}", "-t", f"{(b - a) + 2 / fps:.4f}", "-i", str(src["path"])]
+            conv = f"minterpolate=fps={fps}:mi_mode=blend" if fps_method.startswith("minterpolate") else f"fps={fps}"
+            ch.append(f"[{n_in}:v]{conv},{fit_chain(src, W, H, crop_x)},setsar=1,format=yuv420p,trim=end_frame={nf},setpts=PTS-STARTPTS[v{k}]")
+            n_in += 1
         else:
-            chains.append(f"anullsrc=r=48000:cl=stereo,atrim=duration={dur / sp:.3f}[s{k}]")
-        labels.append(f"[s{k}]"); n_in += 1
-    chains.append(f"{''.join(labels)}concat=n={len(segments)}:v=0:a=1[sp]")
-    maps = []
+            ch.append(f"color=c=black:s={W}x{H}:r={fps}:d={nf / fps:.4f},format=yuv420p,setsar=1,trim=end_frame={nf},setpts=PTS-STARTPTS[v{k}]")
+    cur, L = "v0", lens[0]
+    for k, tr in enumerate(transitions):
+        nxt = f"v{k + 1}"
+        d = int(round((hs[k][1] + hs[k + 1][0]) * fps))
+        if tr["kind"] == "dissolve" and d >= 2:
+            ch.append(f"[{cur}][{nxt}]xfade=transition=fade:duration={d / fps:.4f}:offset={(L - d) / fps:.4f}[x{k}]")
+            L = L + lens[k + 1] - d
+        else:
+            ch.append(f"[{cur}][{nxt}]concat=n=2:v=1:a=0[x{k}]")
+            L = L + lens[k + 1]
+        cur = f"x{k}"
+    total = L / fps
+    if look_vf:
+        ch.append(f"[{cur}]{look_vf}[lk]")
+        cur = "lk"
+    for k, o in enumerate(subs or []):   # سطور الترجمة: كل سطر بيظهر في وقته بس
+        d = max(0.05, o["end"] - o["start"])
+        args += ["-loop", "1", "-framerate", str(fps), "-t", f"{d:.3f}", "-i", str(o["png"])]
+        ch.append(f"[{n_in}:v]format=rgba,setpts=PTS-STARTPTS+{o['start']:.3f}/TB[sp{k}]")
+        ch.append(f"[{cur}][sp{k}]overlay=x={int(o['x'] * scale)}:y={int(o['y'] * scale)}:eof_action=pass:enable='between(t,{o['start']:.3f},{o['end']:.3f})'[so{k}]")
+        cur = f"so{k}"; n_in += 1
+    for k, o in enumerate(cards or []):  # الكروت: طلوع + ظهور، وخروج اختفاء
+        d = max(0.5, o["end"] - o["start"])
+        S, y0, rise = o["start"], int(o["y"] * scale), card_rise * H
+        args += ["-loop", "1", "-framerate", str(fps), "-t", f"{d:.3f}", "-i", str(o["png"])]
+        ch.append(f"[{n_in}:v]format=rgba,fade=t=in:st=0:d={enter}:alpha=1,fade=t=out:st={d - exit_:.3f}:d={exit_}:alpha=1,"
+                  f"setpts=PTS-STARTPTS+{S:.3f}/TB[cp{k}]")
+        ch.append(f"[{cur}][cp{k}]overlay=x={int(o['x'] * scale)}:y='{y0}+{rise:.1f}*pow(1-min(1,max(0,(t-{S:.3f})/{enter})),3)':eval=frame:"
+                  f"eof_action=pass:enable='between(t,{S:.3f},{S + d:.3f})'[co{k}]")
+        cur = f"co{k}"; n_in += 1
+    amap = []
+    if audio_file:
+        args += ["-i", str(audio_file)]
+        amap = ["-map", f"{n_in}:a", "-c:a", "aac", "-b:a", "192k" if scale >= 1 else "128k", "-ar", "48000"]
+        n_in += 1
+    out.parent.mkdir(parents=True, exist_ok=True)
+    _run(args + ["-filter_complex", ";".join(ch), "-map", f"[{cur}]", *amap, "-c:v", "libx264", "-preset", preset, "-crf", str(crf),
+                 "-pix_fmt", "yuv420p", "-r", str(fps), "-fps_mode", "cfr", "-t", f"{total:.4f}", "-movflags", "+faststart", str(out)], "رندر")
+    return {"frames": L, "duration": round(total, 4), "fps": fps, "handles": [[round(a, 4), round(b, 4)] for a, b in hs]}
+
+
+def render_audio(segments: list[dict], transitions: list[dict], sources: dict, out_wav: Path, *, fps: int, cleanup: str = "",
+                 music: dict | None = None, duck: bool = True, music_stem: Path | None = None, pre_gain_db: float = 0.0, duck_release: int = 350) -> float:
+    """صوت التعديل: crossfade قصير في كل قصّة (بمقابض من المصدر، فالمدة نفس مدة الفيديو)، تنضيف، ومزيكا بتوطى تحت الكلام."""
+    hs = handles(segments, transitions, sources, fps, audio=True)
+    args, ch, n_in = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y"], [], 0
+    total = 0.0
+    for k, s in enumerate(segments):
+        src = sources[s["source"]]
+        h0, h1 = hs[k]
+        a, b = s["start"] - h0, s["end"] + h1
+        total += s["end"] - s["start"]
+        if src["has_audio"]:
+            args += ["-ss", f"{a:.4f}", "-t", f"{b - a:.4f}", "-i", str(src["path"])]
+            ch.append(f"[{n_in}:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,apad,atrim=duration={b - a:.4f},asetpts=PTS-STARTPTS[s{k}]")
+            n_in += 1
+        else:
+            ch.append(f"anullsrc=r=48000:cl=stereo,atrim=duration={b - a:.4f}[s{k}]")
+    cur = "s0"
+    for k, tr in enumerate(transitions):
+        d = hs[k][1] + hs[k + 1][0]
+        if d >= 0.01:
+            ch.append(f"[{cur}][s{k + 1}]acrossfade=d={d:.4f}:c1=tri:c2=tri[ax{k}]")
+        else:
+            ch.append(f"[{cur}][s{k + 1}]concat=n=2:v=0:a=1[ax{k}]")
+        cur = f"ax{k}"
+    pre = [f"volume={pre_gain_db:.2f}dB"] if abs(pre_gain_db) > 0.05 else []
+    chain = ",".join(pre + ([cleanup] if cleanup else []) + [f"atrim=duration={total:.4f}"])
+    ch.append(f"[{cur}]{chain}[sp]")
     if music:
         args += ["-stream_loop", "-1", "-i", str(music["path"])]
-        chains.append(f"[{n_in}:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,atrim=duration={total:.3f},asetpts=PTS-STARTPTS,"
-                      f"volume={float(music.get('gain_db', -16)):.1f}dB[mu]")
+        ch.append(f"[{n_in}:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,atrim=duration={total:.4f},asetpts=PTS-STARTPTS,"
+                  f"volume={float(music.get('gain_db', -16)):.1f}dB,afade=t=in:d=0.6,afade=t=out:st={max(0, total - 1.2):.3f}:d=1.2[mu]")
         n_in += 1
         if duck:
-            chains.append("[sp]asplit=2[sp1][sc]")
-            chains.append("[mu][sc]sidechaincompress=threshold=0.02:ratio=12:attack=15:release=350:makeup=1[duck0]")
-            chains.append("[duck0]asplit=2[duck][dstem]" if music_stem else "[duck0]anull[duck]")
-            chains.append("[sp1][duck]amix=inputs=2:duration=first:normalize=0[mix]")
+            ch += ["[sp]asplit=2[sp1][sc]", f"[mu][sc]sidechaincompress=threshold=0.02:ratio=12:attack=15:release={duck_release}:makeup=1[duck0]"]
         else:
-            chains.append("[mu]asplit=2[duck][dstem]" if music_stem else "[mu]anull[duck]")
-            chains.append("[sp][duck]amix=inputs=2:duration=first:normalize=0[mix]")
+            ch.append("[mu]anull[duck0]")
+        ch.append("[duck0]asplit=2[duck][dstem]" if music_stem else "[duck0]anull[duck]")
+        ch.append(("[sp1]" if duck else "[sp]") + "[duck]amix=inputs=2:duration=first:normalize=0[mix]")
         maps = ["-map", "[mix]", "-c:a", "pcm_s16le", str(out_wav)]
         if music_stem:
             maps += ["-map", "[dstem]", "-c:a", "pcm_s16le", str(music_stem)]
     else:
         maps = ["-map", "[sp]", "-c:a", "pcm_s16le", str(out_wav)]
-    r = subprocess.run(args + ["-filter_complex", ";".join(chains)] + maps, capture_output=True, text=True)
-    if r.returncode != 0:
-        raise RuntimeError(f"FFmpeg (صوت): {r.stderr.strip()[-400:]}")
-    return round(total, 3)
+    _run(args + ["-filter_complex", ";".join(ch)] + maps, "صوت")
+    return round(total, 4)
 
 
 def normalize(in_wav: Path, out_wav: Path, target: float, tp: float = -1.5, lra: float = 11.0) -> dict:
-    """loudnorm على مرحلتين (قياس ← تطبيق خطي) للهدف بالـ LUFS. بيرجّع القياس قبل وبعد."""
+    """loudnorm على مرحلتين (قياس ← تطبيق) للهدف بالـ LUFS. بيرجّع القياس قبل وبعد."""
     from .media import loudness
     before = loudness(in_wav) or {}
     if before.get("integrated_lufs") is None:
         raise RuntimeError("الصوت ساكت خالص، مفيش حاجة تتظبط")
     f = (f"loudnorm=I={target}:TP={tp}:LRA={lra}:measured_I={before['integrated_lufs']}:measured_TP={before['true_peak_dbtp']}:"
          f"measured_LRA={before['lra_lu']}:measured_thresh={before['threshold_lufs']}:linear=true")
-    r = subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(in_wav), "-af", f + ",aresample=48000",
-                        "-c:a", "pcm_s16le", str(out_wav)], capture_output=True, text=True)
-    if r.returncode != 0:
-        raise RuntimeError(f"FFmpeg (loudnorm): {r.stderr.strip()[-300:]}")
+    _run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(in_wav), "-af", f + ",aresample=48000", "-c:a", "pcm_s16le", str(out_wav)],
+         "loudnorm")
     return {"before": before, "after": loudness(out_wav)}

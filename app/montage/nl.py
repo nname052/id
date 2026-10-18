@@ -20,7 +20,6 @@ ALL = r"(كله|كلّه|الكل|كلها|كل الأجزاء|كل الاجزا
 SLOW = r"(أبطأ|ابطأ|أبطء|ابطء|بطّأ|بطأ|بطّئ|ابطئ|أبطئ|أهدى|اهدى|slower|slow down)"
 FAST = r"(أسرع|اسرع|سرّع|سرع|faster|speed up|quicker)"
 SECS = r"(ثانية|ثواني|ثوان|ث|sec|secs|second|seconds|s)\b"
-CUT_STAGES = ("s2_cut", "s2b_cuts", "s2c_rhythm")
 
 
 def _t(text: str) -> str:
@@ -133,19 +132,39 @@ def trim_end(segs, n, wbs):
 
 
 # ---------- التحليل ----------
+UP = r"(علّي|علي|ارفع|زوّد|زود|عالي|أعلى|اعلى|أكبر|اكبر|كبّر|كبر|louder|raise|increase|bigger|larger|up)"
+DOWN = r"(وطّي|وطي|اخفض|قلّل|قلل|واطي|أوطى|اوطى|أصغر|اصغر|صغّر|صغر|quieter|lower|decrease|smaller|down)"
+
+
+def _num_card(t: str):
+    m = re.search(r"(الكارت|كارت|card)\s*(رقم\s*)?(\d+|\w+)", t)
+    if not m:
+        return None
+    v = m.group(3)
+    return int(v) if v.isdigit() else ORD.get(v)
+
+
 def propose(key: str, doc: dict, text: str, wbs: dict) -> dict:
-    """doc = stage.json الحالي. بيرجّع {"question"} أو {"new_data", "new_params", "diff", "notes"}."""
+    """doc = stage.json الحالي. بيرجّع {"question"} أو {"new_data", "new_params", "user_params", "diff", "notes", "kind"}.
+    kind = "params" (المرحلة بتتعاد بالإعدادات الجديدة) أو "data" (تعديل مباشر في البيانات: نسخة جديدة بنفس المدخل)."""
     t = _t(text)
     data, params = copy.deepcopy(doc["data"]), copy.deepcopy(doc["params"])
+    ch: dict = {}           # الإعدادات اللي اتغيّرت بطلبك (بتفضل في النسخ الجاية)
     notes: list[str] = []
-    if key in CUT_STAGES:
+    if key == "s2_cut":
         segs = data["segments"]
         n = len(segs)
         ps = parts(t)
         if _has(r"(9:16|طولي|vertical|portrait)", t):
-            data["aspect"] = "9:16"
+            ch["aspect"] = "9:16"
         elif _has(r"(16:9|عرضي|horizontal|landscape)", t):
-            data["aspect"] = "16:9"
+            ch["aspect"] = "16:9"
+        elif _has(r"(من غير مزج|بدون مزج|قطع صريح|jump ?cuts?|hard cuts?)", t):
+            ch["transitions"] = "hard"
+        elif _has(r"(مزج|ناعم|نعّم|نعم|smooth|dissolve|crossfade)", t) and not _has(REMOVE, t):
+            ch["transitions"] = "auto"
+            if _has(r"(أطول|اطول|أكتر|اكتر|longer|more)", t):
+                ch["dissolve_frames"] = min(16, int(params.get("dissolve_frames") or (12 if data.get("fps", 30) >= 50 else 10)) + 2)
         elif _has(REMOVE, t) and ps:
             idx = [_idx(k, n) for k in ps]
             if None in idx:
@@ -163,20 +182,16 @@ def propose(key: str, doc: dict, text: str, wbs: dict) -> dict:
             data["segments"], notes = trim_end(segs, sec, wbs)
         elif _has(REMOVE, t) and _has(PART, t):
             return {"question": "أشيل أنهي جزء؟ (رقمه)"}
-        elif _has(SLOW, t) or _has(FAST, t):
-            slow = _has(SLOW, t)
-            pct = _pct(t) or 0.1
-            if ps:
-                idx = [_idx(k, n) for k in ps]
-                if None in idx:
-                    return {"question": f"فيه {n} أجزاء بس. أنهي جزء؟"}
-            elif _has(ALL, t) or n == 1 or (key == "s2c_rhythm" and _has(r"(الإيقاع|الايقاع|rhythm|pace)", t)):
-                idx = list(range(n))
-            else:
-                return {"question": f"{'أبطّأ' if slow else 'أسرّع'} أنهي جزء؟ (رقمه، ولا الفيديو كله)"}
-            for i in idx:
-                sp = float(segs[i].get("speed") or 1.0)
-                segs[i]["speed"] = round(min(1.5, max(0.75, sp * ((1 - pct) if slow else (1 + pct)))), 3)
+        elif (_has(SLOW, t) or _has(FAST, t)) and ps:
+            return {"question": "مش بنغيّر سرعة الكلام نفسه (علشان الحركة ما تبانش متسرّعة). تقصد «القصّات أهدى» (نفَس أطول) ولا «أسرع» (نفَس أقصر)؟"}
+        elif _has(SLOW, t) or _has(r"(نفس أطول|نفَس أطول|سيب سكتات|breath)", t):
+            ch.update(dead_air=round(min(1.6, float(params["dead_air"]) + 0.3), 2), breath_out=round(min(0.5, float(params["breath_out"]) + 0.08), 2),
+                      breath_in=round(min(0.35, float(params["breath_in"]) + 0.05), 2))
+            if params.get("transitions") == "hard":
+                ch["transitions"] = "auto"
+        elif _has(FAST, t) or _has(r"(أقصر|اقصر|اشد|شد الإيقاع|tighter)", t):
+            ch.update(dead_air=round(max(0.4, float(params["dead_air"]) - 0.2), 2), breath_out=round(max(0.1, float(params["breath_out"]) - 0.06), 2),
+                      breath_in=round(max(0.06, float(params["breath_in"]) - 0.04), 2))
         elif _has(r"(بدّل|بدل|swap)", t) and len(ps) >= 2:
             a, b = _idx(ps[0], n), _idx(ps[1], n)
             if a is None or b is None:
@@ -186,101 +201,183 @@ def propose(key: str, doc: dict, text: str, wbs: dict) -> dict:
             a, b = _idx(ps[0], n), _idx(ps[1], n)
             if a is None or b is None:
                 return {"question": f"فيه {n} أجزاء بس. أنقل أنهي جزء فين؟"}
-            seg = segs[a]
-            target_id = segs[b]["id"]
+            seg, target_id = segs[a], segs[b]["id"]
             rest = [s for i, s in enumerate(segs) if i != a]
             j = next(i for i, s in enumerate(rest) if s["id"] == target_id)
             rest.insert(j if _has(r"(قبل|before)", t) else j + 1, seg)
             data["segments"] = rest
         else:
-            return {"question": "تقصد إيه بالظبط؟ مثلًا: «شيل أول ثانيتين»، «خلّي الجزء التاني أبطأ»، «احذف الجزء 3»، «بدّل الجزء 1 و 2»."}
+            return {"question": "تقصد إيه بالظبط؟ مثلًا: «القصّات أهدى»، «من غير مزج»، «شيل أول ثانيتين»، «احذف الجزء 3»، «بدّل الجزء 1 و 2»."}
         if not data["segments"]:
             return {"question": "كده مش هيفضل أي جزء. متأكد؟ قول عدد ثواني أقل."}
-    elif key == "s2a_select":
-        m = re.search(r"(اللقطة|لقطة|shot)\s*(رقم\s*)?(\d+|\w+)", t)
-        k = (int(m.group(3)) if m.group(3).isdigit() else ORD.get(m.group(3))) if m else None
-        shots = data["shots"]
-        if k is None:
-            return {"question": "أنهي لقطة؟ (رقمها زي sh2)"}
-        i = _idx(k, len(shots))
-        if i is None:
-            return {"question": f"فيه {len(shots)} لقطات بس. أنهي واحدة؟"}
-        if _has(REMOVE, t):
-            shots[i]["keep"], shots[i]["reason"] = False, "اتشالت بطلبك"
-        elif _has(r"(رجّع|رجع|ضيف|سيب|خلي|خلّي|keep|restore|add)", t):
-            shots[i]["keep"], shots[i]["reason"] = True, "اترجعت بطلبك"
+    elif key == "s3_look":
+        if _has(r"(طبيعي|من غير ستايل|natural|no look)", t):
+            ch["look"] = "natural"
+        elif _has(r"(سينمائي|cinematic)", t):
+            ch["look"] = "cinematic"
+        elif _has(r"(دافي|دافئ|warm)", t):
+            ch["look"] = "warm"
+        elif _has(r"(بارد|cool|cold)", t):
+            ch["look"] = "cool"
+        elif _has(r"(أبيض وأسود|ابيض واسود|black and white|b&w)", t):
+            ch["look"] = "bw"
+        elif _has(r"(أفتح|افتح|نوّر|نور|brighter|lighter)", t):
+            ch["brightness"] = min(40, int(params.get("brightness") or 0) + 12)
+        elif _has(r"(أغمق|اغمق|darker)", t):
+            ch["brightness"] = max(-40, int(params.get("brightness") or 0) - 12)
+        elif _has(r"(من غير حدة|بلاش حدة|no sharpen)", t):
+            ch["sharpen"] = False
+        elif _has(r"(حدة|أحد|احد|sharp)", t):
+            ch["sharpen"] = True
+        elif _has(r"(ألوان أكتر|الوان اكتر|مشبع|saturat|more color)", t):
+            ch["saturation"] = round(min(0.4, float(params.get("saturation") or 0) + 0.12), 2)
+        elif _has(r"(ألوان أهدى|الوان اهدى|ألوان أقل|less color|desaturat)", t):
+            ch["saturation"] = round(max(-0.4, float(params.get("saturation") or 0) - 0.12), 2)
         else:
-            return {"question": f"أشيل اللقطة {k} ولا أرجّعها؟"}
-    elif key == "s2d_subs":
-        if _has(r"(أقصر|اقصر|shorter)", t):
-            params["max_chars"] = max(14, int(params["max_chars"]) - 6)
-        elif _has(r"(أطول|اطول|longer)", t):
-            params["max_chars"] = min(60, int(params["max_chars"]) + 6)
+            return {"question": "تحب الصورة أفتح ولا أغمق؟ ولا ستايل (سينمائي / دافي / بارد / أبيض وأسود / طبيعي)؟"}
+    elif key == "s4_subs":
+        if _has(r"(مكان|حط|انقل|position|move)", t) and _has(r"(أعلى|اعلى|فوق|higher|up)", t) or _has(r"(ارفع|علّي|علي) الترجمة", t):
+            ch["pos"] = "raised"
+        elif _has(r"(مكان|حط|انقل|position|move|نزّل|نزل)", t) and _has(r"(تحت|أوطى|اوطى|lower|down|bottom)", t):
+            ch["pos"] = "low" if params.get("pos") == "bottom" else "bottom"
+        elif _has(r"(صفرا|صفراء|أصفر|اصفر|yellow)", t):
+            ch["color"] = "yellow"
+        elif _has(r"(بيضا|بيضاء|أبيض|ابيض|white)", t):
+            ch["color"] = "white"
+        elif _has(r"(من غير خلفية|بدون خلفية|no background)", t):
+            ch["panel"] = False
+        elif _has(r"(بخلفية|خلفية|background)", t):
+            ch["panel"] = True
+        elif _has(r"(سطور|السطر|lines?)", t) and _has(r"(أقصر|اقصر|shorter)", t):
+            ch["max_chars"] = max(14, int(params["max_chars"]) - 6)
+        elif _has(r"(سطور|السطر|lines?)", t) and _has(r"(أطول|اطول|longer)", t):
+            ch["max_chars"] = min(48, int(params["max_chars"]) + 6)
+        elif _has(UP, t):
+            ch["size"] = {"small": "medium", "medium": "large", "large": "large"}[params["size"]]
+        elif _has(DOWN, t):
+            ch["size"] = {"small": "small", "medium": "small", "large": "medium"}[params["size"]]
         else:
-            return {"question": "تحب السطور أقصر ولا أطول؟"}
-    elif key == "s3_audio":
+            return {"question": "تقصد مكان الترجمة (أعلى/تحت)، ولا حجمها (أكبر/أصغر)، ولا لونها، ولا طول السطر؟"}
+    elif key == "s5_graphics":
+        k = _num_card(t)
+        cards = data.get("cards", [])
+        if _has(REMOVE, t) and k is not None:
+            i = _idx(k, len(cards))
+            if i is None:
+                return {"question": f"فيه {len(cards)} كروت بس. أشيل أنهي واحد؟"}
+            ch["removed"] = list(params.get("removed") or []) + [cards[i]["source_text"]]
+            notes.append(f"الكارت {cards[i]['id']} «{cards[i]['title']}» هيتشال، والفكرة دي هتاخد الاختيار اللي بعده لو موجود")
+        elif _has(REMOVE, t) and _has(r"(الكروت|كروت|الجرافيك|جرافيك|cards|graphics)", t):
+            ch["graphics"] = "off"
+        elif _has(r"(رجّع|رجع|ضيف|حط|restore|add)", t) and _has(r"(الكروت|كروت|cards)", t):
+            ch.update(graphics="on", removed=[], force_cards=True)
+        elif _has(r"(كروت|cards)", t) and _has(r"(أكتر|اكتر|more)", t):
+            ch["density"] = "many"
+        elif _has(r"(كروت|cards)", t) and _has(r"(أقل|اقل|fewer|less)", t):
+            ch["density"] = "few"
+        elif _has(r"(دهبي|ذهبي|فخم|gold|elegant)", t):
+            ch["mood"] = "elegant"
+        elif _has(r"(برتقالي|جري|bold|orange)", t):
+            ch["mood"] = "bold"
+        elif _has(r"(أزرق|ازرق|مبهج|blue|fresh)", t):
+            ch["mood"] = "fresh"
+        elif _has(r"(غامق|هادي|dark|clean)", t):
+            ch["mood"] = "clean"
+        elif _has(REMOVE, t):
+            return {"question": f"أشيل أنهي كارت؟ (رقمه من 1 لـ {len(cards)})"}
+        else:
+            return {"question": "تقصد إيه في الكروت؟ مثلًا: «شيل الكارت 2»، «كروت أقل»، «الكروت دهبي»."}
+    elif key == "s6_audio":
         music = _has(r"(المزيكا|مزيكا|الموسيقى|موسيقى|music)", t)
-        up = _has(r"(علّي|علي|ارفع|زوّد|زود|عالي|أعلى|اعلى|louder|raise|increase|up)", t)
-        down = _has(r"(وطّي|وطي|اخفض|قلّل|قلل|واطي|أوطى|اوطى|quieter|lower|decrease|down)", t)
+        up, down = _has(UP, t), _has(DOWN, t)
         if m := re.search(r"(-?\d+(?:\.\d+)?)\s*lufs", t):
-            params["target_lufs"] = max(-30.0, min(-8.0, float(m.group(1))))
+            ch["target_lufs"] = max(-30.0, min(-8.0, float(m.group(1))))
+        elif _has(r"(دوشة|الدوشة|ضوضاء|وش|noise|hiss)", t):
+            ch["denoise"] = "off" if _has(r"(من غير|بلاش|off|no)", t) else "strong"
         elif _has(r"(ducking|التوطية|توطية|duck)", t):
-            params["duck"] = not _has(r"(شيل|من غير|بطّل|بطل|off|remove|no|disable)", t)
+            ch["duck"] = not _has(r"(شيل|من غير|بطّل|بطل|off|remove|no|disable)", t)
         elif music and _has(r"(شيل|من غير|بلاش|remove|no|without)", t):
-            params["music"] = "none"
+            ch["music"] = "none"
         elif music and (up or down):
-            params["music_gain_db"] = round(float(params["music_gain_db"]) + (3 if up else -3), 1)
+            ch["music_gain_db"] = round(float(params["music_gain_db"]) + (3 if up else -3), 1)
         elif music and _has(r"(رجّع|رجع|ضيف|حط|add)", t):
-            params["music"] = "auto"
+            ch["music"] = "auto"
         elif up or down:
-            params["target_lufs"] = max(-30.0, min(-8.0, float(params["target_lufs"]) + (2 if up else -2)))
+            ch["target_lufs"] = max(-30.0, min(-8.0, float(params["target_lufs"]) + (2 if up else -2)))
         else:
-            return {"question": "تقصد علو الصوت كله ولا المزيكا؟"}
+            return {"question": "تقصد علو الصوت كله، ولا المزيكا، ولا الدوشة؟"}
     elif key == "s1_analyze":
         if _has(r"(إنجليزي|انجليزي|انجلش|english)", t):
-            params["language"] = "en"
+            ch["language"] = "en"
         elif _has(r"(عربي|arabic)", t):
-            params["language"] = "ar"
+            ch["language"] = "ar"
         elif _has(r"(تلقائي|auto)", t):
-            params["language"] = "auto"
+            ch["language"] = "auto"
         elif _has(r"(المشاهد|اللقطات|القطعات|scenes|cuts|shots)", t) and _has(r"(أكتر|اكتر|أعلى|حساس|more|higher|sensitive)", t):
-            params["adaptive_threshold"] = max(1.0, float(params["adaptive_threshold"]) - 0.5)
+            ch["adaptive_threshold"] = max(1.0, float(params["adaptive_threshold"]) - 0.5)
         elif _has(r"(المشاهد|اللقطات|القطعات|scenes|cuts|shots)", t) and _has(r"(أقل|اقل|less|fewer|lower)", t):
-            params["adaptive_threshold"] = float(params["adaptive_threshold"]) + 0.5
+            ch["adaptive_threshold"] = float(params["adaptive_threshold"]) + 0.5
         else:
             return {"question": "تقصد لغة الكلام (عربي/إنجليزي) ولا حساسية تقطيع اللقطات؟"}
     else:
-        return {"question": "التصدير مالوش تعديلات: عدّل المرحلة اللي قبله وصدّر تاني."}
+        return {"question": "المعاينة الكاملة بتتبني من المراحل اللي قبلها: اكتب التعديل في المرحلة اللي تخصه (القصّ، الصورة، الترجمة، الكروت، الصوت)."}
+    params.update(ch)
+    user = {**(doc.get("user_params") or {}), **ch}
     d = diff(doc["data"], data, doc["params"], params)
     if not d:
         return {"question": "التعديل ده مش هيغيّر حاجة. تقصد إيه بالظبط؟"}
-    return {"new_data": data, "new_params": params, "diff": d, "notes": notes, "kind": "params" if data == doc["data"] else "data"}
+    return {"new_data": data, "new_params": params, "user_params": user, "diff": d, "notes": notes, "kind": "params" if ch else "data"}
+
+
+def fix_lines(doc: dict, lines: dict) -> dict:
+    """تصحيح سطور الترجمة: لكل سطر النص الصح ← تصحيحات على مستوى الكلمة (fixes) بتفضل حتى لو القصّ اتغيّر بعدين.
+    نفس عدد الكلمات ← كلمة بكلمة. عدد مختلف ← الكلمات بتتوزع على نفس التوقيت (الزيادة على آخر كلمة، والناقص بيندمج)."""
+    cues = {c["id"]: c for c in doc["data"]["cues"]}
+    fixes = dict((doc.get("user_params") or {}).get("fixes") or doc["params"].get("fixes") or {})
+    out_diff, notes = [], []
+    for cid, txt in lines.items():
+        c = cues.get(cid)
+        new = (txt or "").split()
+        if not c or not new or " ".join(new) == c["text"]:
+            continue
+        old = c["words"]
+        for i, w in enumerate(old):
+            if i < len(new) - 1 and i < len(old) - 1:
+                val = new[i]
+            elif i == min(len(new), len(old)) - 1:
+                val = " ".join(new[i:])
+            else:
+                val = ""
+            if val != w["word"] or val == "":
+                fixes[f"{w['source']}:{w['src_i']}"] = val
+        out_diff.append({"path": f"{cid} ({c['start']:.1f}–{c['end']:.1f} ث)", "from": c["text"], "to": " ".join(new)})
+        if len(new) != len(old):
+            notes.append(f"{cid}: عدد الكلمات اتغيّر ({len(old)} ← {len(new)})، فالكلمات اتوزعت على نفس توقيت السطر")
+    if not out_diff:
+        return {"question": "مفيش تغيير في النص."}
+    params = {**doc["params"], "fixes": fixes}
+    return {"new_params": params, "user_params": {**(doc.get("user_params") or {}), "fixes": fixes}, "diff": out_diff, "notes": notes}
 
 
 def diff(old: dict, new: dict, op: dict, np_: dict) -> list[dict]:
-    """فرق بسيط مقروء: باراميترات، مقاس، أجزاء (اتشالت/اتغيرت/الترتيب)، لقطات."""
+    """فرق بسيط مقروء: إعدادات، مقاس، أجزاء (اتشالت/اتغيرت/الترتيب)."""
     out = []
     for k in sorted(set(op) | set(np_)):
-        if op.get(k) != np_.get(k):
+        if op.get(k) != np_.get(k) and k != "fixes":
             out.append({"path": f"params.{k}", "from": op.get(k), "to": np_.get(k)})
     if old.get("aspect") != new.get("aspect"):
         out.append({"path": "aspect", "from": old.get("aspect"), "to": new.get("aspect")})
-    if "segments" in old:
+    if "segments" in old and old.get("segments") != new.get("segments"):
         oi = {s["id"]: s for s in old["segments"]}
         ni = {s["id"]: s for s in new["segments"]}
         for sid in oi:
             if sid not in ni:
                 out.append({"path": f"segments[{sid}]", "from": f"{oi[sid]['start']:.2f}–{oi[sid]['end']:.2f} «{oi[sid].get('text', '')[:30]}»", "to": "اتشال"})
                 continue
-            for f in ("start", "end", "speed"):
-                a, b = oi[sid].get(f, 1.0 if f == "speed" else None), ni[sid].get(f, 1.0 if f == "speed" else None)
-                if a != b:
-                    out.append({"path": f"segments[{sid}].{f}", "from": a, "to": b})
+            for f in ("start", "end"):
+                if oi[sid].get(f) != ni[sid].get(f):
+                    out.append({"path": f"segments[{sid}].{f}", "from": oi[sid].get(f), "to": ni[sid].get(f)})
         oo, no = [s for s in oi if s in ni], [s["id"] for s in new["segments"]]
         if oo != no:
             out.append({"path": "segments.order", "from": oo, "to": no})
-    if "shots" in old:
-        for a, b in zip(old["shots"], new["shots"]):
-            if a["keep"] != b["keep"]:
-                out.append({"path": f"shots[{a['id']}].keep", "from": a["keep"], "to": b["keep"]})
     return out

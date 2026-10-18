@@ -17,6 +17,9 @@ from ..config import ENV
 
 MODEL = ENV.get("MONTAGE_WHISPER_MODEL") or "medium"
 MIN_CONF = 0.5          # متوسط ثقة الكلمات أقل من كده = التفريغ مش موثوق ← نقسّم بالسكتات بدل الكلام
+# تمهيد عام للهجة المصرية (مش فيه كلام الفيديو): على تسجيل موبايل حقيقي الثقة طلعت من 0.69 لـ 0.74، وبقى فيه ترقيم
+# (علامات الترقيم بتساعد في حدود الجمل والسطور)، وكلمات زي «كتير/كويسة» اتفهمت صح بدل «كثير/جويزة».
+DIALECT_PROMPT = {"ar": "ده كلام باللهجة المصرية العامية. إزيك، عامل إيه؟ النهارده هحكيلك حاجة، علشان كده دلوقتي برضه."}
 SR, HOP = 16000, 0.01
 _model = None
 _mlock = threading.Lock()
@@ -38,6 +41,15 @@ def envelope(path: Path) -> np.ndarray:
     fr = x[: m * n].reshape(m, n)
     db = 20 * np.log10(np.sqrt((fr ** 2).mean(axis=1)) + 1e-9)
     return np.convolve(db, np.ones(3) / 3, mode="same")
+
+
+def silence_threshold(env: np.ndarray) -> dict:
+    """حد السكوت حسب التسجيل نفسه (مش رقم ثابت): بين أرضية الدوشة (10%) وعلو الكلام (90%).
+    تسجيل موبايل بعيد كلامه حوالين −49 dB: الحد الثابت −35 كان بيعد الكلام الواطي سكوت."""
+    noise, speech_ = float(np.percentile(env, 10)), float(np.percentile(env, 90))
+    thr = noise + 0.4 * (speech_ - noise)
+    thr = min(-30.0, max(noise + 6.0, thr))
+    return {"threshold_db": round(thr, 1), "noise_db": round(noise, 1), "speech_db": round(speech_, 1)}
 
 
 def pauses(path: Path, duration: float, noise_db: float = -35, min_d: float = 0.25) -> list[dict]:
@@ -69,7 +81,7 @@ def transcribe(path: Path, language: str = "ar") -> dict:
     audio = pcm(path)
     with _mlock:  # موديل واحد في الذاكرة، وطلب واحد في نفس الوقت
         segs, info = _load().transcribe(audio, language=None if language == "auto" else language, word_timestamps=True,
-                                        beam_size=5, vad_filter=False, condition_on_previous_text=False)
+                                        beam_size=5, vad_filter=False, condition_on_previous_text=False, initial_prompt=DIALECT_PROMPT.get(language))
         words, segments = [], []
         for s in segs:
             first = len(words)
@@ -80,7 +92,8 @@ def transcribe(path: Path, language: str = "ar") -> dict:
                 segments.append({"start": words[first]["start"], "end": words[-1]["end"], "text": s.text.strip(), "first": first, "last": len(words) - 1})
     mean_p = round(float(np.mean([w["p"] for w in words])), 3) if words else 0.0
     return {"engine": f"faster-whisper {MODEL} (CPU, int8)", "language": info.language, "language_prob": round(float(info.language_probability), 3),
-            "words": words, "segments": segments, "mean_prob": mean_p, "seconds": round(time.time() - t0, 2)}
+            "words": words, "segments": segments, "mean_prob": mean_p, "seconds": round(time.time() - t0, 2),
+            "prompt": DIALECT_PROMPT.get(language)}
 
 
 def speech_from_pauses(pause_list: list[dict], duration: float, min_len: float = 0.2) -> list[dict]:
@@ -92,4 +105,32 @@ def speech_from_pauses(pause_list: list[dict], duration: float, min_len: float =
         t = max(t, p["end"])
     if duration - t >= min_len:
         out.append({"start": round(t, 3), "end": round(duration, 3)})
+    return out
+
+
+def noise_floor(path: Path, pause_list: list[dict]) -> float | None:
+    """أرضية الدوشة: علو الصوت (dB RMS) في نص السكتات الطويلة (بعيد عن أطراف الكلام)."""
+    env = envelope(path)
+    vals = []
+    for p in pause_list:
+        a, b = p["start"] + 0.08, p["end"] - 0.08
+        if b - a >= 0.1:
+            vals += list(env[int(a / HOP):int(b / HOP)])
+    return round(float(np.median(vals)), 1) if vals else None
+
+
+def cut_jumps(path: Path, times: list[float], win: float = 0.03) -> list[dict]:
+    """عند كل قصّة: الفرق في العلو بين الـ 30 مللي اللي قبلها واللي بعدها، وأكبر قفزة sample-to-sample (تكّة) حواليها."""
+    x = pcm(path)
+    out = []
+    for t in times:
+        i = int(t * SR)
+        w = int(win * SR)
+        a, b = x[max(0, i - w):i], x[i:i + w]
+        if len(a) < 10 or len(b) < 10:
+            continue
+        ra, rb = 20 * np.log10(np.sqrt((a ** 2).mean()) + 1e-9), 20 * np.log10(np.sqrt((b ** 2).mean()) + 1e-9)
+        seg = x[max(0, i - w):i + w]
+        step = float(np.abs(np.diff(seg)).max()) if len(seg) > 1 else 0.0
+        out.append({"t": round(t, 3), "jump_db": round(float(abs(ra - rb)), 1), "level_db": round(float(max(ra, rb)), 1), "max_step": round(step, 4)})
     return out

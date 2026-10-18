@@ -17,7 +17,7 @@
         <div class="acts">
           ${v.video ? `<button data-act="play">▶ عرض</button><a class="btn" href="/files/${v.id}/output/video.mp4?download=1">⬇ MP4</a>` : ""}
           <a class="btn" href="/p/${v.id}">✎ فتح</a>
-          <button class="danger" data-act="del">🗑</button>
+          <button class="danger" data-act="del">🗑 حذف</button>
         </div></div></div>`).join("")
       : `<div class="card">لسه مفيش فيديوهات. <a href="/new">اعمل أول فيديو</a></div>`;
   }

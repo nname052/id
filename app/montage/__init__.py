@@ -1,4 +1,4 @@
-"""قسم المونتاج (الخطوة 1): رفع فيديوهاتك ← تحليل (FFmpeg + PySceneDetect) ← قصّ وترتيب ← تصدير MP4.
+"""قسم المونتاج: رفع فيديوهاتك ← «اعمل المونتاج» (كل المراحل أوتوماتيك لحد معاينة كاملة) ← مراجعة/تعديل مرحلة بمرحلة ← موافقة ← تصدير.
 
 منفصل عن خط توليد الفيديوهات: صفحاته ومساراته وحالته هنا بس، ومش بيستخدم الـ worker ولا مشاريع التوليد.
 المشترك بس: شكل الصفحات (base.html) ودوال حفظ JSON.
@@ -167,13 +167,12 @@ def save_edit(mid: str, body: EditBody):
 # ---------- التصدير ----------
 @router.post("/api/montage/{mid}/export")
 def start_export(mid: str):
-    """التصدير بقى مرحلة S4: مقفول لحد ما توافق على آخر معاينة (S3)."""
+    """التصدير مقفول لحد ما توافق على آخر معاينة كاملة (S7)، وبعدها بياخد نفس الملف من غير رندر تاني."""
     _need(mid)
     try:
-        stages.start(mid, "s4_export")
+        return stages.export(mid)
     except stages.Blocked as e:
         raise HTTPException(409, str(e)) from e
-    return {"ok": True}
 
 
 # ---------- المراحل ----------
@@ -188,13 +187,9 @@ def _need(mid: str) -> dict:
 
 
 def _key(m: dict, key: str) -> str:
-    if key not in stages.LABELS:
+    if key not in stages.PIPE:
         raise HTTPException(404, "مرحلة مش معروفة")
     return key
-
-
-class ModeBody(BaseModel):
-    mode: str
 
 
 class RunBody(BaseModel):
@@ -222,14 +217,27 @@ class ManualBody(BaseModel):
     aspect: str | None = None
 
 
-@router.put("/api/montage/{mid}/mode")
-def set_mode(mid: str, body: ModeBody):
+class BriefBody(BaseModel):
+    text: str
+
+
+@router.put("/api/montage/{mid}/brief")
+def set_brief(mid: str, body: BriefBody):
+    """طلبك للفيديو كله: بيتحفظ مرة، وكل مرحلة بتاخد منه اللي يخصها."""
+    _need(mid)
+    state.update(mid, lambda mm: mm.update(brief={"text": body.text.strip()[:2000], "saved": time.time()}))
+    return stages.view(state.load(mid))
+
+
+@router.post("/api/montage/{mid}/auto")
+def run_auto(mid: str):
+    """زرار «اعمل المونتاج»: كل المراحل الفاضية/القديمة ورا بعض لحد المعاينة الكاملة."""
     _need(mid)
     try:
-        stages.set_mode(mid, body.mode)
+        todo = stages.run_all(mid)
     except stages.Blocked as e:
-        raise HTTPException(400, str(e)) from e
-    return stages.view(state.load(mid))
+        raise HTTPException(409, str(e)) from e
+    return {"todo": todo, **stages.view(state.load(mid))}
 
 
 @router.get("/api/montage/{mid}/stages")
@@ -294,14 +302,14 @@ def propose_edit(mid: str, key: str, body: TextBody):
     if r.get("current") is None:
         raise HTTPException(409, "شغّل المرحلة الأول")
     doc = stages.read_stage(mid, key, r["current"])
-    s1n = (doc["data"].get("s1") if key != "s1_analyze" else None) or (doc["input"] or {}).get("version")
-    wbs = stages.words_by_source(stages.read_stage(mid, "s1_analyze", s1n)["data"]) if key != "s1_analyze" else {}
+    s1n = doc["data"].get("s1") if key != "s1_analyze" else None
+    wbs = stages.words_by_source(stages.read_stage(mid, "s1_analyze", s1n)["data"]) if s1n else {}
     res = nl.propose(key, doc, body.text.strip(), wbs)
     if "question" in res:
         return {"question": res["question"]}
     pid = secrets.token_hex(4)
     prop = {"id": pid, "stage": key, "base_version": r["current"], "text": body.text.strip(), "kind": res["kind"], "diff": res["diff"],
-            "notes": res["notes"], "new_data": res["new_data"], "new_params": res["new_params"], "created": time.time()}
+            "notes": res["notes"], "new_data": res["new_data"], "new_params": res["new_params"], "user_params": res["user_params"], "created": time.time()}
     state.update(mid, lambda mm: mm.setdefault("proposals", {}).update({pid: prop}))
     return {"proposal": pid, "kind": res["kind"], "diff": res["diff"], "notes": res["notes"], "base_version": r["current"]}
 
@@ -320,12 +328,13 @@ def apply_edit(mid: str, key: str, body: ApplyBody):
         raise HTTPException(409, "المرحلة دي شغالة دلوقتي")
     base = stages.read_stage(mid, key, prop["base_version"])
     try:
+        # نسخة جديدة من المرحلة دي بس، وبعدين اللي بعدها بيتعاد لوحده لحد المعاينة الكاملة (cascade)
         if prop["kind"] == "params":   # تغيير إعدادات ← نعيد المرحلة بيها
-            stages.start(mid, key, prop["new_params"], origin="edit", note=prop["text"])
-        else:                          # تغيير في البيانات نفسها ← نسخة جديدة بنفس المدخل + معاينة جديدة
+            stages.start(mid, key, prop["user_params"], origin="edit", note=prop["text"], cascade=True)
+        else:                          # تغيير في البيانات نفسها ← نسخة جديدة بنفس المدخل
             data = {**prop["new_data"], "_report": [f"تعديل بالكلام: «{prop['text']}»"] + prop["notes"] +
                     [f"{x['path']}: {x['from']} ← {x['to']}" for x in prop["diff"]]}
-            stages.start(mid, key, prop["new_params"], origin="edit", note=prop["text"], data_override=data, base_input=base["input"])
+            stages.start(mid, key, prop["user_params"], origin="edit", note=prop["text"], data_override=data, base_input=base["input"], cascade=True)
     except stages.Blocked as e:
         raise HTTPException(409, str(e)) from e
     state.update(mid, lambda mm: (mm.get("proposals") or {}).pop(body.proposal, None))
@@ -336,8 +345,8 @@ def apply_edit(mid: str, key: str, body: ApplyBody):
 def manual_edit(mid: str, key: str, body: ManualBody):
     """التعديل اليدوي القديم (بداية/نهاية/ترتيب) ← نسخة جديدة من مرحلة القصّ."""
     m = _need(mid)
-    if _key(m, key) not in ("s2_cut", "s2b_cuts", "s2c_rhythm"):
-        raise HTTPException(400, "التعديل اليدوي للأجزاء في مراحل القصّ بس")
+    if _key(m, key) != "s2_cut":
+        raise HTTPException(400, "التعديل اليدوي للأجزاء في مرحلة القصّ بس")
     r = (m.get("stages") or {}).get(key) or {}
     if r.get("current") is None:
         raise HTTPException(409, "شغّل المرحلة الأول")
@@ -354,17 +363,61 @@ def manual_edit(mid: str, key: str, body: ManualBody):
         prev = next((o for o in old.values() if o["source"] == s.source and abs(o["start"] - a) < 0.005 and abs(o["end"] - b) < 0.005), None)
         segs.append({**(prev or {"text": "", "speed": 1.0}), "id": (prev or {}).get("id") or f"m{k + 1}", "source": s.source, "start": round(a, 3), "end": round(b, 3)})
     data = {**base["data"], "segments": segs, "aspect": body.aspect or base["data"].get("aspect", "9:16"), "_report": ["تعديل يدوي"]}
-    stages.start(mid, key, None, origin="manual", note="تعديل يدوي", data_override=data, base_input=base["input"])
+    try:
+        stages.start(mid, key, None, origin="manual", note="تعديل يدوي", data_override=data, base_input=base["input"], cascade=True)
+    except stages.Blocked as e:
+        raise HTTPException(409, str(e)) from e
     return {"ok": True}
 
 
-@router.get("/montage-files/{mid}/stages/{key}/v{n}/preview.mp4")
-def stage_preview(mid: str, key: str, n: int):
+class FixBody(BaseModel):
+    lines: dict[str, str]   # {cue_id: النص الصح}
+
+
+@router.post("/api/montage/{mid}/subs/propose")
+def propose_fixes(mid: str, body: FixBody):
+    """تصحيح سطور الترجمة (المحرر): النص الجديد ← تصحيحات كلمات (fixes) + diff، ومن غير ما يتطبق لحد ما توافق."""
     m = _need(mid)
-    p = stages.vdir(mid, _key(m, key), n) / "preview.mp4"
-    if not p.is_file():
+    r = (m.get("stages") or {}).get("s4_subs") or {}
+    if r.get("current") is None:
+        raise HTTPException(409, "اعمل المونتاج الأول")
+    doc = stages.read_stage(mid, "s4_subs", r["current"])
+    res = nl.fix_lines(doc, body.lines)
+    if "question" in res:
+        return {"question": res["question"]}
+    pid = secrets.token_hex(4)
+    prop = {"id": pid, "stage": "s4_subs", "base_version": r["current"], "text": f"تصحيح {len(res['diff'])} سطر في الترجمة", "kind": "params",
+            "diff": res["diff"], "notes": res["notes"], "new_data": None, "new_params": res["new_params"], "user_params": res["user_params"], "created": time.time()}
+    state.update(mid, lambda mm: mm.setdefault("proposals", {}).update({pid: prop}))
+    return {"proposal": pid, "kind": "params", "diff": res["diff"], "notes": res["notes"], "base_version": r["current"]}
+
+
+@router.get("/montage-files/{mid}/stages/{key}/v{n}/{name}")
+def stage_file(mid: str, key: str, n: int, name: str):
+    """معاينة المرحلة وصورها (preview.mp4 / *.jpg / *.png)."""
+    m = _need(mid)
+    p = stages.vdir(mid, _key(m, key), n) / name
+    if "/" in name or ".." in name or not p.is_file() or p.suffix not in (".mp4", ".jpg", ".png"):
         raise HTTPException(404)
-    return FileResponse(p, media_type="video/mp4")
+    return FileResponse(p, media_type={".mp4": "video/mp4", ".jpg": "image/jpeg", ".png": "image/png"}.get(p.suffix, "video/mp4"))
+
+
+@router.get("/montage-files/{mid}/thumb.jpg")
+def thumb(mid: str):
+    """صورة مصغّرة لأول فيديو في المونتاج (لقايمة المونتاجات)."""
+    m = _need(mid)
+    d = state.mdir(mid)
+    out = d / "work" / "thumb.jpg"
+    vid = next((s for s in m["sources"] if s["probe"]["has_video"]), None)
+    if not vid:
+        raise HTTPException(404)
+    if not out.exists():
+        import subprocess
+        t = min(1.0, vid["probe"]["duration"] / 3)
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", f"{t:.2f}", "-i", str(d / vid["work"]), "-frames:v", "1", "-vf", "scale=360:-2", "-q:v", "4", str(out)])
+    if not out.exists():
+        raise HTTPException(404)
+    return FileResponse(out, media_type="image/jpeg")
 
 
 @router.get("/api/montage/{mid}/verify")
