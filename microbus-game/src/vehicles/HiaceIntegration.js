@@ -622,6 +622,42 @@ function buildHiaceInterior(group, rig, D) {
     }
   }
 
+  // ===== إكسسوارات ميكروباص مصري (خفيفة، Mesh واحدة): فرشة تابلوه بشراشيب، علبة مناديل، حامل موبايل،
+  //       فوطة تلميع، إزازة مية في جيب الباب — كلها تحت خط الزجاج (الرؤية لقدام فاضية) =====
+  {
+    const A = new GeoBuilder();
+    const _k = new THREE.Color(), setC = A.setColor.bind(A);
+    A.setColor = (c) => { _k.setRGB(c[0], c[1], c[2], THREE.SRGBColorSpace); return setC([_k.r, _k.g, _k.b]); };
+    const f1 = dashBackF + 0.1, f2 = wbF - 0.06, y1 = dashTop + 0.004, y2 = wbY - 0.025;
+    const slope = Math.atan2(y2 - y1, f2 - f1), fm = (f1 + f2) / 2, ym = (y1 + y2) / 2 + 0.004, len = Math.hypot(f2 - f1, y2 - y1);
+    // فرشة التابلوه (ناحية الراكب): قماش نبيتي بخطوط
+    const x0 = 0.12, x1 = IW - 0.12;
+    for (let i = 0; i < 9; i++) {
+      const xa = x0 + ((x1 - x0) * i) / 9, xb = x0 + ((x1 - x0) * (i + 1)) / 9;
+      A.setColor(i % 3 === 1 ? [0.75, 0.6, 0.2] : [0.42, 0.06, 0.08]);
+      A.addGeometry(new THREE.BoxGeometry(xb - xa, 0.008, len * 0.9), M4((xa + xb) / 2, ym, z(fm), slope));
+    }
+    A.setColor([0.8, 0.66, 0.25]); // الشراشيب على الحرف
+    for (let i = 0; i < 22; i++) A.addGeometry(new THREE.BoxGeometry(0.008, 0.035, 0.004), M4(x0 + ((x1 - x0) * (i + 0.5)) / 22, y1 - 0.016, z(f1 - 0.004)));
+    // علبة مناديل
+    A.setColor([0.95, 0.95, 0.96]); A.addGeometry(new RoundedBoxGeometry(0.21, 0.075, 0.11, 2, 0.01), M4(0.45, ym + 0.05, z(fm + 0.02), slope, 0.15));
+    A.setColor([0.15, 0.45, 0.75]); A.addGeometry(new THREE.BoxGeometry(0.213, 0.025, 0.112), M4(0.45, ym + 0.025, z(fm + 0.02), slope, 0.15));
+    A.setColor([1, 1, 1]); A.addGeometry(new THREE.ConeGeometry(0.03, 0.05, 5), M4(0.45, ym + 0.105, z(fm + 0.02), slope, 0.15));
+    // حامل موبايل (على حرف التابلوه شمال الدركسيون) + موبايل
+    A.setColor([0.08, 0.08, 0.09]);
+    A.addGeometry(new THREE.CylinderGeometry(0.012, 0.012, 0.09, 6), M4(DX - 0.27, dashTop + 0.045, z(dashBackF + 0.13)));
+    A.addGeometry(new RoundedBoxGeometry(0.09, 0.15, 0.012, 2, 0.006), M4(DX - 0.27, dashTop + 0.13, z(dashBackF + 0.12), -0.25));
+    A.setColor([0.12, 0.2, 0.3]); A.addGeometry(new THREE.PlaneGeometry(0.075, 0.13), M4(DX - 0.27, dashTop + 0.13, z(dashBackF + 0.112), -0.25, Math.PI));
+    // فوطة صفرا متطبقة على الطرف
+    A.setColor([0.92, 0.75, 0.15]); A.addGeometry(new RoundedBoxGeometry(0.16, 0.022, 0.1, 2, 0.008), M4(IW - 0.22, ym + 0.02, z(fm - 0.05), slope, -0.3));
+    // إزازة مية في جيب باب الراكب
+    A.setColor([0.55, 0.75, 0.85]); A.addGeometry(new THREE.CylinderGeometry(0.035, 0.035, 0.24, 8), M4(IW - 0.13, floorY + 0.33, z(dashBackF + 0.08)));
+    A.setColor([0.15, 0.4, 0.8]); A.addGeometry(new THREE.CylinderGeometry(0.02, 0.02, 0.03, 8), M4(IW - 0.13, floorY + 0.465, z(dashBackF + 0.08)));
+    const accMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 });
+    const acc = new THREE.Mesh(A.build(), accMat); acc.name = 'cockpit-accessories'; acc.receiveShadow = true;
+    group.add(acc);
+  }
+
   // ===== عين السواق: ورا الدركسيون وناحية الشمال =====
   const eye = new THREE.Object3D();
   eye.position.set(DX, Math.min(D.roofY - 0.3, floorY + 1.04), z(seatF + 0.04) + 0.02); // أقرب للزجاج = الزجاج باين أكبر
