@@ -87,6 +87,7 @@
     if (el._paths) el._paths.forEach((x) => {
       if (!x.dataset.len) { let L = 100; try { L = x.getTotalLength(); } catch {} x.dataset.len = L; x.style.strokeDasharray = L; }
       x.style.strokeDashoffset = enter === "draw" ? x.dataset.len * (1 - easeInOut(p)) : 0;
+      x.style.strokeOpacity = enter === "draw" && p <= 0 ? 0 : 1;   // شرطة طولها صفر بطرف مدوّر بتبان نقطة قبل الرسم
     });
     if (el._anim) { const fr = el._anim.frameRate || 30; el._anim.goToAndStop((Math.max(0, t) * fr) % el._anim.totalFrames, true); }
   }
@@ -166,7 +167,7 @@
         if (num) n.textContent = num.pre + (num.val * p).toFixed(num.dec) + num.post;
         n.style.transform = `scale(${0.6 + 0.4 * back(clamp((t - sc.cueL) / (0.5 * PACE)))})`;
         n.style.opacity = clamp((t - sc.cueL) * 4);
-        if (arc) arc.style.strokeDashoffset = L * (1 - p * frac);
+        if (arc) { arc.style.strokeDashoffset = L * (1 - p * frac); arc.style.strokeOpacity = p > 0 ? 1 : 0; }
         if (bar) bar.style.width = `${p * frac * 100}%`;
         headIn($(".nlabel", el), t - 0.3);
       };
@@ -337,6 +338,7 @@
     st.style.setProperty("--font-h", `"${ID.font_heading}"`);
     st.style.setProperty("--font-b", `"${ID.font_body}"`);
     if (P.text_size === "large") st.classList.add("large-text");
+    if (P.type === "whiteboard" || P.identity?.background === "board") st.classList.add("wb-video");
     PACE = { calm: 1.35, normal: 1, energetic: 0.72 }[P.pace] || 1;
     words = D.words.words;
     DURATION = D.words.duration + 2.2; // وقت بسيط بعد آخر كلمة علشان الفيديو يتقفل بهدوء

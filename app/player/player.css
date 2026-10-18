@@ -164,6 +164,9 @@ body.render #stage { transform: none !important; }
 .bg-board[data-style="paper"] #grain { opacity: .09; }
 .bg-board[data-style="paper"] .l2 { box-shadow: inset 0 0 160px rgba(120, 90, 40, .12); }
 .L-board .wb-under { z-index: 0; }
+/* فيديو السبورة: الترجمة أوطى شوية (الرسومات بتخلص عند 1180) علشان ما تلزقش في الأشكال، ولسه جوه المنطقة الآمنة (لحد 1459) */
+.wb-video #subs { top: 1300px; }
+.wb-video.large-text #subs { top: 1282px; }
 .L-board .wb-art, .L-board .wb-text { position: absolute; }
 .L-board .wb-art svg { overflow: visible; }
 .L-board .wb-text { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; line-height: 1.3; font-weight: 700; direction: rtl; }

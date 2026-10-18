@@ -599,9 +599,11 @@ def run(pid: str, instruction: str | None = None) -> None:
         user += f"\n\nالخطة الحالية (مختصرة):\n{old.get('raw')}\n\nالمطلوب تعديله: {instruction}"
     data = ask(pid, "scenes", system, user, sch)
 
-    raw, n_merged = merge_short(data["scenes"], scene_timing(pid))
+    # السبورة: الإيد بترسم وبعدين الرسمة بتفضل ثانية كاملة، فالمشهد الأقصر من 3.5 ث بيتدمج (2.5 ث كانت بتخلّي الرسمة تتنقل قبل ما تتشاف)
+    min_s = max(MIN_SCENE_SECONDS, 3.5) if vtype == "whiteboard" else MIN_SCENE_SECONDS
+    raw, n_merged = merge_short(data["scenes"], scene_timing(pid), min_s)
     if n_merged:
-        store.log(pid, f"⏱ اتدمج {n_merged} مشهد قصير (أقل من {MIN_SCENE_SECONDS} ثانية) في اللي قبله")
+        store.log(pid, f"⏱ اتدمج {n_merged} مشهد قصير (أقل من {min_s} ثانية) في اللي قبله")
     data["scenes"] = raw
     wsc = writer_scenes(script)
     for sc in data["scenes"]:   # رسمة بكلمات بحث الكاتب بتعدّي فحص «الصورة ليها علاقة بالفكرة» (الكاتب هو اللي حدد الفكرة البصرية)

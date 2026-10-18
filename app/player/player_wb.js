@@ -44,7 +44,9 @@ export function placeHand(st) {
 // دلوقتي: كل عنصر بيتقاس شكله الحقيقي (الرسمة على قد حدودها، والكلام على قد سطوره)، وبنجرّب كل تقسيمات الصفوف (عنصر أو اتنين أو تلاتة
 // في الصف، بنفس ترتيب الرسم) وبنختار اللي بيملا المساحة أكتر من غير ما حاجة تصغر قوي، وبعدين المجموعة كلها بتتوسّط في المنطقة.
 // والتوزيع بيتعاد على العناصر اللي فضلت بعد ما الوقت يشيل الزيادة.
-export const REGION = { x: 64, y: 180, w: 952, h: 1050 };   // فوق الترجمة (بتبدأ عند 1270)
+// فوق الترجمة بمسافة واضحة: الترجمة في فيديو السبورة بتبدأ عند 1300 (player.css)، والرسومات بتخلص عند 1180.
+// ليه: كانت المسافة 40 بكسل بس، والكلام كان لازق في الأشكال اللي فوقه
+export const REGION = { x: 64, y: 170, w: 952, h: 1010 };
 const GAP = { x: 44, y: 56 }, ARROW_GAP = 150;   // لو فيه سهم بين العناصر: مسافة كفاية إن السهم يبان سهم
 function partitions(n) { // كل تقسيمات n عنصر (بالترتيب) لصفوف، كل صف 1–3
   if (!n) return [[]];
@@ -334,11 +336,12 @@ export async function createBoard(sc, el, ctx) {
     // وبيرفع ويتنقل بين الحتت (ترتيب الحتت جوه الخط زي ما هو، علشان الظهور يمشي على الخط صح)
     e.shapes.forEach((x) => {
       // العيّنات كل ~8 بكسل على الشاشة (مش بوحدات ملف الرسمة): أيقونة 24 وحدة مرسومة 600 بكسل كانت بتتقسم كل عيّنة لحتة لوحدها والإيد بتنط
-      const n = Math.min(400, Math.max(2, Math.ceil((x.Ls || x.L) / 8))), step = x.L / n, stepPx = (x.Ls || x.L) / n, pcs = [];
+      // كل 3 بكسل: حتة صغيرة بعيدة (أقصر من خطوة العيّنة) كانت بتتنط من فوقها، والإيد تروح لها فريم وترجع (نحلة carbon: 222 بكسل)
+      const n = Math.min(1500, Math.max(2, Math.ceil((x.Ls || x.L) / 3))), step = x.L / n, stepPx = (x.Ls || x.L) / n, pcs = [];
       let l0 = 0, prev = ptAt(e, x, 0);
       for (let i = 1; i <= n; i++) {
         const q = ptAt(e, x, i * step);
-        if (dist(prev, q) > Math.max(25, stepPx * 3)) { pcs.push({ l0, l1: (i - 1) * step }); l0 = i * step; }
+        if (dist(prev, q) > Math.max(12, stepPx * 3)) { pcs.push({ l0, l1: (i - 1) * step }); l0 = i * step; }
         prev = q;
       }
       pcs.push({ l0, l1: x.L });
@@ -424,7 +427,8 @@ export async function createBoard(sc, el, ctx) {
   // لو الوقت مش مكفي: الرسم يسرع لحد 70% بس (مش لربع السرعة)، والزيادة (العلامات الأول، وبعدين آخر العناصر) بتتشال بدل ما كله يجري،
   // وبعد كل عنصر بيتشال، التوزيع بيتعاد على اللي فاضل (علشان ما يفضلش مكانه فاضي)
   let live = els.slice();
-  const avail = ctx.duration - 0.45;
+  // الرسمة الكاملة بتفضل على الشاشة ثانية على الأقل قبل المشهد اللي بعده (كانت 0.45 ث: المشهد بيتنقل والرسمة لسه مخلّصة)
+  const HOLD = clamp(ctx.duration * 0.18, 1.0, 1.4), avail = ctx.duration - HOLD;
   // وقت نقل الإيد بين عنصرين (حسب المسافة، بسرعة محدودة): العنصر اللي بعده بيستنى الإيد توصل
   // تقدير مأمون: من أبعد ركن في مكان العنصر اللي قبله (القلم ممكن يخلص في أي حتة فيه)
   const farFrom = (a, pb) => { const r = a.zone || (a.path ? a.path.getBBox() : null); if (!r) return endPt(a) || pb;
@@ -441,6 +445,10 @@ export async function createBoard(sc, el, ctx) {
   const kFit = () => clamp((avail - 0.25 - 0.35 * live.length) / live.reduce((n, e) => n + e.dur0, 0), 0.7, 1);
   for (let guard = 0; guard < 12; guard++) {
     relayout(live);
+    // وقت الرسمة على قد أطول خط فيها على الشاشة (لحد 3.2 ث): خط واحد طويل (حدود أيقونة متملية 5239 بكسل) في وقت ثابت 1.9 ث
+    // كان القلم بيجري فيه 7500 بكسل/ث (3 أضعاف إيد حقيقية) والإيد بتنط. لو المشهد ما يكفيش، التوقيت بيشيل عنصر تاني بدل ما يجري
+    live.forEach((e) => { if (!e.shapes || !e.shapes.length) return; e.base ??= e.dur0;
+      const longest = Math.max(...e.shapes.map((x) => x.Ls || x.L)); e.dur0 = clamp(longest / (DRAW_SPEED * 0.7), e.base, 3.2 * PACE); });
     buildMarks(live);
     live = live.filter((e) => !e.skip);
     let end = timeIt(1, true);
@@ -450,6 +458,13 @@ export async function createBoard(sc, el, ctx) {
     const drop = [...live].reverse().find((e) => e.mark) || live[live.length - 1];
     drop.dropped = true; if (drop.box) drop.box.style.display = "none";
     live = live.filter((e) => e !== drop);
+  }
+  // عنصر واحد أطول من المشهد (رسمة 2.8 ث في مشهد 3 ث): بيترسم أسرع لحد النص بدل ما المشهد يتنقل وهو لسه بيترسم
+  const lastEl = live[live.length - 1];
+  if (lastEl && lastEl.start + lastEl.dur > avail) {
+    lastEl.dur = Math.max(lastEl.dur0 * 0.5, avail - lastEl.start);
+    if (lastEl.start + lastEl.dur > ctx.duration - 0.4) lastEl.dur = Math.max(0.4, ctx.duration - 0.4 - lastEl.start);
+    delete lastEl.tl;
   }
   el.dataset.dropped = els.filter((e) => e.dropped).length;
   // للفحص بس (قراية): كل عنصر بيترسم امتى وبياخد قد إيه (بالنسبة لبداية المشهد) ومكانه
@@ -468,7 +483,8 @@ export async function createBoard(sc, el, ctx) {
         const tl = e.shapes.length ? strokePlan(e) : [], tt = p * e.dur;
         e.shapes.forEach((x) => (x._rev = 0));
         for (const g of tl) if (!g.move && tt >= g.t0) g.x._rev = g.l0 + (g.l1 - g.l0) * clamp((tt - g.t0) / Math.max(1e-6, g.t1 - g.t0));
-        e.shapes.forEach((x) => { if (!x.noHand) x.s.style.strokeDashoffset = x.Ls * (1 - x._rev / x.L); });
+        // الخط مخفي خالص لحد ما القلم يبدأ فيه: شرطة طولها صفر بطرف مدوّر بتترسم «نقطة» (كانت 56 نقطة ظاهرة قبل الرسم في فيديو النحل)
+        e.shapes.forEach((x) => { if (!x.noHand) { x.s.style.strokeDashoffset = x.Ls * (1 - x._rev / x.L); x.s.style.strokeOpacity = (x._rev / x.L) * x.Ls >= 1 ? 1 : 0; } });   // أقل من بكسل مرسوم = نقطة
         // الألوان بتتملا في آخر جزء من الرسم وبعده
         const fp = clamp((t - e.start - e.dur * 0.7) / (e.dur * 0.6));
         e.shapes.forEach((x) => { if (e.kind !== "icon") x.s.style.fillOpacity = fp; else if (x.solid) x.s.style.fillOpacity = 0.22 * fp; });
@@ -478,7 +494,7 @@ export async function createBoard(sc, el, ctx) {
         e.lines.forEach((s, li) => { const lp = li < g.li ? 1 : li > g.li ? 0 : g.ret ? 1 : g.q, hide = `${(1 - lp) * 100}%`;
           s.style.clipPath = e.ltr ? `inset(-20% ${hide} -20% 0)` : `inset(-20% 0 -20% ${hide})`; });
       } else if (e.path) {
-        e.path.style.strokeDashoffset = e.L * (1 - p);
+        e.path.style.strokeDashoffset = e.L * (1 - p); e.path.style.opacity = p > 0 ? 1 : 0;
         if (e.head) e.head.setAttribute("opacity", p >= 0.98 ? 1 : 0);
       }
       // من أول لحظة في العنصر (p = 0 بالظبط كانت بتتحسب «بين عنصرين» والإيد كانت بتنط لنقطة الدخول فريم واحد)
@@ -487,9 +503,9 @@ export async function createBoard(sc, el, ctx) {
     // اللمسات: بعد العنصر بتاعها ما يخلص
     for (const x of touches) {
       const o = x.of, done = o.start + o.dur;
-      if (x.kind === "hl") x.el.style.strokeDashoffset = x.L * (1 - ease(clamp((t - done - 0.05) / (x.d * PACE))));
+      if (x.kind === "hl") { const q = ease(clamp((t - done - 0.05) / (x.d * PACE))); x.el.style.strokeDashoffset = x.L * (1 - q); x.el.style.visibility = q > 0 ? "visible" : "hidden"; }
       else if (x.kind === "shadow") x.el.setAttribute("opacity", 0.07 * clamp((t - o.start - o.dur * 0.7) / (o.dur * 0.6)));
-      else if (x.kind === "tick") x.el.style.strokeDashoffset = x.L * (1 - ease(clamp((t - done - 0.1 - x.k * 0.1) / (x.d * PACE))));
+      else if (x.kind === "tick") { const q = ease(clamp((t - done - 0.1 - x.k * 0.1) / (x.d * PACE))); x.el.style.strokeDashoffset = x.L * (1 - q); x.el.style.visibility = q > 0 ? "visible" : "hidden"; }
     }
     // بين عنصرين: الإيد بتتنقل من آخر نقطة لأول نقطة في اللي بعده. وفي الآخر بتمشي بره السبورة
     if (!handSt) {
