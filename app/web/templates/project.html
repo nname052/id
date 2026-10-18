@@ -130,7 +130,7 @@
     const lines = (p.tts || { lines: [] }).lines;
     const show = (t) => esc(t).replace(/\[([^\]]+)\]/g, '<span class="tag">$1</span>');
     return `<h2>${STAGE_NAMES.tts}</h2>
-      <div class="muted">ده الكلام زي ما الصوت هيقوله: الإحساس بين [ ] بالإنجليزي (زي [whispers] همس، [laughs] ضحكة، [curious] سؤال)، و "?" للسؤال، و "..." للتردد، و "," علشان الكلام يفضل متواصل. عدّل أي سطر براحتك (من غير ما تغيّر الكلمات).</div>
+      <div class="muted">ده الكلام زي ما الصوت هيقوله. الإحساس بين [ ] بالإنجليزي، وبيتحط بس لما الجملة نفسها شايلاه: [laughs] للنكتة، [whispers] للسر، [sighs] للتعب، [curious] للسؤال (مش في المواضيع الجد)، وأغلب الجمل من غير tag. و "?" للسؤال، و "..." للتردد. عدّل أي سطر براحتك من غير ما تغيّر الكلمات (الـ tag لازم من قايمة ElevenLabs).</div>
       <div class="sentences tts-edit" style="margin-top:var(--s3)">${lines.map((l, i) => `<div class="s" data-id="${l.id}"><span class="n">${i + 1}</span>
         <div class="grow"><div class="tts-view">${show(l.tts)}</div><textarea rows="1" class="tts" dir="rtl">${esc(l.tts)}</textarea>
         ${Object.keys(l.pronounce || {}).length ? `<div class="muted">نطق: ${Object.entries(l.pronounce).map(([w, s]) => `${esc(w)} ← ${esc(s)}`).join("، ")}</div>` : ""}</div></div>`).join("")}</div>

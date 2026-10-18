@@ -1,0 +1,206 @@
+{
+ "pid": "2026-10-14_928e48",
+ "title": "بكرة عمره ما بييجي",
+ "tone": "serious",
+ "before": [
+  {
+   "id": 0,
+   "tag": "serious",
+   "allowed": true,
+   "sentence": "اللحظة المناسبة اللي مستنيها؟ عمرها ما هتيجي.",
+   "beat": null
+  },
+  {
+   "id": 0,
+   "tag": "short pause",
+   "allowed": true,
+   "sentence": "اللحظة المناسبة اللي مستنيها؟ عمرها ما هتيجي.",
+   "beat": null
+  },
+  {
+   "id": 1,
+   "tag": "sighs",
+   "allowed": true,
+   "sentence": "كل يوم بتقول بكرة، والفرصة بتعدّي.",
+   "beat": null
+  },
+  {
+   "id": 2,
+   "tag": "thoughtful",
+   "allowed": true,
+   "sentence": "اللي سبقوك ما كانوش أشطر منك.",
+   "beat": null
+  },
+  {
+   "id": 4,
+   "tag": "calm",
+   "allowed": true,
+   "sentence": "مش محتاج خطة كاملة دلوقتي.",
+   "beat": null
+  },
+  {
+   "id": 6,
+   "tag": "excited",
+   "allowed": true,
+   "sentence": "صفحة واحدة، مكالمة واحدة، عشر دقايق.",
+   "beat": null
+  },
+  {
+   "id": 6,
+   "tag": "short pause",
+   "allowed": true,
+   "sentence": "صفحة واحدة، مكالمة واحدة، عشر دقايق.",
+   "beat": null
+  },
+  {
+   "id": 7,
+   "tag": "warmly",
+   "allowed": true,
+   "sentence": "إيه الخطوة الصغيرة اللي هتعملها النهارده؟",
+   "beat": null
+  }
+ ],
+ "after": [
+  {
+   "id": 0,
+   "tag": "serious",
+   "allowed": true,
+   "sentence": "اللحظة المناسبة اللي مستنيها؟ عمرها ما هتيجي.",
+   "beat": "hook"
+  },
+  {
+   "id": 0,
+   "tag": "short pause",
+   "allowed": true,
+   "sentence": "اللحظة المناسبة اللي مستنيها؟ عمرها ما هتيجي.",
+   "beat": "hook"
+  },
+  {
+   "id": 3,
+   "tag": "thoughtful",
+   "allowed": true,
+   "sentence": "هما بس بدأوا وهما مش جاهزين.",
+   "beat": "reflective"
+  },
+  {
+   "id": 4,
+   "tag": "warmly",
+   "allowed": true,
+   "sentence": "مش محتاج خطة كاملة دلوقتي.",
+   "beat": "warm"
+  },
+  {
+   "id": 7,
+   "tag": "curious",
+   "allowed": true,
+   "sentence": "إيه الخطوة الصغيرة اللي هتعملها النهارده؟",
+   "beat": "question"
+  }
+ ],
+ "after_lines": [
+  {
+   "id": 0,
+   "display": "اللحظة المناسبة اللي مستنيها؟ عمرها ما هتيجي.",
+   "tts": "[serious] اللحظة المناسبة اللي مستنيها? [short pause] عمرها ما هتيجي.",
+   "beat": "hook",
+   "evidence": "عمرها ما هتيجي"
+  },
+  {
+   "id": 1,
+   "display": "كل يوم بتقول بكرة، والفرصة بتعدّي.",
+   "tts": "كل يوم بتقول بكرة, والفرصة بتعدّي.",
+   "beat": "none",
+   "evidence": ""
+  },
+  {
+   "id": 2,
+   "display": "اللي سبقوك ما كانوش أشطر منك.",
+   "tts": "اللي سبقوك ما كانوش أشطر منك.",
+   "beat": "none",
+   "evidence": ""
+  },
+  {
+   "id": 3,
+   "display": "هما بس بدأوا وهما مش جاهزين.",
+   "tts": "[thoughtful] هما بس بدأوا... وهما مش جاهزين.",
+   "beat": "reflective",
+   "evidence": "بدأوا وهما مش جاهزين"
+  },
+  {
+   "id": 4,
+   "display": "مش محتاج خطة كاملة دلوقتي.",
+   "tts": "[warmly] مش محتاج خطة كاملة دلوقتي.",
+   "beat": "warm",
+   "evidence": "مش محتاج خطة كاملة"
+  },
+  {
+   "id": 5,
+   "display": "محتاج خطوة واحدة صغيرة النهارده.",
+   "tts": "محتاج خطوة واحدة صغيرة النهارده.",
+   "beat": "none",
+   "evidence": ""
+  },
+  {
+   "id": 6,
+   "display": "صفحة واحدة، مكالمة واحدة، عشر دقايق.",
+   "tts": "صفحة واحدة, مكالمة واحدة... عشر دقايق.",
+   "beat": "none",
+   "evidence": ""
+  },
+  {
+   "id": 7,
+   "display": "إيه الخطوة الصغيرة اللي هتعملها النهارده؟",
+   "tts": "[curious] إيه الخطوة الصغيرة اللي هتعملها النهارده?",
+   "beat": "question",
+   "evidence": "إيه الخطوة الصغيرة اللي هتعملها"
+  }
+ ],
+ "decisions": {
+  "stats": {
+   "kept": 5,
+   "removed_unknown": 0,
+   "removed_beat": 0,
+   "removed_tone": 0,
+   "removed_scene_limit": 0,
+   "removed_pause_limit": 0,
+   "beats_without_evidence": 0
+  },
+  "log": [
+   {
+    "id": 0,
+    "tag": "serious",
+    "beat": "hook",
+    "action": "kept",
+    "evidence": "عمرها ما هتيجي"
+   },
+   {
+    "id": 0,
+    "tag": "short pause",
+    "beat": "hook",
+    "action": "kept",
+    "evidence": "عمرها ما هتيجي"
+   },
+   {
+    "id": 3,
+    "tag": "thoughtful",
+    "beat": "reflective",
+    "action": "kept",
+    "evidence": "بدأوا وهما مش جاهزين"
+   },
+   {
+    "id": 4,
+    "tag": "warmly",
+    "beat": "warm",
+    "action": "kept",
+    "evidence": "مش محتاج خطة كاملة"
+   },
+   {
+    "id": 7,
+    "tag": "curious",
+    "beat": "question",
+    "action": "kept",
+    "evidence": "إيه الخطوة الصغيرة اللي هتعملها"
+   }
+  ]
+ }
+}

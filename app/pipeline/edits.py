@@ -3,6 +3,7 @@
 
 from .. import store
 from . import audio, scenes, tts_prep
+from . import tags as tagrules
 from .common import words_of
 
 
@@ -80,6 +81,10 @@ def tts_lines(pid: str, lines: list[dict]) -> list[int]:
             continue
         if len(words_of(txt)) != len(cur["display"].split()):
             raise ValueError(f"الجملة {x['id'] + 1}: عدد الكلمات لازم يفضل {len(cur['display'].split())} (الـ tags مش بتتحسب)")
+        bad = [t for t in tagrules.tags_of(txt) if t not in tagrules.ALLOWED]
+        if bad:   # الإحساس نفسه اختيارك، بس الـ tag لازم يكون من القايمة اللي ElevenLabs موثّقها
+            raise ValueError(f"الجملة {x['id'] + 1}: tag مش معروف {', '.join('[' + b + ']' for b in bad)}. المسموح: "
+                             + " ".join(f"[{a}]" for a in sorted(tagrules.ALLOWED)))
         cur["tts"] = txt
         changed.append(x["id"])
     store.write_json(d / "tts.json", t)

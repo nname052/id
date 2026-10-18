@@ -1,0 +1,402 @@
+{
+ "pid": "2026-10-17_ca06a4",
+ "title": "ليه محدش فاهم الـ INTJ؟",
+ "tone": "light",
+ "before": [
+  {
+   "id": 0,
+   "tag": "curious",
+   "allowed": true,
+   "sentence": "فيه ناس بتخطط لخمس سنين قدام، وهي قاعدة ساكتة في القعدة.",
+   "beat": null
+  },
+  {
+   "id": 0,
+   "tag": "whispers",
+   "allowed": true,
+   "sentence": "فيه ناس بتخطط لخمس سنين قدام، وهي قاعدة ساكتة في القعدة.",
+   "beat": null
+  },
+  {
+   "id": 1,
+   "tag": "mischievously",
+   "allowed": true,
+   "sentence": "دول غالبًا نمطهم آي إن تي جيه.",
+   "beat": null
+  },
+  {
+   "id": 2,
+   "tag": "matter-of-fact",
+   "allowed": false,
+   "sentence": "ده واحد من ستاشر نمط في اختبار مايرز بريجز.",
+   "beat": null
+  },
+  {
+   "id": 3,
+   "tag": "playfully",
+   "allowed": false,
+   "sentence": "وكل حرف ليه معنى.",
+   "beat": null
+  },
+  {
+   "id": 4,
+   "tag": "softly",
+   "allowed": false,
+   "sentence": "بيشحن طاقته لوحده.",
+   "beat": null
+  },
+  {
+   "id": 5,
+   "tag": "thoughtful",
+   "allowed": true,
+   "sentence": "بيشوف الصورة الكبيرة قبل التفاصيل.",
+   "beat": null
+  },
+  {
+   "id": 6,
+   "tag": "confident",
+   "allowed": false,
+   "sentence": "بيقرر بالعقل، مش بالمشاعر.",
+   "beat": null
+  },
+  {
+   "id": 7,
+   "tag": "chuckles",
+   "allowed": true,
+   "sentence": "وبيحب كل حاجة تكون مترتبة.",
+   "beat": null
+  },
+  {
+   "id": 8,
+   "tag": "serious",
+   "allowed": true,
+   "sentence": "وحسب تقديرات مؤسسة مايرز بريجز، هو من أندر الأنماط.",
+   "beat": null
+  },
+  {
+   "id": 8,
+   "tag": "surprised",
+   "allowed": true,
+   "sentence": "وحسب تقديرات مؤسسة مايرز بريجز، هو من أندر الأنماط.",
+   "beat": null
+  },
+  {
+   "id": 9,
+   "tag": "amazed",
+   "allowed": true,
+   "sentence": "حوالي اتنين في المية بس من الناس.",
+   "beat": null
+  },
+  {
+   "id": 10,
+   "tag": "sighs",
+   "allowed": true,
+   "sentence": "عشان كده كتير بيتفهم غلط.",
+   "beat": null
+  },
+  {
+   "id": 11,
+   "tag": "sarcastic",
+   "allowed": true,
+   "sentence": "الناس تفتكره متكبر، أو بارد.",
+   "beat": null
+  },
+  {
+   "id": 12,
+   "tag": "warmly",
+   "allowed": true,
+   "sentence": "بس هو ببساطة بيفكر قبل ما يتكلم.",
+   "beat": null
+  },
+  {
+   "id": 13,
+   "tag": "thoughtful",
+   "allowed": true,
+   "sentence": "ولو سألته رأيه، هيقولك الحقيقة.",
+   "beat": null
+  },
+  {
+   "id": 13,
+   "tag": "emphatic",
+   "allowed": false,
+   "sentence": "ولو سألته رأيه، هيقولك الحقيقة.",
+   "beat": null
+  },
+  {
+   "id": 14,
+   "tag": "laughs softly",
+   "allowed": false,
+   "sentence": "حتى لو مش مريحة.",
+   "beat": null
+  },
+  {
+   "id": 15,
+   "tag": "thoughtful",
+   "allowed": true,
+   "sentence": "ومشكلته إنه ساعات بيعيش في الخطة أكتر من اللحظة.",
+   "beat": null
+  },
+  {
+   "id": 15,
+   "tag": "sighs",
+   "allowed": true,
+   "sentence": "ومشكلته إنه ساعات بيعيش في الخطة أكتر من اللحظة.",
+   "beat": null
+  },
+  {
+   "id": 16,
+   "tag": "serious",
+   "allowed": true,
+   "sentence": "وخلّي بالك، الاختبار ده مش علم دقيق.",
+   "beat": null
+  },
+  {
+   "id": 17,
+   "tag": "warmly",
+   "allowed": true,
+   "sentence": "هو مراية تساعدك تفهم نفسك، مش حكم عليك.",
+   "beat": null
+  }
+ ],
+ "after": [
+  {
+   "id": 0,
+   "tag": "curious",
+   "allowed": true,
+   "sentence": "فيه ناس بتخطط لخمس سنين قدام، وهي قاعدة ساكتة في القعدة.",
+   "beat": "hook"
+  },
+  {
+   "id": 1,
+   "tag": "short pause",
+   "allowed": true,
+   "sentence": "دول غالبًا نمطهم آي إن تي جيه.",
+   "beat": "surprise"
+  },
+  {
+   "id": 9,
+   "tag": "surprised",
+   "allowed": true,
+   "sentence": "حوالي اتنين في المية بس من الناس.",
+   "beat": "surprise"
+  },
+  {
+   "id": 12,
+   "tag": "calm",
+   "allowed": true,
+   "sentence": "بس هو ببساطة بيفكر قبل ما يتكلم.",
+   "beat": "reflective"
+  },
+  {
+   "id": 15,
+   "tag": "thoughtful",
+   "allowed": true,
+   "sentence": "ومشكلته إنه ساعات بيعيش في الخطة أكتر من اللحظة.",
+   "beat": "reflective"
+  },
+  {
+   "id": 16,
+   "tag": "serious",
+   "allowed": true,
+   "sentence": "وخلّي بالك، الاختبار ده مش علم دقيق.",
+   "beat": "warning"
+  },
+  {
+   "id": 17,
+   "tag": "warmly",
+   "allowed": true,
+   "sentence": "هو مراية تساعدك تفهم نفسك، مش حكم عليك.",
+   "beat": "warm"
+  }
+ ],
+ "after_lines": [
+  {
+   "id": 0,
+   "display": "فيه ناس بتخطط لخمس سنين قدام، وهي قاعدة ساكتة في القعدة.",
+   "tts": "[curious] فيه ناس بتخطط لخمس سنين قدام, وهي قاعدة ساكتة في القعدة.",
+   "beat": "hook",
+   "evidence": "بتخطط لخمس سنين قدام"
+  },
+  {
+   "id": 1,
+   "display": "دول غالبًا نمطهم آي إن تي جيه.",
+   "tts": "دول غالبًا نمطهم... [short pause] آي إن تي /dʒeː/.",
+   "beat": "surprise",
+   "evidence": "نمطهم آي إن تي جيه"
+  },
+  {
+   "id": 2,
+   "display": "ده واحد من ستاشر نمط في اختبار مايرز بريجز.",
+   "tts": "ده واحد من ستاشر نمط في اختبار مايرز بريجز.",
+   "beat": "none",
+   "evidence": ""
+  },
+  {
+   "id": 3,
+   "display": "وكل حرف ليه معنى.",
+   "tts": "وكل حرف ليه معنى.",
+   "beat": "none",
+   "evidence": ""
+  },
+  {
+   "id": 4,
+   "display": "بيشحن طاقته لوحده.",
+   "tts": "بيشحن طاقته لوحده.",
+   "beat": "none",
+   "evidence": ""
+  },
+  {
+   "id": 5,
+   "display": "بيشوف الصورة الكبيرة قبل التفاصيل.",
+   "tts": "بيشوف الصورة الكبيرة قبل التفاصيل.",
+   "beat": "none",
+   "evidence": ""
+  },
+  {
+   "id": 6,
+   "display": "بيقرر بالعقل، مش بالمشاعر.",
+   "tts": "بيقرر بالعقل, —مش— بالمشاعر.",
+   "beat": "none",
+   "evidence": ""
+  },
+  {
+   "id": 7,
+   "display": "وبيحب كل حاجة تكون مترتبة.",
+   "tts": "وبيحب كل حاجة تكون مترتبة.",
+   "beat": "none",
+   "evidence": ""
+  },
+  {
+   "id": 8,
+   "display": "وحسب تقديرات مؤسسة مايرز بريجز، هو من أندر الأنماط.",
+   "tts": "وحسب تقديرات مؤسسة مايرز بريجز, هو من أندر الأنماط.",
+   "beat": "none",
+   "evidence": ""
+  },
+  {
+   "id": 9,
+   "display": "حوالي اتنين في المية بس من الناس.",
+   "tts": "[surprised] حوالي اتنين في المِيَّة بس من الناس!",
+   "beat": "surprise",
+   "evidence": "اتنين في المية بس"
+  },
+  {
+   "id": 10,
+   "display": "عشان كده كتير بيتفهم غلط.",
+   "tts": "عشان كده كتير بيتفهم غلط.",
+   "beat": "none",
+   "evidence": ""
+  },
+  {
+   "id": 11,
+   "display": "الناس تفتكره متكبر، أو بارد.",
+   "tts": "الناس تفتكره متكبر, أو بارد.",
+   "beat": "none",
+   "evidence": ""
+  },
+  {
+   "id": 12,
+   "display": "بس هو ببساطة بيفكر قبل ما يتكلم.",
+   "tts": "[calm] بس هو ببساطة بيفكر قبل ما يتكلم.",
+   "beat": "reflective",
+   "evidence": "ببساطة بيفكر قبل ما يتكلم"
+  },
+  {
+   "id": 13,
+   "display": "ولو سألته رأيه، هيقولك الحقيقة.",
+   "tts": "ولو سألته رأيه, هيقولك الحقيقة.",
+   "beat": "none",
+   "evidence": ""
+  },
+  {
+   "id": 14,
+   "display": "حتى لو مش مريحة.",
+   "tts": "حتى لو... مش مُرِيحَة.",
+   "beat": "none",
+   "evidence": ""
+  },
+  {
+   "id": 15,
+   "display": "ومشكلته إنه ساعات بيعيش في الخطة أكتر من اللحظة.",
+   "tts": "[thoughtful] ومشكلته إنه ساعات بيعيش في الخطة أكتر من اللحظة.",
+   "beat": "reflective",
+   "evidence": "بيعيش في الخطة أكتر من اللحظة"
+  },
+  {
+   "id": 16,
+   "display": "وخلّي بالك، الاختبار ده مش علم دقيق.",
+   "tts": "[serious] وخلّي بالك, الاختبار ده مش علم دقيق.",
+   "beat": "warning",
+   "evidence": "خلّي بالك، الاختبار ده مش علم دقيق"
+  },
+  {
+   "id": 17,
+   "display": "هو مراية تساعدك تفهم نفسك، مش حكم عليك.",
+   "tts": "[warmly] هو مراية تساعدك تفهم نفسك, مش حكم عليك.",
+   "beat": "warm",
+   "evidence": "مراية تساعدك تفهم نفسك، مش حكم عليك"
+  }
+ ],
+ "decisions": {
+  "stats": {
+   "kept": 7,
+   "removed_unknown": 0,
+   "removed_beat": 0,
+   "removed_tone": 0,
+   "removed_scene_limit": 0,
+   "removed_pause_limit": 0,
+   "beats_without_evidence": 0
+  },
+  "log": [
+   {
+    "id": 0,
+    "tag": "curious",
+    "beat": "hook",
+    "action": "kept",
+    "evidence": "بتخطط لخمس سنين قدام"
+   },
+   {
+    "id": 1,
+    "tag": "short pause",
+    "beat": "surprise",
+    "action": "kept",
+    "evidence": "نمطهم آي إن تي جيه"
+   },
+   {
+    "id": 9,
+    "tag": "surprised",
+    "beat": "surprise",
+    "action": "kept",
+    "evidence": "اتنين في المية بس"
+   },
+   {
+    "id": 12,
+    "tag": "calm",
+    "beat": "reflective",
+    "action": "kept",
+    "evidence": "ببساطة بيفكر قبل ما يتكلم"
+   },
+   {
+    "id": 15,
+    "tag": "thoughtful",
+    "beat": "reflective",
+    "action": "kept",
+    "evidence": "بيعيش في الخطة أكتر من اللحظة"
+   },
+   {
+    "id": 16,
+    "tag": "serious",
+    "beat": "warning",
+    "action": "kept",
+    "evidence": "خلّي بالك، الاختبار ده مش علم دقيق"
+   },
+   {
+    "id": 17,
+    "tag": "warmly",
+    "beat": "warm",
+    "action": "kept",
+    "evidence": "مراية تساعدك تفهم نفسك، مش حكم عليك"
+   }
+  ]
+ }
+}

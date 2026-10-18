@@ -1,0 +1,206 @@
+{
+ "pid": "2026-10-16_5585c8",
+ "title": "موبايلك بيسرقك بهدوء",
+ "tone": "serious",
+ "before": [
+  {
+   "id": 0,
+   "tag": "serious",
+   "allowed": true,
+   "sentence": "الموبايل بيسرق تركيزك وهو مقفول كمان.",
+   "beat": null
+  },
+  {
+   "id": 1,
+   "tag": "curious",
+   "allowed": true,
+   "sentence": "في تجربة مشهورة، ناس حلّوا اختبار تركيز.",
+   "beat": null
+  },
+  {
+   "id": 3,
+   "tag": "short pause",
+   "allowed": true,
+   "sentence": "اللي موبايلهم بعيد، جابوا نتيجة أعلى بوضوح.",
+   "beat": null
+  },
+  {
+   "id": 4,
+   "tag": "curious",
+   "allowed": true,
+   "sentence": "طب ليه ده بيحصل؟",
+   "beat": null
+  },
+  {
+   "id": 5,
+   "tag": "thoughtful",
+   "allowed": true,
+   "sentence": "عقلك بيفضل يقاوم إنه يبص عليه.",
+   "beat": null
+  },
+  {
+   "id": 7,
+   "tag": "calm",
+   "allowed": true,
+   "sentence": "الحل بسيط: حطه في أوضة تانية.",
+   "beat": null
+  },
+  {
+   "id": 8,
+   "tag": "mischievously",
+   "allowed": true,
+   "sentence": "إنت موبايلك فين دلوقتي؟",
+   "beat": null
+  }
+ ],
+ "after": [
+  {
+   "id": 0,
+   "tag": "surprised",
+   "allowed": true,
+   "sentence": "الموبايل بيسرق تركيزك وهو مقفول كمان.",
+   "beat": "hook"
+  },
+  {
+   "id": 3,
+   "tag": "short pause",
+   "allowed": true,
+   "sentence": "اللي موبايلهم بعيد، جابوا نتيجة أعلى بوضوح.",
+   "beat": "surprise"
+  },
+  {
+   "id": 4,
+   "tag": "curious",
+   "allowed": true,
+   "sentence": "طب ليه ده بيحصل؟",
+   "beat": "question"
+  },
+  {
+   "id": 7,
+   "tag": "calm",
+   "allowed": true,
+   "sentence": "الحل بسيط: حطه في أوضة تانية.",
+   "beat": "relief"
+  },
+  {
+   "id": 8,
+   "tag": "curious",
+   "allowed": true,
+   "sentence": "إنت موبايلك فين دلوقتي؟",
+   "beat": "question"
+  }
+ ],
+ "after_lines": [
+  {
+   "id": 0,
+   "display": "الموبايل بيسرق تركيزك وهو مقفول كمان.",
+   "tts": "[surprised] الموبيل بيسرق تركيزك... وهو مقفول كمان.",
+   "beat": "hook",
+   "evidence": "وهو مقفول كمان"
+  },
+  {
+   "id": 1,
+   "display": "في تجربة مشهورة، ناس حلّوا اختبار تركيز.",
+   "tts": "في تجربة مشهورة, ناس حلّوا اختبار تركيز.",
+   "beat": "none",
+   "evidence": ""
+  },
+  {
+   "id": 2,
+   "display": "ناس موبايلهم جنبهم، وناس موبايلهم في أوضة تانية.",
+   "tts": "ناس موبايلهم جنبهم, وناس موبايلهم في أوضة تانية.",
+   "beat": "none",
+   "evidence": ""
+  },
+  {
+   "id": 3,
+   "display": "اللي موبايلهم بعيد، جابوا نتيجة أعلى بوضوح.",
+   "tts": "اللي موبايلهم بعيد, [short pause] جابوا نتيجة أعلى بوضوح!",
+   "beat": "surprise",
+   "evidence": "جابوا نتيجة أعلى بوضوح"
+  },
+  {
+   "id": 4,
+   "display": "طب ليه ده بيحصل؟",
+   "tts": "[curious] طب ليه ده بيحصل?",
+   "beat": "question",
+   "evidence": "طب ليه ده بيحصل"
+  },
+  {
+   "id": 5,
+   "display": "عقلك بيفضل يقاوم إنه يبص عليه.",
+   "tts": "عقلك بيفضل يقاوم إنه يبص عليه.",
+   "beat": "none",
+   "evidence": ""
+  },
+  {
+   "id": 6,
+   "display": "والمقاومة دي بتاكل من تركيزك.",
+   "tts": "والمقاومة دي بتاكل من تركيزك.",
+   "beat": "none",
+   "evidence": ""
+  },
+  {
+   "id": 7,
+   "display": "الحل بسيط: حطه في أوضة تانية.",
+   "tts": "[calm] الحل بسيط: —حُطُّه— في أوضة تانية.",
+   "beat": "relief",
+   "evidence": "الحل بسيط"
+  },
+  {
+   "id": 8,
+   "display": "إنت موبايلك فين دلوقتي؟",
+   "tts": "[curious] إنت موبايلك فين دلوقتي?",
+   "beat": "question",
+   "evidence": "إنت موبايلك فين دلوقتي"
+  }
+ ],
+ "decisions": {
+  "stats": {
+   "kept": 5,
+   "removed_unknown": 0,
+   "removed_beat": 0,
+   "removed_tone": 0,
+   "removed_scene_limit": 0,
+   "removed_pause_limit": 0,
+   "beats_without_evidence": 0
+  },
+  "log": [
+   {
+    "id": 0,
+    "tag": "surprised",
+    "beat": "hook",
+    "action": "kept",
+    "evidence": "وهو مقفول كمان"
+   },
+   {
+    "id": 3,
+    "tag": "short pause",
+    "beat": "surprise",
+    "action": "kept",
+    "evidence": "جابوا نتيجة أعلى بوضوح"
+   },
+   {
+    "id": 4,
+    "tag": "curious",
+    "beat": "question",
+    "action": "kept",
+    "evidence": "طب ليه ده بيحصل"
+   },
+   {
+    "id": 7,
+    "tag": "calm",
+    "beat": "relief",
+    "action": "kept",
+    "evidence": "الحل بسيط"
+   },
+   {
+    "id": 8,
+    "tag": "curious",
+    "beat": "question",
+    "action": "kept",
+    "evidence": "إنت موبايلك فين دلوقتي"
+   }
+  ]
+ }
+}
