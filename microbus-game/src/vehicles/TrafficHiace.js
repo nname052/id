@@ -34,6 +34,7 @@ export function buildTrafficHiace(asset, R = Math.random) {
   model.traverse((o) => {
     if (!o.isMesh) return;
     const n = (o.userData.matName || '').toLowerCase();
+    if (n === 'logo') o.visible = false; // من غير شعار الماركة (للنشر العام)
     if (n === 'paint') o.material = variant;
     else if (n === 'glass' || n === 'glass2') { o.material = S.glass; o.castShadow = false; o.userData.role = 'glass'; }
     else if (n === 'lights') o.material = S.lights;

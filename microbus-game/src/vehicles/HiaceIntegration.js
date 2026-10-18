@@ -140,6 +140,8 @@ export function integrateHiace(rig, asset, spec, A) {
     o.castShadow = true; o.receiveShadow = true;
     const n = (o.userData.matName || '').toLowerCase();
     const mat = o.material;
+    // شعار الماركة التجارية (Toyota) مستخبي: العربية نفسها زي ما هي، من غير علامة تجارية حقيقية (للنشر العام)
+    if (n === 'logo') o.visible = false;
     // بعد تصحيح اتجاه المثلثات: الصاج وش واحد بس (من جوه بيبان التلبيس الغامق)
     if (n === 'paint') {
       // الصاج لبره بس، وله أولوية على أي سطح لازق فيه (زي التلبيس الأسود)
