@@ -103,7 +103,7 @@ def main() -> int:
         fails.append(f"slower cuts edit: {r}")
     fx = nl.fix_lines({"data": {"cues": [dict(cues[0], words=[dict(w, source="s1") for w in cues[0]["words"]])]}, "params": {"fixes": {}}, "user_params": {}},
                       {cues[0]["id"]: "النهارده هنتكلم عن الهدف"})
-    if fx.get("user_params", {}).get("fixes", {}).get("s1:3") != "الهدف":
+    if fx.get("user_params", {}).get("fixes", {}).get("s1:3") != {"from": "التركيز.", "to": "الهدف"}:
         fails.append(f"subtitle line fix: {fx}")
 
     print(f"transitions: {[(t['kind'], t['frames'], t['audio_ms']) for t in tr]} · 60fps dissolve {tr60[0]['frames']} frames")

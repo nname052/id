@@ -15,7 +15,9 @@ import numpy as np
 
 from ..config import ENV
 
-MODEL = ENV.get("MONTAGE_WHISPER_MODEL") or "medium"
+# large-v3 (بعد موافقتك على التحميل، ~3GB): على تسجيل الموبايل الثقة 0.84 بدل 0.74، وصحّح «مبسوط/المجمل/كويسة/منطقي» من غير تمهيد.
+# large-v3-turbo اتجرّب واتشال: «مقصود» بدل «مبسوط»، ومع التمهيد ترجم للفصحى. medium فاضل احتياطي (MONTAGE_WHISPER_MODEL=medium).
+MODEL = ENV.get("MONTAGE_WHISPER_MODEL") or "large-v3"
 MIN_CONF = 0.5          # متوسط ثقة الكلمات أقل من كده = التفريغ مش موثوق ← نقسّم بالسكتات بدل الكلام
 # تمهيد عام للهجة المصرية (مش فيه كلام الفيديو): على تسجيل موبايل حقيقي الثقة طلعت من 0.69 لـ 0.74، وبقى فيه ترقيم
 # (علامات الترقيم بتساعد في حدود الجمل والسطور)، وكلمات زي «كتير/كويسة» اتفهمت صح بدل «كثير/جويزة».
@@ -67,6 +69,11 @@ def pauses(path: Path, duration: float, noise_db: float = -35, min_d: float = 0.
     return out
 
 
+def _prompt(language: str) -> str | None:
+    """التمهيد بيفيد medium بس؛ large-v3 بيبوّظ معاه (بيكتب «جداً/المكمل» بدل «كده/المجمل»)."""
+    return DIALECT_PROMPT.get(language) if MODEL in ("small", "medium") else None
+
+
 def _load():
     global _model
     if _model is None:
@@ -81,7 +88,7 @@ def transcribe(path: Path, language: str = "ar") -> dict:
     audio = pcm(path)
     with _mlock:  # موديل واحد في الذاكرة، وطلب واحد في نفس الوقت
         segs, info = _load().transcribe(audio, language=None if language == "auto" else language, word_timestamps=True,
-                                        beam_size=5, vad_filter=False, condition_on_previous_text=False, initial_prompt=DIALECT_PROMPT.get(language))
+                                        beam_size=5, vad_filter=False, condition_on_previous_text=False, initial_prompt=_prompt(language))
         words, segments = [], []
         for s in segs:
             first = len(words)
@@ -93,7 +100,7 @@ def transcribe(path: Path, language: str = "ar") -> dict:
     mean_p = round(float(np.mean([w["p"] for w in words])), 3) if words else 0.0
     return {"engine": f"faster-whisper {MODEL} (CPU, int8)", "language": info.language, "language_prob": round(float(info.language_probability), 3),
             "words": words, "segments": segments, "mean_prob": mean_p, "seconds": round(time.time() - t0, 2),
-            "prompt": DIALECT_PROMPT.get(language)}
+            "prompt": _prompt(language)}
 
 
 def speech_from_pauses(pause_list: list[dict], duration: float, min_len: float = 0.2) -> list[dict]:
@@ -133,4 +140,33 @@ def cut_jumps(path: Path, times: list[float], win: float = 0.03) -> list[dict]:
         seg = x[max(0, i - w):i + w]
         step = float(np.abs(np.diff(seg)).max()) if len(seg) > 1 else 0.0
         out.append({"t": round(t, 3), "jump_db": round(float(abs(ra - rb)), 1), "level_db": round(float(max(ra, rb)), 1), "max_step": round(step, 4)})
+    return out
+
+
+def vad(path: Path, duration: float, threshold: float = 0.35) -> dict:
+    """كشف الكلام (Silero VAD، جوه faster-whisper، MIT): فترات الكلام والسكتات بينها.
+    أدق من مستوى الصوت لوحده في تسجيل واطي: كلام صاحبك ممكن يبقى في نفس علو الدوشة/النفَس، والـ VAD بيفرق بالشكل مش بالعلو."""
+    from faster_whisper.vad import VadOptions, get_speech_timestamps
+    a = pcm(path)
+    ts = get_speech_timestamps(a, VadOptions(threshold=threshold, min_silence_duration_ms=200, speech_pad_ms=30, min_speech_duration_ms=120))
+    sp = [{"start": round(t["start"] / SR, 3), "end": round(t["end"] / SR, 3)} for t in ts]
+    gaps, t0 = [], 0.0
+    for s in sp:
+        if s["start"] - t0 >= 0.2:
+            gaps.append({"start": round(t0, 3), "end": s["start"]})
+        t0 = s["end"]
+    if duration - t0 >= 0.2:
+        gaps.append({"start": round(t0, 3), "end": round(duration, 3)})
+    return {"speech": sp, "gaps": gaps}
+
+
+def merge_pauses(*lists: list[dict]) -> list[dict]:
+    """اتحاد قوايم السكتات (اللي بتتداخل بتتدمج)."""
+    allp = sorted((p for lst in lists for p in lst), key=lambda p: p["start"])
+    out = []
+    for p in allp:
+        if out and p["start"] <= out[-1]["end"]:
+            out[-1]["end"] = max(out[-1]["end"], p["end"])
+        else:
+            out.append(dict(p))
     return out

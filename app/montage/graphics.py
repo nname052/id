@@ -281,7 +281,12 @@ def chars_per_line(aspect: str, W: int, H: int, size: str) -> int:
     return max(12, int(((safe["right"] - safe["left"]) * W - fs) / (0.55 * fs)))
 
 
-def render(cues: list[dict], cards: list[dict], aspect: str, W: int, H: int, out_dir: Path, sub_style: dict, mood: str, card_zone: dict) -> dict:
+def _disp_sub(w: str, last: bool) -> str:
+    return w.rstrip("،,.؛;:") if last else w
+
+
+def render(cues: list[dict], cards: list[dict], aspect: str, W: int, H: int, out_dir: Path, sub_style: dict, mood: str, card_zone: dict,
+           word_states: bool = False) -> dict:
     """الترجمة والكروت ← PNG شفافة + مكان كل واحدة. sub_style: {size, color, panel, pos}."""
     from playwright.sync_api import sync_playwright
 
@@ -327,10 +332,26 @@ def render(cues: list[dict], cards: list[dict], aspect: str, W: int, H: int, out
             png = out_dir / f"sub_{k + 1:03d}.png"
             el.screenshot(path=str(png), omit_background=True)
             w, h = round(box["width"]), round(box["height"])
-            x, y = round(cx - w / 2), round(bottom - h)
+            bot = (c["pos_bottom"] * H) if c.get("pos_bottom") else bottom
+            x, y = round(cx - w / 2), round(bot - h)
             inside = x >= safe["left"] * W - 1 and x + w <= safe["right"] * W + 1 and y >= safe["top"] * H - 1 and y + h <= (safe["bottom"] + 0.05) * H + 1
+            states = []
+            if word_states and c.get("words"):
+                # كلمة كلمة: نفس الصندوق (الكلمات اللي لسه ما اتقالتش مخفية بس واخدة مكانها، فالسطر ما بيتحركش)، وكل كلمة بتظهر مع أول صوتها
+                ws = c["words"]
+                for j in range(len(ws)):
+                    pg.evaluate("""([ws, j]) => { const s = document.getElementById('s'); s.innerHTML = '';
+                        ws.forEach((w, i) => { const e = document.createElement('span'); e.textContent = (i ? ' ' : '') + w;
+                          if (i > j) e.style.visibility = 'hidden'; s.appendChild(e); }); }""", [[_disp_sub(x["word"], i == len(ws) - 1) for i, x in enumerate(ws)], j])
+                    sp = out_dir / f"sub_{k + 1:03d}_{j + 1:02d}.png"
+                    # الصندوق على قد الكلام اللي اتقال بس، وثابت من ناحية أول السطر (يمين): الكلمات اللي ظهرت ما بتتحركش
+                    pg.evaluate("""() => { const s = document.getElementById('s'); [...s.children].forEach(e => { if (e.style.visibility === 'hidden') e.style.display = 'none'; }); }""")
+                    bb = el.bounding_box()
+                    el.screenshot(path=str(sp), omit_background=True)
+                    states.append({"png": str(sp), "start": round(ws[j]["start"], 3), "end": round(ws[j + 1]["start"], 3) if j + 1 < len(ws) else c["end"],
+                                   "dx": round(w - bb["width"]), "w": round(bb["width"]), "h": round(bb["height"])})
             subs_out.append({"id": c["id"], "png": str(png), "x": x, "y": y, "w": w, "h": h, "start": c["start"], "end": c["end"],
-                             "inside_bottom_zone": inside, "lines": round(h / (fs * 1.38 + fs * .44))})
+                             "inside_bottom_zone": inside, "lines": round(h / (fs * 1.38 + fs * .44)), "states": states})
         pg.evaluate("document.getElementById('s').textContent = ''")
         for k, c in enumerate(cards):
             pg.evaluate("""c => { const k = document.getElementById('k'); k.className = c.kind;

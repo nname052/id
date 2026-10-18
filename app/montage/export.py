@@ -58,7 +58,7 @@ def _run(args: list[str], what: str) -> None:
 def render_video(segments: list[dict], transitions: list[dict], sources: dict, aspect: str, out: Path, *, fps: int, fps_method: str = "same",
                  look_vf: str = "", crop_x: float = 0.5, audio_file: Path | None = None, subs: list[dict] | None = None,
                  cards: list[dict] | None = None, card_rise: float = 0.0, enter: float = 0.35, exit_: float = 0.25,
-                 scale: float = 1.0, crf: int = 18, preset: str = "medium") -> dict:
+                 scale: float = 1.0, crf: int = 18, preset: str = "medium", gfx: list[dict] | None = None, subs_track: Path | None = None) -> dict:
     """الفيديو الكامل. segments: [{source, start, end}] (مدة كل جزء مضبوطة على الفريم)، transitions: من cuts.plan_transitions."""
     W, H = size(aspect, scale)
     hs = handles(segments, transitions, sources, fps)
@@ -72,11 +72,12 @@ def render_video(segments: list[dict], transitions: list[dict], sources: dict, a
         lens.append(nf)
         if src["has_video"]:
             args += ["-ss", f"{a:.4f}", "-t", f"{(b - a) + 2 / fps:.4f}", "-i", str(src["path"])]
-            conv = f"minterpolate=fps={fps}:mi_mode=blend" if fps_method.startswith("minterpolate") else f"fps={fps}"
-            ch.append(f"[{n_in}:v]{conv},{fit_chain(src, W, H, crop_x)},setsar=1,format=yuv420p,trim=end_frame={nf},setpts=PTS-STARTPTS[v{k}]")
+            meth = src.get("fps_method", fps_method)   # النسخة المتلوّنة فريماتها ثابتة أصلًا
+            conv = f"minterpolate=fps={fps}:mi_mode=blend" if meth.startswith("minterpolate") else f"fps={fps}"
+            ch.append(f"[{n_in}:v]{conv},{fit_chain(src, W, H, crop_x)},setsar=1,format=yuv420p,trim=end_frame={nf},setpts=PTS-STARTPTS,settb=1/{fps}[v{k}]")
             n_in += 1
         else:
-            ch.append(f"color=c=black:s={W}x{H}:r={fps}:d={nf / fps:.4f},format=yuv420p,setsar=1,trim=end_frame={nf},setpts=PTS-STARTPTS[v{k}]")
+            ch.append(f"color=c=black:s={W}x{H}:r={fps}:d={nf / fps:.4f},format=yuv420p,setsar=1,trim=end_frame={nf},setpts=PTS-STARTPTS,settb=1/{fps}[v{k}]")
     cur, L = "v0", lens[0]
     for k, tr in enumerate(transitions):
         nxt = f"v{k + 1}"
@@ -85,13 +86,39 @@ def render_video(segments: list[dict], transitions: list[dict], sources: dict, a
             ch.append(f"[{cur}][{nxt}]xfade=transition=fade:duration={d / fps:.4f}:offset={(L - d) / fps:.4f}[x{k}]")
             L = L + lens[k + 1] - d
         else:
-            ch.append(f"[{cur}][{nxt}]concat=n=2:v=1:a=0[x{k}]")
+            ch.append(f"[{cur}][{nxt}]concat=n=2:v=1:a=0,settb=1/{fps}[x{k}]")   # نفس الـ timebase علشان xfade اللي بعدها
             L = L + lens[k + 1]
         cur = f"x{k}"
     total = L / fps
     if look_vf:
         ch.append(f"[{cur}]{look_vf}[lk]")
         cur = "lk"
+    for k, g in enumerate(gfx or []):   # الموشن جرافيك: overlay / explainer / split / inset
+        S, E = g["start"], g["start"] + g["frames"] / fps
+        fade = f"fade=t=in:st={S:.3f}:d=0.3:alpha=1,fade=t=out:st={E - 0.3:.3f}:d=0.3:alpha=1"
+        args += ["-framerate", str(fps), "-i", str(Path(g["dir"]) / "f_%05d.png")]
+        gi = n_in; n_in += 1
+        en = f"enable='between(t,{S:.3f},{E:.3f})'"
+        if g["mode"] in ("split", "inset"):
+            ch.append(f"[{cur}]split[gm{k}][gc{k}]")
+            cx0, cy0, cw, chh = g["crop"]
+            tw, th = g["target"][2], g["target"][3]
+            ch.append(f"[gc{k}]crop={cw}:{chh}:{cx0}:{cy0},scale={tw}:{th},format=yuva420p,{fade}[gs{k}]")
+            base = f"gm{k}"
+        else:
+            base = cur
+        gf = f"format=rgba,setpts=PTS-STARTPTS+{S:.3f}/TB" + (f",{fade}" if g["mode"] != "overlay" else "")
+        ch.append(f"[{gi}:v]{gf}[gp{k}]")
+        ch.append(f"[{base}][gp{k}]overlay=x={g['x']}:y={g['y']}:eof_action=pass:{en}[gx{k}]")
+        cur = f"gx{k}"
+        if g["mode"] in ("split", "inset"):
+            ch.append(f"[{cur}][gs{k}]overlay=x={g['target'][0]}:y={g['target'][1]}:eof_action=pass:{en}[gy{k}]")
+            cur = f"gy{k}"
+    if subs_track:   # الترجمة كلمة كلمة: تراك واحد (صور بمدد) فوق كل حاجة
+        args += ["-f", "concat", "-safe", "0", "-i", str(subs_track)]
+        ch.append(f"[{n_in}:v]format=rgba[st]")
+        ch.append(f"[{cur}][st]overlay=0:0:eof_action=pass:shortest=0[stx]")
+        cur = "stx"; n_in += 1
     for k, o in enumerate(subs or []):   # سطور الترجمة: كل سطر بيظهر في وقته بس
         d = max(0.05, o["end"] - o["start"])
         args += ["-loop", "1", "-framerate", str(fps), "-t", f"{d:.3f}", "-i", str(o["png"])]
@@ -177,3 +204,25 @@ def normalize(in_wav: Path, out_wav: Path, target: float, tp: float = -1.5, lra:
     _run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(in_wav), "-af", f + ",aresample=48000", "-c:a", "pcm_s16le", str(out_wav)],
          "loudnorm")
     return {"before": before, "after": loudness(out_wav)}
+
+
+def grade_source(src: dict, out: Path, *, fps: int, fps_method: str, aspect: str, shots: list[dict], mask: Path | None = None,
+                 bg_vf: str = "", fg_vf: str = "", crop_x: float = 0.5, crf: int = 14) -> dict:
+    """نسخة شغل متلوّنة من الملف كله (الإطار + الفريمات الثابتة + تصحيح كل لقطة + الخلفية ورا المتكلم بالقناع).
+    shots: [{start, end, vf}] بتوقيت الملف. الرندر بعد كده بيقرا من النسخة دي من غير فلاتر تانية. الأصل ما بيتلمسش."""
+    W, H = size(aspect)
+    conv = f"minterpolate=fps={fps}:mi_mode=blend" if fps_method.startswith("minterpolate") else f"fps={fps}"
+    args = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(src["path"])]
+    ch = [f"[0:v]{conv},{fit_chain(src, W, H, crop_x)},setsar=1,format=yuv420p,split={len(shots)}" + "".join(f"[s{k}]" for k in range(len(shots)))]
+    for k, sh in enumerate(shots):
+        ch.append(f"[s{k}]trim=start={sh['start']:.4f}:end={sh['end']:.4f},setpts=PTS-STARTPTS" + (f",{sh['vf']}" if sh.get("vf") else "") + f"[g{k}]")
+    ch.append("".join(f"[g{k}]" for k in range(len(shots))) + f"concat=n={len(shots)}:v=1:a=0[g]")
+    cur = "g"
+    if mask and (bg_vf or fg_vf):   # المتكلم (بالقناع) ليه تصحيحه، والخلفية ليها تصحيحها
+        args += ["-i", str(mask)]
+        ch += ["[g]split[fg0][b]", f"[fg0]{fg_vf or 'null'}[fg]", f"[b]{bg_vf or 'null'}[bg]", f"[1:v]format=gray,scale={W}:{H}[m]",
+               "[fg][m]alphamerge[fga]", "[bg][fga]overlay=format=yuv420,format=yuv420p[out]"]
+        cur = "out"
+    _run(args + ["-filter_complex", ";".join(ch), "-filter_complex_threads", "8", "-map", f"[{cur}]", "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", str(crf),
+                 "-pix_fmt", "yuv420p", "-r", str(fps), "-fps_mode", "cfr", str(out)], "تلوين")
+    return {"file": str(out)}

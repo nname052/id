@@ -13,6 +13,7 @@ S1 التحليل ← S2 القصّ والإيقاع ← S3 الصورة ← S4 
 import json
 import os
 import shutil
+import subprocess
 import threading
 import time
 import traceback
@@ -22,7 +23,7 @@ import numpy as np
 
 from ..store import write_json
 from . import brief as briefs
-from . import cuts, graphics, look, media, speech, state
+from . import cuts, graphics, look, media, motion, speech, state, vision
 from . import export as exporter
 
 PIPE = ["s1_analyze", "s2_cut", "s3_look", "s4_subs", "s5_graphics", "s6_audio", "s7_preview"]
@@ -363,8 +364,16 @@ def export(mid: str) -> dict:
 
 
 # ---------- أدوات ----------
-def sources_map(ctx) -> dict:
-    return {s["id"]: {"path": ctx["d"] / s["work"], **s["probe"]} for s in ctx["m"]["sources"]}
+def sources_map(ctx, data: dict | None = None) -> dict:
+    """الملفات. لو فيه نسخة متلوّنة من مرحلة الصورة (data.look.graded) الفيديو الأساسي بيتقري منها (مقاسها مقاس الإخراج وفريماتها ثابتة)."""
+    out = {s["id"]: {"path": ctx["d"] / s["work"], **s["probe"]} for s in ctx["m"]["sources"]}
+    g = ((data or {}).get("look") or {}).get("graded")
+    if g:
+        mv = next((s for s in ctx["m"]["sources"] if s["probe"]["has_video"]), None)
+        W, H = exporter.size(data["aspect"])
+        if mv:
+            out[mv["id"]] = {**out[mv["id"]], "path": ctx["d"] / g, "width": W, "height": H, "fps": data["fps"], "fps_method": "same", "graded": True}
+    return out
 
 
 _env_cache: dict = {}
@@ -396,9 +405,11 @@ def words_by_source(s1: dict, fixes: dict | None = None) -> dict:
     """كلمات كل ملف، بعد تصحيحاتك (fixes: {"s1:12": "مبسوط"}؛ "" = الكلمة اندمجت في اللي قبلها)."""
     out = {}
     for sid, v in s1["sources"].items():
-        ws = [dict(w, src_i=i) for i, w in enumerate(v.get("words") or [])]
+        ws = [dict(w, src_i=i, orig=w["word"]) for i, w in enumerate(v.get("words") or [])]
         for w in ws:
             f = (fixes or {}).get(f"{sid}:{w['src_i']}")
+            if isinstance(f, dict):   # التصحيح فاكر الكلمة الأصلية: بيتطبق بس لو لسه هي نفس الكلمة (لو التفريغ اتعاد واتغيّر الترقيم، ما يقعش على كلمة غلط)
+                f = f["to"] if cuts.norm(f.get("from", "")) == cuts.norm(w["word"]) else None
             if f is not None:
                 w["word"], w["p"], w["fixed"] = f, 1.0, True
         keep = []
@@ -456,11 +467,13 @@ def summarize(key: str, data: dict) -> dict:
 
 
 def _still(ctx, segments: list[dict], t_out: float, name: str, label: str, look_vf: str = "", overlays: list[dict] | None = None,
-           crop: tuple | None = None, aspect: str = "9:16", crop_x: float = 0.5) -> dict:
+           crop: tuple | None = None, aspect: str = "9:16", crop_x: float = 0.5, data: dict | None = None) -> dict:
     """صورة من الإخراج في وقت معيّن (من المصدر + الإطار + الفلاتر + اللي فوقه) للتقرير، من غير رندر الفيديو كله."""
-    srcs = sources_map(ctx)
+    srcs = sources_map(ctx, data)
     sid, ts = out_to_src(segments, t_out)
     src = srcs[sid]
+    if src.get("graded"):
+        look_vf = ""
     W, H = exporter.size(aspect)
     args = ["ffmpeg", "-v", "error", "-y", "-ss", f"{ts:.3f}", "-i", str(src["path"])]
     ch = [f"[0:v]{exporter.fit_chain(src, W, H, crop_x)},setsar=1" + (f",{look_vf}" if look_vf else "") + "[b0]"]
@@ -505,15 +518,18 @@ def run_s1(ctx):
         if pr["has_audio"]:
             sil = speech.silence_threshold(env_of(path))
             thr = sil["threshold_db"] if prm["silence_db"] == "auto" else float(prm["silence_db"])
-            P = speech.pauses(path, dur, thr)
-            info.update(pauses=P, silence=sil, silence_db=thr)
+            P_level = speech.pauses(path, dur, thr)
+            V = speech.vad(path, dur)
+            P = speech.merge_pauses(P_level, V["gaps"])   # سكتات بالعلو + سكتات بالـ VAD (الكلام الواطي جدًا)
+            info.update(pauses=P, pauses_level=P_level, vad_speech=V["speech"], silence=sil, silence_db=thr)
             t, err = None, None
             try:
                 t = speech.transcribe(path, prm["language"])
             except Exception as e:  # noqa: BLE001
                 err = str(e)[:200]
             if t and t["words"] and t["mean_prob"] >= speech.MIN_CONF:
-                words = cuts.refine_words(t["words"], P)
+                aligned, info["alignment"] = cuts.align_to_vad(t["words"], V["speech"])
+                words = cuts.refine_words(aligned, P)
                 units = cuts.build_units(words, t["segments"], P, scene_cuts, dur, s["id"], prm["min_pause"])
                 info.update(speech_mode="words", words=words, units=units, fallback_reason=None)
             else:
@@ -526,7 +542,8 @@ def run_s1(ctx):
             info["role_auto"] = "music" if (not pr["has_video"] and (info["speech_mode"] == "pauses" or wps < 0.6)) else "main"
             L = info["loudness"] or {}
             line += f" · {len(info['words'])} كلمة" + (f" (ثقة {t['mean_prob']:.2f}، {t['seconds']} ث)" if t else "")
-            line += (f" · {len(units)} جملة · {len(P)} سكتة (حد السكوت {thr} dB: الدوشة {sil['noise_db']}، الكلام {sil['speech_db']})"
+            line += (f" · {len(units)} جملة · {len(P)} سكتة ({len(P_level)} بالعلو، حد {thr} dB · {len(V['gaps'])} بالـ VAD) · "
+                     f"{(info.get('alignment') or {}).get('moved', 0)} كلمة توقيتها اتصلّح على فترات الكلام (VAD)"
                      f" · علو {L.get('integrated_lufs')} LUFS · أرضية الدوشة {info['noise_floor_db']} dB")
             if info["fallback_reason"]:
                 warns.append(f"⚠ {s['id']}: {info['fallback_reason']}، فاتقسم الكلام بالسكتات بدل الكلمات")
@@ -566,11 +583,28 @@ def finalize_s2(ctx, data: dict):
     envs = {sid: env_of(ctx["d"] / next(x for x in ctx["m"]["sources"] if x["id"] == sid)["work"])
             for sid in {s["source"] for s in data["segments"]} if s1["sources"][sid]["probe"]["has_audio"]}
     thr = min([v.get("silence_db", -35) for v in s1["sources"].values() if v.get("silence_db") is not None] or [-35])
+    _pull_to_silence(data["segments"], s1)
+    _quantize(data["segments"], data["fps"])
+    for g in data["segments"]:
+        g["cut_in"]["t"], g["cut_out"]["t"] = g["start"], g["end"]
+    data["total"] = round(sum(x["end"] - x["start"] for x in data["segments"]), 4)
     data["cut_report"] = cuts.cut_report(data["segments"], words_by_source(s1), envs, thr)
+    vs = {sid: v.get("vad_speech") or [] for sid, v in s1["sources"].items()}
+    for c in data["cut_report"]["list"]:   # القصّة جوه كلام حسب الـ VAD؟ (أدق من مستوى الصوت في تسجيل واطي)
+        seg = next(x for x in data["segments"] if x["id"] == c["segment"])
+        c["in_speech"] = any(sp["start"] + 0.02 < c["t"] < sp["end"] - 0.02 for sp in vs.get(seg["source"], []))
+    data["cut_report"]["in_speech"] = sum(c["in_speech"] for c in data["cut_report"]["list"])
     scene_cuts = {sid: [x["start"] for x in v["scenes"][1:]] for sid, v in s1["sources"].items()}
     hard = prm.get("transitions") == "hard"
+    srcs = sources_map(ctx)
+    mot = []
+    for a, b in zip(data["segments"], data["segments"][1:]):   # الحركة قبل/بعد كل قصّة (لقطع على الحركة)
+        if srcs[a["source"]]["has_video"] and srcs[b["source"]]["has_video"]:
+            mot.append(look.motion_match(srcs[a["source"]]["path"], a["end"], srcs[b["source"]]["path"], b["start"]))
+        else:
+            mot.append({})
     data["transitions"] = cuts.plan_transitions(data["segments"], scene_cuts, "fast" if hard else "normal", data["fps"],
-                                                int(prm.get("dissolve_frames") or 0) or None, int(prm.get("audio_xfade_ms", 60)))
+                                                int(prm.get("dissolve_frames") or 0) or None, int(prm.get("audio_xfade_ms", 60)), mot)
     if hard and ctx["brief"]["pace"] != "fast":
         for t in data["transitions"]:
             if t["kind"] == "hard" and "لقطة" not in t["reason"]:
@@ -579,10 +613,38 @@ def finalize_s2(ctx, data: dict):
     levels = [c["level_db"] for c in cr["list"] if c["level_db"] is not None]
     df = next((t["frames"] for t in tr if t["frames"]), int(prm.get("dissolve_frames") or 0) or (12 if data["fps"] >= 50 else 10))
     lines = [f"{len(data['segments'])} جزء · المدة {data['total']:.2f} ث · {data['fps']} فريم/ث ثابت",
-             f"{cr['cuts']} قصّة · جوه كلمة: {cr['inside_word']} · أعلى صوت عند قصّة: {max(levels) if levels else '—'} dB (حد السكوت {thr} dB) · فوق الحد: {cr['above_silence']}",
+             f"{cr['cuts']} قصّة · جوه كلمة: {cr['inside_word']} · جوه كلام (VAD): {cr.get('in_speech', 0)} · أعلى صوت عند قصّة: {max(levels) if levels else '—'} dB",
              f"الانتقالات: {sum(t['kind'] == 'dissolve' for t in tr)} مزج ({df} فريم = {df / data['fps']:.2f} ث) · {sum(t['kind'] == 'hard' for t in tr)} قطع صريح"
-             f" · crossfade صوت {prm.get('audio_xfade_ms', 60)} مللي في كل قصّة ({len(tr)})"]
+             f" · {sum(t['kind'] == 'match' for t in tr)} قطع على الحركة · crossfade صوت {prm.get('audio_xfade_ms', 60)} مللي في كل قصّة ({len(tr)})"]
+    lines += [f"قصّة {t['index']} ({t['t']:.2f} ث): {t['kind']} ← {t['reason']}" for t in tr]
     return data, lines, []
+
+
+def _pull_to_silence(segments: list[dict], s1: dict) -> None:
+    """أي قصّة وقعت جوه كلام (VAD) — زي آخر الملف لما الكلام بيكمّل بعد آخر كلمة whisper سمعها — بترجع لأقرب سكتة حقيقية جوه الجزء."""
+    for g in segments:
+        vs = s1["sources"].get(g["source"], {}).get("vad_speech") or []
+        gaps = [p for p in s1["sources"].get(g["source"], {}).get("pauses") or [] if p["end"] - p["start"] >= 0.2]
+        if not vs:
+            continue
+        inside = lambda t: any(sp["start"] + 0.02 < t < sp["end"] - 0.02 for sp in vs)  # noqa: E731
+        if g["cut_out"]["kind"] not in ("source_end",) and inside(g["end"]):
+            back = [p for p in gaps if p["end"] <= g["end"] + 0.05 and p["start"] > g["start"] + 0.8]
+            ch_ = next((sp for sp in vs if sp["start"] < g["end"] < sp["end"]), None)
+            nxt = min([x["start"] for x in segments if x["source"] == g["source"] and x["start"] > g["end"]] or [1e9])
+            if ch_ and ch_["end"] - g["end"] <= 1.2 and ch_["end"] + 0.1 < nxt:   # الصوت بيخلص قريب: نكمّل لآخره بدل ما نقطعه
+                g["end"] = round(ch_["end"] + 0.1, 4)
+                g["cut_out"] = {**g["cut_out"], "t": g["end"], "kind": "pause", "pulled": "اتمدّت لآخر الصوت (كان لسه بيتكلم)"}
+            elif back:
+                p = back[-1]
+                g["end"] = round(p["start"] + min(0.15, (p["end"] - p["start"]) / 2), 4)
+                g["cut_out"] = {**g["cut_out"], "t": g["end"], "kind": "pause", "pulled": "رجعت لآخر سكتة حقيقية (الكلام كان مكمّل)"}
+        if g["cut_in"]["kind"] not in ("source_start",) and inside(g["start"]):
+            fwd = [p for p in gaps if p["start"] >= g["start"] - 0.05 and p["end"] < g["end"] - 0.8]
+            if fwd:
+                p = fwd[0]
+                g["start"] = round(p["end"] - min(0.1, (p["end"] - p["start"]) / 2), 4)
+                g["cut_in"] = {**g["cut_in"], "t": g["start"], "kind": "pause", "pulled": "اتقدمت لأقرب سكتة حقيقية"}
 
 
 def run_s2(ctx):
@@ -622,36 +684,110 @@ def _sample_times(segments: list[dict], n: int = 8) -> list[float]:
 
 
 def run_s3(ctx):
-    inp, prm = ctx["inp"]["data"], ctx["params"]
+    """الصورة والرؤية: الوش والشخص (MediaPipe) ← تصحيح لكل لقطة على البشرة والوش ← الخلفية ورا المتكلم بالقناع (لو بتفيد)
+    ← نسخة شغل متلوّنة (graded.mp4) الرندر بيقرا منها."""
+    inp, prm, vd = ctx["inp"]["data"], ctx["params"], ctx["vd"]
     s1, srcs = s1_of(ctx), sources_map(ctx)
     W, H = exporter.size(inp["aspect"])
     mv = main_video(ctx, s1)
-    pts = [ts for sid, ts in (out_to_src(inp["segments"], t) for t in _sample_times(inp["segments"])) if sid == mv["id"]]
-    fit = exporter.fit_chain(srcs[mv["id"]], W, H)
-    before = look.measure(look.frames(srcs[mv["id"]]["path"], pts, fit))
+    src = srcs[mv["id"]]
+    fit = exporter.fit_chain(src, W, H)
+    fp = s1["sources"][mv["id"]]["fps_plan"]
+    conv = f"minterpolate=fps={inp['fps']}:mi_mode=blend" if fp["method"].startswith("minterpolate") else f"fps={inp['fps']}"
+    t0 = time.time()
+    samples = vision.track_stream(src["path"], 5, fit) if vision.available() else []
+    vision.save_samples(samples, vd / "vision.npz")
+    with_face = sum(bool(x["faces"]) for x in samples)
+    speaker = bool(samples) and with_face >= 0.5 * len(samples)
+    t_vision = round(time.time() - t0, 1)
     strength = {k: prm.get(k) for k in ("brightness", "saturation", "sharpen", "denoise")}
-    tries = []
-    for soften in (1.0, 0.6, 0.3, 0.0):   # لو التصحيح حرق الفاتح أو طفّى الغامق: نفس التصحيح أخف، لحد ما يبقى آمن
-        pl = look.plan(before, prm.get("look", "natural"), strength, soften)
-        after = look.measure(look.frames(srcs[mv["id"]]["path"], pts, ",".join(x for x in [fit, pl["vf"]] if x)))
-        chk = look.check(before, after)
-        tries.append({"soften": soften, "clipped_pct": after["clipped_pct"], "crushed_pct": after["crushed_pct"], "ok": chk["no_new_clipping"] and chk["no_new_crush"]})
-        if tries[-1]["ok"]:
-            break
-    if len(tries) > 1:
-        pl["why"].append("التصحيح الكامل كان هيحرق/يطفّي: " + " ← ".join(f"قوة {t['soften']:.0%}: محروق {t['clipped_pct']:.2f}% مطفي {t['crushed_pct']:.2f}%" for t in tries))
-    data = {**inp, "look": {"name": pl["look"], "vf": pl["vf"], "steps": pl["steps"], "why": pl["why"], "before": before, "after": after, "check": chk,
-                            "crop_x": 0.5, "measured_on": len(pts), "tries": tries}}
-    mid_t = _sample_times(inp["segments"], 3)[1]
-    stills = [_still(ctx, inp["segments"], mid_t, "before.jpg", "قبل", aspect=inp["aspect"]),
-              _still(ctx, inp["segments"], mid_t, "after.jpg", "بعد", pl["vf"], aspect=inp["aspect"])]
-    f = lambda k, d=1: f"{before[k]:.{d}f} ← {after[k]:.{d}f}"  # noqa: E731
-    report = [f"اتقاس على {len(pts)} فريم من الإخراج نفسه (بعد القصّ والإطار)",
-              f"الإضاءة {f('brightness')} · التباين {f('contrast')} · الحدة {f('sharpness')} · الدوشة {f('noise', 2)}",
-              f"إضاءة محروقة (≥250): {before['clipped_pct']:.2f}% ← {after['clipped_pct']:.2f}% · ضلمة مطفية (≤5): {before['crushed_pct']:.2f}% ← {after['crushed_pct']:.2f}%"
-              + (" ✓" if chk["no_new_clipping"] and chk["no_new_crush"] else " ⚠"),
-              f"ميل اللون: {before.get('cast_size', 0):.1%} ← {after.get('cast_size', 0):.1%}"] + [f"• {w}" for w in pl["why"]]
+    scenes = s1["sources"][mv["id"]]["scenes"]
+    shots, report, stills, fs_main = [], [], [], None
+    for k, sc in enumerate(scenes):
+        a, b = sc["start"], sc["end"]
+        times = [round(a + (b - a) * (q + 0.5) / 6, 3) for q in range(6)]
+        fr = look.frames(src["path"], times, fit, width=540)
+        near = [min(samples, key=lambda x: abs(x["t"] - t)) for t in times] if samples else []
+        faces = [x["faces"] for x in near] if near else [[] for _ in fr]
+        masks = [x["mask"] for x in near] if near else None
+        before = look.measure(fr)
+        fs = look.face_stats(fr, faces, masks)
+        if fs and (fs_main is None or b - a > fs_main[1]):
+            fs_main = (fs, b - a)
+        tries = []
+        for soften in (1.0, 0.6, 0.3, 0.0):   # لو التصحيح حرق الفاتح أو طفّى الغامق: نفس التصحيح أخف
+            pl = look.plan_face(before, fs, prm.get("look", "natural"), strength, soften, relight=speaker and vision.available() and prm.get("relight") != "off")
+            after = look.measure(look.frames(src["path"], times, ",".join(x for x in [fit, pl["vf"]] if x), width=540))
+            chk = look.check(before, after)
+            tries.append({"soften": soften, "clipped_pct": after["clipped_pct"], "crushed_pct": after["crushed_pct"], "ok": chk["no_new_clipping"] and chk["no_new_crush"]})
+            if tries[-1]["ok"]:
+                break
+        fs_after = look.face_stats(look.frames(src["path"], times, ",".join(x for x in [fit, pl["vf"]] if x), width=540), faces) if fs else None
+        shots.append({"index": k + 1, "start": a, "end": b, "vf": pl["vf"], "why": pl["why"], "before": before, "after": after, "check": chk,
+                      "face_before": fs, "face_after": fs_after, "tries": tries, "wb_strength": pl.get("wb_strength")})
+    bg = look.bg_plan(fs_main[0] if fs_main else None, None) if speaker else {"vf": "", "why": "مفيش متكلم يتفصل: الخلفية زي ما هي"}
+    if prm.get("background") == "off":
+        bg = {"vf": "", "why": "إنت قفلت معالجة الخلفية"}
+    main_shot = max(shots, key=lambda x: x["end"] - x["start"]) if shots else None
+    fg = look.fg_plan(main_shot["face_after"] if main_shot else None) if speaker else {"vf": "", "why": "مفيش متكلم"}
+    if prm.get("relight") == "off":
+        fg = {"vf": "", "why": "إنت قفلت إضاءة المتكلم"}
+    mask_info = None
+    if (bg["vf"] or fg["vf"]) and vision.available():
+        mask_info = vision.mask_video(src["path"], vd / "mask.mp4", inp["fps"], conv, fit, W, H)
+    t1 = time.time()
+    exporter.grade_source(src, vd / "graded.mp4", fps=inp["fps"], fps_method=fp["method"], aspect=inp["aspect"],
+                          shots=[{"start": x["start"], "end": x["end"], "vf": x["vf"]} for x in shots], mask=vd / "mask.mp4" if mask_info else None, bg_vf=bg["vf"] or "null",
+                          fg_vf=fg["vf"])
+    t_grade = round(time.time() - t1, 1)
+    # قبل/بعد على الملف المتلوّن نفسه (نفس الأوقات في الإخراج)
+    pts = [ts for sid, ts in (out_to_src(inp["segments"], t) for t in _sample_times(inp["segments"])) if sid == mv["id"]]
+    gb = look.measure(look.frames(src["path"], pts, fit, width=540))
+    ga = look.measure(look.frames(vd / "graded.mp4", pts, "", width=540))
+    gchk = look.check(gb, ga)
+    for sh in shots:   # الوش بعد كل حاجة (على النسخة المتلوّنة نفسها)
+        times = [round(sh["start"] + (sh["end"] - sh["start"]) * (q + 0.5) / 6, 3) for q in range(6)]
+        near = [min(samples, key=lambda x: abs(x["t"] - t)) for t in times] if samples else []
+        sh["face_final"] = look.face_stats(look.frames(vd / "graded.mp4", times, "", width=540), [x["faces"] for x in near]) if near else None
+    for k, sh in enumerate(shots[:4]):
+        t = (sh["start"] + sh["end"]) / 2
+        stills.append(_pair(src["path"], vd / "graded.mp4", t, fit, vd / f"pair_{k + 1}.jpg", f"لقطة {k + 1}: قبل | بعد ({t:.1f} ث في الملف)"))
+    if mask_info:
+        stills.append(_mask_still(src["path"], vd / "mask.mp4", pts[len(pts) // 2], fit, inp["fps"], vd / "mask_check.jpg"))
+    data = {**inp, "look": {"name": prm.get("look", "natural"), "vf": "", "steps": [], "why": [], "before": gb, "after": ga, "check": gchk,
+                            "graded": str((vd / "graded.mp4").relative_to(ctx["d"])), "vision": str((vd / "vision.npz").relative_to(ctx["d"])),
+                            "speaker": speaker, "shots": shots, "bg": bg, "fg": fg, "mask": mask_info, "crop_x": 0.5, "measured_on": len(pts)}}
+    f = lambda k, d=1: f"{gb[k]:.{d}f} ← {ga[k]:.{d}f}"  # noqa: E731
+    report += [f"الرؤية: {len(samples)} عينة (5 في الثانية) في {t_vision} ث · وش في {with_face}/{len(samples)} · متكلم يتفصل: {'أيوه' if speaker else 'لأ'}",
+               f"الكادر كله (على {len(pts)} فريم من الإخراج): الإضاءة {f('brightness')} · التباين {f('contrast')} · الحدة {f('sharpness')} · الدوشة {f('noise', 2)} · ميل اللون {gb.get('cast_size', 0):.1%} ← {ga.get('cast_size', 0):.1%}",
+               f"إضاءة محروقة: {gb['clipped_pct']:.2f}% ← {ga['clipped_pct']:.2f}% · ضلمة مطفية: {gb['crushed_pct']:.2f}% ← {ga['crushed_pct']:.2f}%" + (" ✓" if gchk["no_new_clipping"] and gchk["no_new_crush"] else " ⚠")]
+    for sh in shots:
+        fb, fa = sh["face_before"], sh.get("face_final") or sh["face_after"]
+        report.append(f"لقطة {sh['index']} ({sh['start']:.1f}–{sh['end']:.1f} ث): " + (f"الوش: إضاءة {fb['y']:.0f} ← {fa['y']:.0f}، دفا البشرة {fb['warm']:.3f} ← {fa['warm']:.3f}" if fb and fa else "مفيش وش")
+                      + " · " + " · ".join(sh["why"]) + (" · خفّفنا التصحيح: " + " ← ".join(f"{t['soften']:.0%}" for t in sh["tries"]) if len(sh["tries"]) > 1 else ""))
+    report.append(f"المتكلم: {fg['why']}")
+    report.append(f"الخلفية: {bg['why']}" + (f" · القناع: {mask_info['frames']} فريم، الشخص {mask_info['coverage_mean']:.0%} من الكادر في المتوسط" if mask_info else ""))
+    report.append(f"نسخة الشغل المتلوّنة: {t_grade} ث")
     return data, report, stills
+
+
+def _pair(src: Path, graded: Path, t: float, fit: str, out: Path, label: str) -> dict:
+    exporter._run(["ffmpeg", "-v", "error", "-y", "-ss", f"{t:.3f}", "-i", str(src), "-ss", f"{t:.3f}", "-i", str(graded), "-filter_complex",
+                   f"[0:v]{fit},scale=405:-2[a];[1:v]scale=405:-2[b];[a][b]hstack[o]", "-map", "[o]", "-frames:v", "1", "-q:v", "3", str(out)], "صورة")
+    return {"file": out.name, "label": label}
+
+
+def _mask_still(src: Path, mask: Path, t: float, fit: str, fps: int, out: Path) -> dict:
+    """القناع فوق الصورة (أحمر = المتكلم) علشان جودته تتشاف بالعين."""
+    import cv2
+    f = look.frames(src, [t], fit, width=540)[0]
+    raw = subprocess.run(["ffmpeg", "-v", "error", "-ss", f"{t:.3f}", "-i", str(mask), "-frames:v", "1", "-vf", "scale=540:960,format=gray", "-f", "rawvideo", "-"],
+                         capture_output=True).stdout
+    m = np.frombuffer(raw, np.uint8).reshape(960, 540).astype(np.float32)[: f.shape[0], : f.shape[1]] / 255 * 0.5
+    red = np.zeros_like(f, dtype=np.float32); red[..., 0] = 255
+    comp = (f.astype(np.float32) * (1 - m[..., None]) + red * m[..., None]).astype(np.uint8)
+    cv2.imwrite(str(out), cv2.cvtColor(comp, cv2.COLOR_RGB2BGR))
+    return {"file": out.name, "label": "جودة القناع (أحمر = المتكلم)"}
 
 
 # ---------- S4: الترجمة ----------
@@ -667,86 +803,286 @@ def run_s4(ctx):
     return _finish_s4(ctx, {**{k: v for k, v in inp.items() if k not in ("cues", "subs", "subs_check", "sub_style")}, "cues": cues})
 
 
+def _samples(ctx, data) -> list[dict]:
+    v = (data.get("look") or {}).get("vision")
+    return vision.load_samples(ctx["d"] / v) if v and (ctx["d"] / v).exists() else []
+
+
+def _faces_during(samples, segments, a: float, b: float) -> list[list[float]]:
+    """كل صناديق الوش في فترة من الإخراج (بنحوّلها لوقت الملف)."""
+    out = []
+    for t in np.linspace(a, b, max(2, int((b - a) * 5) + 1)):
+        _, ts = out_to_src(segments, float(t))
+        out += vision.faces_at(samples, ts)
+    return out
+
+
+def _hits_face(faces, rect) -> bool:
+    return any(f[0] < rect["right"] and rect["left"] < f[2] and f[1] < rect["bottom"] and rect["top"] < f[3] for f in faces)
+
+
 def _finish_s4(ctx, data):
     prm = ctx["params"]
     W, H = exporter.size(data["aspect"])
     style = {"size": prm["size"], "color": prm["color"], "panel": prm["panel"], "pos": prm["pos"]}
-    r = graphics.render(data["cues"], [], data["aspect"], W, H, ctx["vd"] / "subs", style, "clean", graphics.CARD_ZONES[data["aspect"]]["top"])
-    subs = [{**o, "png": str(Path(o["png"]).relative_to(ctx["d"]))} for o in r["subs"]]
-    durs = [c["end"] - c["start"] for c in data["cues"]]
     safe = cuts.SAFE[data["aspect"]]
+    samples = _samples(ctx, data)
+    fs_px = graphics.sub_font_px(data["aspect"], H, prm["size"])
+    cpl = graphics.chars_per_line(data["aspect"], W, H, prm["size"])
+    base_bottom = safe["bottom"] + cuts.SUB_POS.get(prm["pos"], 0)
+    moved = []
+    for c in data["cues"]:   # الترجمة عمرها ما تغطي الوش: لو الوش نازل لمكانها، تنزل/تطلع جوه منطقة تحت
+        lines = 1 + (len(c["text"]) > cpl)
+        h = (lines * 1.38 + 0.44) * fs_px / H
+        faces = _faces_during(samples, data["segments"], c["start"], c["end"]) if samples else []
+        c.pop("pos_bottom", None)
+        for bot in (base_bottom, base_bottom + 0.05, base_bottom - 0.06, 0.88):
+            r = {"left": safe["left"], "right": safe["right"], "top": bot - h, "bottom": bot}
+            if not _hits_face(faces, r):
+                if bot != base_bottom:
+                    c["pos_bottom"] = round(bot, 3)
+                    moved.append(c["id"])
+                break
+    r = graphics.render(data["cues"], [], data["aspect"], W, H, ctx["vd"] / "subs", style, "clean", graphics.CARD_ZONES[data["aspect"]]["top"], word_states=True)
+    track = _subs_track(r["subs"], data["total"], W, H, ctx["vd"] / "subs")
+    subs = [{**{k: v for k, v in o.items() if k != "states"}, "png": str(Path(o["png"]).relative_to(ctx["d"])), "words": len(o["states"])} for o in r["subs"]]
+    durs = [c["end"] - c["start"] for c in data["cues"]]
+    face_hits = sum(_hits_face(_faces_during(samples, data["segments"], o["start"], o["end"]),
+                               {"left": o["x"] / W, "right": (o["x"] + o["w"]) / W, "top": o["y"] / H, "bottom": (o["y"] + o["h"]) / H}) for o in r["subs"]) if samples else None
+    lag = _onset_lag(ctx, data)
     sc = {"cues": len(subs), "inside_bottom_zone": sum(o["inside_bottom_zone"] for o in subs), "min_dur": round(min(durs), 3) if durs else None,
           "max_dur": round(max(durs), 3) if durs else None, "under_min": sum(d < float(prm["min_dur"]) - 0.01 for d in durs),
           "over_max": sum(d > float(prm["max_dur"]) + 0.01 for d in durs), "font_px": r["sub_font_px"], "font_pct_height": round(r["sub_font_px"] / H * 100, 2),
-          "zone": safe, "forced_breaks": data["cues"][0].get("forced_breaks", 0) if data["cues"] else 0, "max_lines": max([o["lines"] for o in subs] or [0])}
-    data.update(subs=subs, sub_style=style, subs_check=sc)
-    report = [f"{sc['cues']} سطر · جوه المنطقة الآمنة تحت: {sc['inside_bottom_zone']}/{sc['cues']} (من {safe['top']:.0%} لـ {safe['bottom']:.0%} من الارتفاع)",
-              f"مدة السطر على الشاشة: من {sc['min_dur']} لـ {sc['max_dur']} ث (المسموح {prm['min_dur']}–{prm['max_dur']}) · أقل: {sc['under_min']} · أكتر: {sc['over_max']}",
-              f"الخط {sc['font_px']}px = {sc['font_pct_height']}% من ارتفاع الفريم · {'بخلفية غامقة' if prm['panel'] else 'بحد غامق'} · "
-              f"السطور بتقف عند السكتات (اتقسم {sc['forced_breaks']} سطر طويل عند أكبر سكتة جواه)",
-              f"أكتر سطر: {sc['max_lines']} سطور على الشاشة · سطور صحّحتها بإيدك: {sum(bool(c.get('edited')) for c in data['cues'])}"]
+          "zone": safe, "forced_breaks": data["cues"][0].get("forced_breaks", 0) if data["cues"] else 0, "max_lines": max([o["lines"] for o in subs] or [0]),
+          "face_overlaps": face_hits, "moved_for_face": moved, "word_states": sum(o["words"] for o in subs), "onset_lag": lag}
+    data.update(subs=subs, subs_track=str(track.relative_to(ctx["d"])), sub_style=style, subs_check=sc)
+    report = [f"{sc['cues']} سطر · {sc['word_states']} كلمة بتظهر كلمة كلمة مع صوتها · جوه المنطقة الآمنة تحت: {sc['inside_bottom_zone']}/{sc['cues']}",
+              f"مدة السطر على الشاشة: من {sc['min_dur']} لـ {sc['max_dur']} ث · أقل من {prm['min_dur']}: {sc['under_min']} · أكتر من {prm['max_dur']}: {sc['over_max']}",
+              f"الخط {sc['font_px']}px = {sc['font_pct_height']}% من ارتفاع الفريم · خلفية غامقة خفيفة · سطرين بالكتير · السطور بتقف عند السكتات",
+              f"فوق الوش: {face_hits if face_hits is not None else '—'} سطر" + (f" (اتحرك علشان الوش: {', '.join(moved)})" if moved else ""),
+              (f"توقيت الكلمة مقابل أول صوتها (كلمات بعد سكتة، {lag['n']} كلمة): الوسيط {lag['median_ms']} مللي · أكبر {lag['max_ms']} مللي · تحت 100 مللي: {lag['under_100']}/{lag['n']}"
+               if lag["n"] else "مفيش كلمات بعد سكتة واضحة علشان نقيس التأخير")]
     stills = []
     if data["cues"]:
         c = max(data["cues"], key=lambda x: len(x["text"]))
         o = next(x for x in r["subs"] if x["id"] == c["id"])
         t = (c["start"] + c["end"]) / 2
-        stills.append(_still(ctx, data["segments"], t, "sub_frame.jpg", "سطر ترجمة في الفريم", data["look"]["vf"], [o], aspect=data["aspect"]))
-        stills.append(_still(ctx, data["segments"], t, "sub_close.jpg", "كلوز أب على الترجمة", data["look"]["vf"], [o],
-                             crop=(0.0, max(0.0, o["y"] / H - 0.05), 1.0, min(1.0, (o["y"] + o["h"]) / H + 0.05)), aspect=data["aspect"]))
+        stills.append(_still(ctx, data["segments"], t, "sub_frame.jpg", f"سطر ترجمة في الفريم ({t:.2f} ث)", overlays=[_state_at(o, t)], aspect=data["aspect"], data=data))
+        mid = o["states"][len(o["states"]) // 2] if o["states"] else None
+        if mid:
+            stills.append(_still(ctx, data["segments"], mid["start"] + 0.02, "sub_close.jpg", f"كلمة كلمة: نص السطر ({mid['start']:.2f} ث)", overlays=[{**o, "png": mid["png"], "x": o["x"] + int(mid.get("dx", 0))}],
+                                 crop=(0.0, max(0.0, o["y"] / H - 0.05), 1.0, min(1.0, (o["y"] + o["h"]) / H + 0.05)), aspect=data["aspect"], data=data))
     return data, report, stills
+
+
+def _state_at(o: dict, t: float) -> dict:
+    st = [x for x in o.get("states") or [] if x["start"] <= t] or o.get("states") or [{"png": o["png"]}]
+    return {**o, "png": st[-1]["png"], "x": o["x"] + int(st[-1].get("dx", 0))}
+
+
+def _subs_track(subs: list[dict], total: float, W: int, H: int, out_dir: Path) -> Path:
+    """كل حالات الترجمة (كلمة كلمة) ← صور بمقاس الفريم كله + ملف ffconcat بالمدد: overlay واحد للترجمة كلها في الرندر."""
+    import cv2
+    blank = out_dir / "blank.png"
+    cv2.imwrite(str(blank), np.zeros((H, W, 4), np.uint8))
+    events = []
+    for o in subs:
+        for k, stt in enumerate(o["states"] or [{"png": o["png"], "start": o["start"], "end": o["end"]}]):
+            im = cv2.imread(stt["png"], cv2.IMREAD_UNCHANGED)
+            full = np.zeros((H, W, 4), np.uint8)
+            h, w = im.shape[:2]
+            x, y = max(0, o["x"] + int(stt.get("dx", 0))), max(0, o["y"])   # الصندوق بيكبر ناحية الشمال، والحافة اليمين ثابتة
+            full[y:y + h, x:x + w] = im[: H - y, : W - x]
+            fp = out_dir / f"full_{Path(stt['png']).stem}.png"
+            cv2.imwrite(str(fp), full)
+            events.append((stt["start"], stt["end"], fp))
+    events.sort(key=lambda e: e[0])
+    lines, t = ["ffconcat version 1.0"], 0.0
+    for a, b, fp in events:
+        if a > t + 1e-3:
+            lines += [f"file '{blank}'", f"duration {a - t:.4f}"]
+        lines += [f"file '{fp}'", f"duration {max(0.001, b - max(a, t)):.4f}"]
+        t = max(t, b)
+    if total > t:
+        lines += [f"file '{blank}'", f"duration {total - t:.4f}"]
+    lines.append(f"file '{blank}'")
+    out = out_dir / "subs.ffconcat"
+    out.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return out
+
+
+def _onset_lag(ctx, data) -> dict:
+    """التأخير بين توقيت الكلمة (اللي الترجمة بتظهر عليه) وأول صوتها الحقيقي: لكل كلمة بعدها سكتة ≥ 0.15 ث قبلها
+    (هناك بس أول الصوت بيتقاس بثقة)، من منحنى علو الصوت كل 10 مللي."""
+    s1 = s1_of(ctx)
+    out = []
+    for c in data["cues"]:
+        for w in c["words"]:
+            src = s1["sources"][w["source"]]
+            ws = src.get("words") or []
+            i = w["src_i"]
+            if i >= len(ws) or (i > 0 and ws[i]["start"] - ws[i - 1]["end"] < 0.15):
+                continue
+            env = env_of(ctx["d"] / next(x for x in ctx["m"]["sources"] if x["id"] == w["source"])["work"])
+            thr = (src.get("silence_db") or -45) + 6
+            t0 = ws[i]["start"]
+            a, b = int(max(0, t0 - 0.3) / speech.HOP), int((t0 + 0.3) / speech.HOP)
+            seg = env[a:b]
+            above = np.nonzero(seg > thr)[0]
+            if not len(above):
+                continue
+            onset = (a + above[0]) * speech.HOP
+            out.append(round((t0 - onset) * 1000))
+    if not out:
+        return {"n": 0}
+    ab = [abs(x) for x in out]
+    return {"n": len(out), "median_ms": int(np.median(out)), "max_ms": int(max(ab)), "under_100": sum(x < 100 for x in ab), "all_ms": out}
 
 
 # ---------- S5: الموشن جرافيك ----------
+def _speaker_box(samples, segments, a, b):
+    """متوسط صندوق الوش في فترة من الإخراج (نسبة)، أو None."""
+    fs = _faces_during(samples, segments, a, b) if samples else []
+    if not fs:
+        return None
+    return [float(np.mean([f[q] for f in fs])) for q in range(4)]
+
+
+def _gfx_duration(sp: dict, idea: dict) -> float:
+    k = sp["kind"]
+    words = len((sp.get("title") or "").split()) + len(sp.get("items") or [])
+    base = {"keyword": 2.6, "counter": 3.2, "meter": 3.4, "bars": 3.4, "timeline": 1.4 + 0.6 * len(sp.get("items") or []), "lower_third": 3.0}[k]
+    if sp["mode"] == "explainer":   # الشرح الطويل: طول الشرح نفسه
+        return round(min(5.5, max(3.6, idea["end"] - sp["at"] + 0.3)), 3)
+    if sp["mode"] in ("split", "inset"):   # وقت القراية + نص ثانية للدخول/الرجوع
+        return round(min(4.5, base + 0.15 * words + 0.6), 3)
+    return round(min(4.5, base + 0.15 * words), 3)
+
+
 def run_s5(ctx):
-    inp, prm = ctx["inp"]["data"], ctx["params"]
-    s1, srcs = s1_of(ctx), sources_map(ctx)
+    """الموشن جرافيك: لكل فكرة، النوع من الكلام (motion.choose)، وطريقة العرض بقاعدة، والمكان من قناع الشخص والوش بره منطقة الترجمة."""
+    inp, prm, vd = ctx["inp"]["data"], ctx["params"], ctx["vd"]
     W, H = exporter.size(inp["aspect"])
-    b = {"graphics": prm["graphics"], "density": prm["density"], "focus": prm.get("focus") or [], "pace": prm.get("pace", "normal")}
+    fps = inp["fps"]
+    samples = _samples(ctx, inp)
+    speaker = bool((inp.get("look") or {}).get("speaker"))
     removed = {cuts.norm(x) for x in prm.get("removed") or []}
-    cues = inp["cues"]
-    cards, its = graphics.plan(inp["segments"], cues, b, removed)
-    mv = main_video(ctx, s1)
-    fit = exporter.fit_chain(srcs[mv["id"]], W, H)
-    fr = look.frames(srcs[mv["id"]]["path"], [out_to_src(inp["segments"], t)[1] for t in _sample_times(inp["segments"], 6)], fit, width=540)
-    zone_name, scores = graphics.choose_zone(inp["aspect"], fr)
-    zone = graphics.CARD_ZONES[inp["aspect"]][zone_name]
-    busy_skip = scores[zone_name] > graphics.BUSY_MAX and not prm.get("force_cards")
-    if busy_skip:   # الصورة نفسها مليانة كتابة/تفاصيل في كل مناطق الكروت: كارت فوقها هيبان زحمة ويغطي حاجة مهمة
-        for it in its:
-            if it["card"]:
-                it["card"], it["why"] = None, f"الصورة نفسها مليانة تفاصيل/كتابة في مناطق الكروت (أهداها {scores[zone_name]} > {graphics.BUSY_MAX}): قول «رجّع الكروت» لو عايزها"
-        cards = []
-    r = graphics.render([], cards, inp["aspect"], W, H, ctx["vd"] / "cards", inp["sub_style"], prm["mood"], zone)
-    subs_abs = [{**o, "png": str(ctx["d"] / o["png"])} for o in inp["subs"]]
-    rise = round(graphics.RISE * H)
-    overlaps = sum(1 for s in subs_abs for k in r["cards"] if s["start"] < k["end"] and k["start"] < s["end"] and graphics.rects_overlap(s, {**k, "h": k["h"] + rise}))
-    at_once = 1 + any(c["start"] < a["end"] for a, c in zip(cards, cards[1:])) if cards else 0
-    maps = [graphics.maps_to_speech(c, cues) for c in cards]
-    for c, o in zip(cards, r["cards"]):
-        c.update(png=str(Path(o["png"]).relative_to(ctx["d"])), x=o["x"], y=o["y"], w=o["w"], h=o["h"])
-    cc = {"overlaps": overlaps, "at_once_max": at_once, "maps_to_speech": sum(maps), "cards": len(cards), "ideas": len(its),
-          "ideas_with_card": sum(bool(i["card"]) for i in its)}
-    data = {**{k: v for k, v in inp.items() if k not in ("cards", "ideas", "cards_check", "card_zone", "mood")}, "cards": cards, "ideas": its,
-            "card_zone": {"name": zone_name, **zone, "busyness": scores}, "mood": prm["mood"], "cards_check": cc}
-    zname = {"top": "فوق", "middle": "النص", "lower_third": "التلت التحتاني"}[zone_name]
-    report = [f"{len(cards)} كارت لـ {len(its)} فكرة · أفكار ليها كارت: {cc['ideas_with_card']}/{cc['ideas']} · مربوط بجملة اتقالت: {cc['maps_to_speech']}/{len(cards)}",
-              f"تداخل مع الترجمة: {overlaps} · أكتر عدد كروت على الشاشة مع بعض: {at_once}",
-              f"منطقة الكروت: {zname} ({zone['top']:.0%}–{zone['bottom']:.0%} من الارتفاع)، لأنها الأهدى في الصورة (تفاصيل + حركة: "
-              + "، ".join(f"{k} {v}" for k, v in scores.items()) + ")",
-              f"الستايل: خط Alexandria · ألوان «{prm['mood']}» · دخول طلوع + ظهور {graphics.ENTER} ث · خروج اختفاء {graphics.EXIT} ث"]
-    report += [f"{c['id']} ({ {'number': 'رقم', 'term': 'مصطلح', 'claim': 'فكرة'}[c['kind']]}) {c['start']:.2f}–{c['end']:.2f}: «{c['title']}»"
-               + (f" — {c['label']}" if c["label"] else "") + f" ← من «{c['source_text']}»" for c in cards]
-    report += [f"فكرة {i['id']} من غير كارت: {i['why']} («{i['text'][:40]}»)" for i in its if not i["card"]]
+    b = {"graphics": prm["graphics"], "density": prm["density"], "pace": prm.get("pace", "normal"), "modes": prm.get("modes") or {}}
+    its = graphics.ideas(inp["segments"], inp["cues"])
+    specs, log, last_end, last_explainer = [], [], -9.0, -99.0
+    subs_rects = [{"left": o["x"] / W, "right": (o["x"] + o["w"]) / W, "top": o["y"] / H, "bottom": (o["y"] + o["h"]) / H, "start": o["start"], "end": o["end"]}
+                  for o in inp.get("subs", [])]
+    for it in its:
+        entry = {"idea": it["id"], "text": it["text"][:60], "start": it["start"], "end": it["end"]}
+        if prm["graphics"] == "off":
+            log.append({**entry, "decision": "skip", "why": "الجرافيك مقفول من الطلب"}); continue
+        sp = motion.choose(it, speaker, b, {x.get("icon") for x in specs})
+        if not sp or "skip" in sp:
+            log.append({**entry, "decision": "skip", "why": (sp or {}).get("skip", "مفيش كلام")}); continue
+        key = cuts.norm(sp.get("title") or " ".join(x["label"] for x in sp.get("items") or []) or "")
+        if key in removed:
+            log.append({**entry, "decision": "skip", "why": "إنت شلت الجرافيك ده"}); continue
+        sp["start"] = round(sp["at"], 3)
+        if sp["start"] < last_end + 0.5:
+            log.append({**entry, "decision": "skip", "why": "الجرافيك اللي قبله لسه على الشاشة (واحد بس في نفس الوقت)"}); continue
+        if sp["mode"] == "explainer" and sp["start"] - last_explainer < 12:
+            sp["mode"], sp["mode_why"] = "overlay", "explainer تاني قريب أوي من اللي قبله (أقل من 12 ث): overlay بدله"
+        sp["end"] = round(min(sp["start"] + _gfx_duration(sp, it), inp["total"] - 0.05), 3)   # عمره ما يعدّي آخر الفيديو
+        if sp["end"] - sp["start"] < 1.5:
+            log.append({**entry, "decision": "skip", "why": f"الفيديو بيخلص بعد {sp['end'] - sp['start']:.1f} ث بس: مفيش وقت يتقري"}); continue
+        if sp["mode"] == "overlay":
+            win = [x for t in np.linspace(sp["start"], sp["end"], 8) for x in vision.window(samples, out_to_src(inp["segments"], float(t))[1], out_to_src(inp["segments"], float(t))[1])]
+            occ = vision.occupancy(win)
+            rect = motion.place(sp["kind"], occ, inp["aspect"])
+            if rect is None:
+                if speaker:
+                    sp["mode"], sp["mode_why"] = "inset", "مفيش مساحة فاضية كفاية من غير ما يغطي المتكلم: المتكلم يصغر في ركن"
+                    sp["end"] = round(sp["start"] + _gfx_duration(sp, it), 3)
+                else:
+                    log.append({**entry, "decision": "skip", "why": "مفيش مساحة فاضية ومفيش متكلم يتفصل: اتشال"}); continue
+            else:
+                sp["rect"] = rect
+        if sp["mode"] in ("split", "inset"):
+            fb = _speaker_box(samples, inp["segments"], sp["start"], sp["end"]) or [0.35, 0.3, 0.65, 0.48]
+            fcx, fcy, fh = (fb[0] + fb[2]) / 2, (fb[1] + fb[3]) / 2, fb[3] - fb[1]
+            if sp["mode"] == "split":   # المتكلم فوق (نص الكادر) والجرافيك تحت فوق الترجمة
+                ch_ = H // 2
+                cy0 = int(min(max(0, fcy * H - ch_ * 0.48), H - ch_))
+                sp["crop"], sp["target"] = [0, cy0, W, ch_], [0, 0, W, ch_]
+            else:                       # المتكلم صغير فوق في النص، والجرافيك تحته
+                side = int(min(W, max(fh * H * 2.6, 0.3 * W)))
+                cx0 = int(min(max(0, fcx * W - side / 2), W - side)); cy0 = int(min(max(0, fcy * H - side * 0.45), H - side))
+                tw = int(0.46 * W) // 2 * 2
+                sp["crop"], sp["target"] = [cx0, cy0, side, side], [(W - tw) // 2, int(0.07 * H), tw, tw]
+        specs.append(sp)
+        log.append({**entry, "decision": sp["mode"], "kind": sp["kind"], "why": sp["why"], "mode_why": sp["mode_why"], "start": sp["start"], "end": sp["end"]})
+        last_end = sp["end"]
+        if sp["mode"] == "explainer":
+            last_explainer = sp["start"]
+    rendered = motion.render(specs, W, H, fps, vd / "gfx", prm["mood"]) if specs else []
+    # الفحوصات: الوش، الترجمة، التوقيت، الحركة، الربط بالكلام
+    checks = []
+    for g, it in ((g, next(i for i in its if i["id"] == g["idea"])) for g in rendered):
+        faces = _faces_during(samples, inp["segments"], g["start"], g["end"])
+        if g["mode"] == "overlay":
+            gr = {"left": g["x"] / W, "right": (g["x"] + g["w"]) / W, "top": g["y"] / H, "bottom": (g["y"] + g["h"]) / H}
+            face_hit = _hits_face(faces, gr)
+            sub_hit = any(r["start"] < g["end"] and g["start"] < r["end"] and graphics.rects_overlap(
+                {"x": r["left"], "y": r["top"], "w": r["right"] - r["left"], "h": r["bottom"] - r["top"]},
+                {"x": gr["left"], "y": gr["top"], "w": gr["right"] - gr["left"], "h": gr["bottom"] - gr["top"]}) for r in subs_rects)
+        else:   # explainer/split/inset: الوش بيتنقل (inset/split) أو بيتخبى بمزج (explainer)؛ الجرافيك بعيد عن منطقة الترجمة
+            face_hit, sub_hit = False, False
+        first = next((w for c in it["cues"] for w in c["words"] if w["word"] == g["first_word"]), None)
+        lag_ms = round((g["start"] - first["start"]) * 1000) if first else None
+        spoken = {cuts.norm(w["word"]) for c in it["cues"] for w in c["words"]}
+        shown = [cuts.norm(x) for x in (g.get("title") or "").split()] + [cuts.norm(y) for x in g.get("items") or [] for y in (x["label"] if isinstance(x, dict) else x).split()]
+        maps = all(x in spoken for x in shown if x) and bool(shown or g["kind"] == "counter")
+        checks.append({"id": f"g{len(checks) + 1}", "kind": g["kind"], "mode": g["mode"], "face_overlap": face_hit, "subtitle_overlap": sub_hit,
+                       "start_lag_ms": lag_ms, "maps_to_speech": maps, "motion": True})
+    for g in rendered:
+        g["dir"] = str(Path(g["dir"]).relative_to(ctx["d"]))
+    cc = {"graphics": len(rendered), "ideas": len(its), "face_overlaps": sum(c["face_overlap"] for c in checks), "subtitle_overlaps": sum(c["subtitle_overlap"] for c in checks),
+          "max_start_lag_ms": max([abs(c["start_lag_ms"]) for c in checks if c["start_lag_ms"] is not None] or [0]), "maps_to_speech": sum(c["maps_to_speech"] for c in checks),
+          "modes": {m: sum(g["mode"] == m for g in rendered) for m in ("overlay", "explainer", "split", "inset")}}
+    data = {**{k: v for k, v in inp.items() if k not in ("cards", "ideas", "cards_check", "card_zone", "gfx", "gfx_log", "gfx_check")},
+            "cards": [], "gfx": rendered, "gfx_log": log, "gfx_check": {**cc, "items": checks}, "mood": prm["mood"]}
+    report = [f"{len(rendered)} جرافيك لـ {len(its)} فكرة · الأنواع: " + "، ".join(f"{g['kind']}" for g in rendered) + f" · طرق العرض: {cc['modes']}",
+              f"فوق الوش: {cc['face_overlaps']} · فوق الترجمة: {cc['subtitle_overlaps']} · أكبر فرق بين بداية الجرافيك وأول كلمة: {cc['max_start_lag_ms']} مللي · مربوط بالكلام: {cc['maps_to_speech']}/{len(rendered)}"]
+    for e in log:
+        report.append(f"{e['idea']} ({e['start']:.2f}–{e['end']:.2f}) «{e['text'][:40]}»: " + (f"اتشال ← {e['why']}" if e["decision"] == "skip" else
+                      f"{e['kind']} · {e['decision']} ← النوع: {e['why']} · العرض: {e['mode_why']} · {e['start']:.2f}–{e['end']:.2f} ث"))
     stills = []
-    if cards:
-        c = cards[0]
-        o = next(x for x in r["cards"] if x["id"] == c["id"])
-        t = c["start"] + 1.0
-        subs_now = [s for s in subs_abs if s["start"] <= t < s["end"]]
-        stills.append(_still(ctx, inp["segments"], t, "card_frame.jpg", "كارت في الفريم (مع الترجمة)", inp["look"]["vf"], [o] + subs_now, aspect=inp["aspect"]))
-        stills.append(_still(ctx, inp["segments"], t, "card_close.jpg", "كلوز أب على الكارت", inp["look"]["vf"], [o],
-                             crop=(0.0, max(0.0, o["y"] / H - 0.03), 1.0, min(1.0, (o["y"] + o["h"]) / H + 0.03)), aspect=inp["aspect"]))
+    for k, g in enumerate(rendered[:4]):
+        t = g["start"] + min(2.0, (g["end"] - g["start"]) * 0.6)
+        stills.append(_gfx_still(ctx, inp, g, t, vd / f"gfx_{k + 1}.jpg"))
     return data, report, stills
+
+
+def _gfx_still(ctx, inp, g, t, out) -> dict:
+    """فريم من الإخراج فيه الجرافيك (بنفس طريقة العرض) والترجمة، من غير رندر الفيديو كله."""
+    fps = inp["fps"]
+    W, H = exporter.size(inp["aspect"])
+    srcs = sources_map(ctx, inp)
+    sid, ts = out_to_src(inp["segments"], t)
+    src = srcs[sid]
+    fi = min(g["frames"], max(1, int((t - g["start"]) * fps) + 1))
+    png = ctx["d"] / g["dir"] / f"f_{fi:05d}.png"
+    args = ["ffmpeg", "-v", "error", "-y", "-ss", f"{ts:.3f}", "-i", str(src["path"]), "-i", str(png)]
+    ch = [f"[0:v]{exporter.fit_chain(src, W, H)},setsar=1[b]"]
+    cur = "b"
+    if g["mode"] in ("split", "inset"):
+        cx0, cy0, cw, chh = g["crop"]; tx, ty, tw, th = g["target"]
+        ch += [f"[{cur}]split[m][c]", f"[c]crop={cw}:{chh}:{cx0}:{cy0},scale={tw}:{th}[s]", f"[m][1:v]overlay={g['x']}:{g['y']}[o1]", f"[o1][s]overlay={tx}:{ty}[o2]"]
+        cur = "o2"
+    else:
+        ch.append(f"[{cur}][1:v]overlay={g['x']}:{g['y']}[o1]"); cur = "o1"
+    subs = [o for o in inp.get("subs", []) if o["start"] <= t < o["end"]]
+    for k, o in enumerate(subs):
+        args += ["-i", str(ctx["d"] / o["png"])]
+        ch.append(f"[{cur}][{k + 2}:v]overlay={o['x']}:{o['y']}[s{k}]"); cur = f"s{k}"
+    ch.append(f"[{cur}]scale=540:-2[out]")
+    exporter._run(args + ["-filter_complex", ";".join(ch), "-map", "[out]", "-frames:v", "1", "-q:v", "3", str(out)], "صورة جرافيك")
+    return {"file": out.name, "label": f"{g['kind']} · {g['mode']} ({t:.2f} ث)"}
 
 
 # ---------- S6: الصوت ----------
@@ -822,18 +1158,23 @@ def run_s7(ctx):
     srcs = sources_map(ctx)
     W, H = exporter.size(d["aspect"])
     audio = vdir(ctx["mid"], "s6_audio", inp["version"]) / d["audio"]["file"]
-    subs = [{**o, "png": str(ctx["d"] / o["png"])} for o in d.get("subs", [])]
+    srcs = sources_map(ctx, d)
+    track = ctx["d"] / d["subs_track"] if d.get("subs_track") else None
+    subs = [] if track else [{**o, "png": str(ctx["d"] / o["png"])} for o in d.get("subs", [])]
     cards = [{**c, "png": str(ctx["d"] / c["png"])} for c in d.get("cards", [])]
+    gfx = [{**g, "dir": str(ctx["d"] / g["dir"])} for g in d.get("gfx", [])]
     out = vd / "preview.mp4"
     t0 = time.time()
     rv = exporter.render_video(d["segments"], d["transitions"], srcs, d["aspect"], out, fps=d["fps"], fps_method=d["fps_plan"]["method"],
                                look_vf=d["look"]["vf"], crop_x=d["look"].get("crop_x", 0.5), audio_file=audio, subs=subs, cards=cards,
-                               card_rise=graphics.RISE, enter=graphics.ENTER, exit_=graphics.EXIT, crf=int(prm["crf"]), preset=prm["preset"])
+                               card_rise=graphics.RISE, enter=graphics.ENTER, exit_=graphics.EXIT, crf=int(prm["crf"]), preset=prm["preset"],
+                               gfx=gfx, subs_track=track)
     render_s = round(time.time() - t0, 1)
     info = media.probe(out)
     L = media.loudness(out) or {}
-    fc = look.frame_check(out, [t["t"] for t in d["transitions"]])
-    fc["source_static"] = look.source_dupes(d["segments"], srcs, d["fps"], d["fps_plan"]["method"])   # فريمات ثابتة أصلًا في المصدر (مش من المونتاج)
+    fc = look.frame_check(out, [t["t"] for t in d["transitions"]], [(g["start"], g["end"]) for g in d.get("gfx", []) if g["mode"] != "overlay"])
+    fc["source_static"] = look.source_dupes(d["segments"], srcs, d["fps"], d["fps_plan"]["method"])
+    fc["subtitle_lag"] = look.subtitle_lag(out, d.get("cues", []), d.get("subs", []), d["fps"])
     data = {"aspect": d["aspect"], "fps": d["fps"], "frames": rv["frames"], "probe": info, "loudness": L, "expected_duration": d["total"],
             "frame_check": fc, "render_seconds": render_s, "from": {"stage": "s6_audio", "version": inp["version"]}}
     total = info["duration"]
@@ -842,14 +1183,17 @@ def run_s7(ctx):
         c = max(d["cues"], key=lambda x: len(x["text"]))
         o = next(x for x in d["subs"] if x["id"] == c["id"])
         stills.append(_frame(out, (c["start"] + c["end"]) / 2, vd / "close_sub.jpg", "كلوز أب: ترجمة", (0, max(0, o["y"] / H - 0.06), 1, min(1, (o["y"] + o["h"]) / H + 0.06))))
-    if d.get("cards"):
-        c = d["cards"][0]
-        stills.append(_frame(out, c["start"] + 1.0, vd / "close_card.jpg", "كلوز أب: كارت", (0, max(0, c["y"] / H - 0.04), 1, min(1, (c["y"] + c["h"]) / H + 0.06))))
+    for k, g in enumerate(d.get("gfx", [])[:3]):   # كل جرافيك: فريم في نص وقته (والـ overlay كلوز أب على مكانه)
+        t = g["start"] + min(2.0, (g["end"] - g["start"]) * 0.6)
+        crop = (0, max(0, g["y"] / H - 0.03), 1, min(1, (g["y"] + g["h"]) / H + 0.03)) if g["mode"] == "overlay" else None
+        stills.append(_frame(out, t, vd / f"gfx_{k + 1}.jpg", f"جرافيك {k + 1}: {g['kind']} · {g['mode']} ({t:.2f} ث)", crop))
     report = [f"{info['width']}×{info['height']} · {info['duration']:.2f} ث (المتوقع {d['total']:.2f}) · {d['fps']} فريم/ث ثابت ({rv['frames']} فريم) · رندر {render_s} ث",
               f"علو الصوت في الملف: {L.get('integrated_lufs')} LUFS · Peak {L.get('true_peak_dbtp')} dBTP",
-              f"فحص الفريمات: {fc['frames']} فريم · متكررة في الفيديو كله: {fc['dupes_total']} (منهم ثابتة أصلًا في المصدر: {fc['source_static']}) · متكررة عند القصّات (±3 فريم): {fc['dupes_at_cuts']} · "
+              f"فحص الفريمات: {fc['frames']} فريم · متكررة في الفيديو: {fc['dupes_total']} (ثابتة أصلًا في المصدر: {fc['source_static']}) · عند القصّات (±3 فريم): {fc['dupes_at_cuts']} · "
+              f"فريمات رسم ثابت جوه الجرافيك الكامل: {fc.get('graphic_hold_frames', 0)} · "
               f"المعدل ثابت ({fc['avg_fps']} = {fc['r_fps']}): {'✓' if fc['constant'] else '✗'}",
-              f"{len(d.get('subs', []))} سطر ترجمة · {len(d.get('cards', []))} كارت · {sum(t['kind'] == 'dissolve' for t in d['transitions'])} مزج · فلاتر: {d['look']['vf'] or 'من غير'}",
+              f"{len(d.get('subs', []))} سطر ترجمة (كلمة كلمة) · {len(d.get('gfx', []))} جرافيك · {sum(t['kind'] == 'dissolve' for t in d['transitions'])} مزج · "
+              f"الصورة: {'نسخة متلوّنة لكل لقطة' if d['look'].get('graded') else (d['look']['vf'] or 'من غير فلاتر')}",
               "المعاينة دي هي الملف النهائي نفسه: لو وافقت، التصدير بياخدها زي ما هي"]
     return data, report, stills
 

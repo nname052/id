@@ -27,9 +27,24 @@ def norm(w: str) -> str:
     return w.replace("أ", "ا").replace("إ", "ا").replace("آ", "ا").replace("ة", "ه").replace("ى", "ي").strip().lower()
 
 
+def expected_len(word: str) -> float:
+    """مدة الكلمة المتوقعة تقريبًا من عدد حروفها (كلام مصري عادي)."""
+    return 0.08 + 0.075 * len(norm(word))
+
+
 def refine_words(words: list[dict], pauses: list[dict]) -> list[dict]:
-    """حدود الكلمات من whisper + السكتات المقاسة: الكلمة ما تدخلش في سكتة."""
+    """حدود الكلمات من whisper + السكتات المقاسة: الكلمة ما تدخلش في سكتة.
+    whisper ساعات بيمدّ الكلمة على سكتة كاملة (مثلًا «التفاعل» 9.86–12.70 والسكتة 11.13–12.00):
+    لو فيه سكتة جوه الكلمة، الكلمة بتتحط في الحتة (قبل/بعد السكتة) اللي طولها أقرب لطول الكلمة المتوقع من حروفها."""
     out = [dict(w, raw_start=w["start"], raw_end=w["end"]) for w in words]
+    for w in out:
+        inside = [p for p in pauses if w["start"] + 0.05 < p["start"] and p["end"] < w["end"] - 0.05]
+        if inside:
+            cuts_ = [w["start"]] + [x for p in inside for x in (p["start"], p["end"])] + [w["end"]]
+            pieces = [(cuts_[i], cuts_[i + 1]) for i in range(0, len(cuts_), 2)]
+            want = expected_len(w["word"])
+            a, b = min(pieces, key=lambda pc: (abs((pc[1] - pc[0]) - want), -pc[0]))
+            w["start"], w["end"], w["split_by_pause"] = round(a, 3), round(b, 3), True
     for p in pauses:
         for w in out:
             # سكتة بتبدأ جوه الكلمة وتكمّل بعدها: الكلمة خلصت عند بداية السكتة
@@ -109,7 +124,8 @@ def choose(units: list[dict], duration: float) -> list[dict]:
         u["keep"], u["reason"] = True, "جملة كاملة"
         dur = u["end"] - u["start"]
         words = [norm(x) for x in u["text"].split()]
-        chopped_end = u["end_kind"] == "scene_chop" or (u["end_kind"] == "source_end" and not u["silence_after"] and u["end"] >= duration - 0.15)
+        # آخر جملة في الملف ومفيش سكتة بعدها = الكلام كمّل (ومتسمعش كله): جملة مقطوعة
+        chopped_end = u["end_kind"] == "scene_chop" or (u["end_kind"] == "source_end" and not u["silence_after"])
         chopped_start = u["start_kind"] == "scene_chop" or (u["start"] <= 0.05 and not u["silence_before"])
         if chopped_end and u["n_words"]:
             u["keep"], u["reason"] = False, "جملة مقطوعة (الكلام اتقطع قبل ما يخلص)"
@@ -241,8 +257,20 @@ def importance(seg: dict, first: bool) -> float:
 
 
 # ---------- الانتقالات بين الأجزاء ----------
+SHARP = {norm(w) for w in ("بس", "لكن", "بالعكس", "طيب", "المهم", "اولا", "أولا", "تانيا", "ثانيا", "اخيرا", "أخيرا", "خلينا", "لكن", "ومع", "but", "however", "anyway")}
+
+
+def idea_change(a_text: str, b_text: str) -> tuple[str, str]:
+    """تغيير الفكرة عند القصّة: «حاد» لو اللي بعدها بيبدأ بكلمة قلب/انتقال (بس، لكن، بالعكس، المهم…)؛ غير كده «هادي».
+    (اتجرّب كمان «مفيش كلمات مشتركة» كعلامة فكرة جديدة: طلع كل قصّة حادة على تسجيل حقيقي، لأن الجمل المتتالية نادرًا ما بتكرر كلمات، فاتشال.)"""
+    bw = [norm(w) for w in b_text.split()]
+    if bw and bw[0] in SHARP:
+        return "sharp", f"اللي بعد القصّة بيبدأ بـ «{b_text.split()[0]}» (انتقال/قلب فكرة)"
+    return "soft", "الكلام مكمّل من غير كلمة انتقال (اتشال هوا ميت أو تكرار بس)"
+
+
 def plan_transitions(segments: list[dict], scene_cuts: dict, pace: str = "normal", fps: int = 30, dissolve_frames: int | None = None,
-                     audio_ms: int = 60) -> list[dict]:
+                     audio_ms: int = 60, motion: list[dict] | None = None) -> list[dict]:
     """لكل قصّة بين جزئين: نوعها (مزج قصير ولا قطع صريح) وسببه، و crossfade للصوت في كل قصّة.
     - نفس اللقطة (jump cut): مزج قصير (8–12 فريم) يخفي النطّة.
     - لقطة مختلفة / ملف تاني: قطع صريح (المزج بين صورتين مختلفتين بيبان غلط).
@@ -254,14 +282,20 @@ def plan_transitions(segments: list[dict], scene_cuts: dict, pace: str = "normal
         cuts_src = scene_cuts.get(a["source"], [])
         shot = a["source"] != b["source"] or b["start"] < a["end"] or any(a["end"] - 0.05 <= c <= b["start"] + 0.05 for c in cuts_src) \
             or any(b["start"] - 0.05 <= c <= a["end"] + 0.05 for c in cuts_src)
+        mv = (motion or [{}] * len(segments))[k] if motion and k < len(motion) else {}
+        change, change_why = idea_change(a.get("text", ""), b.get("text", ""))
         if shot:
             kind, why = "hard", "لقطة مختلفة: قطع صريح (المزج بين صورتين مختلفتين بيبان غلط)"
+        elif mv.get("matched"):
+            kind, why = "match", f"الحركة مكمّلة في نفس الاتجاه (قبل {mv['a']} · بعد {mv['b']} · تشابه {mv['cos']}): قطع على الحركة"
         elif pace == "fast":
             kind, why = "hard", "طلبك إيقاع سريع: jump cut مقصود"
+        elif change == "sharp":
+            kind, why = "hard", f"تغيير حاد في الفكرة: {change_why}"
         else:
-            kind, why = "dissolve", f"jump cut في نفس اللقطة: مزج {df} فريم يخفي النطّة"
+            kind, why = "dissolve", f"تغيير هادي ({change_why}): مزج {df} فريم يخفي النطّة"
         out.append({"index": k + 1, "after": a["id"], "before": b["id"], "t": round(t, 3), "kind": kind, "frames": df if kind == "dissolve" else 0,
-                    "fps": fps, "audio_ms": audio_ms, "reason": why})
+                    "fps": fps, "audio_ms": audio_ms, "reason": why, "idea_change": change, "motion": mv})
     return out
 
 
@@ -286,7 +320,7 @@ def out_words(segments: list[dict], words_by_source: dict) -> list[dict]:
             if s["start"] <= (w["start"] + w["end"]) / 2 <= s["end"]:
                 out.append({"word": w["word"], "start": round(t_off + (max(w["start"], s["start"]) - s["start"]) / sp, 3),
                             "end": round(t_off + (min(w["end"], s["end"]) - s["start"]) / sp, 3), "p": w.get("p", 1.0),
-                            "segment": s["id"], "source": s["source"], "src_i": w.get("src_i", i)})
+                            "segment": s["id"], "source": s["source"], "src_i": w.get("src_i", i), "orig": w.get("orig", w["word"])})
         t_off += (s["end"] - s["start"]) / sp
     return out
 
@@ -374,7 +408,7 @@ def subtitle_cues(segments: list[dict], words_by_source: dict, max_chars: int = 
         end = max(ln[-1]["end"] + 0.2, start + min_dur)
         end = min(end, nxt - 0.04, start + max_dur, total)
         cues.append({"start": round(start, 3), "end": round(end, 3), "text": " ".join(w["word"] for w in ln).rstrip("،,.؛;:"), "segment": ln[0]["segment"],
-                     "words": [{k: w[k] for k in ("word", "start", "end", "p", "source", "src_i")} for w in ln],
+                     "words": [{k: w[k] for k in ("word", "start", "end", "p", "source", "src_i", "orig")} for w in ln],
                      "p_mean": round(float(np.mean([w["p"] for w in ln])), 3)})
     # لسه أقصر من min_dur (مفيش دمج ينفع): بياخد من السكتة اللي قبله (يظهر قبل أول كلمة بشوية، مش بعد ما الكلام يخلص)
     for k, c in enumerate(cues):
@@ -387,3 +421,34 @@ def subtitle_cues(segments: list[dict], words_by_source: dict, max_chars: int = 
     if cues:
         cues[0]["forced_breaks"] = forced
     return cues
+
+
+# ---------- محاذاة الكلمات على فترات الكلام (VAD) ----------
+def align_to_vad(words: list[dict], chunks: list[dict]) -> tuple[list[dict], dict]:
+    """توقيت بداية الكلمة من whisper ممكن يزيح ثواني لورا (بيمدّ الكلمة على السكتة اللي قبلها، زي «التفاعل» 9.86–12.70 والكلام بادئ 12.00).
+    اتقاس على تسجيل حقيقي: نهاية الكلمة عند whisper بتقع في فترة الكلام (VAD) الصح في كل الحالات اللي اتراجعت
+    (اتأكدنا بتفريغ كل فترة لوحدها: «التفاعل» في 12.00–16.16، «كتير» في 16.58–17.31، «بس» في 17.86–19.68).
+    القاعدة: الكلمة في الفترة اللي فيها نهايتها (بالترتيب)، وأول كلمة في الفترة بتبدأ مع أول صوتها، والباقي ما يخرجش بره الفترة."""
+    if not words or not chunks:
+        return words, {"aligned": False}
+    out = [dict(w, raw_start=w.get("raw_start", w["start"]), raw_end=w.get("raw_end", w["end"])) for w in words]
+    j_prev = 0
+    for w in out:
+        e = w["raw_end"]
+        inside = [k for k, c in enumerate(chunks) if c["start"] - 0.05 <= e <= c["end"] + 0.05]
+        j = inside[0] if inside else min(range(len(chunks)), key=lambda k: min(abs(chunks[k]["start"] - e), abs(chunks[k]["end"] - e)))
+        j = max(j, j_prev)   # بالترتيب
+        w["chunk"], j_prev = j, j
+    moved = 0
+    for k, w in enumerate(out):
+        c = chunks[w["chunk"]]
+        first = k == 0 or out[k - 1]["chunk"] != w["chunk"]
+        prev_end = out[k - 1]["end"] if k else 0.0
+        start = c["start"] if first else max(w["raw_start"], prev_end, c["start"])
+        end = min(max(w["raw_end"], start + 0.05), c["end"])
+        if end <= start:
+            end = min(c["end"], start + 0.05)
+        if abs(start - w["raw_start"]) > 0.15:
+            moved += 1
+        w["start"], w["end"] = round(start, 3), round(end, 3)
+    return out, {"aligned": True, "chunks": len(chunks), "moved": moved, "words": len(out)}

@@ -259,14 +259,26 @@ def propose(key: str, doc: dict, text: str, wbs: dict) -> dict:
         else:
             return {"question": "تقصد مكان الترجمة (أعلى/تحت)، ولا حجمها (أكبر/أصغر)، ولا لونها، ولا طول السطر؟"}
     elif key == "s5_graphics":
-        k = _num_card(t)
-        cards = data.get("cards", [])
-        if _has(REMOVE, t) and k is not None:
+        k = _num_card(t) or (lambda m_: (int(m_.group(3)) if m_.group(3).isdigit() else ORD.get(m_.group(3))) if m_ else None)(
+            re.search(r"(الجرافيك|جرافيك|graphic)\s*(رقم\s*)?(\d+|\w+)", t))
+        cards = data.get("gfx") or data.get("cards", [])
+        mode = ("split" if _has(r"(split|نص ونص|جنب بعض|يتقسم)", t) else "inset" if _has(r"(inset|صغّر المتكلم|صغر المتكلم|المتكلم في ركن|ركن)", t)
+                else "explainer" if _has(r"(explainer|ياخد الشاشة|الشاشة كلها|full ?screen)", t) else "overlay" if _has(r"(overlay|فوق الفيديو)", t) else None)
+        if mode and k is not None:
+            i = _idx(k, len(cards))
+            if i is None:
+                return {"question": f"فيه {len(cards)} جرافيك بس. أنهي واحد؟"}
+            ch["modes"] = {**(params.get("modes") or {}), cards[i]["idea"]: mode}
+            notes.append(f"الجرافيك {k} ({cards[i].get('kind')}) هيتعرض {mode}")
+        elif mode:
+            return {"question": f"أعرض أنهي جرافيك {mode}؟ (رقمه من 1 لـ {len(cards)})"}
+        elif _has(REMOVE, t) and k is not None:
             i = _idx(k, len(cards))
             if i is None:
                 return {"question": f"فيه {len(cards)} كروت بس. أشيل أنهي واحد؟"}
-            ch["removed"] = list(params.get("removed") or []) + [cards[i]["source_text"]]
-            notes.append(f"الكارت {cards[i]['id']} «{cards[i]['title']}» هيتشال، والفكرة دي هتاخد الاختيار اللي بعده لو موجود")
+            ch["removed"] = list(params.get("removed") or []) + [cards[i].get("source_text") or cards[i].get("title") or " ".join(
+                (x["label"] if isinstance(x, dict) else x) for x in cards[i].get("items") or [])]
+            notes.append(f"الجرافيك {k} «{cards[i].get('title') or cards[i].get('kind')}» هيتشال، والفكرة دي هتاخد الاختيار اللي بعده لو موجود")
         elif _has(REMOVE, t) and _has(r"(الكروت|كروت|الجرافيك|جرافيك|cards|graphics)", t):
             ch["graphics"] = "off"
         elif _has(r"(رجّع|رجع|ضيف|حط|restore|add)", t) and _has(r"(الكروت|كروت|cards)", t):
@@ -349,7 +361,9 @@ def fix_lines(doc: dict, lines: dict) -> dict:
             else:
                 val = ""
             if val != w["word"] or val == "":
-                fixes[f"{w['source']}:{w['src_i']}"] = val
+                prev = fixes.get(f"{w['source']}:{w['src_i']}")
+                orig = prev["from"] if isinstance(prev, dict) else w.get("orig", w["word"])
+                fixes[f"{w['source']}:{w['src_i']}"] = {"from": orig, "to": val}
         out_diff.append({"path": f"{cid} ({c['start']:.1f}–{c['end']:.1f} ث)", "from": c["text"], "to": " ".join(new)})
         if len(new) != len(old):
             notes.append(f"{cid}: عدد الكلمات اتغيّر ({len(old)} ← {len(new)})، فالكلمات اتوزعت على نفس توقيت السطر")
