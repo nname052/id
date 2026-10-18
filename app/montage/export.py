@@ -299,16 +299,18 @@ SFX = {"whoosh": (_whoosh, 0.22, -0.18), "pop": (_pop, 0.16, 0.0), "flash": (_fl
 
 
 def sfx_events(transitions: list[dict], gfx: list[dict]) -> list[dict]:
-    """مؤثر مع كل انتقال ظاهر (سحبة/زووم ← whoosh، فلاش ← flash) ومع دخول كل جرافيك (pop خفيف)."""
+    """مؤثرات قليلة ومقصودة (كانت كتير وعالية): whoosh خفيف جدًا مع زووم التأكيد، و whoosh مع السحبة (لقطات مختلفة)،
+    و pop واطي مع ظهور الإيموجي/الرسمة/الشخبطة. الرقم والحاجات التانية من غير صوت."""
     ev = []
     for tr in transitions:
         k = tr["kind"]
-        if k in ("whip", "whip_r", "zoom"):
-            ev.append({"t": tr["t"], "sfx": "whoosh", "why": f"انتقال {k}"})
-        elif k == "flash":
-            ev.append({"t": tr["t"], "sfx": "flash", "why": "فلاش"})
+        if k in ("whip", "whip_r"):
+            ev.append({"t": tr["t"], "sfx": "whoosh", "gain": 0.16, "why": "سحبة"})
+        elif k == "jumpzoom":
+            ev.append({"t": tr["t"], "sfx": "whoosh", "gain": 0.07, "why": "زووم تأكيد"})
     for g in gfx:
-        ev.append({"t": g["start"], "sfx": "pop", "why": f"دخول جرافيك {g.get('kind')}"})
+        if g.get("kind") in ("sticker", "doodle", "annotate"):
+            ev.append({"t": g["start"], "sfx": "pop", "gain": 0.09, "why": f"ظهور {g.get('kind')}"})
     return sorted(ev, key=lambda e: e["t"])
 
 
@@ -318,7 +320,7 @@ def sfx_track(events: list[dict], total: float, out: Path) -> Path:
     buf = np.zeros(int(SR * (total + 1)))
     for k, e in enumerate(events):
         fn, gain, off = SFX[e["sfx"]]
-        x = (fn(seed=k + 1) if e["sfx"] == "whoosh" else fn()) * gain
+        x = (fn(seed=k + 1) if e["sfx"] == "whoosh" else fn()) * e.get("gain", gain)
         i = max(0, int((e["t"] + off) * SR))
         j = min(len(buf), i + len(x))
         buf[i:j] += x[:j - i]

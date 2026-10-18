@@ -404,12 +404,13 @@ def subtitle_lag(video: Path, cues: list[dict], subs: list[dict], fps: int) -> d
     fr = np.frombuffer(raw[: n * W * H], np.uint8).reshape(n, H, W).astype(np.int16)
     lags = []
     for c in cues:
-        o = next((x for x in subs if x["id"] == c["id"]), None)
-        if not o:
+        groups = [x for x in subs if x.get("cue", x["id"]) == c["id"]]   # ترجمة التيك توك: السطر متقسم مجموعات
+        if not groups:
             continue
         sx, sy = W / 1080 if W < H else W / 1920, H / 1920 if W < H else H / 1080
-        y0, y1, x0, x1 = int(o["y"] * sy), int((o["y"] + o["h"]) * sy) + 1, int(o["x"] * sx), int((o["x"] + o["w"]) * sx) + 1
         for w in c["words"]:
+            o = next((g for g in groups if g["start"] - 0.05 <= w["start"] < g["end"]), groups[0])
+            y0, y1, x0, x1 = int(o["y"] * sy), int((o["y"] + o["h"]) * sy) + 1, int(o["x"] * sx), int((o["x"] + o["w"]) * sx) + 1
             k = int(round(w["start"] * fps))
             lo, hi = max(1, k - 6), min(n - 1, k + 12)
             if hi <= lo:

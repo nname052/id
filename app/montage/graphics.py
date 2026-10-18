@@ -382,3 +382,96 @@ def still(video: Path, t: float, out: Path, crop: tuple[float, float, float, flo
         vf = f"crop=iw*{x1 - x0:.4f}:ih*{y1 - y0:.4f}:iw*{x0:.4f}:ih*{y0:.4f}," + vf
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", f"{t:.3f}", "-i", str(video), "-frames:v", "1", "-vf", vf, "-q:v", "3", str(out)], check=True)
     return out
+
+
+# ---------- ترجمة «ستايل التيك توك» ----------
+# ليه: الترجمة كانت سطر طويل في صندوق غامق (زي ترجمة الأفلام). فيديوهات الريلز/التيك توك المشهورة بتكتب الكلام 1–3 كلمات في المرة،
+# بخط كبير عريض أبيض بحدود سودا، والكلمة اللي بتتقال بتنوّر بلون وبتكبر شوية، وكل مجموعة بتدخل بنطّة سريعة.
+BOLD_FS = 0.05          # حجم الخط من ارتفاع الفريم (96 بكسل في 1920)
+BOLD_Y = 0.665          # نص المجموعة (من الارتفاع): تحت الوش وفوق كابشن تيك توك
+BOLD_ACCENT = {"white": "#ffd23f", "yellow": "#ffd23f", "green": "#7ee2b8"}
+
+
+def chunks(cue: dict, max_words: int = 3, max_chars: int = 16) -> list[list[dict]]:
+    """كلمات السطر ← مجموعات صغيرة: بتقفل عند 3 كلمات أو 16 حرف أو سكتة (≥ 0.25 ث) أو علامة ترقيم، ومن غير كلمة لوحدها في الآخر لو ينفع."""
+    ws = [w for w in cue.get("words") or [] if w["word"].strip()]
+    out, cur = [], []
+    for i, w in enumerate(ws):
+        cur.append(w)
+        nxt = ws[i + 1] if i + 1 < len(ws) else None
+        n_chars = sum(len(x["word"]) for x in cur)
+        stop = nxt is None or len(cur) >= max_words or n_chars >= max_chars or PUNCT.search(w["word"]) or (nxt["start"] - w["end"] >= 0.25)
+        if stop:
+            out.append(cur); cur = []
+    if len(out) > 1 and len(out[-1]) == 1 and len(out[-2]) < max_words and sum(len(x["word"]) for x in out[-2] + out[-1]) <= max_chars + 4:
+        out[-2] += out.pop()
+    return out
+
+
+def render_bold(cues: list[dict], aspect: str, W: int, H: int, out_dir: Path, sub_style: dict, faces_for=None) -> dict:
+    """كل مجموعة ← حالات (صور شفافة): دخول بنطّة (3 فريمات تقريبًا) وبعدين حالة لكل كلمة والكلمة الحالية منوّرة.
+    faces_for(start, end) ← صناديق الوش في الوقت ده (لو المجموعة هتغطي الوش بتنزل تحت)."""
+    from playwright.sync_api import sync_playwright
+    out_dir.mkdir(parents=True, exist_ok=True)
+    scale = {"small": 0.85, "medium": 1.0, "large": 1.15}.get(sub_style.get("size", "medium"), 1.0)
+    fs = round(H * BOLD_FS * scale * (1 if aspect == "9:16" else 1.25))
+    accent = BOLD_ACCENT.get(sub_style.get("color", "white"), "#ffd23f")
+    css = (f"@font-face{{font-family:Sub;src:url(data:font/ttf;base64,{_font('Alexandria-Variable.ttf')});font-weight:100 900}}"
+           f"html,body{{margin:0;background:transparent}}"
+           f"#c{{display:inline-block;padding:{round(fs * .25)}px {round(fs * .35)}px;direction:rtl;text-align:center;white-space:nowrap;"
+           f"font:900 {fs}px/1.25 Sub,sans-serif;color:#fff;-webkit-text-stroke:{max(3, round(fs * .1))}px #000;paint-order:stroke fill;"
+           f"text-shadow:0 {round(fs * .06)}px {round(fs * .18)}px rgba(0,0,0,.55)}}"
+           f"#c span{{display:inline-block;margin:0 {round(fs * .12)}px;transition:none}}#c span.on{{color:{accent};transform:scale(1.12)}}")
+    subs_out = []
+    with sync_playwright() as p:
+        b = p.chromium.launch()
+        pg = b.new_page(viewport={"width": W, "height": H})
+        pg.set_content(f"<html><head><style>{css}</style></head><body><div id='c'></div></body></html>")
+        pg.evaluate("document.fonts.ready")
+        el = pg.locator("#c")
+        n = 0
+        for k, c in enumerate(cues):
+            for g, ch in enumerate(chunks(c)):
+                n += 1
+                start = ch[0]["start"]
+                nxt = None
+                rest = chunks(c)[g + 1:] if g + 1 < len(chunks(c)) else []
+                if rest:
+                    nxt = rest[0][0]["start"]
+                elif k + 1 < len(cues) and cues[k + 1].get("words"):
+                    nxt = cues[k + 1]["words"][0]["start"]
+                end = round(min(nxt if nxt else ch[-1]["end"] + 0.35, ch[-1]["end"] + 0.6), 3)
+                cy = BOLD_Y * H
+                if faces_for:
+                    fb = faces_for(start, end)
+                    if any(f[3] * H > cy - fs * 0.8 for f in fb):   # الوش نازل لمكان الترجمة: تنزل تحت
+                        cy = 0.76 * H
+                words = [_disp_sub(x["word"], i == len(ch) - 1).strip("،,.؛;:؟?!…") for i, x in enumerate(ch)]
+                states = []
+                variants = [("pop", 0.78, -1, 0.035), ("pop", 1.07, -1, 0.05)]   # نطّة الدخول
+                for j, w in enumerate(ch):
+                    t0 = w["start"] if j else start + 0.085
+                    t1 = ch[j + 1]["start"] if j + 1 < len(ch) else end
+                    variants.append(("word", 1.0, j, (t0, t1)))
+                t = start
+                for kind, sc, j, d in variants:
+                    pg.evaluate("""([ws, j, sc]) => { const c = document.getElementById('c'); c.innerHTML = ws.map((w, i) => `<span class="${i === j ? 'on' : ''}">${w}</span>`).join(' ');
+                        c.style.transform = `scale(${sc})`; c.style.transformOrigin = '50% 50%'; }""", [words, j, sc])
+                    bb = el.bounding_box()
+                    png = out_dir / f"b_{n:03d}_{len(states):02d}.png"
+                    el.screenshot(path=str(png), omit_background=True)
+                    w_, h_ = round(bb["width"]), round(bb["height"])
+                    if kind == "pop":
+                        a, z = t, t + d
+                        t = z
+                    else:
+                        a, z = max(t, d[0]), d[1]
+                        t = z
+                    if z - a <= 0.001:
+                        continue
+                    states.append({"png": str(png), "start": round(a, 3), "end": round(z, 3), "x": round(W / 2 - w_ / 2), "y": round(cy - h_ / 2), "w": w_, "h": h_})
+                base = states[-1]
+                subs_out.append({"id": f"{c['id']}_{g + 1}", "cue": c["id"], "png": base["png"], "x": base["x"], "y": base["y"], "w": base["w"], "h": base["h"],
+                                 "start": round(start, 3), "end": end, "text": " ".join(words), "inside_bottom_zone": True, "lines": 1, "states": states})
+        b.close()
+    return {"subs": subs_out, "cards": [], "overlaps": 0, "sub_font_px": fs, "card_font_px": 0}

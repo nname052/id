@@ -39,7 +39,7 @@ DEFAULTS = {
     "s1_analyze": {"language": "ar", "scene_detector": "adaptive", "adaptive_threshold": 3.0, "min_pause": 0.35, "silence_db": "auto"},
     "s2_cut": {"aspect": "9:16", "dead_air": 0.7, "breath_out": 0.22, "breath_in": 0.14, "transitions": "auto", "dissolve_frames": 0, "audio_xfade_ms": 60},
     "s3_look": {"look": "natural", "brightness": 0, "saturation": 0, "sharpen": None, "denoise": None},
-    "s4_subs": {"max_chars": 30, "min_dur": 1.2, "max_dur": 5.0, "size": "medium", "color": "white", "panel": True, "pos": "bottom", "fixes": {}},
+    "s4_subs": {"max_chars": 30, "min_dur": 1.2, "max_dur": 5.0, "size": "medium", "color": "white", "panel": True, "pos": "bottom", "fixes": {}, "style": "bold"},
     "s5_graphics": {"graphics": "on", "mood": "clean", "density": "normal", "removed": []},
     "s6_audio": {"target_lufs": -14.0, "true_peak": -1.5, "music": "auto", "music_gain_db": -16.0, "duck": True, "denoise": "auto"},
     "s7_preview": {"crf": 18, "preset": "medium"},
@@ -852,7 +852,11 @@ def _finish_s4(ctx, data):
                     c["pos_bottom"] = round(bot, 3)
                     moved.append(c["id"])
                 break
-    r = graphics.render(data["cues"], [], data["aspect"], W, H, ctx["vd"] / "subs", style, "clean", graphics.CARD_ZONES[data["aspect"]]["top"], word_states=True)
+    if prm.get("style", "bold") == "bold":   # ستايل التيك توك (الافتراضي): 1–3 كلمات كبيرة، والكلمة الحالية منوّرة
+        r = graphics.render_bold(data["cues"], data["aspect"], W, H, ctx["vd"] / "subs", style,
+                                 faces_for=(lambda a, b: _faces_during(samples, data["segments"], a, b)) if samples else None)
+    else:                                     # الستايل القديم: سطر في صندوق
+        r = graphics.render(data["cues"], [], data["aspect"], W, H, ctx["vd"] / "subs", style, "clean", graphics.CARD_ZONES[data["aspect"]]["top"], word_states=True)
     track = _subs_track(r["subs"], data["total"], W, H, ctx["vd"] / "subs")
     subs = [{**{k: v for k, v in o.items() if k != "states"}, "png": str(Path(o["png"]).relative_to(ctx["d"])), "words": len(o["states"])} for o in r["subs"]]
     durs = [c["end"] - c["start"] for c in data["cues"]]
@@ -867,25 +871,28 @@ def _finish_s4(ctx, data):
     data.update(subs=subs, subs_track=str(track.relative_to(ctx["d"])), sub_style=style, subs_check=sc)
     report = [f"{sc['cues']} سطر · {sc['word_states']} كلمة بتظهر كلمة كلمة مع صوتها · جوه المنطقة الآمنة تحت: {sc['inside_bottom_zone']}/{sc['cues']}",
               f"مدة السطر على الشاشة: من {sc['min_dur']} لـ {sc['max_dur']} ث · أقل من {prm['min_dur']}: {sc['under_min']} · أكتر من {prm['max_dur']}: {sc['over_max']}",
-              f"الخط {sc['font_px']}px = {sc['font_pct_height']}% من ارتفاع الفريم · خلفية غامقة خفيفة · سطرين بالكتير · السطور بتقف عند السكتات",
+              (f"ستايل التيك توك: {len(subs)} مجموعة (1–3 كلمات) · الخط {sc['font_px']}px = {sc['font_pct_height']}% من ارتفاع الفريم · الكلمة الحالية منوّرة · دخول بنطّة"
+               if prm.get("style", "bold") == "bold" else f"الخط {sc['font_px']}px = {sc['font_pct_height']}% من ارتفاع الفريم · خلفية غامقة خفيفة · سطرين بالكتير · السطور بتقف عند السكتات"),
               f"فوق الوش: {face_hits if face_hits is not None else '—'} سطر" + (f" (اتحرك علشان الوش: {', '.join(moved)})" if moved else ""),
               (f"توقيت الكلمة مقابل أول صوتها (كلمات بعد سكتة، {lag['n']} كلمة): الوسيط {lag['median_ms']} مللي · أكبر {lag['max_ms']} مللي · تحت 100 مللي: {lag['under_100']}/{lag['n']}"
                if lag["n"] else "مفيش كلمات بعد سكتة واضحة علشان نقيس التأخير")]
     stills = []
     if data["cues"]:
         c = max(data["cues"], key=lambda x: len(x["text"]))
-        o = next(x for x in r["subs"] if x["id"] == c["id"])
+        o = next(x for x in r["subs"] if x.get("cue", x["id"]) == c["id"])
         t = (c["start"] + c["end"]) / 2
         stills.append(_still(ctx, data["segments"], t, "sub_frame.jpg", f"سطر ترجمة في الفريم ({t:.2f} ث)", overlays=[_state_at(o, t)], aspect=data["aspect"], data=data))
         mid = o["states"][len(o["states"]) // 2] if o["states"] else None
         if mid:
-            stills.append(_still(ctx, data["segments"], mid["start"] + 0.02, "sub_close.jpg", f"كلمة كلمة: نص السطر ({mid['start']:.2f} ث)", overlays=[{**o, "png": mid["png"], "x": o["x"] + int(mid.get("dx", 0))}],
+            stills.append(_still(ctx, data["segments"], mid["start"] + 0.02, "sub_close.jpg", f"كلمة كلمة: نص السطر ({mid['start']:.2f} ث)", overlays=[{**o, "png": mid["png"], "x": mid.get("x", o["x"] + int(mid.get("dx", 0))), "y": mid.get("y", o["y"])}],
                                  crop=(0.0, max(0.0, o["y"] / H - 0.05), 1.0, min(1.0, (o["y"] + o["h"]) / H + 0.05)), aspect=data["aspect"], data=data))
     return data, report, stills
 
 
 def _state_at(o: dict, t: float) -> dict:
     st = [x for x in o.get("states") or [] if x["start"] <= t] or o.get("states") or [{"png": o["png"]}]
+    if "x" in st[-1]:
+        return {**o, "png": st[-1]["png"], "x": st[-1]["x"], "y": st[-1]["y"]}
     return {**o, "png": st[-1]["png"], "x": o["x"] + int(st[-1].get("dx", 0))}
 
 
@@ -900,7 +907,10 @@ def _subs_track(subs: list[dict], total: float, W: int, H: int, out_dir: Path) -
             im = cv2.imread(stt["png"], cv2.IMREAD_UNCHANGED)
             full = np.zeros((H, W, 4), np.uint8)
             h, w = im.shape[:2]
-            x, y = max(0, o["x"] + int(stt.get("dx", 0))), max(0, o["y"])   # الصندوق بيكبر ناحية الشمال، والحافة اليمين ثابتة
+            if "x" in stt:   # ترجمة التيك توك: كل حالة ليها مكانها (النطّة بتغيّر المقاس)
+                x, y = max(0, stt["x"]), max(0, stt["y"])
+            else:
+                x, y = max(0, o["x"] + int(stt.get("dx", 0))), max(0, o["y"])   # الصندوق بيكبر ناحية الشمال، والحافة اليمين ثابتة
             full[y:y + h, x:x + w] = im[: H - y, : W - x]
             fp = out_dir / f"full_{Path(stt['png']).stem}.png"
             cv2.imwrite(str(fp), full)
@@ -1050,7 +1060,7 @@ def run_s5(ctx):
         faces = _faces_during(samples, inp["segments"], g["start"], g["end"])
         if g["mode"] == "overlay":
             gr = {"left": g["x"] / W, "right": (g["x"] + g["w"]) / W, "top": g["y"] / H, "bottom": (g["y"] + g["h"]) / H}
-            face_hit = _hits_face(faces, gr)
+            face_hit = _hits_face(faces, gr) and not (g.get("kind") == "annotate" and g.get("annotation") == "circle_me")
             sub_hit = any(r["start"] < g["end"] and g["start"] < r["end"] and graphics.rects_overlap(
                 {"x": r["left"], "y": r["top"], "w": r["right"] - r["left"], "h": r["bottom"] - r["top"]},
                 {"x": gr["left"], "y": gr["top"], "w": gr["right"] - gr["left"], "h": gr["bottom"] - gr["top"]}) for r in subs_rects)
@@ -1060,7 +1070,7 @@ def run_s5(ctx):
         lag_ms = round((g["start"] - first["start"]) * 1000) if first else None
         spoken = {cuts.norm(w["word"]) for c in it["cues"] for w in c["words"]}
         shown = [cuts.norm(x) for x in (g.get("title") or "").split()] + [cuts.norm(y) for x in g.get("items") or [] for y in (x["label"] if isinstance(x, dict) else x).split()]
-        maps = all(x in spoken for x in shown if x) and bool(shown or g["kind"] in ("counter", "sticker", "clock"))
+        maps = all(x in spoken for x in shown if x) and bool(shown or g["kind"] in ("counter", "sticker", "clock", "doodle", "annotate"))
         checks.append({"id": f"g{len(checks) + 1}", "kind": g["kind"], "mode": g["mode"], "face_overlap": face_hit, "subtitle_overlap": sub_hit,
                        "start_lag_ms": lag_ms, "maps_to_speech": maps, "motion": True})
     for g in rendered:
@@ -1090,15 +1100,15 @@ def run_s5(ctx):
 
 
 def _director_specs(dplan, its, inp, prm, samples, speaker, W, H, removed):
-    """خطة المخرج ← مواصفات بالتوقيت والمكان: جرافيك واحد في نفس الوقت (0.4 ث بين كل اتنين)، والمدة على قد النوع (1.6–3.5 ث).
-    الـ sticker جنب الوش، والشرح الطويل (رسمة/مقياس/عدّاد/قايمة) ممكن «صورتك مصغّرة»، والباقي overlay في مساحة فاضية."""
-    specs, log, used, last_pip = [], [], set(), -99.0
+    """خطة المخرج ← مواصفات بالتوقيت والمكان. كله صور وحركة من غير كلام (الكلام في الترجمة):
+    إيموجي ورسمة الماركر جنب الوش في الناحية الفاضية، والشخبطة حوالين المتكلم (سهم بيشاور عليه، دايرة حوالين راسه…)، والرقم فوق.
+    جرافيك واحد في نفس الوقت (0.4 ث بين كل اتنين)، والناحية بتتبادل علشان ما يبقاش كله في نفس الحتة."""
+    specs, log, used = [], [], set()
     items = dplan["items"]
+    side_pref = "right"
     for n, it in enumerate(items):
         idea = next((i for i in its if any(abs(c["start"] - inp["cues"][it["cue_i"]]["start"]) < 1e-6 for c in i["cues"])), its[-1] if its else None)
         entry = {"idea": idea["id"] if idea else "-", "text": inp["cues"][it["cue_i"]]["text"][:60], "start": it["at"], "end": it["cue_end"]}
-        if cuts.norm(" ".join(it.get("words") or [])) in removed:
-            log.append({**entry, "decision": "skip", "why": "إنت شلت الجرافيك ده"}); continue
         start = round(it["at"], 3)
         if specs and start < specs[-1]["end"] + 0.4:
             log.append({**entry, "decision": "skip", "why": "الجرافيك اللي قبله لسه على الشاشة (واحد بس في نفس الوقت)"}); continue
@@ -1106,47 +1116,44 @@ def _director_specs(dplan, its, inp, prm, samples, speaker, W, H, removed):
         if not sp:
             log.append({**entry, "decision": "skip", "why": f"مفيش شكل على قد «{' '.join(it.get('visual_en') or [])}» ولا اترسم"}); continue
         nxt = items[n + 1]["at"] - 0.4 if n + 1 < len(items) else inp["total"] - 0.05
-        dur = min(director.duration(it), 3.5)
-        end = round(min(start + dur, max(start + 1.4, nxt), inp["total"] - 0.05), 3)
-        if end - start < 1.2:
+        end = round(min(start + director.duration(it), max(start + 1.3, nxt), inp["total"] - 0.05), 3)
+        if end - start < 1.1:
             log.append({**entry, "decision": "skip", "why": "مفيش وقت كفاية يتشاف"}); continue
-        sp.update(start=start, end=end, idea=entry["idea"])
-        big = sp["kind"] in ("illus", "meter", "counter", "checklist") and end - start >= 2.6 and speaker and start - last_pip >= 8
-        if big:
-            sp["mode"], sp["mode_why"] = "pip", "شرح: صورتك مصغّرة والشرح في باقي الشاشة"
-        elif sp["kind"] == "sticker":
-            fb = _speaker_box(samples, inp["segments"], start, end)
-            sp["mode"], sp["mode_why"] = "overlay", "رد فعل: إيموجي متحرك جنب الوش"
-            if fb:
-                w, h = motion.SIZES["sticker"]
-                right = fb[2] + 0.02 + w <= 0.84
-                left = (fb[2] + 0.02) if right else max(0.04, fb[0] - 0.02 - w)
-                top = max(0.06, min(0.6 - h, fb[1] - h * 0.3))
-                sp["rect"] = {"left": round(left, 3), "top": round(top, 3), "right": round(left + w, 3), "bottom": round(top + h, 3)}
-        else:
-            sp["mode"], sp["mode_why"] = "overlay", "فوق الفيديو في مساحة فاضية"
-        if sp["mode"] == "overlay" and "rect" not in sp:
+        sp.update(start=start, end=end, idea=entry["idea"], mode="overlay", style="marker", enter="pop")
+        fb = _speaker_box(samples, inp["segments"], start, end) if samples else None
+        kind = sp["kind"]
+        if kind == "counter" or not fb:
             win = [x for t in np.linspace(start, end, 8) for x in vision.window(samples, out_to_src(inp["segments"], float(t))[1], out_to_src(inp["segments"], float(t))[1])]
-            rect = motion.place(sp["kind"], vision.occupancy(win), inp["aspect"])
-            if rect is None and speaker and start - last_pip >= 8:
-                sp["mode"], sp["mode_why"] = "pip", "مفيش مساحة فاضية من غير ما يغطيك: صورتك مصغّرة والشرح في باقي الشاشة"
-            elif rect is None:
+            rect = motion.place("counter" if kind == "counter" else "sticker", vision.occupancy(win), inp["aspect"])
+            if rect is None:
                 log.append({**entry, "decision": "skip", "why": "مفيش مساحة فاضية"}); continue
+            sp["rect"], sp["mode_why"] = rect, "في مساحة فاضية"
+        else:
+            fx0, fy0, fx1, fy1 = fb
+            fw, fh = fx1 - fx0, fy1 - fy0
+            room_r, room_l = 0.84 - fx1, fx0 - 0.04          # عمود أزرار تيك توك على اليمين (بعد 0.84)
+            side = side_pref if (room_r if side_pref == "right" else room_l) >= 0.22 else ("left" if side_pref == "right" else "right")
+            if kind == "annotate" and sp["annotation"] == "circle_me":
+                cx, cy, rw, rh = (fx0 + fx1) / 2, (fy0 + fy1) / 2, fw * 2.0, fh * 1.9
+                r = {"left": cx - rw / 2, "top": cy - rh / 2, "right": cx + rw / 2, "bottom": cy + rh / 2}
+                why = "دايرة حوالين راسك"
             else:
-                sp["rect"] = rect
-        if sp["mode"] == "pip":
-            fb = _speaker_box(samples, inp["segments"], start, end) or [0.35, 0.3, 0.65, 0.48]
-            fcx, fcy, fh = (fb[0] + fb[2]) / 2, (fb[1] + fb[3]) / 2, fb[3] - fb[1]
-            side = int(min(W, H, max(fh * H * 2.3, 0.28 * W))) // 2 * 2
-            cx0 = int(min(max(0, fcx * W - side / 2), W - side)); cy0 = int(min(max(0, fcy * H - side * 0.42), H - side))
-            sp["pip"] = motion.pip_geom(W, H, inp["aspect"])
-            sp["crop"], sp["target"] = [cx0, cy0, side, side], [sp["pip"][0], sp["pip"][1], sp["pip"][2], sp["pip"][2]]
-            last_pip = start
-        sp["style"], sp["enter"] = motion.style_for(len(specs), specs[-1].get("style") if specs else None, sp["kind"])
-        if sp["mode"] != "overlay" or sp["kind"] == "illus":
-            sp["style"] = "dark" if sp["mode"] != "overlay" else ("light" if sp["style"] in ("marker", "glass") else sp["style"])
+                w, h = {"sticker": (0.28, 0.16), "doodle": (0.34, 0.19), "annotate": (0.30, 0.17)}[kind]
+                left = fx1 + 0.03 if side == "right" else fx0 - 0.03 - w
+                top = fy0 - h * (0.55 if kind == "annotate" and sp["annotation"] in ("question", "exclaim", "sparkles", "lightning") else 0.15)
+                r = {"left": left, "top": top, "right": left + w, "bottom": top + h}
+                why = {"sticker": "إيموجي جنب الوش", "doodle": "رسمة ماركر جنبك", "annotate": "شخبطة جنبك"}[kind]
+            # جوه الكادر وفوق منطقة الترجمة
+            dx = max(0.02 - r["left"], 0) - max(r["right"] - 0.98, 0)
+            dy = max(0.04 - r["top"], 0) - max(r["bottom"] - 0.6, 0)
+            r = {k: round(v + (dx if k in ("left", "right") else dy), 3) for k, v in r.items()}
+            sp["rect"], sp["side"], sp["mode_why"] = r, side, why + f" ({'يمين' if side == 'right' else 'شمال'})"
+            sp["face"] = [round((fx0 - r["left"]) / (r["right"] - r["left"]), 3), round((fy0 - r["top"]) / (r["bottom"] - r["top"]), 3),
+                          round((fx1 - r["left"]) / (r["right"] - r["left"]), 3), round((fy1 - r["top"]) / (r["bottom"] - r["top"]), 3)]
+            side_pref = "left" if side == "right" else "right"
         specs.append(sp)
-        log.append({**entry, "decision": sp["mode"], "kind": sp["kind"], "why": sp["why"] + (f" · الشكل: {sp.get('visual_name') or sp.get('emoji_file') or ''}" + (" (مرسوم)" if sp.get("drawn") else "")),
+        log.append({**entry, "decision": sp["mode"], "kind": kind + (f":{sp.get('annotation')}" if kind == "annotate" else ""),
+                    "why": sp["why"] + (f" · الشكل: {sp.get('visual_name') or sp.get('emoji_file') or ''}" + (" (مرسوم)" if sp.get("drawn") else "")),
                     "mode_why": sp["mode_why"], "start": start, "end": end})
     return specs, log
 
@@ -1289,7 +1296,7 @@ def run_s7(ctx):
     stills = [_frame(out, 0.4, vd / "f_start.jpg", "البداية"), _frame(out, total / 2, vd / "f_mid.jpg", "النص"), _frame(out, total - 0.4, vd / "f_end.jpg", "الآخر")]
     if d.get("cues"):
         c = max(d["cues"], key=lambda x: len(x["text"]))
-        o = next(x for x in d["subs"] if x["id"] == c["id"])
+        o = next(x for x in d["subs"] if x.get("cue", x["id"]) == c["id"])
         stills.append(_frame(out, (c["start"] + c["end"]) / 2, vd / "close_sub.jpg", "كلوز أب: ترجمة", (0, max(0, o["y"] / H - 0.06), 1, min(1, (o["y"] + o["h"]) / H + 0.06))))
     for k, g in enumerate(d.get("gfx", [])[:3]):   # كل جرافيك: فريم في نص وقته (والـ overlay كلوز أب على مكانه)
         t = g["start"] + min(2.0, (g["end"] - g["start"]) * 0.6)
@@ -1316,7 +1323,8 @@ def _framing(ctx, d) -> list[dict]:
             samples = vision.load_samples(ctx["d"] / d["look"]["vision"])
     except Exception:
         samples = []
-    busy = [(g["start"], g["end"]) for g in d.get("gfx", []) if g.get("mode") != "overlay"]
+    # مفيش زووم وقت جرافيك بيقصّ المتكلم، أو جرافيك مكانه محسوب على الوش (إيموجي/رسمة/شخبطة جنبه): الزووم بيحرّك الوش من مكانه
+    busy = [(g["start"], g["end"]) for g in d.get("gfx", []) if g.get("mode") != "overlay" or g.get("kind") in ("sticker", "doodle", "annotate")]
     out, t = [], 0.0
     for seg, z in zip(d["segments"], zs):
         dur = (seg["end"] - seg["start"]) / float(seg.get("speed") or 1.0)

@@ -19,37 +19,35 @@ from ..pipeline import drawn
 from ..store import read_json
 from .cuts import norm
 
-TEMPLATES = ["none", "sticker", "icon_word", "illustration", "counter", "meter", "checklist", "vs", "clock", "title"]
+TEMPLATES = ["none", "sticker", "doodle", "annotate", "counter"]
+ANNOTATIONS = ["arrow_to_me", "circle_me", "sparkles", "question", "exclaim", "check", "cross", "heart", "lightning"]
 SCHEMA = {
     "type": "object", "additionalProperties": False, "required": ["topic_en", "items"],
     "properties": {
         "topic_en": {"type": "string"},
         "items": {"type": "array", "items": {
-            "type": "object", "additionalProperties": False, "required": ["cue", "at_word", "template", "words", "visual_en", "why"],
+            "type": "object", "additionalProperties": False, "required": ["cue", "at_word", "template", "visual_en", "why"],
             "properties": {
                 "cue": {"type": "string"}, "at_word": {"type": "string"},
                 "template": {"type": "string", "enum": TEMPLATES},
-                "words": {"type": "array", "items": {"type": "string"}, "description": "1–4 كلمات متتالية من السطر نفسه، زي ما اتقالت"},
-                "visual_en": {"type": "array", "items": {"type": "string"}, "description": "1–3 كلمات إنجليزي للحاجة اللي تترسم (أهمها الأول)"},
-                "emoji": {"type": "string", "description": "للـ sticker: اسم إيموجي إنجليزي (smile, thumbs-up, fire, mind-blown...)"},
-                "items": {"type": "array", "items": {"type": "string"}, "description": "checklist/vs: 2–4 عناصر، كل واحد كلمات من الكلام"},
-                "value": {"type": "number"}, "level": {"type": "number"},
+                "visual_en": {"type": "array", "items": {"type": "string"}, "description": "doodle: 1–3 كلمات إنجليزي للحاجة اللي تترسم (أهمها الأول)"},
+                "emoji": {"type": "string", "description": "للـ sticker: اسم إيموجي إنجليزي (smile, thumbs-up, fire, mind-blown, thinking...)"},
+                "annotation": {"type": "string", "enum": ANNOTATIONS},
+                "value": {"type": "number", "description": "counter: الرقم اللي اتقال"},
                 "why": {"type": "string"},
             }}},
     },
 }
 SYSTEM = """إنت مونتير فيديوهات قصيرة محترف (تيك توك/ريلز). قدامك تفريغ فيديو متكلم سطر سطر بالتوقيت.
-اختار الموشن جرافيك اللي يخلّي الفيديو حي واحترافي ومفهوم، **على قد موضوع الكلام**:
-- `sticker`: إيموجي متحرك صغير جنب الوش لمشاعر/رد فعل (مبسوط، مصدوم، بيضحك، زهقان) — سريع (حوالي 1.6 ث).
-- `icon_word`: أيقونة للحاجة نفسها + 1–3 كلمات من الكلام (الفكرة المهمة في السطر).
-- `illustration`: رسمة لموقف (ناس بتتكلم، حد قاعد لوحده، شغل…) + 1–3 كلمات، للحظات الشرح.
-- `counter`: لو اتقال رقم (value). `meter`: كمية/درجة (كتير/قليل) و level من 0 لـ 1. `checklist`: 2–4 حاجات اتعدّت.
-- `vs`: مقارنة بين حاجتين اتقالوا (items = الاتنين). `clock`: لو الكلام عن وقت/ساعات/مواعيد. `title`: أول سطر بس (الهوك).
-- `none`: السطر مش محتاج جرافيك.
-قواعد: حوالي جرافيك لكل 3–5 ثواني (مش كل سطر، ومش سطرين ورا بعض بنفس النوع)، ونوّع.
-لو فيه لحظة شرح (3 ثواني أو أكتر عن موقف أو فكرة)، استخدم `illustration` واحدة على الأقل في الفيديو (رسمة للموقف نفسه، مش أيقونة صغيرة).
-`words` و `items` كلمات **من السطر نفسه زي ما اتقالت** (من غير تأليف). `at_word` كلمة من السطر الجرافيك يبدأ معاها.
-`visual_en`: الحاجة اللي تترسم بالإنجليزي (people talking, alone person, thumbs up, friends...)، أهم كلمة الأول."""
+الكلام كله **مكتوب أصلًا في الترجمة**، فالموشن جرافيك **مش كلام**: صورة وحركة بتوضّح أو بتضحّك أو بتأكّد، في سياق الكلام بالظبط:
+- `sticker`: إيموجي متحرك صغير جنب الوش لمشاعر/رد فعل حقيقي في الكلام (مبسوط، مصدوم، بيفكر، زهقان).
+- `doodle`: رسمة بخط ماركر أبيض على الفيديو جنب المتكلم للحاجة اللي بيتكلم عنها (friends, phone, clock, money, heart, brain…). visual_en = الحاجة نفسها.
+- `annotate`: شخبطة بالماركر حوالين المتكلم: arrow_to_me (لما بيتكلم عن نفسه)، circle_me (تأكيد على كلامه)، sparkles (حاجة حلوة)،
+  question (سؤال/حيرة)، exclaim (مفاجأة/تحذير)، check (صح/موافق)، cross (غلط/لأ)، heart (حب/راحة)، lightning (طاقة/قوة).
+- `counter`: بس لو اتقال رقم (value).
+- `none`: السطر مش محتاج.
+قواعد: جرافيك كل 3–6 ثواني بالكتير (أقل أحسن من زحمة)، ومش نفس النوع مرتين ورا بعض، ولازم يبقى ليه علاقة واضحة بالكلام.
+`at_word` كلمة من السطر الجرافيك يبدأ معاها بالظبط."""
 
 
 def _words(text: str) -> list[str]:
@@ -62,6 +60,7 @@ def _in_line(words: list[str], line: str) -> bool:
     return bool(ws) and all(any(x == w or (x.endswith(w) and len(x) - len(w) <= 2) for x in lw) for w in ws)
 
 
+NUM_HINT = ("واحد", "اتنين", "تلات", "اربع", "خمس", "ست", "سبع", "تمان", "تسع", "عشر", "مية", "ميه", "الف", "مليون")
 NEG = {norm(w) for w in ("مش", "ما", "مفيش", "مافيش", "مو", "لا", "ولا", "مكنش", "مابقاش", "عمري", "بلاش", "not", "no", "never")}
 
 
@@ -109,16 +108,12 @@ def plan(cues: list[dict], brief_text: str = "", ask_fn=None) -> dict:
                    or norm(w["word"]).endswith(norm(it.get("at_word", "")) or "#")), None)
         if not at:
             bad.append({**it, "reject": f"«{it.get('at_word')}» مش في السطر"}); continue
-        shown = list(it.get("words") or []) + [x for x in it.get("items") or []]
-        if it["template"] not in ("sticker", "clock", "counter") and not shown:
-            bad.append({**it, "reject": "مفيش كلام يظهر"}); continue
-        if any(not _in_line(x.split(), c["text"]) for x in shown):
-            bad.append({**it, "reject": "كلام مش من السطر نفسه (متألّف)"}); continue
-        # النفي ما يتشالش: «عنديش اصحاب كتير» ظهرت «اصحاب كتير» (المعنى اتقلب). لو قبل الكلام اللي هيظهر كلمة نفي في السطر، بتتضاف معاه
-        it["words"] = with_negation(it.get("words") or [], c["text"])
-        it["items"] = [" ".join(with_negation(x.split(), c["text"])) for x in it.get("items") or []]
-        if it["template"] == "title" and k != 0:
-            it["template"] = "icon_word"
+        if it["template"] == "doodle" and not it.get("visual_en"):
+            bad.append({**it, "reject": "doodle من غير حاجة تترسم"}); continue
+        if it["template"] == "annotate" and it.get("annotation") not in ANNOTATIONS:
+            bad.append({**it, "reject": "شخبطة مش معروفة"}); continue
+        if it["template"] == "counter" and (it.get("value") is None or not re.search(r"\d|" + "|".join(NUM_HINT), c["text"])):
+            bad.append({**it, "reject": "مفيش رقم اتقال في السطر"}); continue
         ok.append({**it, "cue_i": k, "at": at["start"], "cue_end": c["end"]})
     ok.sort(key=lambda x: x["at"])
     return {"topic_en": res.get("topic_en", ""), "items": ok, "rejected": bad}
@@ -178,10 +173,8 @@ def lottie_json(file: str) -> dict:
 
 # ---------- من الخطة لمواصفات جرافيك ----------
 IDLE = [(("heart", "love"), "beat"), (("bell", "notification", "alarm"), "swing"), (("phone", "call", "smartphone", "mobile"), "buzz"),
-        (("bulb", "idea", "light", "lightbulb", "star", "sparkle"), "glow"), (("gear", "settings", "loading", "refresh"), "spin")]
-DUR = {"sticker": 1.6, "icon_word": 2.2, "illustration": 3.0, "counter": 2.6, "meter": 2.8, "vs": 3.0, "clock": 2.4, "title": 2.6}
-KIND = {"icon_word": "keyword", "illustration": "illus", "sticker": "sticker", "counter": "counter", "meter": "meter", "checklist": "checklist",
-        "vs": "vs", "clock": "clock", "title": "title"}
+        (("bulb", "idea", "light", "lightbulb", "star", "sparkle"), "glow"), (("gear", "settings", "loading", "refresh", "clock", "time"), "spin")]
+DUR = {"sticker": 1.7, "doodle": 2.4, "annotate": 1.8, "counter": 2.4}
 
 
 def idle_for(name: str) -> str:
@@ -190,54 +183,31 @@ def idle_for(name: str) -> str:
 
 
 def duration(it: dict) -> float:
-    if it["template"] == "checklist":
-        return 1.2 + 0.55 * len(it.get("items") or [])
-    return DUR.get(it["template"], 2.4) + 0.08 * len(" ".join(it.get("words") or []).split())
+    return DUR.get(it["template"], 2.0)
 
 
 def to_spec(it: dict, used: set, idea_en: list[str] | None = None) -> dict | None:
-    """بند من الخطة ← مواصفات للرسم (motion.render)، أو None لو الشكل المطلوب مش موجود ولا اترسم."""
-    tpl, words = it["template"], " ".join(it.get("words") or [])
-    sp = {"kind": KIND[tpl], "title": words, "at": it["at"], "first_word": it.get("at_word"), "why": f"مخرج الجرافيك: {it.get('why', '')}",
+    """بند من الخطة ← مواصفات للرسم (motion.render)، أو None لو الشكل المطلوب مش موجود ولا اترسم. مفيش كلام بيظهر (الترجمة فيها الكلام)."""
+    tpl = it["template"]
+    sp = {"kind": tpl, "title": "", "at": it["at"], "first_word": it.get("at_word"), "why": f"مخرج الجرافيك: {it.get('why', '')}",
           "visual_en": it.get("visual_en") or [], "template": tpl}
     if tpl == "sticker":
         e = find_emoji(it.get("emoji") or " ".join(it.get("visual_en") or []), used)
-        if not e:   # مفيش إيموجي متحرك بالاسم ده (مكتبة Noto مفيهاش shrug مثلًا): أيقونة على قد المعنى بدله
-            v = find_visual("icon", (it.get("visual_en") or []) + ([it["emoji"]] if it.get("emoji") else []), used, idea_en)
-            if not v or not words:
-                return None
-            sp.update(kind="keyword", svg=svg_text(v["file"]), visual=v["file"], visual_name=v["name"], license=v.get("license"),
-                      drawn=bool(v.get("drawn")), idle=idle_for(v["name"]), why=sp["why"] + " · مفيش إيموجي متحرك بالاسم ده: أيقونة بدله")
+        if not e:   # مفيش إيموجي متحرك بالاسم ده: رسمة ماركر بدله
+            tpl, sp["kind"] = "doodle", "doodle"
+            it = {**it, "visual_en": (it.get("visual_en") or []) + ([it["emoji"]] if it.get("emoji") else [])}
+        else:
+            used.add(e["file"])
+            sp.update(lottie=lottie_json(e["file"]), emoji_file=e["file"], license="CC BY 4.0 (Animated emoji by Google)")
             return sp
-        used.add(e["file"])
-        sp.update(lottie=lottie_json(e["file"]), emoji_file=e["file"], title="", license="CC BY 4.0 (Animated emoji by Google)")
-    elif tpl in ("icon_word", "illustration", "title"):
-        v = find_visual("illustration" if tpl == "illustration" else "icon", it.get("visual_en") or [], used, idea_en)
-        if v and tpl != "title":
-            sp.update(svg=svg_text(v["file"]), visual=v["file"], visual_name=v["name"], license=v.get("license"), drawn=bool(v.get("drawn")),
-                      idle=idle_for(v["name"] + " " + " ".join(it.get("visual_en") or [])))
-            if v["kind"] == "icon" and tpl == "illustration":
-                sp["kind"] = "keyword"     # مفيش رسمة على قد المعنى: أيقونة كبيرة بدلها
-        elif tpl != "title":
-            return None
-        if tpl == "title":
-            sp["highlight"] = (it.get("words") or [""])[min(1, len(it.get("words") or [""]) - 1)] if len(it.get("words") or []) > 1 else (it.get("words") or [""])[0]
-    elif tpl == "counter":
-        if it.get("value") is None:
-            return None
-        sp.update(value=int(it["value"]), label=words)
-    elif tpl == "meter":
-        sp.update(level=max(0.1, min(1.0, float(it.get("level") or 0.5))), icon="gauge",
-                  level_name="قليل" if (it.get("level") or 0.5) < 0.4 else "متوسط" if (it.get("level") or 0.5) < 0.7 else "كتير")
+    if tpl == "doodle":
         v = find_visual("icon", it.get("visual_en") or [], used, idea_en)
-        if v:
-            sp.update(svg=svg_text(v["file"]), visual=v["file"])
-    elif tpl in ("checklist", "vs"):
-        items = [x for x in it.get("items") or [] if x.strip()][:4]
-        if len(items) < 2:
+        if not v:
             return None
-        sp["items"] = items[:2] if tpl == "vs" else items
-        sp["title"] = ""
-    elif tpl == "clock":
-        sp["idle"] = "spin"
+        sp.update(svg=svg_text(v["file"]), visual=v["file"], visual_name=v["name"], license=v.get("license"), drawn=bool(v.get("drawn")),
+                  idle=idle_for(v["name"] + " " + " ".join(it.get("visual_en") or [])))
+    elif tpl == "annotate":
+        sp["annotation"] = it["annotation"]
+    elif tpl == "counter":
+        sp.update(value=int(it["value"]), label="")
     return sp

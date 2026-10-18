@@ -209,7 +209,8 @@ def choose(idea: dict, speaker: bool, brief: dict, used_icons: set | None = None
 
 # ---------- 2) المكان ----------
 SIZES = {"keyword": (0.80, 0.15), "counter": (0.66, 0.17), "meter": (0.80, 0.18), "bars": (0.80, 0.20), "timeline": (0.84, 0.125), "lower_third": (0.70, 0.11),
-         "title": (0.90, 0.17), "illus": (0.84, 0.30), "sticker": (0.30, 0.17), "checklist": (0.84, 0.22), "vs": (0.88, 0.16), "clock": (0.74, 0.16)}
+         "title": (0.90, 0.17), "illus": (0.84, 0.30), "sticker": (0.30, 0.17), "checklist": (0.84, 0.22), "vs": (0.88, 0.16), "clock": (0.74, 0.16),
+         "doodle": (0.34, 0.19), "annotate": (0.30, 0.17)}
 STYLES = ("dark", "light", "accent", "glass", "marker")   # بتتبادل: مفيش جرافيكين ورا بعض بنفس الشكل
 ENTERS = ("pop", "slide", "wipe", "drop")
 PIP = {"9:16": (0.29, 0.055, 0.42), "16:9": (0.06, 0.12, 0.36)}   # صورتك المصغّرة: (x, y, القطر) نسبة من العرض/الارتفاع/العرض
@@ -356,6 +357,13 @@ function setup(spec, dur){
       w.insertAdjacentHTML('afterbegin', `<span class="hl" id="hl" style="inset:${-u*.1}px ${-u*.35}px ${-u*.05}px ${-u*.35}px"></span>`); }
     return;
   }
+  if (k === 'doodle' || k === 'annotate') {
+    // رسمة/شخبطة بالماركر على الفيديو نفسه (من غير كارت ولا كلام)
+    const inner = k === 'doodle' ? S.svg : `<svg viewBox="0 0 ${S.bw} ${S.bh}" width="${S.bw}" height="${S.bh}">${annot(S.annotation, S.bw, S.bh, S.side || 'right', S.face || [0.3,0.3,0.7,0.7], u)}</svg>`;
+    r.innerHTML = `<div id="art" style="position:absolute;inset:${k === 'doodle' ? '6%' : '0'};filter:drop-shadow(0 ${u*.1}px ${u*.22}px rgba(0,0,0,.6))">${inner}</div>`;
+    prepDraw();
+    return;
+  }
   if (k === 'sticker') {
     // إيموجي متحرك (Lottie) جنب الوش، من غير كارت
     r.innerHTML = `<div id="lot" style="position:absolute;inset:0"></div>`;
@@ -425,9 +433,43 @@ function setup(spec, dur){
   if (document.getElementById('title')) S.tw = words(document.getElementById('title'), S.title || '');
   prepDraw();
 }
+// شخبطة الماركر: مسارات على قد الصندوق وعلى قد مكان الوش (side = الوش ناحية إيه من الصندوق)
+function annot(type, w, h, side, face, u){
+  const sw = u*.4, W = (d, c='#fff', extra='') => `<path d="${d}" fill="none" stroke="${c}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" ${extra}/>`;
+  const dir = side === 'right' ? -1 : 1;   // الصندوق يمين الوش ← السهم بيشاور شمال
+  const fx = side === 'right' ? 0 : w, fy = h*0.55;
+  if (type === 'arrow_to_me') {
+    const x0 = side === 'right' ? w*.92 : w*.08, y0 = h*.18, x1 = side === 'right' ? w*.1 : w*.9, y1 = h*.62;
+    const cx = (x0+x1)/2, cy = y0 - h*.05;
+    const a = Math.atan2(y1-cy, x1-cx), L = u*2.2;
+    return W(`M${x0} ${y0} Q${cx} ${cy} ${x1} ${y1}`) + W(`M${x1 - L*Math.cos(a-0.5)} ${y1 - L*Math.sin(a-0.5)} L${x1} ${y1} L${x1 - L*Math.cos(a+0.5)} ${y1 - L*Math.sin(a+0.5)}`);
+  }
+  if (type === 'circle_me') {
+    const cx = w/2, cy = h/2, rx = w*.44, ry = h*.44; let d = '';
+    for (let i = 0; i <= 56; i++) { const t = -Math.PI*.6 + i/56*Math.PI*2.15, k = 1 + 0.04*Math.sin(i*.7); d += `${i?'L':'M'}${(cx + Math.cos(t)*rx*k).toFixed(1)} ${(cy + Math.sin(t)*ry*k).toFixed(1)}`; }
+    return W(d, '#ffd23f');
+  }
+  if (type === 'sparkles') {
+    const star = (x, y, r) => `M${x} ${y-r} Q${x} ${y} ${x+r} ${y} Q${x} ${y} ${x} ${y+r} Q${x} ${y} ${x-r} ${y} Q${x} ${y} ${x} ${y-r}`;
+    return W(star(w*.5, h*.35, u*2.2), '#ffd23f') + W(star(w*.2, h*.7, u*1.3)) + W(star(w*.8, h*.72, u*1.5));
+  }
+  if (type === 'check') return W(`M${w*.25} ${h*.55} L${w*.43} ${h*.75} L${w*.78} ${h*.25}`, '#5be38f');
+  if (type === 'cross') return W(`M${w*.28} ${h*.25} L${w*.72} ${h*.75}`, '#ff5a5a') + W(`M${w*.72} ${h*.25} L${w*.28} ${h*.75}`, '#ff5a5a');
+  if (type === 'heart') { const x = w/2, y = h*.32, r = Math.min(w, h)*.24;
+    return W(`M${x} ${y+r*1.6} C${x-r*2.2} ${y+r*.4} ${x-r*1.2} ${y-r*1.2} ${x} ${y-r*.1} C${x+r*1.2} ${y-r*1.2} ${x+r*2.2} ${y+r*.4} ${x} ${y+r*1.6}`, '#ff4d6d'); }
+  if (type === 'lightning') return W(`M${w*.58} ${h*.08} L${w*.36} ${h*.52} L${w*.55} ${h*.52} L${w*.4} ${h*.92} L${w*.68} ${h*.42} L${w*.48} ${h*.42} Z`, '#ffd23f');
+  if (type === 'question' || type === 'exclaim') {
+    const q = (x, y, r) => type === 'question'
+      ? W(`M${x-r} ${y-r*.6} Q${x-r} ${y-r*1.6} ${x} ${y-r*1.6} Q${x+r} ${y-r*1.6} ${x+r} ${y-r*.7} Q${x+r} ${y} ${x} ${y+r*.25} L${x} ${y+r*.75}`) + W(`M${x} ${y+r*1.45} L${x} ${y+r*1.5}`)
+      : W(`M${x} ${y-r*1.6} L${x} ${y+r*.6}`) + W(`M${x} ${y+r*1.4} L${x} ${y+r*1.45}`);
+    return q(w*.5, h*.5, u*2) + q(w*.22, h*.62, u*1.1) + q(w*.8, h*.6, u*1.2);
+  }
+  return '';
+}
 // الأيقونة/الرسمة بتترسم خط بخط بسرعة، وبعدين الألوان بتتملا (زي السبورة بس أسرع)
 function prepDraw(){
   const host = document.querySelector('#art svg, .badge svg'); S.draw = [];
+  if (S.kind === 'annotate') { for (const el of host.querySelectorAll('path')) { const L = el.getTotalLength(); el.style.strokeDasharray = `${L} ${L}`; el.style.strokeDashoffset = L; S.draw.push({el, Ls: L, filled: false}); } return; }
   if (!host) return;
   for (const el of host.querySelectorAll('path,circle,line,polyline,polygon,rect,ellipse')) {
     if (el.closest('defs,clipPath,mask')) continue;
@@ -437,6 +479,8 @@ function prepDraw(){
     el.style.vectorEffect = 'non-scaling-stroke';
     const m = el.getCTM(), Ls = L * (m ? Math.hypot(m.a, m.b) : 1);
     if (S.kind === 'illus') { el.style.stroke = 'var(--ink)'; el.style.strokeWidth = (S.u*.09)+'px'; }
+    if (S.kind === 'doodle') { el.style.stroke = '#fff'; el.style.strokeWidth = (S.u*.36)+'px'; el.style.strokeLinecap = 'round'; el.style.strokeLinejoin = 'round';
+      if (filled) el.style.fill = '#fff'; }
     el.style.strokeDasharray = `${Ls} ${Ls}`; el.style.strokeDashoffset = Ls;
     if (filled) el.style.fillOpacity = 0;
     S.draw.push({el, Ls, filled});
@@ -528,7 +572,7 @@ def render(specs: list[dict], W: int, H: int, fps: int, out_root: Path, mood: st
                 w, h, x, y = W, H // 2, 0, H // 2
             else:
                 w, h, x, y = W, H, 0, 0
-            u = round(min(w, H * 0.6) / 30) if mode == "overlay" else round(W / 30)
+            u = round(W / 30) if sp.get("kind") in ("doodle", "annotate") else round(min(w, H * 0.6) / 30) if mode == "overlay" else round(W / 30)   # الماركر على قد الكادر
             spec = {**{kk: v for kk, v in sp.items() if kk not in ("rect",)}, "u": u, "icon_svg": sp.get("svg") or _icon_svg(sp.get("icon") or "sparkles"), "H": H,
                     "cy": int(H * 0.42) if mode == "explainer" else int(h * 0.16) if mode == "split" else int(h * 0.5)}   # split: المحتوى في أول النص التحتاني (50–60%)، فوق الترجمة
             if mode == "inset":   # المحتوى تحت المتكلم الصغير (فوق) وفوق الترجمة
@@ -536,6 +580,7 @@ def render(specs: list[dict], W: int, H: int, fps: int, out_root: Path, mood: st
             if mode == "pip":     # الشرح تحت دايرة صورتك وفوق الترجمة
                 spec["pip"] = sp["pip"]
                 spec["cy"] = sp["pip"][1] + sp["pip"][2] + int(H * 0.04)
+            spec["bw"], spec["bh"] = w, h
             pg = b.new_page(viewport={"width": w, "height": h})
             pg.set_content(f"<html><head><style>{css}</style></head><body><div id='root'></div><script>{lot}</script><script>{js}</script></body></html>")
             pg.evaluate("document.fonts.ready")
