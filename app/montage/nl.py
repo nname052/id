@@ -161,8 +161,10 @@ def propose(key: str, doc: dict, text: str, wbs: dict) -> dict:
             ch["aspect"] = "16:9"
         elif _has(r"(من غير مزج|بدون مزج|قطع صريح|jump ?cuts?|hard cuts?)", t):
             ch["transitions"] = "hard"
-        elif _has(r"(مزج|ناعم|نعّم|نعم|smooth|dissolve|crossfade)", t) and not _has(REMOVE, t):
+        elif _has(r"(انتقالات متنوعة|نوّع الانتقالات|نوع الانتقالات|زي الموشن|varied transitions|zoom|زووم)", t) and not _has(REMOVE, t):
             ch["transitions"] = "auto"
+        elif _has(r"(مزج|ناعم|نعّم|نعم|smooth|dissolve|crossfade)", t) and not _has(REMOVE, t):
+            ch["transitions"] = "simple"
             if _has(r"(أطول|اطول|أكتر|اكتر|longer|more)", t):
                 ch["dissolve_frames"] = min(16, int(params.get("dissolve_frames") or (12 if data.get("fps", 30) >= 50 else 10)) + 2)
         elif _has(REMOVE, t) and ps:
@@ -211,7 +213,11 @@ def propose(key: str, doc: dict, text: str, wbs: dict) -> dict:
         if not data["segments"]:
             return {"question": "كده مش هيفضل أي جزء. متأكد؟ قول عدد ثواني أقل."}
     elif key == "s3_look":
-        if _has(r"(طبيعي|من غير ستايل|natural|no look)", t):
+        if _has(r"(افصلني|افصل المتكلم|ضيّ عليا|ضي عليا|نوّر وشي|نور وشي|isolate|relight)", t):
+            ch["relight"], ch["background"] = "on", "on"     # العزل مقفول افتراضيًا: بيتفتح بالطلب بس
+        elif _has(r"(من غير عزل|بلاش عزل|شيل العزل|no isolat)", t):
+            ch["relight"], ch["background"] = "off", "off"
+        elif _has(r"(طبيعي|من غير ستايل|natural|no look)", t):
             ch["look"] = "natural"
         elif _has(r"(سينمائي|cinematic)", t):
             ch["look"] = "cinematic"

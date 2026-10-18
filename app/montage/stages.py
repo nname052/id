@@ -10,6 +10,7 @@ S1 التحليل ← S2 القصّ والإيقاع ← S3 الصورة ← S4 
 - التصدير مقفول لحد ما توافق على آخر معاينة كاملة (S7).
 """
 
+import collections
 import json
 import os
 import shutil
@@ -604,7 +605,8 @@ def finalize_s2(ctx, data: dict):
         else:
             mot.append({})
     data["transitions"] = cuts.plan_transitions(data["segments"], scene_cuts, "fast" if hard else "normal", data["fps"],
-                                                int(prm.get("dissolve_frames") or 0) or None, int(prm.get("audio_xfade_ms", 60)), mot)
+                                                int(prm.get("dissolve_frames") or 0) or None, int(prm.get("audio_xfade_ms", 60)), mot,
+                                                style=prm.get("transitions") if prm.get("transitions") in ("hard", "simple") else "auto")
     if hard and ctx["brief"]["pace"] != "fast":
         for t in data["transitions"]:
             if t["kind"] == "hard" and "لقطة" not in t["reason"]:
@@ -614,8 +616,8 @@ def finalize_s2(ctx, data: dict):
     df = next((t["frames"] for t in tr if t["frames"]), int(prm.get("dissolve_frames") or 0) or (12 if data["fps"] >= 50 else 10))
     lines = [f"{len(data['segments'])} جزء · المدة {data['total']:.2f} ث · {data['fps']} فريم/ث ثابت",
              f"{cr['cuts']} قصّة · جوه كلمة: {cr['inside_word']} · جوه كلام (VAD): {cr.get('in_speech', 0)} · أعلى صوت عند قصّة: {max(levels) if levels else '—'} dB",
-             f"الانتقالات: {sum(t['kind'] == 'dissolve' for t in tr)} مزج ({df} فريم = {df / data['fps']:.2f} ث) · {sum(t['kind'] == 'hard' for t in tr)} قطع صريح"
-             f" · {sum(t['kind'] == 'match' for t in tr)} قطع على الحركة · crossfade صوت {prm.get('audio_xfade_ms', 60)} مللي في كل قصّة ({len(tr)})"]
+             "الانتقالات: " + " · ".join(f"{TR_NAMES.get(k, k)} {v}" for k, v in collections.Counter(t["kind"] for t in tr).items())
+             + f" · crossfade صوت {prm.get('audio_xfade_ms', 60)} مللي في كل قصّة ({len(tr)})"]
     lines += [f"قصّة {t['index']} ({t['t']:.2f} ث): {t['kind']} ← {t['reason']}" for t in tr]
     return data, lines, []
 
@@ -678,6 +680,9 @@ def run_s2(ctx):
 
 
 # ---------- S3: الصورة ----------
+TR_NAMES = {"jumpzoom": "jump zoom", "whip": "سحبة", "whip_r": "سحبة (عكس)", "zoom": "زووم", "flash": "فلاش", "dissolve": "مزج", "hard": "قطع صريح", "match": "قطع على الحركة"}
+
+
 def _sample_times(segments: list[dict], n: int = 8) -> list[float]:
     total = sum(s["end"] - s["start"] for s in segments)
     return [round(total * (k + 0.5) / n, 3) for k in range(n)]
@@ -715,23 +720,24 @@ def run_s3(ctx):
         if fs and (fs_main is None or b - a > fs_main[1]):
             fs_main = (fs, b - a)
         tries = []
-        for soften in (1.0, 0.6, 0.3, 0.0):   # لو التصحيح حرق الفاتح أو طفّى الغامق: نفس التصحيح أخف
-            pl = look.plan_face(before, fs, prm.get("look", "natural"), strength, soften, relight=speaker and vision.available() and prm.get("relight") != "off")
-            after = look.measure(look.frames(src["path"], times, ",".join(x for x in [fit, pl["vf"]] if x), width=540))
-            chk = look.check(before, after)
-            tries.append({"soften": soften, "clipped_pct": after["clipped_pct"], "crushed_pct": after["crushed_pct"], "ok": chk["no_new_clipping"] and chk["no_new_crush"]})
-            if tries[-1]["ok"]:
+        for soften in (1.0, 0.6, 0.3, 0.0):   # لو التصحيح حرق/طفّى أو خضّر الصورة أو برّد البشرة: نفس التصحيح أخف
+            pl = look.plan_natural(before, fs, prm.get("look", "natural"), strength, soften)
+            fr_after = look.frames(src["path"], times, ",".join(x for x in [fit, pl["vf"]] if x), width=540)
+            after = look.measure(fr_after)
+            chk = look.natural_check(before, after, fs, look.face_stats(fr_after, faces) if fs else None)
+            tries.append({"soften": soften, "clipped_pct": after["clipped_pct"], "crushed_pct": after["crushed_pct"], "tint_delta": chk["tint_delta"],
+                          "skin_warm_delta": chk["skin_warm_delta"], "ok": chk["ok"]})
+            if chk["ok"]:
                 break
         fs_after = look.face_stats(look.frames(src["path"], times, ",".join(x for x in [fit, pl["vf"]] if x), width=540), faces) if fs else None
         shots.append({"index": k + 1, "start": a, "end": b, "vf": pl["vf"], "why": pl["why"], "before": before, "after": after, "check": chk,
                       "face_before": fs, "face_after": fs_after, "tries": tries, "wb_strength": pl.get("wb_strength")})
-    bg = look.bg_plan(fs_main[0] if fs_main else None, None) if speaker else {"vf": "", "why": "مفيش متكلم يتفصل: الخلفية زي ما هي"}
-    if prm.get("background") == "off":
-        bg = {"vf": "", "why": "إنت قفلت معالجة الخلفية"}
+    # فصل المتكلم عن الخلفية (العزل) مقفول افتراضيًا: كان بيخلّي المتكلم «مقصوص ومحطوط» على الحيطة. بيشتغل بس لو طلبته
+    bg = look.bg_plan(fs_main[0] if fs_main else None, None) if speaker and prm.get("background") == "on" else \
+        {"vf": "", "why": "الخلفية زي ما هي (فصل المتكلم عن الخلفية مقفول إلا لو طلبته)"}
     main_shot = max(shots, key=lambda x: x["end"] - x["start"]) if shots else None
-    fg = look.fg_plan(main_shot["face_after"] if main_shot else None) if speaker else {"vf": "", "why": "مفيش متكلم"}
-    if prm.get("relight") == "off":
-        fg = {"vf": "", "why": "إنت قفلت إضاءة المتكلم"}
+    fg = look.fg_plan(main_shot["face_after"] if main_shot else None) if speaker and prm.get("relight") == "on" else \
+        {"vf": "", "why": "من غير إضاءة على المتكلم لوحده (بتعمل شكل مقصوص؛ بتشتغل بس لو طلبتها)"}
     mask_info = None
     if (bg["vf"] or fg["vf"]) and vision.available():
         mask_info = vision.mask_video(src["path"], vd / "mask.mp4", inp["fps"], conv, fit, W, H)
@@ -951,7 +957,7 @@ def _speaker_box(samples, segments, a, b):
 def _gfx_duration(sp: dict, idea: dict) -> float:
     k = sp["kind"]
     words = len((sp.get("title") or "").split()) + len(sp.get("items") or [])
-    base = {"keyword": 2.6, "counter": 3.2, "meter": 3.4, "bars": 3.4, "timeline": 1.4 + 0.6 * len(sp.get("items") or []), "lower_third": 3.0}[k]
+    base = {"keyword": 2.6, "counter": 3.2, "meter": 3.4, "bars": 3.4, "timeline": 1.4 + 0.6 * len(sp.get("items") or []), "lower_third": 3.0, "title": 2.8}[k]
     if sp["mode"] == "explainer":   # الشرح الطويل: طول الشرح نفسه
         return round(min(5.5, max(3.6, idea["end"] - sp["at"] + 0.3)), 3)
     if sp["mode"] in ("split", "inset"):   # وقت القراية + نص ثانية للدخول/الرجوع
@@ -969,6 +975,8 @@ def run_s5(ctx):
     removed = {cuts.norm(x) for x in prm.get("removed") or []}
     b = {"graphics": prm["graphics"], "density": prm["density"], "pace": prm.get("pace", "normal"), "modes": prm.get("modes") or {}}
     its = graphics.ideas(inp["segments"], inp["cues"])
+    if its:
+        its[0]["first"] = True
     specs, log, last_end, last_explainer = [], [], -9.0, -99.0
     subs_rects = [{"left": o["x"] / W, "right": (o["x"] + o["w"]) / W, "top": o["y"] / H, "bottom": (o["y"] + o["h"]) / H, "start": o["start"], "end": o["end"]}
                   for o in inp.get("subs", [])]
@@ -985,8 +993,8 @@ def run_s5(ctx):
         sp["start"] = round(sp["at"], 3)
         if sp["start"] < last_end + 0.5:
             log.append({**entry, "decision": "skip", "why": "الجرافيك اللي قبله لسه على الشاشة (واحد بس في نفس الوقت)"}); continue
-        if sp["mode"] == "explainer" and sp["start"] - last_explainer < 12:
-            sp["mode"], sp["mode_why"] = "overlay", "explainer تاني قريب أوي من اللي قبله (أقل من 12 ث): overlay بدله"
+        if sp["mode"] in ("explainer", "pip") and sp["start"] - last_explainer < 12:
+            sp["mode"], sp["mode_why"] = "overlay", "شرح بالشاشة كلها قريب أوي من اللي قبله (أقل من 12 ث): overlay بدله"
         sp["end"] = round(min(sp["start"] + _gfx_duration(sp, it), inp["total"] - 0.05), 3)   # عمره ما يعدّي آخر الفيديو
         if sp["end"] - sp["start"] < 1.5:
             log.append({**entry, "decision": "skip", "why": f"الفيديو بيخلص بعد {sp['end'] - sp['start']:.1f} ث بس: مفيش وقت يتقري"}); continue
@@ -996,28 +1004,36 @@ def run_s5(ctx):
             rect = motion.place(sp["kind"], occ, inp["aspect"])
             if rect is None:
                 if speaker:
-                    sp["mode"], sp["mode_why"] = "inset", "مفيش مساحة فاضية كفاية من غير ما يغطي المتكلم: المتكلم يصغر في ركن"
+                    sp["mode"], sp["mode_why"] = "pip", "مفيش مساحة فاضية كفاية من غير ما يغطي المتكلم: صورتك مصغّرة والشرح في باقي الشاشة"
                     sp["end"] = round(sp["start"] + _gfx_duration(sp, it), 3)
                 else:
                     log.append({**entry, "decision": "skip", "why": "مفيش مساحة فاضية ومفيش متكلم يتفصل: اتشال"}); continue
             else:
                 sp["rect"] = rect
-        if sp["mode"] in ("split", "inset"):
+        if sp["mode"] in ("split", "inset", "pip"):
             fb = _speaker_box(samples, inp["segments"], sp["start"], sp["end"]) or [0.35, 0.3, 0.65, 0.48]
             fcx, fcy, fh = (fb[0] + fb[2]) / 2, (fb[1] + fb[3]) / 2, fb[3] - fb[1]
             if sp["mode"] == "split":   # المتكلم فوق (نص الكادر) والجرافيك تحت فوق الترجمة
                 ch_ = H // 2
                 cy0 = int(min(max(0, fcy * H - ch_ * 0.48), H - ch_))
                 sp["crop"], sp["target"] = [0, cy0, W, ch_], [0, 0, W, ch_]
+            elif sp["mode"] == "pip":   # صورتك في دايرة: مربع حوالين الوش (الوش حوالي 45% منه + الكتاف)
+                side = int(min(W, H, max(fh * H * 2.3, 0.28 * W))) // 2 * 2
+                cx0 = int(min(max(0, fcx * W - side / 2), W - side)); cy0 = int(min(max(0, fcy * H - side * 0.42), H - side))
+                sp["pip"] = motion.pip_geom(W, H, inp["aspect"])
+                sp["crop"], sp["target"] = [cx0, cy0, side, side], [sp["pip"][0], sp["pip"][1], sp["pip"][2], sp["pip"][2]]
             else:                       # المتكلم صغير فوق في النص، والجرافيك تحته
                 side = int(min(W, max(fh * H * 2.6, 0.3 * W)))
                 cx0 = int(min(max(0, fcx * W - side / 2), W - side)); cy0 = int(min(max(0, fcy * H - side * 0.45), H - side))
                 tw = int(0.46 * W) // 2 * 2
                 sp["crop"], sp["target"] = [cx0, cy0, side, side], [(W - tw) // 2, int(0.07 * H), tw, tw]
+        sp["style"], sp["enter"] = motion.style_for(len(specs), specs[-1].get("style") if specs else None, sp["kind"])
+        if sp["mode"] != "overlay":   # الخلفية الكاملة غامقة: ستايل الكارت الفاتح كان بيخلّي الكلام غامق على غامق
+            sp["style"] = "dark"
         specs.append(sp)
         log.append({**entry, "decision": sp["mode"], "kind": sp["kind"], "why": sp["why"], "mode_why": sp["mode_why"], "start": sp["start"], "end": sp["end"]})
         last_end = sp["end"]
-        if sp["mode"] == "explainer":
+        if sp["mode"] in ("explainer", "pip"):
             last_explainer = sp["start"]
     rendered = motion.render(specs, W, H, fps, vd / "gfx", prm["mood"]) if specs else []
     # الفحوصات: الوش، الترجمة، التوقيت، الحركة، الربط بالكلام
@@ -1041,9 +1057,12 @@ def run_s5(ctx):
                        "start_lag_ms": lag_ms, "maps_to_speech": maps, "motion": True})
     for g in rendered:
         g["dir"] = str(Path(g["dir"]).relative_to(ctx["d"]))
+        if g.get("mask"):
+            g["mask"] = str(Path(g["mask"]).relative_to(ctx["d"]))
     cc = {"graphics": len(rendered), "ideas": len(its), "face_overlaps": sum(c["face_overlap"] for c in checks), "subtitle_overlaps": sum(c["subtitle_overlap"] for c in checks),
           "max_start_lag_ms": max([abs(c["start_lag_ms"]) for c in checks if c["start_lag_ms"] is not None] or [0]), "maps_to_speech": sum(c["maps_to_speech"] for c in checks),
-          "modes": {m: sum(g["mode"] == m for g in rendered) for m in ("overlay", "explainer", "split", "inset")}}
+          "modes": {m: sum(g["mode"] == m for g in rendered) for m in ("overlay", "pip", "explainer", "split", "inset")},
+          "styles": [g.get("style") for g in rendered]}
     data = {**{k: v for k, v in inp.items() if k not in ("cards", "ideas", "cards_check", "card_zone", "gfx", "gfx_log", "gfx_check")},
             "cards": [], "gfx": rendered, "gfx_log": log, "gfx_check": {**cc, "items": checks}, "mood": prm["mood"]}
     report = [f"{len(rendered)} جرافيك لـ {len(its)} فكرة · الأنواع: " + "، ".join(f"{g['kind']}" for g in rendered) + f" · طرق العرض: {cc['modes']}",
@@ -1070,16 +1089,22 @@ def _gfx_still(ctx, inp, g, t, out) -> dict:
     args = ["ffmpeg", "-v", "error", "-y", "-ss", f"{ts:.3f}", "-i", str(src["path"]), "-i", str(png)]
     ch = [f"[0:v]{exporter.fit_chain(src, W, H)},setsar=1[b]"]
     cur = "b"
-    if g["mode"] in ("split", "inset"):
+    if g["mode"] in ("split", "inset", "pip"):
         cx0, cy0, cw, chh = g["crop"]; tx, ty, tw, th = g["target"]
-        ch += [f"[{cur}]split[m][c]", f"[c]crop={cw}:{chh}:{cx0}:{cy0},scale={tw}:{th}[s]", f"[m][1:v]overlay={g['x']}:{g['y']}[o1]", f"[o1][s]overlay={tx}:{ty}[o2]"]
+        if g["mode"] == "pip":
+            args += ["-i", str(ctx["d"] / g["mask"]) if not Path(g["mask"]).is_absolute() else g["mask"]]
+            ch += [f"[{cur}]split[m][c]", f"[c]crop={cw}:{chh}:{cx0}:{cy0},scale={tw}:{th},format=rgba[sq]", f"[2:v]format=gray,scale={tw}:{th}[mk]",
+                   "[sq][mk]alphamerge[s]", f"[m][1:v]overlay={g['x']}:{g['y']}[o1]", f"[o1][s]overlay={tx}:{ty}[o2]"]
+        else:
+            ch += [f"[{cur}]split[m][c]", f"[c]crop={cw}:{chh}:{cx0}:{cy0},scale={tw}:{th}[s]", f"[m][1:v]overlay={g['x']}:{g['y']}[o1]", f"[o1][s]overlay={tx}:{ty}[o2]"]
         cur = "o2"
     else:
         ch.append(f"[{cur}][1:v]overlay={g['x']}:{g['y']}[o1]"); cur = "o1"
     subs = [o for o in inp.get("subs", []) if o["start"] <= t < o["end"]]
+    base_i = 3 if g["mode"] == "pip" else 2
     for k, o in enumerate(subs):
         args += ["-i", str(ctx["d"] / o["png"])]
-        ch.append(f"[{cur}][{k + 2}:v]overlay={o['x']}:{o['y']}[s{k}]"); cur = f"s{k}"
+        ch.append(f"[{cur}][{k + base_i}:v]overlay={o['x']}:{o['y']}[s{k}]"); cur = f"s{k}"
     ch.append(f"[{cur}]scale=540:-2[out]")
     exporter._run(args + ["-filter_complex", ";".join(ch), "-map", "[out]", "-frames:v", "1", "-q:v", "3", str(out)], "صورة جرافيك")
     return {"file": out.name, "label": f"{g['kind']} · {g['mode']} ({t:.2f} ث)"}
@@ -1162,13 +1187,14 @@ def run_s7(ctx):
     track = ctx["d"] / d["subs_track"] if d.get("subs_track") else None
     subs = [] if track else [{**o, "png": str(ctx["d"] / o["png"])} for o in d.get("subs", [])]
     cards = [{**c, "png": str(ctx["d"] / c["png"])} for c in d.get("cards", [])]
-    gfx = [{**g, "dir": str(ctx["d"] / g["dir"])} for g in d.get("gfx", [])]
+    gfx = [{**g, "dir": str(ctx["d"] / g["dir"]), **({"mask": str(ctx["d"] / g["mask"])} if g.get("mask") else {})} for g in d.get("gfx", [])]
     out = vd / "preview.mp4"
+    framing = _framing(ctx, d)
     t0 = time.time()
     rv = exporter.render_video(d["segments"], d["transitions"], srcs, d["aspect"], out, fps=d["fps"], fps_method=d["fps_plan"]["method"],
                                look_vf=d["look"]["vf"], crop_x=d["look"].get("crop_x", 0.5), audio_file=audio, subs=subs, cards=cards,
                                card_rise=graphics.RISE, enter=graphics.ENTER, exit_=graphics.EXIT, crf=int(prm["crf"]), preset=prm["preset"],
-                               gfx=gfx, subs_track=track)
+                               gfx=gfx, subs_track=track, framing=framing)
     render_s = round(time.time() - t0, 1)
     info = media.probe(out)
     L = media.loudness(out) or {}
@@ -1192,10 +1218,39 @@ def run_s7(ctx):
               f"فحص الفريمات: {fc['frames']} فريم · متكررة في الفيديو: {fc['dupes_total']} (ثابتة أصلًا في المصدر: {fc['source_static']}) · عند القصّات (±3 فريم): {fc['dupes_at_cuts']} · "
               f"فريمات رسم ثابت جوه الجرافيك الكامل: {fc.get('graphic_hold_frames', 0)} · "
               f"المعدل ثابت ({fc['avg_fps']} = {fc['r_fps']}): {'✓' if fc['constant'] else '✗'}",
-              f"{len(d.get('subs', []))} سطر ترجمة (كلمة كلمة) · {len(d.get('gfx', []))} جرافيك · {sum(t['kind'] == 'dissolve' for t in d['transitions'])} مزج · "
+              f"{len(d.get('subs', []))} سطر ترجمة (كلمة كلمة) · {len(d.get('gfx', []))} جرافيك · الانتقالات: " + " · ".join(f"{k} {v}" for k, v in collections.Counter(t['kind'] for t in d['transitions']).items()) + f" · زووم على {sum(f.get('z', 1) > 1.001 for f in framing)} جزء · "
               f"الصورة: {'نسخة متلوّنة لكل لقطة' if d['look'].get('graded') else (d['look']['vf'] or 'من غير فلاتر')}",
               "المعاينة دي هي الملف النهائي نفسه: لو وافقت، التصدير بياخدها زي ما هي"]
     return data, report, stills
+
+
+def _framing(ctx, d) -> list[dict]:
+    """تأطير كل جزء (jump zoom) من خطة الانتقالات، ومركزه على الوش (من عينات الرؤية في مرحلة الصورة).
+    الوش بيتحط فوق النص شوية (تكوين صورة الكلام المعتاد). مفيش زووم وقت جرافيك بيقصّ المتكلم (split/inset/explainer)."""
+    zs = cuts.segment_zooms(d["transitions"], len(d["segments"]))
+    samples = []
+    try:
+        if d.get("look", {}).get("vision"):
+            samples = vision.load_samples(ctx["d"] / d["look"]["vision"])
+    except Exception:
+        samples = []
+    busy = [(g["start"], g["end"]) for g in d.get("gfx", []) if g.get("mode") != "overlay"]
+    out, t = [], 0.0
+    for seg, z in zip(d["segments"], zs):
+        dur = (seg["end"] - seg["start"]) / float(seg.get("speed") or 1.0)
+        a, b = t, t + dur
+        t = b
+        faces = [f for x in vision.window(samples, seg["start"], seg["end"]) for f in x["faces"][:1]] if samples else []
+        if z > 1.001 and (not faces or any(a < e and s0 < b for s0, e in busy)):
+            out.append({"z": 1.0, "why": "مفيش وش" if not faces else "فيه جرافيك بيقصّ المتكلم في الوقت ده"})
+            continue
+        if faces:
+            cx = float(np.median([(f[0] + f[2]) / 2 for f in faces]))
+            fy = float(np.median([(f[1] + f[3]) / 2 for f in faces]))
+            out.append({"z": z, "cx": round(cx, 3), "cy": round(min(0.6, fy + 0.5 / z - 0.38 / z), 3)})
+        else:
+            out.append({"z": 1.0})
+    return out
 
 
 def _frame(video: Path, t: float, out: Path, label: str, crop=None) -> dict:

@@ -30,6 +30,17 @@ def fit_chain(src: dict, W: int, H: int, crop_x: float = 0.5) -> str:
     return f"scale={W}:{H}:flags=lanczos"
 
 
+def zoom_chain(fr: dict, W: int, H: int) -> str:
+    """تأطير الجزء (jump zoom): قصّ أقرب حوالين الوش ثابت طول الجزء، وبعدين رجوع لنفس المقاس. fr = {z, cx, cy} نسبة من الكادر."""
+    z = float(fr.get("z") or 1.0)
+    if z <= 1.001:
+        return ""
+    cw, chh = int(W / z / 2) * 2, int(H / z / 2) * 2
+    x = int(max(0, min(W - cw, fr.get("cx", 0.5) * W - cw / 2)))
+    y = int(max(0, min(H - chh, fr.get("cy", 0.42) * H - chh / 2)))
+    return f",crop={cw}:{chh}:{x}:{y},scale={W}:{H}:flags=lanczos"
+
+
 def handles(segments: list[dict], transitions: list[dict], sources: dict, fps: int, audio: bool = False) -> list[tuple[float, float]]:
     """لكل جزء: (قبل، بعد) بالثواني اللي هتتاخد من المصدر علشان المزج/الـ crossfade يتعمل حوالين القصّة من غير ما المدة تتغيّر."""
     hs = [[0.0, 0.0] for _ in segments]
@@ -37,7 +48,7 @@ def handles(segments: list[dict], transitions: list[dict], sources: dict, fps: i
         a, b = segments[k], segments[k + 1]
         if audio:
             want = tr.get("audio_ms", 60) / 2000
-        elif tr["kind"] == "dissolve" and sources[a["source"]]["has_video"] and sources[b["source"]]["has_video"]:
+        elif (tr["kind"] == "dissolve" or tr.get("xfade")) and tr.get("frames") and sources[a["source"]]["has_video"] and sources[b["source"]]["has_video"]:
             want = (tr["frames"] // 2) / fps
         else:
             continue
@@ -58,7 +69,8 @@ def _run(args: list[str], what: str) -> None:
 def render_video(segments: list[dict], transitions: list[dict], sources: dict, aspect: str, out: Path, *, fps: int, fps_method: str = "same",
                  look_vf: str = "", crop_x: float = 0.5, audio_file: Path | None = None, subs: list[dict] | None = None,
                  cards: list[dict] | None = None, card_rise: float = 0.0, enter: float = 0.35, exit_: float = 0.25,
-                 scale: float = 1.0, crf: int = 18, preset: str = "medium", gfx: list[dict] | None = None, subs_track: Path | None = None) -> dict:
+                 scale: float = 1.0, crf: int = 18, preset: str = "medium", gfx: list[dict] | None = None, subs_track: Path | None = None,
+                 framing: list[dict] | None = None) -> dict:
     """الفيديو الكامل. segments: [{source, start, end}] (مدة كل جزء مضبوطة على الفريم)، transitions: من cuts.plan_transitions."""
     W, H = size(aspect, scale)
     hs = handles(segments, transitions, sources, fps)
@@ -74,7 +86,8 @@ def render_video(segments: list[dict], transitions: list[dict], sources: dict, a
             args += ["-ss", f"{a:.4f}", "-t", f"{(b - a) + 2 / fps:.4f}", "-i", str(src["path"])]
             meth = src.get("fps_method", fps_method)   # النسخة المتلوّنة فريماتها ثابتة أصلًا
             conv = f"minterpolate=fps={fps}:mi_mode=blend" if meth.startswith("minterpolate") else f"fps={fps}"
-            ch.append(f"[{n_in}:v]{conv},{fit_chain(src, W, H, crop_x)},setsar=1,format=yuv420p,trim=end_frame={nf},setpts=PTS-STARTPTS,settb=1/{fps}[v{k}]")
+            fr = (framing or [{}] * len(segments))[k] if framing and k < len(framing) else {}
+            ch.append(f"[{n_in}:v]{conv},{fit_chain(src, W, H, crop_x)}{zoom_chain(fr, W, H)},setsar=1,format=yuv420p,trim=end_frame={nf},setpts=PTS-STARTPTS,settb=1/{fps}[v{k}]")
             n_in += 1
         else:
             ch.append(f"color=c=black:s={W}x{H}:r={fps}:d={nf / fps:.4f},format=yuv420p,setsar=1,trim=end_frame={nf},setpts=PTS-STARTPTS,settb=1/{fps}[v{k}]")
@@ -82,8 +95,8 @@ def render_video(segments: list[dict], transitions: list[dict], sources: dict, a
     for k, tr in enumerate(transitions):
         nxt = f"v{k + 1}"
         d = int(round((hs[k][1] + hs[k + 1][0]) * fps))
-        if tr["kind"] == "dissolve" and d >= 2:
-            ch.append(f"[{cur}][{nxt}]xfade=transition=fade:duration={d / fps:.4f}:offset={(L - d) / fps:.4f}[x{k}]")
+        if (tr["kind"] == "dissolve" or tr.get("xfade")) and d >= 2:
+            ch.append(f"[{cur}][{nxt}]xfade=transition={tr.get('xfade') or 'fade'}:duration={d / fps:.4f}:offset={(L - d) / fps:.4f}[x{k}]")
             L = L + lens[k + 1] - d
         else:
             ch.append(f"[{cur}][{nxt}]concat=n=2:v=1:a=0,settb=1/{fps}[x{k}]")   # نفس الـ timebase علشان xfade اللي بعدها
@@ -99,11 +112,18 @@ def render_video(segments: list[dict], transitions: list[dict], sources: dict, a
         args += ["-framerate", str(fps), "-i", str(Path(g["dir"]) / "f_%05d.png")]
         gi = n_in; n_in += 1
         en = f"enable='between(t,{S:.3f},{E:.3f})'"
-        if g["mode"] in ("split", "inset"):
+        if g["mode"] in ("split", "inset", "pip"):
             ch.append(f"[{cur}]split[gm{k}][gc{k}]")
             cx0, cy0, cw, chh = g["crop"]
             tw, th = g["target"][2], g["target"][3]
-            ch.append(f"[gc{k}]crop={cw}:{chh}:{cx0}:{cy0},scale={tw}:{th},format=yuva420p,{fade}[gs{k}]")
+            if g["mode"] == "pip":   # صورتك في دايرة: القصّ حوالين الوش + قناع دايرة (alphamerge)
+                args += ["-loop", "1", "-framerate", str(fps), "-i", str(g["mask"])]
+                mi = n_in; n_in += 1
+                ch.append(f"[{mi}:v]format=gray,scale={tw}:{th},trim=end_frame={g['frames'] + 2},setpts=PTS-STARTPTS+{S:.3f}/TB[gk{k}]")
+                ch.append(f"[gc{k}]crop={cw}:{chh}:{cx0}:{cy0},scale={tw}:{th},format=rgba[gq{k}]")
+                ch.append(f"[gq{k}][gk{k}]alphamerge,{fade}[gs{k}]")
+            else:
+                ch.append(f"[gc{k}]crop={cw}:{chh}:{cx0}:{cy0},scale={tw}:{th},format=yuva420p,{fade}[gs{k}]")
             base = f"gm{k}"
         else:
             base = cur
@@ -111,7 +131,7 @@ def render_video(segments: list[dict], transitions: list[dict], sources: dict, a
         ch.append(f"[{gi}:v]{gf}[gp{k}]")
         ch.append(f"[{base}][gp{k}]overlay=x={g['x']}:y={g['y']}:eof_action=pass:{en}[gx{k}]")
         cur = f"gx{k}"
-        if g["mode"] in ("split", "inset"):
+        if g["mode"] in ("split", "inset", "pip"):
             ch.append(f"[{cur}][gs{k}]overlay=x={g['target'][0]}:y={g['target'][1]}:eof_action=pass:{en}[gy{k}]")
             cur = f"gy{k}"
     if subs_track:   # الترجمة كلمة كلمة: تراك واحد (صور بمدد) فوق كل حاجة

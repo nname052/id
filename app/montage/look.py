@@ -311,6 +311,75 @@ def plan_face(m: dict, fs: dict | None, look: str = "natural", strength: dict | 
     return {"vf": ",".join(steps), "steps": steps, "why": why, "look": look or "natural", "face": fs, "wb_strength": round(float(s), 2)}
 
 
+# ---------- «طبيعي الأول» (الافتراضي من بعد ملاحظة المستخدم: «الصورة بقت مقرفة») ----------
+# ليه: plan_face كان بيوزن الأبيض على البشرة (بيشيل دفا لمبة الأوضة) + إضاءة المتكلم لوحده بالقناع (gamma لحد 1.75) + تهدئة الخلفية ورا المتكلم.
+# النتيجة اتشافت على IMG_2240: الصورة كلها مالت أخضر/رمادي، والمتكلم «مقصوص ومحطوط» على الحيطة (العزل)، والجاكيت الأبيض اتحرق.
+# القاعدة دلوقتي: الدفا الطبيعي للإضاءة بيفضل زي ما هو. بنصلّح بس ميل مش طبيعي (أخضر/بنفسجي/أزرق قوي) ونصّه بس،
+# وإضاءة خفيفة للكادر كله (من غير قناع)، وبعدين فحص «الطبيعية»: لو التصحيح خضّر الصورة أو برّد البشرة، بيخف لحد ما يعدّي.
+TINT_MAX_UP = 0.01         # الأخضر النسبي (G − (R+B)/2) ÷ المتوسط ما يزيدش أكتر من 1%
+# (اتقاس الأول بالفرق المطلق: أي تفتيح كان بيزوّده من غير ما اللون يتغيّر، فالإضاءة اترفضت والوش فضل 72)
+SKIN_COOL_MAX = 0.03       # دفا البشرة ما يقلش أكتر من كده
+
+
+def tint(m: dict) -> float:
+    mean = max(1.0, (m["r"] + m["g"] + m["b"]) / 3)
+    return round((m["g"] - (m["r"] + m["b"]) / 2) / mean, 4)
+
+
+def plan_natural(m: dict, fs: dict | None, look: str = "natural", strength: dict | None = None, soften: float = 1.0) -> dict:
+    st = strength or {}
+    steps, why = [], []
+    if st.get("denoise") is True or (st.get("denoise") is None and m["noise"] > NOISE_MAX):
+        steps.append("hqdn3d=luma_spatial=1.5:chroma_spatial=1.2:luma_tmp=2.5:chroma_tmp=2")
+        why.append(f"تنعيم دوشة خفيف (الدوشة {m['noise']:.2f} > {NOISE_MAX})")
+    cast = m.get("cast") or {"r": 0, "g": 0, "b": 0}
+    warm_light = cast["r"] > 0 and cast["b"] < 0 and cast["g"] <= cast["r"]
+    unnatural = (cast["g"] > 0.03 and cast["g"] >= cast["r"]) or cast["g"] < -0.05 or cast["b"] > 0.05
+    if unnatural and st.get("wb", True) and soften > 0:
+        k0 = 0.5 * soften
+        gains = {c: 1 / (1 + k0 * v) for c, v in cast.items()}
+        luma = lambda r, g, b: 0.2126 * r + 0.7152 * g + 0.0722 * b  # noqa: E731
+        k = luma(m["r"], m["g"], m["b"]) / luma(m["r"] * gains["r"], m["g"] * gains["g"], m["b"] * gains["b"])
+        gains = {c: round(max(0.85, min(1.15, v * k)), 4) for c, v in gains.items()}
+        steps.append(f"colorchannelmixer=rr={gains['r']}:gg={gains['g']}:bb={gains['b']}")
+        why.append(f"ميل لون مش طبيعي ({', '.join(f'{c.upper()} {v:+.1%}' for c, v in cast.items())}): صلّحنا {k0:.0%} منه بس")
+    else:
+        why.append("ألوان الإضاءة زي ما هي" + (" (دفا لمبة الأوضة طبيعي ومريح، مش بيتشال)" if warm_light else f" (الميل {m.get('cast_size', 0):.1%} طبيعي)"))
+    # إضاءة: الكادر كله، خفيفة، على الوش لو موجود (من غير قناع ومن غير ما الفاتح يتحرق)
+    y = (fs or {}).get("y") or m["brightness"]
+    gamma = 1.0
+    if y < 105:
+        gamma = min(1.15, 1 + (115 - y) / 300)
+    elif y > 185:
+        gamma = max(0.92, 1 - (y - 175) / 400)
+    gamma = round((1 + (gamma - 1) * soften) * (1 + float(st.get("brightness", 0)) / 120), 3)
+    sat = round(1.0 + float(st.get("saturation", 0)), 3)
+    if abs(gamma - 1) > 0.01 or abs(sat - 1) > 0.01:
+        steps.append(f"eq=gamma={gamma}:saturation={sat}")
+        why.append(f"إضاءة خفيفة للكادر كله: gamma {gamma} ({'الوش' if fs else 'المتوسط'} {y:.0f})")
+    else:
+        why.append(f"من غير تغيير إضاءة ({'الوش' if fs else 'المتوسط'} {y:.0f})" + ("" if soften > 0 or gamma == 1 else ""))
+    if soften > 0:
+        steps.append("curves=master='0/0 0.25/0.24 0.5/0.5 0.75/0.76 1/1'")
+        why.append("تباين طبيعي خفيف جدًا")
+    if st.get("sharpen") is True or (st.get("sharpen") is None and m["sharpness"] < SHARP_MIN / 2):
+        steps.append("unsharp=5:5:0.25:5:5:0")
+        why.append(f"حدة خفيفة (الحدة {m['sharpness']:.1f})")
+    if look and look != "natural" and LOOKS.get(look):
+        steps.append(LOOKS[look])
+        why.append(f"ستايل «{look}» (إنت اللي اخترته)")
+    return {"vf": ",".join(steps), "steps": steps, "why": why, "look": look or "natural", "face": fs}
+
+
+def natural_check(before: dict, after: dict, fs_before: dict | None, fs_after: dict | None) -> dict:
+    """التصحيح ما خضّرش الصورة، وما برّدش البشرة، وما حرقش ولا طفّى."""
+    c = check(before, after)
+    dt = round(tint(after) - tint(before), 4)
+    dw = round(fs_after["warm"] - fs_before["warm"], 3) if fs_before and fs_after else 0.0
+    ok = c["no_new_clipping"] and c["no_new_crush"] and dt <= TINT_MAX_UP and dw >= -SKIN_COOL_MAX
+    return {**c, "tint_delta": dt, "skin_warm_delta": dw, "ok": ok}
+
+
 def bg_plan(fs: dict | None, subject_y: float | None) -> dict:
     """الخلفية ورا المتكلم (بالقناع): لو مليانة تفاصيل ← تنعيم خفيف؛ لو أفتح من الوش بكتير ← تهدئة إضاءتها؛ غير كده ولا حاجة."""
     if not fs or fs.get("bg_y") is None:

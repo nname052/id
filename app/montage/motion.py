@@ -185,25 +185,60 @@ def choose(idea: dict, speaker: bool, brief: dict, used_icons: set | None = None
     used = [w for w in ws if norm(w["word"]) in shown] or [w for w in ws if w["word"] == out["first_word"]]
     if not _conf(used, idea["cues"]):
         return {"skip": f"التفريغ مش متأكد من الكلام اللي هيظهر («{out.get('title') or ''}»): صحّح السطر في «نص الترجمة» والجرافيك هيتعمل"}
+    # الهوك (أول فكرة في أول ثانية ونص): عنوان كبير بالكلمة المهمة وراها هايلايتر، بدل كارت كلمة عادي
+    if idea.get("first") and idea["start"] < 1.5 and out["kind"] == "keyword":
+        out = {**out, "kind": "title", "highlight": out.get("highlight") or _disp(next((w["word"] for w in ws if any(norm(w["word"]) in ks for ks, _ in ICONS)), "")),
+               "why": out["why"] + " · أول جملة (هوك): عنوان كبير"}
     # طريقة العرض
     rich = out["kind"] in ("counter", "meter", "bars", "timeline")
     forced = (brief.get("modes") or {}).get(idea["id"])
     if forced:
-        out["mode"], out["mode_why"] = forced, "إنت طلبتها"
+        out["mode"], out["mode_why"] = ("pip" if forced in ("explainer", "inset") else forced), "إنت طلبتها"
     elif rich and dur >= EXPLAIN_MIN and speaker:
-        out["mode"], out["mode_why"] = "explainer", f"شرح طويل ({dur:.1f} ث) فيه {out['why']}"
+        # صورتك مصغّرة في دايرة والشرح بياخد باقي الشاشة (بدل explainer اللي كان بيخبّيك خالص)
+        out["mode"], out["mode_why"] = "pip", f"شرح طويل ({dur:.1f} ث) فيه {out['why']}: صورتك مصغّرة والشرح في باقي الشاشة"
     elif out["kind"] == "bars" and speaker:
         out["mode"], out["mode_why"] = "split", "مقارنة: نص للمتكلم ونص للأعمدة"
     else:
         out["mode"], out["mode_why"] = "overlay", "فكرة قصيرة: فوق الفيديو في مساحة فاضية"
-    if not speaker and out["mode"] in ("explainer", "inset"):
-        out["mode"], out["mode_why"] = "overlay", "المصدر مفيهوش متكلم يتفصل: explainer/inset مقفولين"
+    if not speaker and out["mode"] in ("explainer", "inset", "pip"):
+        out["mode"], out["mode_why"] = "overlay", "المصدر مفيهوش متكلم يتفصل: صورتك المصغّرة مقفولة"
     out["idea"] = idea["id"]
     return out
 
 
 # ---------- 2) المكان ----------
-SIZES = {"keyword": (0.80, 0.135), "counter": (0.66, 0.17), "meter": (0.80, 0.18), "bars": (0.80, 0.20), "timeline": (0.84, 0.125), "lower_third": (0.70, 0.11)}
+SIZES = {"keyword": (0.80, 0.135), "counter": (0.66, 0.17), "meter": (0.80, 0.18), "bars": (0.80, 0.20), "timeline": (0.84, 0.125), "lower_third": (0.70, 0.11),
+         "title": (0.90, 0.17)}
+STYLES = ("dark", "light", "accent", "glass", "marker")   # بتتبادل: مفيش جرافيكين ورا بعض بنفس الشكل
+ENTERS = ("pop", "slide", "wipe", "drop")
+PIP = {"9:16": (0.29, 0.055, 0.42), "16:9": (0.06, 0.12, 0.36)}   # صورتك المصغّرة: (x, y, القطر) نسبة من العرض/الارتفاع/العرض
+
+
+def pip_geom(W: int, H: int, aspect: str) -> list[int]:
+    """مكان ومقاس دايرة صورتك المصغّرة (بكسل): فوق في النص في الطولي، وعلى الشمال في العرضي."""
+    x, y, d = PIP.get(aspect, PIP["9:16"])
+    D = int(round(d * W / 2)) * 2
+    return [int((W - D) / 2) if aspect == "9:16" else int(x * W), int(y * H), D]
+
+
+def style_for(k: int, prev: str | None, kind: str) -> tuple[str, str]:
+    """ستايل ودخول الجرافيك رقم k: بيتبادلوا، ومفيش اتنين ورا بعض زي بعض. العنوان (هوك) دايمًا بالهايلايتر."""
+    if kind == "title":
+        return "marker", "drop"
+    st = STYLES[k % len(STYLES)]
+    if st == prev:
+        st = STYLES[(k + 1) % len(STYLES)]
+    return st, ENTERS[k % len(ENTERS)]
+
+
+def mask_png(D: int, out: Path) -> Path:
+    """دايرة بيضا على أسود بمقاس صورتك المصغّرة (قناع الـ FFmpeg)، حوافها ناعمة."""
+    from PIL import Image, ImageDraw, ImageFilter
+    big = Image.new("L", (D * 4, D * 4), 0)
+    ImageDraw.Draw(big).ellipse([0, 0, D * 4 - 1, D * 4 - 1], fill=255)
+    big.resize((D, D), Image.LANCZOS).filter(ImageFilter.GaussianBlur(0.6)).save(out)
+    return out
 
 
 def place(kind: str, occ: np.ndarray, aspect: str) -> dict | None:
@@ -249,6 +284,21 @@ html,body{margin:0;background:transparent;overflow:hidden}
 .track{position:relative;border-radius:999px;background:var(--soft);overflow:hidden}
 .fill{position:absolute;inset:0 0 0 auto;border-radius:999px;background:var(--accent)}
 .bar{position:absolute;bottom:0;border-radius:calc(var(--u)*.4) calc(var(--u)*.4) 0 0;background:var(--accent)}
+/* ستايلات الكارت (بتتبادل علشان مفيش جرافيكين ورا بعض بنفس الشكل) */
+#root.s-light{--ink:#14161c;--sub:rgba(20,22,28,.66);--soft:rgba(20,22,28,.1)}
+#root.s-light .panel{background:rgba(255,255,255,.97)}
+#root.s-accent{--ink:#fff;--sub:rgba(255,255,255,.88);--soft:rgba(255,255,255,.25)}
+#root.s-accent .panel{background:var(--accent)}
+#root.s-accent .badge{background:#fff;color:var(--accent)}
+#root.s-accent .fill,#root.s-accent .bar{background:#fff}
+#root.s-glass .panel{background:rgba(255,255,255,.17);border:calc(var(--u)*.12) solid rgba(255,255,255,.42);box-shadow:none}
+#root.s-glass{--ink:#fff;--sub:rgba(255,255,255,.86)}
+#root.s-marker .panel{background:transparent;box-shadow:none}
+#root.s-marker .t{color:#fff;-webkit-text-stroke:calc(var(--u)*.16) #111;paint-order:stroke fill;text-shadow:0 calc(var(--u)*.2) calc(var(--u)*.6) rgba(0,0,0,.35)}
+#root.s-marker .l{color:#fff;-webkit-text-stroke:calc(var(--u)*.1) #111;paint-order:stroke fill}
+.hl{position:absolute;z-index:-1;background:var(--accent);border-radius:calc(var(--u)*.35);transform-origin:right center}
+.ring{position:absolute;border-radius:50%}
+.blob{position:absolute;border-radius:50%;background:var(--accent);opacity:.12}
 """
 
 JS = r"""
@@ -263,6 +313,44 @@ function setup(spec, dur){
   let h = '';
   if (full) h += `<div class="full"></div>`; else h += `<div class="panel" id="panel"></div>`;
   const k = S.kind;
+  r.className = 's-' + (S.style || 'dark');
+  if (S.mode === 'pip') {
+    // صورتك مصغّرة في دايرة (الفيديو نفسه بيتحط فيها بالـ FFmpeg) وحواليها حلقة متحركة، والشرح بياخد باقي الشاشة
+    const P = S.pip; // [x, y, d] بكسل
+    h += `<div class="blob" id="b1" style="width:${u*14}px;height:${u*14}px;left:${-u*4}px;top:${S.H*0.62}px"></div>
+      <div class="blob" id="b2" style="width:${u*9}px;height:${u*9}px;right:${-u*2}px;top:${u*2}px"></div>
+      <div class="ring" style="left:${P[0]-u*.45}px;top:${P[1]-u*.45}px;width:${P[2]+u*.9}px;height:${P[2]+u*.9}px;border:${u*.3}px solid var(--accent)"></div>
+      <svg id="spin" width="${P[2]+u*2.4}" height="${P[2]+u*2.4}" style="position:absolute;left:${P[0]-u*1.2}px;top:${P[1]-u*1.2}px">
+        <circle cx="${(P[2]+u*2.4)/2}" cy="${(P[2]+u*2.4)/2}" r="${P[2]/2+u*.95}" fill="none" stroke="var(--accent)" stroke-width="${u*.18}" stroke-dasharray="${u*.6} ${u*1.1}" opacity=".7"/></svg>`;
+    const top = S.cy;
+    if (k === 'meter') h += `<div class="t" id="title" style="position:absolute;inset-inline:${u*2}px;top:${top}px;text-align:center;font-size:${u*2.7}px;text-wrap:balance"></div>
+      <div class="track" id="track" style="position:absolute;inset-inline:${u*3}px;top:${top+u*7.5}px;height:${u*1.8}px"><div class="fill" id="fill" style="width:0"></div></div>
+      <div class="l" style="position:absolute;inset-inline:${u*3}px;top:${top+u*10.2}px;font-size:${u*2.2}px;display:flex;justify-content:space-between">
+        <span id="lname" style="color:var(--accent);font-weight:800"></span><span id="pct" dir="ltr"></span></div>`;
+    else if (k === 'counter') h += `<div class="t" id="num" dir="ltr" style="position:absolute;left:0;right:0;text-align:center;top:${top}px;font-size:${u*6.5}px;color:var(--accent)"></div>
+      <div class="t" id="title" style="position:absolute;inset-inline:${u*2}px;text-align:center;top:${top+u*8.2}px;font-size:${u*2.4}px"></div>`;
+    else if (k === 'bars') h += S.items.map((it,i)=>`<div class="t" id="bl${i}" style="position:absolute;inset-inline:${u*2.5}px;top:${top+u*i*5.4}px;font-size:${u*2.3}px">${it.label}</div>
+      <div class="track" style="position:absolute;inset-inline:${u*2.5}px;top:${top+u*(3+i*5.4)}px;height:${u*1.5}px"><div class="fill" id="bf${i}" style="width:0;${i?'opacity:.55':''}"></div></div>`).join('');
+    else if (k === 'timeline') h += S.items.map((it,i)=>`<div id="st${i}" class="row" style="right:${u*3}px;left:${u*3}px;top:${top+u*i*3.6}px">
+        <div class="badge" style="width:${u*2.6}px;height:${u*2.6}px;font-weight:800;font-size:${u*1.4}px">${(i+1).toLocaleString('ar-EG')}</div>
+        <div class="t" style="font-size:${u*2.1}px">${it}</div></div>`).join('');
+    else h += `<div class="badge" id="badge" style="position:absolute;left:calc(50% - ${u*2.6}px);top:${top}px;width:${u*5.2}px;height:${u*5.2}px;padding:${u*1.05}px">${S.icon_svg}</div>
+      <div class="t" id="title" style="position:absolute;inset-inline:${u*2}px;text-align:center;top:${top+u*6.6}px;font-size:${u*3}px;text-wrap:balance"></div>
+      <div id="ul" style="position:absolute;left:30%;width:0;height:${u*.35}px;top:${top+u*10.6}px;background:var(--accent);border-radius:9px"></div>`;
+    r.innerHTML = h;
+    if (document.getElementById('title')) S.tw = words(document.getElementById('title'), S.title || '');
+    return;
+  }
+  if (k === 'title') {
+    // عنوان الهوك: كلام كبير والكلمة المهمة وراها هايلايتر بيتمد
+    h += `<div class="t" id="title" style="position:absolute;inset:0;display:flex;flex-wrap:wrap;align-content:center;justify-content:center;text-align:center;padding:0 ${u}px;font-size:${u*2.9}px;line-height:1.35"></div>`;
+    r.innerHTML = h;
+    S.tw = words(document.getElementById('title'), S.title || '');
+    const hi = S.tw.findIndex(w => w.textContent.replace(/[^\p{L}]/gu,'') === (S.highlight||'').replace(/[^\p{L}]/gu,''));
+    if (hi >= 0) { const w = S.tw[hi]; w.style.position = 'relative'; w.style.color = S.style === 'accent' ? 'var(--ink)' : '#fff'; w.style.webkitTextStroke = '0';
+      w.insertAdjacentHTML('afterbegin', `<span class="hl" id="hl" style="inset:${-u*.1}px ${-u*.35}px ${-u*.05}px ${-u*.35}px"></span>`); }
+    return;
+  }
   if (k === 'keyword') {
     h += `<div class="row" id="row" style="inset:${full?'auto':'0'} ${u*1.2}px ${full?'auto':'0'};${full?`top:${S.cy-u*3}px;height:${u*6}px;`:''}">
       <div class="badge" id="badge" style="width:${u*3.6}px;height:${u*3.6}px;padding:${u*.75}px">${S.icon_svg}</div>
@@ -308,7 +396,17 @@ function render(t){
   const r = document.getElementById('root'), u = S.u, k = S.kind;
   const tin = seg(t, 0, %ENTER%), tout = seg(t, D - %EXIT%, D);
   r.style.opacity = (S.mode === 'overlay' ? eo(tin) : 1) * (1 - eo(tout));
-  r.style.transform = S.mode === 'overlay' ? `translateY(${(1-eo(tin))*u*1.6 - eo(tout)*u*1.0}px) scale(${0.94+0.06*back(tin)})` : '';
+  if (S.mode === 'overlay') {
+    // الدخول بيتغيّر من جرافيك للتاني: pop / slide (من اليمين) / wipe (بيتكشف من اليمين) / drop (من فوق)
+    const a = S.enter || 'pop', o = eo(tout);
+    if (a === 'slide') r.style.transform = `translateX(${(1-eo(tin))*u*7 - o*u*4}px)`;
+    else if (a === 'drop') r.style.transform = `translateY(${-(1-back(tin))*u*2.6 - o*u*1}px)`;
+    else if (a === 'wipe') { r.style.clipPath = `inset(0 0 0 ${(1-eo(seg(t,0,%ENTER%*1.4)))*100}%)`; r.style.transform = `translateY(${-o*u}px)`; }
+    else r.style.transform = `translateY(${(1-eo(tin))*u*1.6 - o*u*1.0}px) scale(${0.94+0.06*back(tin)})`;
+  } else r.style.transform = '';
+  const spin = document.getElementById('spin'); if (spin) spin.style.transform = `rotate(${t*28}deg)`;
+  ['b1','b2'].forEach((id,i)=>{ const b = document.getElementById(id); if (b) b.style.transform = `translate(${Math.sin(t*(0.6+i*.3))*u*1.2}px, ${Math.cos(t*(0.5+i*.2))*u*1.4}px) scale(${1+0.06*Math.sin(t*(1+i))})`; });
+  const hl = document.getElementById('hl'); if (hl) hl.style.transform = `scaleX(${eo(seg(t, .55, 1.05))})`;
   // حركة خفيفة مستمرة في الخلفية (الكادر عمره ما يقف ثابت تمامًا): الإضاءة بتتحرك ببطء
   const full = r.querySelector('.full'); if (full) full.style.backgroundPosition = `${50 + 8*Math.sin(t*0.9)}% ${25 + 6*Math.cos(t*0.7)}%`, full.style.backgroundSize = '140% 140%';
   const panel = document.getElementById('panel'); if (panel) panel.style.boxShadow = `0 ${u*.4}px ${u*(1.4+0.15*Math.sin(t*2))}px rgba(0,0,0,.28)`;
@@ -323,11 +421,12 @@ function render(t){
   }
   if (k === 'counter') {
     const p = eo(seg(t, .3, 1.6)); document.getElementById('num').textContent = Math.round(S.value * p).toLocaleString('ar-EG');
-    const arc = document.getElementById('arc'), L = +arc.getAttribute('stroke-dasharray'); arc.setAttribute('stroke-dashoffset', L*(1-p));
+    const arc = document.getElementById('arc'); if (arc) { const L = +arc.getAttribute('stroke-dasharray'); arc.setAttribute('stroke-dashoffset', L*(1-p)); }
+    if (S.mode === 'pip') { const n = document.getElementById('num'); n.style.transform = `scale(${0.7+0.3*back(seg(t,.2,.7))})`; }
   }
   if (k === 'bars') S.items.forEach((it,i)=>{ document.getElementById('bf'+i).style.width = (eo(seg(t, .5+i*.35, 1.6+i*.35))*it.v*100)+'%'; });
   if (k === 'timeline') {
-    const n = S.items.length; document.getElementById('line').style.width = (eo(seg(t, .3, .3+n*.5))*100)+'%';
+    const n = S.items.length; const ln = document.getElementById('line'); if (ln) ln.style.width = (eo(seg(t, .3, .3+n*.5))*100)+'%';
     S.items.forEach((it,i)=>{ const a = back(seg(t, .3+i*.5, .7+i*.5)); const el = document.getElementById('st'+i); el.style.opacity = clamp(a); el.style.transform = `scale(${0.5+0.5*a})`; });
   }
   if (k === 'lower_third') { const a = eo(seg(t, 0, .5)); document.getElementById('lbar').style.transform = `scaleY(${a})`; }
@@ -356,10 +455,13 @@ def render(specs: list[dict], W: int, H: int, fps: int, out_root: Path, mood: st
             else:
                 w, h, x, y = W, H, 0, 0
             u = round(min(w, H * 0.6) / 30) if mode == "overlay" else round(W / 30)
-            spec = {**{kk: v for kk, v in sp.items() if kk not in ("rect",)}, "u": u, "icon_svg": _icon_svg(sp.get("icon") or "sparkles"),
+            spec = {**{kk: v for kk, v in sp.items() if kk not in ("rect",)}, "u": u, "icon_svg": _icon_svg(sp.get("icon") or "sparkles"), "H": H,
                     "cy": int(H * 0.42) if mode == "explainer" else int(h * 0.16) if mode == "split" else int(h * 0.5)}   # split: المحتوى في أول النص التحتاني (50–60%)، فوق الترجمة
             if mode == "inset":   # المحتوى تحت المتكلم الصغير (فوق) وفوق الترجمة
                 spec["cy"] = int(H * 0.47)
+            if mode == "pip":     # الشرح تحت دايرة صورتك وفوق الترجمة
+                spec["pip"] = sp["pip"]
+                spec["cy"] = sp["pip"][1] + sp["pip"][2] + int(H * 0.04)
             pg = b.new_page(viewport={"width": w, "height": h})
             pg.set_content(f"<html><head><style>{css}</style></head><body><div id='root'></div><script>{js}</script></body></html>")
             pg.evaluate("document.fonts.ready")
@@ -372,7 +474,10 @@ def render(specs: list[dict], W: int, H: int, fps: int, out_root: Path, mood: st
                 pg.evaluate("t => render(t)", i / fps)
                 pg.screenshot(path=str(d / f"f_{i + 1:05d}.png"), omit_background=(mode == "overlay"))
             pg.close()
-            out.append({**sp, "dir": str(d), "frames": n, "x": x, "y": y, "w": w, "h": h})
+            extra = {}
+            if mode == "pip":
+                extra["mask"] = str(mask_png(sp["pip"][2], d / "pip_mask.png"))
+            out.append({**sp, **extra, "dir": str(d), "frames": n, "x": x, "y": y, "w": w, "h": h})
         b.close()
     return out
 

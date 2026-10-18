@@ -269,14 +269,30 @@ def idea_change(a_text: str, b_text: str) -> tuple[str, str]:
     return "soft", "الكلام مكمّل من غير كلمة انتقال (اتشال هوا ميت أو تكرار بس)"
 
 
+# كلمات بتبدأ نقطة جديدة في عدّ (أولًا/تانيًا/خطوة…) ← زووم، وكلمات مفاجأة/كشف ← فلاش
+ENUM = {norm(w) for w in ("اولا", "أولا", "تانيا", "ثانيا", "تالتا", "ثالثا", "رابعا", "اخيرا", "أخيرا", "خطوه", "خطوة", "النقطه", "النقطة", "اول", "أول",
+                          "تاني", "تالت", "رابع", "first", "second", "third", "step", "finally")}
+REVEAL = {norm(w) for w in ("الحقيقه", "الحقيقة", "المفاجأه", "المفاجأة", "المفاجاه", "تخيل", "تخيّل", "السر", "الصدمه", "الصدمة", "فجأة", "فجأه", "surprise", "imagine")}
+# xfade لكل نوع انتقال (والمدة بالثواني). whip بيتبادل اتجاهه علشان ما يبانش متكرر
+XFADE = {"dissolve": ("fade", None), "whip": ("smoothleft", 0.22), "whip_r": ("smoothright", 0.22), "zoom": ("zoomin", 0.32), "flash": ("fadewhite", 0.2)}
+FANCY = ("whip", "zoom", "flash")
+FANCY_GAP = 5.0       # ثواني بين أي انتقالين «ظاهرين» (أكتر من كده بيبقى زحمة ومش احترافي)
+JUMP_ZOOMS = (1.0, 1.14, 1.0, 1.22)   # تأطير الأجزاء ورا بعض في نفس اللقطة: واسع ← أقرب ← واسع ← أقرب أكتر
+
+
 def plan_transitions(segments: list[dict], scene_cuts: dict, pace: str = "normal", fps: int = 30, dissolve_frames: int | None = None,
-                     audio_ms: int = 60, motion: list[dict] | None = None) -> list[dict]:
-    """لكل قصّة بين جزئين: نوعها (مزج قصير ولا قطع صريح) وسببه، و crossfade للصوت في كل قصّة.
-    - نفس اللقطة (jump cut): مزج قصير (8–12 فريم) يخفي النطّة.
-    - لقطة مختلفة / ملف تاني: قطع صريح (المزج بين صورتين مختلفتين بيبان غلط).
-    - الطلب قال إيقاع سريع: قطع صريح مقصود (jump cut)."""
+                     audio_ms: int = 60, motion: list[dict] | None = None, style: str = "auto") -> list[dict]:
+    """لكل قصّة بين جزئين: نوعها وسببه، و crossfade للصوت في كل قصّة.
+    ليه اتغيّر: قبل كده كان فيه نوعين بس (مزج 10 فريم أو قطع)، والمزج على jump cut بيبان هاوي. دلوقتي زي فيديوهات التيك توك المحترفة:
+    - نفس اللقطة (jump cut): «jump zoom» = قطع والجزء اللي بعده أقرب على الوش (أو أبعد)، فالنطّة بتبان مقصودة.
+    - الفكرة اتقلبت (بس/لكن/المهم…): whip (سحبة سريعة) واتجاهها بيتبادل.
+    - نقطة جديدة في عدّ (أولًا/تانيًا/خطوة…): zoom.
+    - كشف/مفاجأة (الحقيقة/تخيّل/السر…): flash أبيض سريع.
+    - لقطة مختلفة: قطع صريح، والحركة المكمّلة: قطع على الحركة.
+    - بين أي انتقالين «ظاهرين» {FANCY_GAP} ث على الأقل، ومن نفس النوع ضعف كده (غير كده jump zoom).
+    - إيقاع هادي: الظاهر بيبقى مزج. style="hard": قطع صريح بس. style="simple": المزج القديم."""
     df = dissolve_frames or (12 if fps >= 50 else 10)
-    out, t = [], 0.0
+    out, t, last_fancy_t, last_fancy, whips = [], 0.0, -99.0, None, 0
     for k, (a, b) in enumerate(zip(segments, segments[1:])):
         t += (a["end"] - a["start"]) / float(a.get("speed") or 1.0)
         cuts_src = scene_cuts.get(a["source"], [])
@@ -284,19 +300,64 @@ def plan_transitions(segments: list[dict], scene_cuts: dict, pace: str = "normal
             or any(b["start"] - 0.05 <= c <= a["end"] + 0.05 for c in cuts_src)
         mv = (motion or [{}] * len(segments))[k] if motion and k < len(motion) else {}
         change, change_why = idea_change(a.get("text", ""), b.get("text", ""))
-        if shot:
-            kind, why = "hard", "لقطة مختلفة: قطع صريح (المزج بين صورتين مختلفتين بيبان غلط)"
+        first = norm((b.get("text") or "").split()[0]) if (b.get("text") or "").split() else ""
+        firsts = {norm(w) for w in (b.get("text") or "").split()[:3]}
+        want, wwhy = None, ""
+        if style == "hard" or pace == "fast":
+            kind, why = "hard", "طلبك إيقاع سريع: jump cut مقصود" if pace == "fast" else "طلبك: قطع صريح"
+        elif style == "simple":
+            kind, why = ("hard", "لقطة مختلفة: قطع صريح") if shot else ("dissolve", f"مزج {df} فريم يخفي النطّة")
         elif mv.get("matched"):
-            kind, why = "match", f"الحركة مكمّلة في نفس الاتجاه (قبل {mv['a']} · بعد {mv['b']} · تشابه {mv['cos']}): قطع على الحركة"
-        elif pace == "fast":
-            kind, why = "hard", "طلبك إيقاع سريع: jump cut مقصود"
-        elif change == "sharp":
-            kind, why = "hard", f"تغيير حاد في الفكرة: {change_why}"
+            kind, why = "match", f"الحركة مكمّلة في نفس الاتجاه (تشابه {mv['cos']}): قطع على الحركة"
         else:
-            kind, why = "dissolve", f"تغيير هادي ({change_why}): مزج {df} فريم يخفي النطّة"
-        out.append({"index": k + 1, "after": a["id"], "before": b["id"], "t": round(t, 3), "kind": kind, "frames": df if kind == "dissolve" else 0,
-                    "fps": fps, "audio_ms": audio_ms, "reason": why, "idea_change": change, "motion": mv})
+            if first in ENUM or firsts & ENUM:   # قبل «اتقلبت»: أولًا/تانيًا في قايمة كلمات الانتقال كمان، بس معناها نقطة جديدة
+                want, wwhy = "zoom", "نقطة جديدة في عدّ: «" + " ".join((b.get("text") or "").split()[:2]) + "»"
+            elif change == "sharp":
+                want, wwhy = "whip", f"الفكرة اتقلبت: {change_why}"
+            elif firsts & REVEAL:
+                want, wwhy = "flash", "كشف/مفاجأة: «" + " ".join((b.get("text") or "").split()[:2]) + "»"
+            if want and pace == "calm":
+                want, wwhy = "dissolve", wwhy + " (إيقاع هادي: مزج بدل الانتقال الظاهر)"
+            if want in FANCY and (t - last_fancy_t < FANCY_GAP or (want == last_fancy and t - last_fancy_t < 2 * FANCY_GAP)):
+                wwhy += f" · بس فيه انتقال ظاهر قريب ({t - last_fancy_t:.1f} ث) أو من نفس النوع: jump zoom بداله"
+                want = None
+            if want:
+                kind, why = want, wwhy
+            elif shot:
+                kind, why = "hard", "لقطة مختلفة: قطع صريح"
+            else:
+                kind, why = "jumpzoom", "نفس اللقطة: قطع والجزء اللي بعده بتأطير مختلف (jump zoom) فالنطّة تبان مقصودة" + (f" · {wwhy}" if wwhy else "")
+        if kind == "whip":
+            whips += 1
+            if whips % 2 == 0:
+                kind = "whip_r"
+        if kind in FANCY or kind == "whip_r":
+            last_fancy_t, last_fancy = t, kind.split("_")[0]
+        dur = XFADE[kind][1] if kind in XFADE and XFADE[kind][1] else (df / fps if kind == "dissolve" else 0)
+        frames = int(round(dur * fps)) if kind in XFADE else 0
+        if kind in XFADE and frames % 2:
+            frames += 1
+        out.append({"index": k + 1, "after": a["id"], "before": b["id"], "t": round(t, 3), "kind": kind, "xfade": XFADE[kind][0] if kind in XFADE else None,
+                    "frames": frames, "fps": fps, "audio_ms": audio_ms, "reason": why, "idea_change": change, "motion": mv})
+    # تأطير كل جزء: بيتغيّر عند كل jump zoom (واسع/أقرب)، وبيرجع واسع بعد أي قصّة تانية
+    zi, frames_z = 0, [JUMP_ZOOMS[0]]
+    for tr in out:
+        if tr["kind"] == "jumpzoom":
+            zi = (zi + 1) % len(JUMP_ZOOMS)
+            if JUMP_ZOOMS[zi] == frames_z[-1]:
+                zi = (zi + 1) % len(JUMP_ZOOMS)
+        else:
+            zi = 0
+        frames_z.append(JUMP_ZOOMS[zi])
+    for tr, z in zip(out, frames_z[1:]):
+        tr["zoom_after"] = z
     return out
+
+
+def segment_zooms(transitions: list[dict], n: int) -> list[float]:
+    """تأطير (زووم) كل جزء من خطة الانتقالات."""
+    z = [JUMP_ZOOMS[0]] + [tr.get("zoom_after", 1.0) for tr in transitions]
+    return (z + [1.0] * n)[:n]
 
 
 # ---------- الترجمة ----------

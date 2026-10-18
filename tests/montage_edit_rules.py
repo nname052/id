@@ -1,5 +1,6 @@
 """اختبار قواعد المحرر الأوتوماتيك (من غير ميديا):
-- الانتقالات: jump cut في نفس اللقطة ← مزج 10 فريم (12 على 60 فريم)، لقطة مختلفة ← قطع صريح، crossfade صوت 60 مللي في كل قصّة.
+- الانتقالات: jump cut في نفس اللقطة ← jump zoom، لقطة مختلفة ← قطع صريح، «بس/لكن» ← سحبة، «تانيًا» ← زووم، crossfade صوت 60 مللي في كل قصّة،
+  والمزج القديم (style=simple) 10 فريم (12 على 60).
 - الترجمة: كل سطر بين 1.2 و 5 ث، بيقف عند سكتة ومش بكلمة معلّقة، ومنطقتها تحت ومنفصلة عن منطقة الكروت.
 - الكروت: كل كارت مربوط بكلام اتقال، كارت واحد بس في نفس الوقت.
 - الطلب (brief) والتعديل بالكلام للمراحل الجديدة.
@@ -32,14 +33,24 @@ def main() -> int:
     segs = [{"id": "g1", "source": "s1", "start": 0.3, "end": 4.6}, {"id": "g2", "source": "s1", "start": 5.0, "end": 9.6},
             {"id": "g3", "source": "s2", "start": 0.0, "end": 3.0}]
     tr = cuts.plan_transitions(segs, {"s1": []}, "normal", 30)
-    tr60 = cuts.plan_transitions(segs, {"s1": []}, "normal", 60)
     fast = cuts.plan_transitions(segs, {"s1": []}, "fast", 30)
-    if [t["kind"] for t in tr] != ["dissolve", "hard"] or tr[0]["frames"] != 10 or tr60[0]["frames"] != 12:
-        fails.append(f"transitions: {[(t['kind'], t['frames']) for t in tr]} / 60fps {tr60[0]['frames']}")
+    # نفس اللقطة ← jump zoom (التأطير بيتغيّر)، لقطة مختلفة ← قطع صريح
+    if [t["kind"] for t in tr] != ["jumpzoom", "hard"] or cuts.segment_zooms(tr, 3)[1] <= 1.0 or cuts.segment_zooms(tr, 3)[2] != 1.0:
+        fails.append(f"transitions: {[(t['kind'], t.get('zoom_after')) for t in tr]}")
     if any(t["audio_ms"] != 60 for t in tr) or any(t["kind"] != "hard" for t in fast):
         fails.append("audio crossfade on every cut / fast pace = hard cuts")
-    if not (8 <= tr[0]["frames"] <= 12):
-        fails.append("dissolve outside 8–12 frames")
+    # المزج القديم لسه موجود لو اتطلب (style=simple): 10 فريم على 30، و 12 على 60
+    simple, simple60 = cuts.plan_transitions(segs, {"s1": []}, "normal", 30, style="simple"), cuts.plan_transitions(segs, {"s1": []}, "normal", 60, style="simple")
+    if simple[0]["kind"] != "dissolve" or simple[0]["frames"] != 10 or simple60[0]["frames"] != 12:
+        fails.append(f"simple style dissolve: {[(t['kind'], t['frames']) for t in simple]}")
+    # الانتقالات الظاهرة بالمعنى: «بس» ← سحبة، «تانيًا» ← زووم، ومش ورا بعض في أقل من FANCY_GAP
+    sg = [{"id": f"m{i}", "source": "s1", "start": i * 3.0, "end": i * 3.0 + 2.6, "text": x} for i, x in
+          enumerate(["النهارده هتكلم", "وده مهم", "بس الحقيقة إن", "أولا اقفل", "وكمان اشتغل", "تانيا خد بريك", "وبعدين كمل", "لكن خلي بالك"])]
+    tm = cuts.plan_transitions(sg, {"s1": []}, "normal", 60)
+    kinds = [t["kind"] for t in tm]
+    fancy = [t for t in tm if t["kind"] in ("whip", "whip_r", "zoom", "flash")]
+    if kinds[1] != "whip" or kinds[4] != "zoom" or any(b["t"] - a["t"] < cuts.FANCY_GAP for a, b in zip(fancy, fancy[1:])):
+        fails.append(f"meaning transitions: {kinds}")
 
     # الترجمة
     one = [{"id": "g1", "source": "s1", "start": 0.3, "end": 12.7}]
@@ -106,7 +117,7 @@ def main() -> int:
     if fx.get("user_params", {}).get("fixes", {}).get("s1:3") != {"from": "التركيز.", "to": "الهدف"}:
         fails.append(f"subtitle line fix: {fx}")
 
-    print(f"transitions: {[(t['kind'], t['frames'], t['audio_ms']) for t in tr]} · 60fps dissolve {tr60[0]['frames']} frames")
+    print(f"transitions: {[(t['kind'], t['frames'], t['audio_ms']) for t in tr]} · meaning: {kinds}")
     print(f"cues: {[(c['text'], round(c['end'] - c['start'], 2)) for c in cues]}")
     print(f"cards: {[(c['kind'], c['title'], c['start'], c['end']) for c in cards]}")
     print("PASS" if not fails else "FAIL:\n  " + "\n  ".join(fails))
