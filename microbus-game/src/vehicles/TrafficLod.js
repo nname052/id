@@ -81,9 +81,40 @@ export function bakeLod(root, key) {
   for (const g of parts) g.dispose();
   // نفس الرؤوس المكررة (من التحويل لـ non-indexed) بتتدمج → ذاكرة أقل بحوالي 3 مرات
   if (geo) { const ix = mergeVertices(geo, 1e-4); geo.dispose(); geo = ix; }
+  // تبسيط سريع (vertex clustering): الرؤوس اللي في نفس خانة 11سم بتبقى رأس واحد، والمثلثات اللي اتقفلت بتتشال.
+  // الـ LOD بيتشاف من 30م وأبعد → التفاصيل الأصغر من 11سم مش باينة أصلًا (المثلثات بتقل للنص أو أكتر)
+  if (geo) { const sg = clusterSimplify(geo, 0.11); geo.dispose(); geo = sg; }
   if (geo) geo.computeBoundingSphere();
   cache.set(key, geo);
   return geo;
+}
+
+function clusterSimplify(geo, cell) {
+  const P = geo.attributes.position, N = geo.attributes.normal, C = geo.attributes.color, I = geo.index;
+  const map = new Int32Array(P.count), keys = new Map();
+  const pos = [], nor = [], col = [];
+  for (let i = 0; i < P.count; i++) {
+    // الـ normal جزء من المفتاح (مقرّب): الأوش المختلفة الاتجاه ماتتدمجش (عشان الإضاءة تفضل صح)
+    const k = Math.round(P.getX(i) / cell) + ',' + Math.round(P.getY(i) / cell) + ',' + Math.round(P.getZ(i) / cell) + ',' +
+      Math.round(N.getX(i) * 2) + Math.round(N.getY(i) * 2) * 5 + Math.round(N.getZ(i) * 2) * 25;
+    let j = keys.get(k);
+    if (j === undefined) {
+      j = pos.length / 3; keys.set(k, j);
+      pos.push(P.getX(i), P.getY(i), P.getZ(i)); nor.push(N.getX(i), N.getY(i), N.getZ(i)); col.push(C.getX(i), C.getY(i), C.getZ(i));
+    }
+    map[i] = j;
+  }
+  const src = I ? I.array : null, n = I ? I.count : P.count, idx = [];
+  for (let t = 0; t < n; t += 3) {
+    const a = map[src ? src[t] : t], b = map[src ? src[t + 1] : t + 1], c = map[src ? src[t + 2] : t + 2];
+    if (a !== b && b !== c && a !== c) idx.push(a, b, c);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  g.setIndex(idx);
+  return g;
 }
 
 /** Mesh الـ LOD لعربية (بتتحط في المشهد جنب العربية الكاملة) */

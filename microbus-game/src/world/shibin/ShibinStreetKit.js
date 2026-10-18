@@ -34,8 +34,13 @@ function part(g, rgb, m, extra = {}) {
 
 // ===================== البلكونة =====================
 // الأصل = نص حرف البلاطة على الحيطة، +z = بره الحيطة. اللون الأبيض بيتضرب في لون العمارة (instanceColor)
-function balconyGeo() {
+function balconyGeo(lite) {
   const W = 1.8, D = 0.85, wall = [0.93, 0.92, 0.9], slab = [0.7, 0.69, 0.66];
+  // lite (موبايل): بلاطة + السور القدامي بس من غير جناب ودروة (24 مثلث بدل 60)
+  if (lite) return mergeGeometries([
+    part(new THREE.BoxGeometry(W, 0.14, D), slab, M4(0, 0.07, D / 2)),
+    part(new THREE.BoxGeometry(W, 1.0, 0.1), wall, M4(0, 0.62, D - 0.05)),
+  ]);
   return mergeGeometries([
     part(new THREE.BoxGeometry(W, 0.14, D), slab, M4(0, 0.07, D / 2)),               // البلاطة
     part(new THREE.BoxGeometry(W, 0.95, 0.09), wall, M4(0, 0.6, D - 0.045)),         // السور القدامي
@@ -135,6 +140,23 @@ function shopMaterial(map) {
   return m;
 }
 
+// ===================== قعدة قهوة على الرصيف: ترابيزة + 3 كراسي بلاستيك (اللون من instanceColor) =====================
+function cafeGeo() {
+  const W = [0.95, 0.95, 0.93], metal = [0.4, 0.4, 0.42];
+  const chair = (x, z, ry) => [
+    part(new THREE.BoxGeometry(0.42, 0.05, 0.42), W, M4(x, 0.45, z, ry)),
+    part(new THREE.BoxGeometry(0.42, 0.42, 0.05), W, M4(x - Math.sin(ry) * 0.2, 0.68, z - Math.cos(ry) * 0.2, ry, 1, 1, 1, -0.12)),
+    ...[[-0.18, -0.18], [0.18, -0.18], [-0.18, 0.18], [0.18, 0.18]].map(([a, b]) => part(new THREE.BoxGeometry(0.04, 0.45, 0.04), W, M4(x + a * Math.cos(ry) + b * Math.sin(ry), 0.22, z - a * Math.sin(ry) + b * Math.cos(ry), ry))),
+  ];
+  return mergeGeometries([
+    part(new THREE.CylinderGeometry(0.34, 0.34, 0.04, 10), W, M4(0, 0.7, 0)),
+    part(new THREE.CylinderGeometry(0.03, 0.03, 0.7, 5), metal, M4(0, 0.35, 0)),
+    part(new THREE.CylinderGeometry(0.06, 0.04, 0.1, 6), [0.85, 0.85, 0.82], M4(0.08, 0.77, 0.05)), // كوباية شاي
+    ...chair(0.75, 0, -Math.PI / 2), ...chair(-0.75, 0.05, Math.PI / 2), ...chair(0.05, 0.75, Math.PI),
+  ]);
+}
+const PLASTIC = [[0.95, 0.95, 0.93], [0.75, 0.12, 0.1], [0.15, 0.32, 0.65], [0.2, 0.5, 0.25]].map((c) => lin(...c));
+
 // ===================== يافطة إعلان فوق السطح (رجلين حديد + برواز + وش) =====================
 function billboardGeo() {
   const iron = [0.22, 0.22, 0.23], W = 6.4, H = 2.4;
@@ -196,14 +218,15 @@ export class StreetKit {
     const hi = !low && tier === 'high'; // الأعمدة بضل في HIGH بس
     this.group = new THREE.Group(); this.group.name = 'street-kit';
     const PM = propMaterial();
-    this.balcony = new NearInstancer(balconyGeo(), PM, { R: low ? 70 : 110, max: low ? 200 : 520, name: 'kit-balcony', colors: true, castShadow: !low });
+    this.balcony = new NearInstancer(balconyGeo(low), PM, { R: low ? 60 : 110, max: low ? 140 : 520, name: 'kit-balcony', colors: true, castShadow: !low });
     this.shopMat = shopMaterial(shopAtlas());
     this.shop = new NearInstancer(shopGeo(), this.shopMat, { R: low ? 75 : 120, max: low ? 110 : 260, name: 'kit-shopfront', attrs: ['aSign', 'aAwn'] }); // من غير ضل: التندة المخفية بتتشال في الـ vertex shader والضل مش هيعرف
     this.pole = new NearInstancer(poleGeo(), PM, { R: low ? 110 : 170, max: low ? 50 : 110, name: 'kit-pole', castShadow: hi });
     this.wire = new NearInstancer(wireGeo(), new THREE.MeshStandardMaterial({ color: 0x1c1c1e, roughness: 0.9, side: THREE.DoubleSide }), { R: low ? 110 : 170, max: low ? 50 : 110, name: 'kit-wire' });
     this.rebar = low ? null : new NearInstancer(rebarGeo(), PM, { R: 130, max: 220, name: 'kit-rebar' });
+    this.cafe = new NearInstancer(cafeGeo(), PM, { R: low ? 60 : 95, max: low ? 24 : 70, name: 'kit-cafe', colors: true, castShadow: hi });
     this.board = new NearInstancer(billboardGeo(), this.shopMat, { R: low ? 220 : 320, max: low ? 8 : 16, name: 'kit-billboard', attrs: ['aSign', 'aAwn'] });
-    this.all = [this.balcony, this.shop, this.pole, this.wire, this.rebar, this.board].filter(Boolean);
+    this.all = [this.balcony, this.shop, this.pole, this.wire, this.rebar, this.board, this.cafe].filter(Boolean);
     for (const n of this.all) this.group.add(n.mesh);
     this._poles(W);
     this.stats = { poles: this.pole.items.length };
@@ -225,11 +248,10 @@ export class StreetKit {
           if (pat === 0 && bi % 2) continue;                              // كل تاني فتحة
           if (pat === 1 && bays > 2 && (bi === 0 || bi === bays - 1)) continue; // الوسط بس
           const lx = (bi + 0.5) * bw - w / 2;
-          for (let f = 0; f < floors; f++) {
-            if (hash(cx + bi, cz + f, 7) < 0.12) continue; // بلكونة اتقفلت/مش موجودة
-            const [x, z] = at(lx, d / 2);
-            this.balcony.add(x, GF + f * FH, z, a, 1, 1, tag, { sx: Math.min(1, (bw - 0.4) / 1.8), sz: 1, color: col });
-          }
+          let skip = 0; // بلكونة اتقفلت/مش موجودة في بعض الأدوار
+          for (let f = 0; f < floors; f++) if (hash(cx + bi, cz + f, 7) < 0.12) skip |= 1 << f;
+          const [x, z] = at(lx, d / 2);
+          this.balcony.add(x, GF, z, a, 1, 1, tag, { sx: Math.min(1, (bw - 0.4) / 1.8), sz: 1, color: col, rep: floors, dy: FH, skip });
         }
       }
       // واجهات المحلات: الدور الأرضي التجاري
@@ -240,6 +262,8 @@ export class StreetKit {
           const lx = (k + 0.5) * sw - w / 2, [x, z] = at(lx, d / 2 + 0.01);
           const sign = Math.floor(hash(cx + k, cz, 13) * SHOPS.length), awn = hash(cz, cx + k, 17) < 0.65 ? Math.floor(hash(cx, k, 19) * AWN.length) : -1;
           this.shop.add(x, 0, z, a, 1, 1, tag, { sx: (sw - 0.25) / 3.0, sz: 1, a: [sign, awn] });
+          // قعدة على الرصيف قدام بعض المحلات (قهوة/عصير/كشري)
+          if (hash(cx + k, cz, 23) < 0.14) { const [qx, qz] = at(lx, d / 2 + 1.5); this.cafe.add(qx, 0.15, qz, a + hash(cx, k, 29) * 0.6 - 0.3, 1, 1, tag, { color: PLASTIC[Math.floor(hash(k, cz, 31) * PLASTIC.length)] }); }
         }
       }
       // إعلان فوق السطح: عمارات عالية على الشوارع التجارية (قليل)
@@ -287,8 +311,10 @@ export class StreetKit {
       return Math.abs(W.height(x, z, 0) - 0.15) < 0.01;
     };
     this.pole.check = (it) => onWalk(it.x, it.z);
+    // الرصيف ضيق → مفيش قعدة (الكراسي بتطلع 0.75م: لازم تفضل بعيد عن حرف الأسفلت)
+    this.cafe.check = (it) => { const o = onWalk(it.x, it.z); if (!o) return o; const q = W.nearestRoad(it.x, it.z, 30); return !(q && !q.e.elevated && q.d < q.e.half + 1.1); };
     // السلك بيظهر لو العمودين الاتنين اتحطوا
-    this.wire.check = (it) => { const a = it.ext.from, b = it.ext.to; const ka = a.ok ?? onWalk(a.x, a.z), kb = b.ok ?? onWalk(b.x, b.z); if (ka === undefined || kb === undefined) return undefined; return ka && kb; };
+    this.wire.check = (it) => { const a = it.ext.from, b = it.ext.to; a.ok ??= onWalk(a.x, a.z); b.ok ??= onWalk(b.x, b.z); if (a.ok === undefined || b.ok === undefined) return undefined; return a.ok && b.ok; };
   }
 
   update(cam) { for (const n of this.all) n.update(cam); }

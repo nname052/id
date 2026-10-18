@@ -10,7 +10,7 @@ export const TIME_PRESETS = {
     // شمس الدلتا: سما فيها شبورة/تراب خفيف (مش أزرق صافي)، ضباب بيج دافي، والإضاءة المحيطة أقل شوية عشان الضل يبان
     label: 'نهار', elevation: 52, azimuth: 135, sunColor: 0xffecd2, sunIntensity: 3.5, hemi: 0.3,
     turbidity: 6.5, rayleigh: 1.5, mie: 0.006, mieG: 0.82, fog: 0xcfc7b6, fogNear: 70, fogFar: 540, exposure: 0.55,
-    lampsOn: false, windows: 0, envIntensity: 0.8,
+    lampsOn: false, windows: 0, envIntensity: 0.7,
   },
   sunset: {
     label: 'غروب', elevation: 6, azimuth: 250, sunColor: 0xffa860, sunIntensity: 2.4, hemi: 0.25,

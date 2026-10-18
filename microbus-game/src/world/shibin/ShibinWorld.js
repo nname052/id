@@ -57,7 +57,7 @@ export class ShibinWorld {
     this._materials();
     this._buildRamps();
     { const K = kitGeometries();
-      this.kitRoof = new NearInstancer(K.roof, K.mat, { R: this.low ? 110 : 160, max: this.low ? 120 : 260, name: 'roof-kit' });
+      this.kitRoof = new NearInstancer(K.roof, K.mat, { R: this.low ? 90 : 160, max: this.low ? 70 : 260, name: 'roof-kit' });
       this.kitAC = new NearInstancer(K.ac, K.mat, { R: this.low ? 70 : 110, max: this.low ? 160 : 360, name: 'ac-kit' });
       this.group.add(this.kitRoof.mesh);
       if (!this.low) this.group.add(this.kitAC.mesh); } // الموبايل: من غير تكييفات (تفصيلة صغيرة = draw call أقل)
@@ -119,7 +119,7 @@ float nA(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
   diffuseColor.rgb *= mix(1.0, 0.72, patchM);
   // تفاوت لون الأسفلت + بقع زيت/تراب
   float n = nA(vAW * 0.08) * 0.6 + nA(vAW * 0.35) * 0.4;
-  diffuseColor.rgb *= mix(0.86, 1.08, n) * 0.8; // أسفلت الدلتا أغمق من الرصيف (كان باهت قريب من لون البلاط)
+  diffuseColor.rgb *= mix(0.86, 1.08, n) * 0.85; // أسفلت مترب: أغمق شوية من الرصيف
   diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.5, 0.46, 0.4) * dot(diffuseColor.rgb, vec3(0.33)) * 1.7, smoothstep(0.62, 0.8, nA(vAW * 0.05 + 7.0)) * 0.35);
   // غطا بلاعة كل حوالي 25م
   vec2 mc = floor(vAW / 25.0); vec2 mp = (mc + vec2(0.3 + 0.4 * hA(mc + 3.1), 0.3 + 0.4 * hA(mc + 7.7))) * 25.0;
@@ -233,7 +233,8 @@ float nA(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
     const [x0, z0, x1, z1] = this.region.bbox_local;
     const pad = 600;
     const w = x1 - x0 + pad * 2, d = z1 - z0 + pad * 2;
-    const g = new THREE.PlaneGeometry(w, d, 1, 1).rotateX(-Math.PI / 2);
+    // مقسومة (مش مثلثين بطول المنطقة كلها): المثلث العملاق بيبوّظ دقة الـ depth وكانت الأرض بتطلع فوق الأسفلت (الطريق يبيض)
+    const g = new THREE.PlaneGeometry(w, d, Math.ceil(w / 200), Math.ceil(d / 200)).rotateX(-Math.PI / 2);
     const uv = g.attributes.uv;
     for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * w / 9, uv.getY(i) * d / 9);
     const mat = this.M.dirt.clone();
@@ -266,6 +267,7 @@ float nA(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
       };
       mat.customProgramCacheKey = () => 'shibin-ground-urban';
     }
+    mat.polygonOffset = true; mat.polygonOffsetFactor = 2; mat.polygonOffsetUnits = 2; // دايمًا ورا الأسفلت والأرصفة
     const m = new THREE.Mesh(g, mat);
     m.position.set((x0 + x1) / 2, -0.02, (z0 + z1) / 2);
     m.receiveShadow = true; m.name = 'ground';

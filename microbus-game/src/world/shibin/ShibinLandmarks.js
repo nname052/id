@@ -86,21 +86,28 @@ export class NearInstancer {
         it.d2 = d2; pick.push(it);
       }
     }
-    if (pick.length > this.max) { pick.sort((a, b) => a.d2 - b.d2); pick.length = this.max; }
+    // عنصر واحد ممكن يبقى كذا نسخة فوق بعض (ext.rep كل ext.dy، و ext.skip = bitmask للي مش موجود): بلكونات الأدوار
+    // → ذاكرة أقل بكتير (عنصر لكل عمود بلكونات بدل عنصر لكل بلكونة)
+    pick.sort((a, b) => a.d2 - b.d2);
     const M = this.mesh;
-    for (let k = 0; k < pick.length; k++) {
-      const it = pick[k];
-      const e = it.ext;
-      _q.setFromAxisAngle(_Y, it.yaw); _p.set(it.x, it.y, it.z); _s.set(e?.sx ?? it.scale, it.sy, e?.sz ?? it.scale);
-      M.setMatrixAt(k, _m.compose(_p, _q, _s));
-      if (M.instanceColor && e?.color) M.instanceColor.setXYZ(k, e.color[0], e.color[1], e.color[2]);
-      if (this.attrs && e?.a) for (let j = 0; j < this.attrs.length; j++) this.attrs[j][1].array[k] = e.a[j];
+    let k = 0;
+    for (let i = 0; i < pick.length && k < this.max; i++) {
+      const it = pick[i], e = it.ext, rep = e?.rep || 1;
+      _q.setFromAxisAngle(_Y, it.yaw); _s.set(e?.sx ?? it.scale, it.sy, e?.sz ?? it.scale);
+      for (let j = 0; j < rep && k < this.max; j++) {
+        if (e?.skip && (e.skip >> j) & 1) continue;
+        _p.set(it.x, it.y + j * (e?.dy || 0), it.z);
+        M.setMatrixAt(k, _m.compose(_p, _q, _s));
+        if (M.instanceColor && e?.color) M.instanceColor.setXYZ(k, e.color[0], e.color[1], e.color[2]);
+        if (this.attrs && e?.a) for (let q = 0; q < this.attrs.length; q++) this.attrs[q][1].array[k] = e.a[q];
+        k++;
+      }
     }
-    M.count = pick.length; M.instanceMatrix.needsUpdate = true;
+    M.count = k; M.instanceMatrix.needsUpdate = true;
     if (M.instanceColor) M.instanceColor.needsUpdate = true;
     if (this.attrs) for (const [, a] of this.attrs) a.needsUpdate = true;
-    M.visible = pick.length > 0; // فاضية = مفيش draw call خالص (ولا في رسمة الضل)
-    this.visibleCount = pick.length;
+    M.visible = k > 0; // فاضية = مفيش draw call خالص (ولا في رسمة الضل)
+    this.visibleCount = k;
     void force;
   }
 }
