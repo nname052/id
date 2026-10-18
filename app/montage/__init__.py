@@ -116,6 +116,8 @@ def get_montage(mid: str):
 
 @router.delete("/api/montage/{mid}")
 def delete_montage(mid: str):
+    if not state.load(mid):
+        raise HTTPException(404, "المونتاج ده مش موجود")
     state.delete(mid)
     return {"ok": True}
 

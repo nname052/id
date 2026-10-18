@@ -240,6 +240,8 @@ table.diff th { color: var(--muted); font-weight: 600; }
 .m-item .cv { aspect-ratio: 16/10; background: var(--stage); display: block; width: 100%; object-fit: cover; }
 .m-item .bd { padding: var(--s3); display: grid; gap: 4px; }
 .m-item .tt { font-weight: 700; overflow-wrap: anywhere; }
+.m-item > a { display: block; text-decoration: none; color: inherit; }
+.m-item .ft { padding: 0 var(--s3) var(--s3); display: flex; justify-content: flex-end; }
 
 /* الإعدادات */
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: var(--s3); }

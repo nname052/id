@@ -44,7 +44,7 @@ export function placeHand(st) {
 // دلوقتي: كل عنصر بيتقاس شكله الحقيقي (الرسمة على قد حدودها، والكلام على قد سطوره)، وبنجرّب كل تقسيمات الصفوف (عنصر أو اتنين أو تلاتة
 // في الصف، بنفس ترتيب الرسم) وبنختار اللي بيملا المساحة أكتر من غير ما حاجة تصغر قوي، وبعدين المجموعة كلها بتتوسّط في المنطقة.
 // والتوزيع بيتعاد على العناصر اللي فضلت بعد ما الوقت يشيل الزيادة.
-// فوق الترجمة بمسافة واضحة: الترجمة في فيديو السبورة بتبدأ عند 1300 (player.css)، والرسومات بتخلص عند 1180.
+// فوق الترجمة بمسافة واضحة: الترجمة في فيديو السبورة بتبدأ عند 1340 (player.css)، والرسومات بتخلص عند 1180.
 // ليه: كانت المسافة 40 بكسل بس، والكلام كان لازق في الأشكال اللي فوقه
 export const REGION = { x: 64, y: 170, w: 952, h: 1010 };
 const GAP = { x: 44, y: 56 }, ARROW_GAP = 150;   // لو فيه سهم بين العناصر: مسافة كفاية إن السهم يبان سهم
@@ -428,7 +428,8 @@ export async function createBoard(sc, el, ctx) {
   // وبعد كل عنصر بيتشال، التوزيع بيتعاد على اللي فاضل (علشان ما يفضلش مكانه فاضي)
   let live = els.slice();
   // الرسمة الكاملة بتفضل على الشاشة ثانية على الأقل قبل المشهد اللي بعده (كانت 0.45 ث: المشهد بيتنقل والرسمة لسه مخلّصة)
-  const HOLD = clamp(ctx.duration * 0.18, 1.0, 1.4), avail = ctx.duration - HOLD;
+  // الثبات «مرن»: بنحاول ثانية، ولو كده هنشيل عنصر بنقبل لحد 0.6 ث (طلبك: نفس العناصر، من غير ما حاجة تتشال علشان الثبات)
+  const HOLD = clamp(ctx.duration * 0.18, 1.0, 1.4), HOLD_MIN = 0.6, avail = ctx.duration - HOLD_MIN, soft = ctx.duration - HOLD;
   // وقت نقل الإيد بين عنصرين (حسب المسافة، بسرعة محدودة): العنصر اللي بعده بيستنى الإيد توصل
   // تقدير مأمون: من أبعد ركن في مكان العنصر اللي قبله (القلم ممكن يخلص في أي حتة فيه)
   const farFrom = (a, pb) => { const r = a.zone || (a.path ? a.path.getBBox() : null); if (!r) return endPt(a) || pb;
@@ -442,7 +443,7 @@ export async function createBoard(sc, el, ctx) {
       const earliest = tc + (prev ? travel(prev, e) : 0.25);
       e.start = Math.max(earliest, Math.min(cue > 0 ? cue - 0.1 : earliest, avail - e.dur)); tc = e.start + e.dur; prev = e; } return tc; };
   els.forEach((e) => (e.dur0 = e.dur));
-  const kFit = () => clamp((avail - 0.25 - 0.35 * live.length) / live.reduce((n, e) => n + e.dur0, 0), 0.7, 1);
+  const kFit = () => clamp((soft - 0.25 - 0.35 * live.length) / live.reduce((n, e) => n + e.dur0, 0), 0.7, 1);
   for (let guard = 0; guard < 12; guard++) {
     relayout(live);
     // وقت الرسمة على قد أطول خط فيها على الشاشة (لحد 3.2 ث): خط واحد طويل (حدود أيقونة متملية 5239 بكسل) في وقت ثابت 1.9 ث
@@ -452,8 +453,8 @@ export async function createBoard(sc, el, ctx) {
     buildMarks(live);
     live = live.filter((e) => !e.skip);
     let end = timeIt(1, true);
-    if (end > avail) end = timeIt(kFit(), true);
-    if (end > avail) end = timeIt(kFit(), false);
+    if (end > soft) end = timeIt(kFit(), true);
+    if (end > soft) end = timeIt(kFit(), false);
     if (end <= avail || live.length <= 1) break;
     const drop = [...live].reverse().find((e) => e.mark) || live[live.length - 1];
     drop.dropped = true; if (drop.box) drop.box.style.display = "none";
