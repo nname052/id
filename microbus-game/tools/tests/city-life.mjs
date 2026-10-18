@@ -39,7 +39,7 @@ const r = await page.evaluate(async () => {
       tr.update(dt, g.player, cam);
       cr.update(dt, cam, ph, { x: fx, z: fz });
       for (const c of [...tr.cars, ...tr.parked]) {
-        const vis = c.on && !c.off && c.rig.root.visible;
+        const vis = c.on && !c.off && (c.rig.root.visible || !!c.lod?.visible);
         const was = wasVis.get(c) || false;
         if (vis !== was && steps > 2) {
           const dx = c.x - cam.x, dz = c.z - cam.z, d = Math.hypot(dx, dz), inCone = (dx * fx + dz * fz) / (d || 1) > 0.6;

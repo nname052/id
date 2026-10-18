@@ -7,6 +7,7 @@
 // =====================================================================
 import { edgePoint, edgesNear } from './ShibinData.js';
 import { CAR_COLORS } from '../../vehicles/CarModels.js';
+import { makeLodMesh } from '../../vehicles/TrafficLod.js';
 
 const TYPES = ['sedan', 'boxy', 'taxi', 'microbus', 'sedan', 'taxi', 'boxy', 'sedan'];
 const ACTIVE_R = 230, SPAWN_MIN = 70, DESPAWN_R = 280;
@@ -24,13 +25,16 @@ export class ShibinTraffic {
     this.viewDist = 170;
     this.night = false;
     this.max = count;
+    this.lodNear = 38;
     this.active = count;
     for (let i = 0; i < count; i++) {
       const type = TYPES[i % TYPES.length];
       const rig = makeCar(type, CAR_COLORS[Math.floor(this.R() * CAR_COLORS.length)]);
       rig.root.visible = false;
       scene.add(rig.root);
-      this.cars.push({
+      const lod = makeLodMesh(rig.root);
+      if (lod) scene.add(lod);
+      this.cars.push({ lod,
         rig, type, on: false, off: false, len: rig.length || 4.4, width: rig.width || 1.8, mass: type === 'microbus' ? 2400 : 1250,
         e: null, dir: 1, s: 0, v: 0, acc: 0, vMul: 0.85 + this.R() * 0.3, lane: 0, next: null, turn: null, hold: null,
         x: 0, y: 0, z: 0, yaw: 0, spin: 0, bumped: 0, kox: 0, koz: 0, honk: 3 + this.R() * 5, waitPlayer: 0, visible: false, stuck: 0,
@@ -44,10 +48,24 @@ export class ShibinTraffic {
       rig.root.visible = false;
       rig.root.traverse((o) => { if (o.isMesh) o.castShadow = false; });
       scene.add(rig.root);
+      const lod = makeLodMesh(rig.root);
+      if (lod) scene.add(lod);
       const len = type === 'microbus' ? 4.9 : rig.length || 4.4, width = type === 'microbus' ? 1.9 : rig.width || 1.8;
-      this.parked.push({ rig, type, on: false, len, width, x: 0, y: 0, z: 0, yaw: 0,
+      this.parked.push({ lod, rig, type, on: false, len, width, x: 0, y: 0, z: 0, yaw: 0,
         col: { cx: 0, cz: 0, hx: width / 2, hz: len / 2, angle: 0, mass: 2200, restitution: 0.12, vx: 0, vz: 0, kind: 'car' } });
     }
+  }
+
+  /** القريب = العربية الكاملة، الأبعد = نسخة مخبوزة (draw call واحد) — بهامش عشان مايترعشش عند الحد */
+  _show(o, vis, d2) {
+    const R = this.lodNear, useLod = !!o.lod && vis && d2 > (o._useLod ? (R - 5) * (R - 5) : R * R);
+    o._useLod = useLod;
+    o.rig.root.visible = vis && !useLod;
+    if (o.lod) {
+      o.lod.visible = useLod;
+      if (useLod) { o.lod.position.set(o.x, o.y, o.z); o.lod.rotation.set(0, o.yaw, 0); }
+    }
+    return useLod;
   }
 
   /** مكان ركنة على الوصلة دي (إزاحة من النص) أو null لو الشارع ضيق (العربية المركونة هتقفل حارة المرور) */
@@ -96,12 +114,13 @@ export class ShibinTraffic {
     let n = 0;
     const far2 = this.viewDist * this.viewDist;
     for (const q of this.parked) {
-      if (q.off) { if (q.on) { q.on = false; q.rig.root.visible = false; } continue; }
+      if (q.off) { if (q.on) { q.on = false; this._show(q, false, 0); } continue; }
       if (q.on) {
         const d2 = (q.x - px) ** 2 + (q.z - pz) ** 2;
         // بتتشال بس لما تبقى بعيدة جدًا (برا مدى الرؤية) → مفيش اختفا قدام عينك
-        if (d2 > 240 * 240) { q.on = false; q.rig.root.visible = false; continue; }
-        q.rig.root.visible = (q.x - cx) ** 2 + (q.z - cz) ** 2 < far2;
+        if (d2 > 240 * 240) { q.on = false; this._show(q, false, 0); continue; }
+        const dc2 = (q.x - cx) ** 2 + (q.z - cz) ** 2;
+        this._show(q, dc2 < far2, dc2);
       } else if (n++ < (first ? 99 : 1)) this._spawnParked(q, px, pz, fx, fz, first);
     }
   }
@@ -303,9 +322,10 @@ export class ShibinTraffic {
     for (const c of this.cars) {
       const r = c.rig;
       const vis = c.on && !c.off && (c.x - cx) ** 2 + (c.z - cz) ** 2 < far2;
-      c.visible = vis; r.root.visible = vis;
-      if (!vis) continue;
-      const d2 = (c.x - cx) ** 2 + (c.z - cz) ** 2, near = d2 < 70 * 70, shadow = d2 < 45 * 45;
+      c.visible = vis;
+      const d2 = (c.x - cx) ** 2 + (c.z - cz) ** 2;
+      if (this._show(c, vis, d2) || !vis) continue;
+      const near = d2 < 70 * 70, shadow = d2 < 45 * 45;
       if (near !== c._near) { c._near = near; for (const w of r.wheels || []) w.group.visible = near; }
       if (shadow !== c._shadow) { c._shadow = shadow; r.root.traverse((o) => { if (o.isMesh && o.userData.role !== 'glass' && o.userData.role !== 'shadow') o.castShadow = shadow; }); }
       r.root.position.set(c.x, c.y, c.z);

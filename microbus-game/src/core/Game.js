@@ -55,7 +55,7 @@ import { TouchControls, isTouchDevice } from '../ui/TouchControls.js';
 
 const FIXED_DT = 1 / 120;
 /** مستوى الجودة من الإعدادات المحفوظة: التلقائي = متوسطة على الموبايل وعالية على الكمبيوتر */
-function resolveTier(v, mobile) { return ['low', 'med', 'high', 'ultra'].includes(v) ? v : mobile ? 'med' : 'high'; }
+function resolveTier(v, mobile) { return ['low', 'med', 'high', 'ultra'].includes(v) ? v : v === 'saver' ? 'low' : mobile ? 'med' : 'high'; }
 import { sampleAt } from '../world/Route.js';
 const sampleZoneName = (s) => sampleAt(s - 450).zone;
 const nextFrame = () => new Promise((r) => requestAnimationFrame(() => r()));
@@ -177,6 +177,9 @@ export class Game {
       this.crowdBase = this.mobile ? 70 : 130;
       this.crowd = new ShibinCrowd(this.scene, this.world, { count: this.crowdBase });
       this.crowd.traffic = this.traffic; this.traffic.crowd = this.crowd;
+      // المرايات مش بترسم هالات/بقع نور الأعمدة (ديكور)
+      PlayerVehicle.mirrorHide = [this.world.lamps?.glow, this.world.lamps?.pools].filter(Boolean);
+      this.traffic.lodNear = this.mobile || this.tier === 'low' ? 30 : 38;
       this.statics = [];
     } else {
       this.traffic = new TrafficSystem(this.scene, this.lights, (type, color, o) => this._makeCar(type, color, o), this.audio, { perLane: this.mobile ? 11 : 16, sideMul: this.mobile ? 1.5 : 1 });
@@ -347,6 +350,17 @@ export class Game {
     this.acc = 0;
     this.lampTimer = 0;
     renderer.setAnimationLoop((t) => this._tick(t));
+    // الصفحة مستخبية (تاب تاني/التطبيق في الخلفية): مفيش رسم ولا فيزيا ولا مرور ولا صوت خالص
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        this.paused = true; renderer.setAnimationLoop(null);
+        this.audio?.ctx?.state === 'running' && this.audio.ctx.suspend().catch(() => {});
+      } else if (this.paused) {
+        this.paused = false; this.clock.getDelta(); this._tickT = undefined; this._tickAcc = 0;
+        renderer.setAnimationLoop((t) => this._tick(t));
+        this.audio?.ctx?.state === 'suspended' && !this.audio.muted && this.audio.ctx.resume().catch(() => {});
+      }
+    });
     S('جاهز!', 1);
   }
 
@@ -459,7 +473,9 @@ export class Game {
     const v = this.settings?.get('fpsCap') ?? 'auto';
     if (v === 'max') return 0;
     if (v !== 'auto') return +v;
-    if (!this.mobile) return 0;
+    // موفّر البطارية: 30 دايمًا. الكمبيوتر: 60 (شاشات 120 هرتز كانت بترسم 120 فريم = سخونة من غير فايدة)
+    if (this.settings?.get('graphics') === 'saver') return 30;
+    if (!this.mobile) return 60;
     const L = this._q?.level ?? 2;
     return L >= 3 ? 30 : L >= 1 ? 45 : 60;
   }
@@ -523,9 +539,12 @@ export class Game {
     // الجودة الواطية بتقلل الدقة وبتحدّث الضل كل كام فريم بدل كل فريم
     this.env.sun.castShadow = this.settings?.get('shadows') !== 'off';
     this.shadowEvery = level >= 4 ? 3 : level >= 3 ? 2 : this.mobile && level >= 1 ? 2 : 1;
+    // مسافة الضل: أقصر في الجودة الأقل = حاجات أقل في رسمة الضل (ودقة أحسن في نفس الخريطة)
+    { const ext = level >= 4 ? 32 : level >= 3 ? 40 : level >= 2 ? 50 : 60, C = this.env.sun.shadow.camera;
+      if (C.right !== ext) { C.left = -ext; C.right = ext; C.top = ext; C.bottom = -ext; C.updateProjectionMatrix(); } }
     const L = Math.max(0, level), far = level < 0 ? 1.25 : [1, 0.95, 0.85, 0.75, 0.65][L];
     this.player.mirrorSkip = [0, 1, 2, 3, 5][L];
-    this._qCrowd = [1, 0.9, 0.75, 0.6, 0.5][L];
+    this._qCrowd = [1, 0.9, 0.75, 0.6, 0.5][L] * (this.saver ? 0.8 : 1);
     this._applySetting('crowd', this.settings?.get('crowd') ?? 'normal');
     this.traffic.viewDist = (this.mobile ? 190 : 260) * far;
     this.viewDist = (this.mobile ? 380 : 560) * far;
@@ -677,10 +696,13 @@ export class Game {
         if (rig.eyeBase) { const o = { near: [-0.16, -0.03], normal: [0, 0], back: [0.14, 0.04] }[v] || [0, 0]; rig.eye.position.set(rig.eyeBase.x, rig.eyeBase.y + o[1], rig.eyeBase.z + o[0]); }
         break;
       }
-      case 'mirrorQuality': this.player.setMirrorQuality(v); break;
+      case 'mirrorQuality': this.player.setMirrorQuality(this.saver ? 'saver' : v); break;
       case 'livery': for (const P of Object.values(this.vehicles || {})) this._applyLivery(P, v); break;
       case 'graphics': {
-        const fixed = { low: 3, med: 2, high: 0, ultra: -1 }[v];
+        const fixed = { saver: 4, low: 3, med: 2, high: 0, ultra: -1 }[v];
+        this.saver = v === 'saver';
+        this.player.setMirrorQuality(this.saver ? 'saver' : this.settings.get('mirrorQuality'));
+        if (this.saver && this.settings.get('crowd') !== 'low') this._applySetting('crowd', this.settings.get('crowd'));
         const q = (this._q ||= { t: 0, frames: 0, level: this.mobile ? 2 : 0, good: 0, cooldown: 3 });
         if (fixed !== undefined) { q.level = fixed; this._applyQuality(fixed, this.fps || 0); }
         else { q.level = this.mobile ? 2 : 0; q.cooldown = 2; this._applyQuality(q.level, this.fps || 0); }
@@ -828,7 +850,8 @@ export class Game {
 
     // أقرب أعمدة نور بالليل
     this.lampTimer -= dt;
-    if (this.lampTimer <= 0 && this.env.preset.lampsOn) {
+    if (this.saver && this.lampLights.length && this.lampLights[0].intensity) for (const l of this.lampLights) l.intensity = 0;
+    if (this.lampTimer <= 0 && this.env.preset.lampsOn && !this.saver) {
       this.lampTimer = 0.4;
       // أقرب N أعمدة (اختيار من غير ما نعمل مصفوفات جديدة كل مرة)
       const c = this.camera.position, L = this.lampLights, n = L.length;

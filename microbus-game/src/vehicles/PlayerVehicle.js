@@ -168,10 +168,20 @@ export class PlayerVehicle {
     // المرايات مش محتاجة تعيد رسم خريطة الضلال (أغلى جزء) — بتستخدم بتاعة الفريم
     const sAuto = renderer.shadowMap.autoUpdate;
     renderer.shadowMap.autoUpdate = false;
+    // المراية رؤية ثانوية: مسافة رسم أقصر حسب الجودة، ومن غير اللي مايفرقش فيها:
+    // صالون العربية نفسها (~45 draw call) في المرايات الجانبية، وديكور الليل (هالات/بقع النور) والحاجات اللي Game بيحددها
+    cam.far = Math.min(m.side === 0 ? 70 : 130, this.mirrorFar || 130);
+    if (cam.far !== mc._far) { mc._far = cam.far; cam.updateProjectionMatrix(); }
+    const hide = this._mirrorHideList || (this._mirrorHideList = []);
+    hide.length = 0;
+    if (m.side !== 0 && this.rig.interiorGroup?.visible) hide.push(this.rig.interiorGroup);
+    for (const o of this.mirrorHide || PlayerVehicle.mirrorHide || []) if (o?.visible) hide.push(o);
+    for (const o of hide) o.visible = false;
     try {
       renderer.setRenderTarget(rt);
       renderer.render(scene, cam);
       renderer.setRenderTarget(null);
+      for (const o of hide) o.visible = true;
       renderer.shadowMap.autoUpdate = sAuto;
       mc.renders++;
       mc.error = null;
@@ -185,6 +195,7 @@ export class PlayerVehicle {
         mc.blank = mx === 0;
       }
     } catch (e) {
+      for (const o of hide) o.visible = true;
       renderer.setRenderTarget(null);
       renderer.shadowMap.autoUpdate = sAuto;
       mc.error = e?.message || String(e);
@@ -193,10 +204,12 @@ export class PlayerVehicle {
 
   /** جودة المرايات: low | med | high (دقة الصورة + كل كام فريم بتتحدّث) */
   setMirrorQuality(q) {
-    const scale = { low: 0.55, med: 0.78, high: 1 }[q] || 1;
-    // كل ما الجودة أعلى المرايات بتتحدّث أكتر (العربيات اللي ورا بتتحرك أنعم)
-    this.mirrorQualitySkip = { low: 1, med: 0, high: 0 }[q] ?? 0;
-    this.mirrorsPerFrame = q === 'high' ? 2 : 1;
+    const scale = { saver: 0.45, low: 0.55, med: 0.78, high: 1 }[q] || 1;
+    // كل ما الجودة أعلى المرايات بتتحدّث أكتر (العربيات اللي ورا بتتحرك أنعم).
+    // (العالي كان بيرسم مرايتين كل فريم = المشهد 3 مرات في الفريم → سخونة؛ دلوقتي مراية واحدة كل فريم بالتبادل)
+    this.mirrorQualitySkip = { saver: 2, low: 1, med: 1, high: 0 }[q] ?? 0;
+    this.mirrorsPerFrame = 1;
+    this.mirrorFar = { saver: 55, low: 70, med: 95, high: 130 }[q] || 130;
     for (const mc of this.mirrorCams || []) {
       mc.base ||= [mc.rt.width, mc.rt.height];
       mc.rt.setSize(Math.round(mc.base[0] * scale), Math.round(mc.base[1] * scale));
