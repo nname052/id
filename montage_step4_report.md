@@ -1,6 +1,6 @@
 # Montage, Step 4: professional visual editor (word-by-word subtitles, motion graphics, compositing modes, transitions, lighting)
 
-**Status: open — not accepted by the user.** Branch `autovideo-motion-v2`. The audio pipeline (S6), `grasp.js`, `rig.js`, the motion/scene code and the generation pipeline were not changed. Free tools only. Downloads you approved: faster-whisper large-v3 (≈3 GB) and two MediaPipe models (face, segmentation). The turbo model was also downloaded and tested, then not used.
+**Status: open — not accepted by the user.** Commit `7d95cd9` (branch `autovideo-motion-v2`). The audio pipeline (S6), `grasp.js`, `rig.js`, the motion/scene code and the generation pipeline were not changed. Free tools only. Downloads you approved: faster-whisper large-v3 (≈3 GB) and two MediaPipe models (face, segmentation). The turbo model was also downloaded and tested, then not used.
 
 **Test file:** your phone recording `IMG_2240.mov`, a copy in montage `2026-10-18_020e49`.
 - Final full preview: `videos/_montage/2026-10-18_020e49/work/stages/s7_preview/v13/preview.mp4`.
