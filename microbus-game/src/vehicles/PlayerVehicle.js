@@ -251,6 +251,33 @@ export class PlayerVehicle {
   }
 
   /** الليل: إضاءة التابلوه + تشغيل الكشافات تلقائيًا */
+  /** يافطة الخط ورا الزجاج الأمامي (باينة من برا للركاب، ومن جوه وشها التاني مخفي = مش بتقفل الرؤية) */
+  setLineSign(text, color = '#f2c230') {
+    const D = this.rig.dims;
+    if (this.kind !== 'microbus' || !D?.wsBase) return;
+    if (!this._lineSignMesh) {
+      this._lineSignCv = document.createElement('canvas'); this._lineSignCv.width = 256; this._lineSignCv.height = 64;
+      const t = new THREE.CanvasTexture(this._lineSignCv); t.colorSpace = THREE.SRGBColorSpace;
+      const m = new THREE.MeshBasicMaterial({ map: t, toneMapped: false });
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.16), m);
+      const [wf, wy] = D.wsBase;
+      mesh.position.set((D.HW || 0.9) * 0.45, wy + 0.1, -wf + 0.18);
+      mesh.rotation.y = Math.PI; // وشها لقدام (-z)
+      mesh.rotation.x = 0.2;
+      (this.rig.shell || this.rig.root).add(mesh);
+      this._lineSignMesh = mesh;
+    }
+    const x = this._lineSignCv.getContext('2d');
+    x.fillStyle = '#111'; x.fillRect(0, 0, 256, 64);
+    x.fillStyle = color; x.fillRect(0, 0, 10, 64); x.fillRect(246, 0, 10, 64);
+    x.fillStyle = '#ffe9a8'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.direction = 'rtl';
+    let fs = 34; x.font = `bold ${fs}px Cairo, sans-serif`;
+    while (x.measureText(text).width > 225 && fs > 14) { fs -= 2; x.font = `bold ${fs}px Cairo, sans-serif`; }
+    x.fillText(text, 128, 34);
+    this._lineSignMesh.material.map.needsUpdate = true;
+    this._lineSignMesh.visible = !!text;
+  }
+
   setNight(on) {
     this._night = on;
     if (this.rig.gauges) for (const g of Object.values(this.rig.gauges)) g.mat.emissiveIntensity = on ? 0.55 : 0.0;

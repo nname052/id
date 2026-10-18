@@ -198,6 +198,7 @@ export class Passengers {
     const first = stops[0];
     if (first && !first.waiting.length) { first.cooldown = 0; this._spawnWaiting(first); }
     if (announce) this.hud?.toast(`🚐 ${L.name}: ${wps[0].name} ← ${wps[wps.length - 1].name}`, 3.2);
+    this.player.setLineSign?.(wps[wps.length - 1].name, L.color);
     this.hud?.setJob?.(this.jobInfo());
   }
 
@@ -216,7 +217,7 @@ export class Passengers {
       // الطلب: تقدير اللعبة (عدد المحطات في الكيلو) — مش إحصائية حقيقية
       const per = (n - 1) / Math.max(0.5, L._len / 1000);
       return {
-        i, name: L.name, color: L.color, fare: L.fare, from: L.stops[0].name, to: L.stops[n - 1].name,
+        i, name: L.name, color: L.color, fare: L.fare, fareNote: L.fareNote, from: L.stops[0].name, to: L.stops[n - 1].name,
         stops: L.stops.map((x) => x.name), km: +(L._len / 1000).toFixed(1),
         demand: per > 1.6 ? 'عالي' : per > 0.9 ? 'متوسط' : 'خفيف',
         // أطراف الخط معالم حقيقية من OSM؛ المسار نفسه وكونه "خط ميكروباص" اقتراح من اللعبة لحد ما يتأكد

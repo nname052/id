@@ -13,7 +13,7 @@ export function showLinePicker(options, onPick, { title = 'اختار خط ال�
     <button class="lp-item${o.current ? ' cur' : ''}" data-i="${o.i}">
       <span class="lp-sign" style="background:${esc(o.color)}">${esc(o.name)}</span>
       <span class="lp-route"><b>${esc(o.from)}</b> ← <b>${esc(o.to)}</b></span>
-      <span class="lp-meta">${o.km} كم · ${o.stops.length} محطات · الأجرة ${o.fare} ج · الطلب ${esc(o.demand)}</span>
+      <span class="lp-meta">${o.km} كم · ${o.stops.length} محطات · الأجرة ${o.fare} ج${o.fareNote ? ` (${esc(o.fareNote)})` : ''} · الطلب ${esc(o.demand)} (تقدير اللعبة)</span>
       <span class="lp-stops">${o.stops.map(esc).join(' • ')}</span>
       ${o.verified ? '<span class="lp-ok">خط مؤكد</span>' : '<span class="lp-warn">⚠ مسار مقترح من اللعبة — مش خط رسمي متأكد منه (أطرافه أماكن حقيقية من OSM)</span>'}
     </button>`).join('')}</div>

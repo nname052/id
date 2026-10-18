@@ -5,11 +5,15 @@
 //  - بتقف ورا اللي قدامها (عربية أو إنت)، وبتكلكس لو وقفت ورااك كتير
 //  - عدد ثابت من العربيات (pool) بيتنقل حواليك: اللي بيبعد بيظهر في حتة تانية (مفيش إنشاء objects وقت اللعب)
 // =====================================================================
+import * as THREE from 'three';
 import { edgePoint, edgesNear } from './ShibinData.js';
 import { CAR_COLORS } from '../../vehicles/CarModels.js';
 import { makeLodMesh } from '../../vehicles/TrafficLod.js';
+import { findRoute } from '../../nav/RoadGraph.js';
+import { canvas, tex } from '../../render/textures.js';
 
-const TYPES = ['sedan', 'boxy', 'taxi', 'microbus', 'sedan', 'taxi', 'boxy', 'sedan'];
+const TYPES = ['sedan', 'boxy', 'taxi', 'microbus', 'sedan', 'taxi', 'tuktuk', 'microbus', 'boxy', 'moto', 'sedan', 'taxi', 'tuktuk', 'microbus'];
+const SMALL = { tuktuk: { vMul: 0.62, mass: 420 }, moto: { vMul: 0.9, mass: 220 } };
 const ACTIVE_R = 230, SPAWN_MIN = 70, DESPAWN_R = 280;
 const CLASS_W = { motorway: 3, trunk: 3, primary: 3, secondary: 2.6, tertiary: 2.2, unclassified: 1.4, residential: 1, living_street: 0.4, service: 0.25, road: 1, track: 0.15 };
 const _a = {}, _b = {};
@@ -35,8 +39,8 @@ export class ShibinTraffic {
       const lod = makeLodMesh(rig.root);
       if (lod) scene.add(lod);
       this.cars.push({ lod,
-        rig, type, on: false, off: false, len: rig.length || 4.4, width: rig.width || 1.8, mass: type === 'microbus' ? 2400 : 1250,
-        e: null, dir: 1, s: 0, v: 0, acc: 0, vMul: 0.85 + this.R() * 0.3, lane: 0, next: null, turn: null, hold: null,
+        rig, type, on: false, off: false, len: rig.length || 4.4, width: rig.width || 1.8, mass: SMALL[type]?.mass || (type === 'microbus' ? 2400 : 1250),
+        e: null, dir: 1, s: 0, v: 0, acc: 0, vMul: (SMALL[type]?.vMul || 1) * (0.85 + this.R() * 0.3), lane: 0, next: null, turn: null, hold: null,
         x: 0, y: 0, z: 0, yaw: 0, spin: 0, bumped: 0, kox: 0, koz: 0, honk: 3 + this.R() * 5, waitPlayer: 0, visible: false, stuck: 0,
       });
     }
@@ -54,6 +58,211 @@ export class ShibinTraffic {
       this.parked.push({ lod, rig, type, on: false, len, width, x: 0, y: 0, z: 0, yaw: 0,
         col: { cx: 0, cz: 0, hx: width / 2, hz: len / 2, angle: 0, mass: 2200, restitution: 0.12, vx: 0, vz: 0, kind: 'car' } });
     }
+  }
+
+  // ===================== خطوط الميكروباص (عربيات المرور شغالة على خطوط) =====================
+  /**
+   * كل خط ← مسارين (رايح/جاي) كسلسلة وصلات: {e, dir, a, b} (a,b مسافات في اتجاه السير على الوصلة)
+   * + المحطات اللي في النص (ri, s) + الموقف في الآخر. الرجوع بيتحسب لوحده (ممكن يختلف عن الرايح بسبب الاتجاه الواحد)
+   */
+  _buildLineRoutes() {
+    this.lineRoutes = [];
+    for (const L of this.world.lines || []) {
+      const pair = [];
+      for (const back of [0, 1]) {
+        const stops = back ? [...L.stops].reverse() : L.stops;
+        const route = [], marks = [];
+        let ok = true, hx = 0, hz = 0;
+        for (let k = 0; k < stops.length - 1 && ok; k++) {
+          const A = stops[k], B = stops[k + 1];
+          const r = findRoute(A.x, A.z, B.x, B.z, hx, hz);
+          if (!r?.chain) { ok = false; break; }
+          for (const el of r.chain) {
+            const Lh = el.e.length, tc = (v) => (el.dir > 0 ? v : Lh - v);
+            const a = el.s0 !== undefined ? tc(el.s0) : 0, b = el.s1 !== undefined ? tc(el.s1) : Lh;
+            if (b - a < 0.3) continue;
+            const last = route[route.length - 1];
+            if (last && last.e === el.e && last.dir === el.dir && Math.abs(last.b - a) < 2) { last.b = Math.max(last.b, b); continue; }
+            // لازم الوصلات تبقى متصلة (آخر وصلة خلصت عند العقدة اللي بتبدأ منها الجاية)
+            if (last && (last.b < last.e.length - 1 || a > 1 || (last.dir > 0 ? last.e.to : last.e.from) !== (el.dir > 0 ? el.e.from : el.e.to))) { ok = false; break; }
+            route.push({ e: el.e, dir: el.dir, a, b });
+          }
+          if (!ok || !route.length) { ok = false; break; }
+          const last = route[route.length - 1];
+          if (k < stops.length - 2) marks.push({ ri: route.length - 1, s: last.b, name: B.name });
+          const n = r.pts.length, p1 = r.pts[n - 1], p0 = r.pts[Math.max(0, n - 4)], l = Math.hypot(p1.x - p0.x, p1.z - p0.z) || 1;
+          hx = (p1.x - p0.x) / l; hz = (p1.z - p0.z) / l;
+        }
+        if (!ok || route.length < 2) { pair.push(null); continue; }
+        pair.push({ line: L, back, route, stops: marks, dest: stops[stops.length - 1].name, length: route.reduce((t, r) => t + r.b - r.a, 0) });
+      }
+      if (pair[0] && pair[1]) { pair[0].other = pair[1]; pair[1].other = pair[0]; this.lineRoutes.push(pair[0], pair[1]); }
+    }
+  }
+
+  /** يافطة الخط على قزاز الميكروباص من قدام (للعربية الكاملة بس — من بعيد مش باينة) */
+  _lineSign(c) {
+    const LR = c.line;
+    const key = `${LR.line.id}:${LR.back}`;
+    this._signMats ||= new Map();
+    let m = this._signMats.get(key);
+    if (!m) {
+      const cv = canvas(256, 64), x = cv.getContext('2d');
+      x.fillStyle = '#111'; x.fillRect(0, 0, 256, 64);
+      x.fillStyle = LR.line.color || '#f2c230'; x.fillRect(0, 0, 10, 64); x.fillRect(246, 0, 10, 64);
+      x.fillStyle = '#ffe9a8'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.direction = 'rtl';
+      let fs = 34; x.font = `bold ${fs}px Cairo, sans-serif`;
+      while (x.measureText(LR.dest).width > 225 && fs > 16) { fs -= 2; x.font = `bold ${fs}px Cairo, sans-serif`; }
+      x.fillText(LR.dest, 128, 34);
+      m = new THREE.MeshBasicMaterial({ map: tex(cv, { repeat: false }), toneMapped: false });
+      this._signMats.set(key, m);
+    }
+    let sg = c.rig.lineSign;
+    if (!sg) {
+      const bb = new THREE.Box3().setFromObject(c.rig.body || c.rig.root);
+      c.rig.root.updateMatrixWorld(true);
+      const inv = new THREE.Matrix4().copy(c.rig.root.matrixWorld).invert(); bb.applyMatrix4(inv);
+      sg = c.rig.lineSign = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.22), m);
+      sg.position.set(0, bb.max.y - 0.42, bb.min.z - 0.01); sg.rotation.y = Math.PI;
+      (c.rig.body || c.rig.root).add(sg);
+    }
+    sg.material = m;
+  }
+
+  _spawnLine(c, px, pz) {
+    const LRs = this.lineRoutes;
+    for (let t = 0; t < 14; t++) {
+      const LR = LRs[Math.floor(this.R() * LRs.length)];
+      const ri = Math.floor(this.R() * LR.route.length), el = LR.route[ri];
+      const sT = el.a + this.R() * (el.b - el.a);
+      this._at(el.e, el.dir, sT, 0, _b);
+      const d = Math.hypot(_b.x - px, _b.z - pz);
+      if (d < (this._first ? 25 : SPAWN_MIN) || d > ACTIVE_R) continue;
+      if (!this._first && this._inView(_b.x, _b.z)) continue;
+      if (this.cars.some((o) => o.on && (o.x - _b.x) ** 2 + (o.z - _b.z) ** 2 < 14 * 14)) continue;
+      if (this.parked.some((q) => q.on && (q.x - _b.x) ** 2 + (q.z - _b.z) ** 2 < 8 * 8)) continue;
+      c.line = LR; c.ri = ri;
+      c.stopIdx = LR.stops.findIndex((st) => st.ri > ri || (st.ri === ri && st.s > sT + 3));
+      if (c.stopIdx < 0) c.stopIdx = LR.stops.length;
+      c.cap = 14; c.paxN = 2 + Math.floor(this.R() * 10); c.lstate = 'run'; c.atTerminal = false;
+      this._lineSign(c);
+      return { e: el.e, dir: el.dir, s: sT };
+    }
+    return null;
+  }
+
+  /** شغل الميكروباص على خطه: يقف في محطات الخط بالترتيب، وفي آخر الخط يستنى في الموقف ويرجع */
+  _lineJob(c, dt, target) {
+    const LR = c.line, el = LR.route[c.ri];
+    if (!el || c.e !== el.e) return target;
+    if (c.dwell > 0) {
+      c.dwell -= dt; c.v = 0;
+      if (c.dwell <= 0) {
+        c.pull = null;
+        if (c.atTerminal) {
+          // رحلة الرجوع: لو بتبدأ من نفس الوصلة ونفس الاتجاه نكمل على طول، لو عكسه = لفة في الموقف (لما محدش شايف)
+          const O = LR.other, f = O.route[0];
+          if (f.e === c.e && f.dir === c.dir) { c.line = O; c.ri = 0; }
+          else if (f.e === c.e && f.dir === -c.dir) {
+            if (c.visible && (c.uWait = (c.uWait || 0) + 1) < 4) { c.dwell = 5; return 0; }
+            c.line = O; c.ri = 0; c.dir = f.dir; c.s = Math.max(f.a, Math.min(f.b, c.e.length - c.s)); c.lane = c.laneHome = this._laneOff(c.e); c.uWait = 0;
+          } else { c.line = null; return target; }
+          c.atTerminal = false; c.lstate = 'run'; c.stopIdx = 0; c.paxN = 6 + Math.floor(this.R() * 9);
+          this._lineSign(c);
+        } else c.lstate = 'run';
+      }
+      return 0;
+    }
+    // المحطة الجاية على نفس الوصلة، أو الموقف لو دي آخر وصلة
+    let haltS = null, kind = null;
+    const st = LR.stops[c.stopIdx];
+    if (st && st.ri === c.ri) { haltS = st.s; kind = 'stop'; }
+    else if (c.ri === LR.route.length - 1) { haltS = el.b; kind = 'terminal'; }
+    if (st && st.ri < c.ri) c.stopIdx++; // عدّاها (مثلًا اتولد بعدها)
+    if (haltS === null) return target;
+    const rem = haltS - c.s;
+    if (rem < -3) { if (kind === 'stop') c.stopIdx++; c.pull = null; return target; }
+    if (rem > 70) return target;
+    if (!c.pull) c.pull = { s: haltS, curb: Math.max(c.lane, Math.min(c.e.half - 1.15, c.e.half * 0.8)), lane0: c.lane, kind };
+    const P = c.pull;
+    const k = Math.max(0, Math.min(1, 1 - (rem - 2) / 25));
+    c.lane = P.lane0 + (P.curb - P.lane0) * k;
+    if (rem < 1.0) {
+      if (kind === 'terminal') { c.dwell = 25 + this.R() * 25; c.atTerminal = true; c.lstate = 'terminal'; c.paxN = 0; c.trips = (c.trips || 0) + 1; }
+      else { c.dwell = 5 + this.R() * 8; c.lstate = 'stop'; c.stopIdx++; c.paxN = Math.max(0, Math.min(c.cap, c.paxN - Math.floor(this.R() * 4) + Math.floor(this.R() * 5))); }
+      return 0;
+    }
+    return Math.min(target, Math.sqrt(2 * 1.8 * Math.max(0, rem)) + 0.3);
+  }
+
+  /** الميكروباص البعيد (Tier C): بيتقدم على مساره بسرعة متوسطة، بيقف في المحطات والموقف، وبيرجع يظهر لما يقرب ويبقى برا عينك */
+  _virtualStep(c, dt, k, px, pz) {
+    c._vAcc = (c._vAcc || 0) + dt;
+    if (k % 3) return;
+    dt = Math.min(0.5, c._vAcc); c._vAcc = 0;
+    let LR = c.line;
+    if (c.vdwell > 0) {
+      c.vdwell -= dt;
+      if (c.vdwell <= 0 && c.atTerminal) { LR = c.line = LR.other; c.ri = 0; c.s = LR.route[0].a; c.stopIdx = 0; c.atTerminal = false; c.paxN = 6 + Math.floor(this.R() * 9); }
+      if (c.vdwell <= 0) c.lstate = 'run';
+    } else {
+      const el = LR.route[c.ri];
+      let ns = c.s + 8.5 * dt;
+      const st = LR.stops[c.stopIdx];
+      if (st && st.ri === c.ri && c.s <= st.s && ns >= st.s) { ns = st.s; c.vdwell = 6 + this.R() * 6; c.stopIdx++; c.lstate = 'stop'; }
+      if (ns >= el.b) {
+        if (c.ri < LR.route.length - 1) { c.ri++; ns = LR.route[c.ri].a; }
+        else { ns = el.b; c.vdwell = 25 + this.R() * 25; c.atTerminal = true; c.lstate = 'terminal'; c.trips = (c.trips || 0) + 1; }
+      }
+      c.s = ns;
+    }
+    const el = LR.route[c.ri];
+    c.e = el.e; c.dir = el.dir;
+    this._at(el.e, el.dir, c.s, 0, _b);
+    c.x = _b.x; c.z = _b.z; c.y = _b.y;
+    // يرجع عربية حقيقية: جوه نطاق المرور، برا عين الكاميرا، ومفيش حد مكانه
+    const d2 = (c.x - px) ** 2 + (c.z - pz) ** 2;
+    if (d2 < ACTIVE_R * ACTIVE_R && !c.off && !this._inView(c.x, c.z) && !this.cars.some((o) => o !== c && o.on && (o.x - c.x) ** 2 + (o.z - c.z) ** 2 < 12 * 12)) {
+      c.virtual = false; c.on = true;
+      c.lane = c.laneHome = this._laneOff(el.e); c.turn = null; c.next = null; c.hold = null; c.deadEnd = false; c.pull = null;
+      c.dwell = Math.max(0, c.vdwell || 0); c.vdwell = 0; c.v = c.dwell > 0 ? 0 : 5; c.bumped = 0; c.kox = c.koz = 0; c.stuck = 0;
+      this._at(el.e, el.dir, c.s, c.lane, _a); c.lastDx = _a.dx; c.lastDz = _a.dz;
+      if (c.rig.lineSign) c.rig.lineSign.visible = true;
+      this._place(c);
+    }
+  }
+
+  /** حارة تانية في نفس الاتجاه لو الطريق فيه أكتر من حارة (للتخطي) — بيرجّع الإزاحات المتاحة */
+  _laneSet(e) {
+    if (!e.oneway) return (e.lanes || 2) >= 4 ? [0.25 * e.half, 0.75 * e.half] : null;
+    const n = Math.max(1, e.lanes || 1);
+    if (n < 2) return null;
+    const out = []; for (let k = 0; k < n; k++) out.push(-e.half + (k + 0.5) * (e.width / n));
+    return out;
+  }
+
+  /** تخطي آمن: لو اللي قدامي واقف/بطيء والحارة اللي جنبي فاضية قدام وورا ومش قريب من تقاطع أو محطة */
+  _tryLaneChange(c, gap, vLead) {
+    if (c.turn || c.pull || c.dwell > 0 || (c.lcCd > 0) || gap > 28 || vLead > Math.max(2, c.v * 0.6)) return;
+    const set = this._laneSet(c.e); if (!set) return;
+    if (c.e.length - c.s < 35 || c.s < 8) return;
+    const hx = c.lastDx, hz = c.lastDz;
+    let best = null;
+    for (const off of set) {
+      if (Math.abs(off - c.laneHome) < 0.8) continue;
+      let free = true;
+      for (const o of this.cars) {
+        if (o === c || !o.on || o.off) continue;
+        const dx = o.x - c.x, dz = o.z - c.z; if (Math.abs(dx) > 40 || Math.abs(dz) > 40) continue;
+        const lon = dx * hx + dz * hz, lat = dx * -hz + dz * hx; // lat > 0 = يمين
+        const laneLat = off - c.lane;
+        if (Math.abs(lat - laneLat) < 1.6 + o.width / 2 && lon > -14 && lon < 22) { free = false; break; }
+      }
+      if (free && (!best || Math.abs(off - c.lane) < Math.abs(best - c.lane))) best = off;
+    }
+    c.lcCd = 3;
+    if (best === null) return;
+    c.laneHome = best; c.lcCd = 8; c.laneChanges = (c.laneChanges || 0) + 1;
   }
 
   /** القريب = العربية الكاملة، الأبعد = نسخة مخبوزة (draw call واحد) — بهامش عشان مايترعشش عند الحد */
@@ -160,6 +369,12 @@ export class ShibinTraffic {
 
   /** اختيار الوصلة الجاية عند التقاطع (مستقيم/طريق أكبر أحسن، مفيش رجوع إلا لو طريق مسدود) */
   _pickNext(c) {
+    if (c.line) {
+      const el = c.line.route[c.ri], nx = c.line.route[c.ri + 1];
+      if (el && nx && el.e === c.e && el.b >= c.e.length - 1) return { e: nx.e, dir: nx.dir };
+      if (el && el.e === c.e) return 'hold'; // آخر الخط/محطة في نص الوصلة: مفيش لفة
+      c.line = null; // خرج عن خطه (خبطة/زقة): يكمل كعربية عادية
+    }
     const node = this._endNode(c);
     const inDx = c.lastDx, inDz = c.lastDz;
     let tot = 0;
@@ -188,6 +403,29 @@ export class ShibinTraffic {
 
   // ===================== الظهور/الاختفاء =====================
   _spawn(c, px, pz, fx, fz) {
+    c.line = null;
+    if (c.rig.lineSign) c.rig.lineSign.visible = false;
+    if (c.type === 'microbus' && this.lineRoutes?.length && this.R() < 0.85) {
+      const p = this._spawnLine(c, px, pz);
+      if (p) {
+        c.rig.lineSign.visible = true;
+        c.e = p.e; c.dir = p.dir; c.s = p.s; c.lane = c.laneHome = this._laneOff(p.e); c.turn = null; c.next = null; c.hold = null; c.deadEnd = false; c.pull = null; c.dwell = 0;
+        c.v = Math.min(8, (p.e.speed / 3.6) * 0.6); c.on = true; c.bumped = 0; c.kox = c.koz = 0; c.stuck = 0;
+        this._at(p.e, p.dir, p.s, c.lane, _a); c.lastDx = _a.dx; c.lastDz = _a.dz;
+        this._place(c);
+        return true;
+      }
+      // مفيش مكان على خط قريب: الميكروباص بيبقى شغال على خط بعيد (حساب رخيص) لحد ما يقرب
+      if (this.R() < 0.75) {
+        const LR = this.lineRoutes[Math.floor(this.R() * this.lineRoutes.length)];
+        c.line = LR; c.ri = Math.floor(this.R() * LR.route.length); c.s = LR.route[c.ri].a; c.e = LR.route[c.ri].e; c.dir = LR.route[c.ri].dir;
+        c.stopIdx = LR.stops.findIndex((st) => st.ri >= c.ri); if (c.stopIdx < 0) c.stopIdx = LR.stops.length;
+        c.cap = 14; c.paxN = 3 + Math.floor(this.R() * 8); c.lstate = 'run'; c.atTerminal = false; c.vdwell = 0; c._vAcc = 0;
+        this._lineSign(c); c.rig.lineSign.visible = false;
+        c.virtual = true;
+        return true;
+      }
+    }
     for (let t = 0; t < 12; t++) {
       const ang = this.R() * Math.PI * 2, d = SPAWN_MIN + this.R() * (ACTIVE_R - SPAWN_MIN);
       const ux = Math.cos(ang), uz = Math.sin(ang);
@@ -195,7 +433,12 @@ export class ShibinTraffic {
       if (!this._first && d < this.viewDist + 15 && ux * fx + uz * fz > -0.35) continue;
       if (this._first && d < 25) continue;
       const near = edgesNear(this.graph, px + ux * d, pz + uz * d, 30, this._near || (this._near = []));
-      const cand = near.filter((e) => !e.closed && !e.noAccess && e.length > 12 && (CLASS_W[e.cls.replace('_link', '')] || 0) >= 0.4);
+      const small = c.type === 'tuktuk' || c.type === 'moto';
+      const cand = near.filter((e) => !e.closed && !e.noAccess && e.length > 12 && (CLASS_W[e.cls.replace('_link', '')] || 0) >= 0.4 && !(c.type === 'tuktuk' && ['primary', 'trunk', 'motorway'].includes(e.cls)));
+      void small;
+      // الزحمة مش في كل حتة بنفس الدرجة: وسط البلد/المواقف أكتر، الأطراف والغيطان أقل
+      const cx0 = px + ux * d, cz0 = pz + uz * d, urban = Math.hypot(cx0, cz0) < 1300 ? 1 : Math.hypot(cx0, cz0) < 2200 ? 0.6 : 0.3;
+      if (this.R() > urban) continue;
       if (!cand.length) continue;
       const e = cand[Math.floor(this.R() * cand.length)];
       const dir = e.oneway ? 1 : this.R() < 0.5 ? 1 : -1;
@@ -300,6 +543,7 @@ export class ShibinTraffic {
     let n = 0;
     const fr = (this._frame = (this._frame || 0) + 1);
     this._simT = (this._simT || 0) + dt;
+    if (!this.lineRoutes) this._buildLineRoutes();
     this._first = fr === 1;
     const C = this._cam || (this._cam = {});
     C.x = camPos ? camPos.x : px; C.z = camPos ? camPos.z : pz; C.fx = fx; C.fz = fz;
@@ -307,9 +551,15 @@ export class ShibinTraffic {
     for (let i = 0; i < this.cars.length; i++) {
       const c = this.cars[i];
       if (c.off) continue;
+      if (c.virtual) { this._virtualStep(c, dt, fr + i, px, pz); continue; }
       if (!c.on) { if (n++ < (this._first ? 99 : 2)) this._spawn(c, px, pz, fx, fz); continue; }
       const d2 = (c.x - px) ** 2 + (c.z - pz) ** 2;
-      if (d2 > DESPAWN_R * DESPAWN_R) { this._release(c); c.on = false; c.rig.root.visible = false; continue; }
+      if (d2 > DESPAWN_R * DESPAWN_R) {
+        this._release(c); c.on = false; c.rig.root.visible = false;
+        // ميكروباص الخط بيكمل شغله "على الورق" وهو بعيد (حساب رخيص من غير رسم) — مش بيختفي من الخط
+        if (c.line && !c.turn) { c.virtual = true; c.vdwell = 0; c.pull = null; c.dwell = 0; c._vAcc = 0; }
+        continue;
+      }
       // البعيد بيتحدّث كل 3 فريمات (بنفس الوقت الكلي) — القريب كل فريم
       c._dtAcc = (c._dtAcc || 0) + dt;
       if (d2 > 110 * 110 && (fr + i) % 3) continue;
@@ -397,7 +647,8 @@ export class ShibinTraffic {
       const rem = L - c.s;
       if (!c.next && rem < 40) {
         c.next = this._pickNext(c);
-        if (!c.next) c.deadEnd = true;
+        if (c.next === 'hold') c.next = null;
+        else if (!c.next) c.deadEnd = true;
       }
       if (c.deadEnd) {
         // طريق مقفول (اتجاه واحد/بوابة): تقف على مهلها وتتشال لما تبقى برا عينك
@@ -428,6 +679,8 @@ export class ShibinTraffic {
       }
     }
     // ===== شغل السواقين: الميكروباص (وساعات التاكسي) بيقف على جنب في أماكن الركوب يحمّل/ينزّل =====
+    c.lcCd = (c.lcCd || 0) - dt;
+    this._tryLaneChange(c, gap, vLead);
     target = this._job(c, dt, target);
     if (c.dwell > 0) { c.v = 0; c.acc = 0; this._place(c); return; }
     // ===== IDM =====
@@ -452,6 +705,7 @@ export class ShibinTraffic {
       if (c.turnU >= 1) {
         const t = c.turn, nx = c.next;
         c.e = nx.e; c.dir = nx.dir; c.s = t.T2 + (c.turnU - 1) * t.len; c.lane = c.laneHome = t.lane2;
+        if (c.line) c.ri++;
         c.turn = null; c.next = null;
       }
     } else c.s += ds;
@@ -472,6 +726,7 @@ export class ShibinTraffic {
   }
 
   _job(c, dt, target) {
+    if (c.line) return this._lineJob(c, dt, target);
     if (c.type !== 'microbus' && c.type !== 'taxi') return target;
     c.jobCd = (c.jobCd ?? 8 + this.R() * 20) - dt;
     const e = c.e;
@@ -514,6 +769,7 @@ export class ShibinTraffic {
     this.cars.forEach((c, i) => {
       const off = i >= this.active;
       if (off && c.on) { this._release(c); c.on = false; }
+      if (off) c.virtual = false;
       c.off = off;
       if (off) { c.visible = false; c.rig.root.visible = false; }
     });
@@ -546,6 +802,7 @@ export class ShibinTraffic {
     let parkedHit = 0;
     const pk = this.parked.filter((q) => q.on);
     for (const a of on) for (const q of pk) if (Math.hypot(a.x - q.x, a.z - q.z) < 1.8) parkedHit++;
-    return { active: on.length, overlaps, moving: on.filter((c) => c.v > 1).length, parked: pk.length, parkedHit };
+    const lc = this.cars.filter((c) => (c.on || c.virtual) && c.line);
+    return { active: on.length, overlaps, moving: on.filter((c) => c.v > 1).length, parked: pk.length, parkedHit, lineMicrobuses: lc.length, lineVirtual: lc.filter((c) => c.virtual).length };
   }
 }

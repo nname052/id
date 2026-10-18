@@ -73,11 +73,17 @@ export function attachJobs(world, findRoute) {
   const anchor = (id) => { const l = LP[id]; return l ? { name: l.name, x: l.rx, z: l.rz } : null; };
 
   // ===== خطوط الميكروباص =====
+  // مفيش مصدر موثوق (رسمي) لخطوط ميكروباص شبين الداخلية محطة بمحطة: كل الخطوط هنا "مسار مقترح من اللعبة"
+  // بين أماكن حقيقية من OSM (verified: false). الأجرة 6.5ج تقريبية: رقم "السرفيس داخل مدينة شبين" اللي اتنشر
+  // في الصحافة بعد تحريك الوقود (مارس 2026) — مش قرار رسمي اتأكدنا منه، فبتتعرض كتقريبي.
+  const FARE = 6.5, FARE_NOTE = 'تقريبي — حسب المنشور في الصحافة (مارس 2026)';
   const LINE_DEFS = [
-    { id: 1, name: 'خط المحطة — الجامعة', color: '#e8711a', fare: 5, from: 'station_shibin', to: 'menoufia_university' },
-    { id: 2, name: 'خط المحطة — المحطة الجديدة', color: '#2f9e5a', fare: 5, from: 'station_shibin', to: 'station_shibin_new' },
-    { id: 3, name: 'خط الاستاد — مستشفى موده', color: '#7c3aed', fare: 5, from: 'stadium', to: 'hospital_mawadda' },
-  ];
+    { id: 1, name: 'خط المحطة — الجامعة', color: '#e8711a', from: 'station_shibin', to: 'menoufia_university' },
+    { id: 2, name: 'خط المحطة — المحطة الجديدة', color: '#2f9e5a', from: 'station_shibin', to: 'station_shibin_new' },
+    { id: 3, name: 'خط الاستاد — مستشفى موده', color: '#7c3aed', from: 'stadium', to: 'hospital_mawadda' },
+    { id: 4, name: 'خط الجامعة — كلية التربية', color: '#0e7490', from: 'menoufia_university', to: 'faculty_education' },
+    { id: 5, name: 'خط البريد — مستوصف العذراء', color: '#b45309', from: 'post_office', to: 'hospital_eldazra' },
+  ].map((d) => ({ ...d, fare: FARE, fareNote: FARE_NOTE, verified: false, source: 'gameplay-approximation (endpoints: OSM landmarks)' }));
   const lines = [];
   for (const D of LINE_DEFS) {
     const a = anchor(D.from), b = anchor(D.to);
@@ -95,7 +101,7 @@ export function attachJobs(world, findRoute) {
       stops.push({ name: p.name, x: p.x, z: p.z });
     }
     stops.push({ name: b.name, x: b.x, z: b.z });
-    lines.push({ id: D.id, name: D.name, to: b.name, color: D.color, fare: D.fare, stops });
+    lines.push({ id: D.id, name: D.name, to: b.name, from: a.name, color: D.color, fare: D.fare, fareNote: D.fareNote, verified: D.verified, source: D.source, stops });
   }
   world.lines = lines.length ? lines : null;
 

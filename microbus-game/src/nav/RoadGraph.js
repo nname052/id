@@ -267,7 +267,7 @@ export function findRoute(x, z, tx, tz, fx = 0, fz = 0) {
   // نفس الوصلة: يمكن الأقصر نمشي عليها على طول
   if (A.e === B.e && !(A.e.oneway && B.s < A.s)) {
     const dir = B.s >= A.s ? 1 : -1, c = Math.abs(B.s - A.s) + back(A.dx * dir, A.dz * dir);
-    if (!best || c <= best.c) return finish(edgePart(A.e, A.s, B.s), fx, fz);
+    if (!best || c <= best.c) { const r = finish(edgePart(A.e, A.s, B.s), fx, fz); if (r) r.chain = [{ e: A.e, dir, s0: A.s, s1: B.s }]; return r; }
   }
   if (!best || !isFinite(best.c)) return null;
   // نرجع من آخر عقدة لحد البداية
@@ -281,7 +281,14 @@ export function findRoute(x, z, tx, tz, fx = 0, fz = 0) {
   }
   const tail = edgePart(B.e, best.n === B.e.from ? 0 : B.e.length, B.s);
   pts = pts.concat(tail.slice(1));
-  return finish(pts, fx, fz);
+  const r = finish(pts, fx, fz);
+  // سلسلة الوصلات (للعربيات اللي ماشية على خط ثابت): كل عنصر {e, dir(+1 من from لـ to), s0/s1 في أول وآخر وصلة}
+  if (r) r.chain = [
+    { e: A.e, dir: firstNode === A.e.from ? -1 : 1, s0: A.s },
+    ...chain.map(({ e, to }) => ({ e, dir: to === e.to ? 1 : -1 })),
+    { e: B.e, dir: best.n === B.e.from ? 1 : -1, s1: B.s },
+  ];
+  return r;
 }
 
 function finish(raw, fx = 0, fz = 0) {

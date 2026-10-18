@@ -47,6 +47,7 @@ import { setGroundProvider } from '../world/ground.js';
 import { setGraph, findRoute } from '../nav/RoadGraph.js';
 import { ShibinWorld } from '../world/shibin/ShibinWorld.js';
 import { showLinePicker } from '../ui/LinePicker.js';
+import { buildSmallTraffic } from '../vehicles/SmallTraffic.js';
 import { Radio } from '../audio/Radio.js';
 import { ShibinTraffic } from '../world/shibin/ShibinTraffic.js';
 import { ShibinCrowd } from '../world/shibin/ShibinCrowd.js';
@@ -87,6 +88,7 @@ export class Game {
     this.mobile = isTouchDevice();
     const saved = (() => { try { return JSON.parse(localStorage.getItem('egy-microbus-settings-v1') || '{}'); } catch { return {}; } })();
     this.tier = resolveTier(saved.graphics, this.mobile);
+    this.saverBoot = saved.graphics === 'saver';
     // الموبايل: من غير MSAA في الواطية/المتوسطة (أكبر توفير لحرارة كارت الشاشة بعد الدقة)
     const renderer = (this.renderer = new THREE.WebGLRenderer({ antialias: !this.mobile || this.tier === 'high' || this.tier === 'ultra', powerPreference: this.mobile ? 'default' : 'high-performance' }));
     this.basePR = Math.min(window.devicePixelRatio, this.mobile ? 1.25 : 1.5);
@@ -172,7 +174,7 @@ export class Game {
     S('المرور والمشاة...', 0.82);
     await nextFrame();
     if (this.world) {
-      this.traffic = new ShibinTraffic(this.scene, (type, color, o) => this._makeCar(type, color, o), this.audio, this.world, { count: this.tier === 'low' ? 12 : this.mobile ? 16 : 28, parked: this.tier === 'low' ? 6 : this.mobile ? 8 : 16 });
+      this.traffic = new ShibinTraffic(this.scene, (type, color, o) => this._makeCar(type, color, o), this.audio, this.world, { count: this.saverBoot ? 12 : this.tier === 'low' ? 14 : this.mobile ? 22 : 38, parked: this.tier === 'low' ? 6 : this.mobile ? 8 : 16 });
       this.traffic.viewDist = this.mobile ? 150 : 190;
       this.crowdBase = this.mobile ? 70 : 130;
       this.crowd = new ShibinCrowd(this.scene, this.world, { count: this.crowdBase });
@@ -413,6 +415,7 @@ export class Game {
   }
 
   _makeCarBody(type, color, opts = {}) {
+    if (type === 'tuktuk' || type === 'moto') return buildSmallTraffic(type);
     // التاكسي والملاكي: نفس شكل السيدان (BYD F3) — التاكسي بألوان شبين، والملاكي بألوان مختلفة.
     // geometry وشيدر مشتركين؛ كل عربية ليها خامة (نفس البرنامج) عشان فوانيس الفرامل بتاعتها لوحدها
     if ((type === 'taxi' || type === 'sedan') && !opts.parked) {
@@ -461,11 +464,26 @@ export class Game {
     if (t) this.hud.toast(`🧭 الـ GPS: ${t.name}`, 2.2);
   }
 
+  /** بداية الوردية: العربية في أول محطة الخط (الموقف) واقفة في العلامة، والباب ناحية الرصيف */
+  startLineShift() {
+    const P = this.passengers, st = P.lineStops?.[0], ph = this.player.physics;
+    if (!st || P.onboard.length) return;
+    if (Math.hypot(st.mx - ph.x, st.mz - ph.z) < 40) return;
+    for (const sgn of [1, -1]) {
+      ph.reset(st.mx, st.mz, Math.atan2(-st.ax * sgn, -st.az * sgn));
+      const [fx, fz] = ph.forward; if ((st.x - ph.x) * -fz + (st.z - ph.z) * fx > 0.5) break;
+    }
+    this.player._savePrev();
+    this.world?.updateVisibility?.(this.camera.position, this.viewDist || 560);
+    this.cams.snap = true;
+    this.hud.toast(`🚏 إنت في ${st.name} — أول الخط. الركاب هيشاوروا لك`, 3);
+  }
+
   openLinePicker() {
     const P = this.passengers;
     if (P.mode !== 'line') return;
     if (P.onboard.length) { this.hud.toast('نزّل الركاب الأول قبل ما تغيّر الخط', 2.4); return; }
-    showLinePicker(P.lineOptions(), (i) => P.selectLine(i));
+    showLinePicker(P.lineOptions(), (i) => { if (P.selectLine(i)) this.startLineShift(); });
   }
 
   /** سقف الفريمات: على الموبايل 60/120 فريم = كارت شاشة شغال على الآخر = سخونية. الافتراضي 45 (أو 30 في الواطية) */
