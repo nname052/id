@@ -47,10 +47,14 @@ const T = (x, y, z, ry = 0, sx = 1, sy = 1, sz = 1) => new THREE.Matrix4().compo
  * check(item) → true/false/undefined (undefined = لسه المربع ماتحملش، نجرب تاني بعدين)
  */
 export class NearInstancer {
-  constructor(geo, mat, { R = 200, max = 400, name = 'props', check = null, castShadow = false } = {}) {
+  constructor(geo, mat, { R = 200, max = 400, name = 'props', check = null, castShadow = false, colors = false, attrs = null } = {}) {
     this.R = R; this.max = max; this.check = check;
     this.items = []; this.grid = new Map();
+    // attrs: أسماء خصائص لكل نسخة (رقم واحد لكل عنصر، زي خانة الأطلس) → InstancedBufferAttribute
+    this.attrs = attrs ? attrs.map((n) => { const a = new THREE.InstancedBufferAttribute(new Float32Array(max), 1); a.setUsage(THREE.DynamicDrawUsage); return [n, a]; }) : null;
+    if (this.attrs) { geo = geo.clone(); for (const [n, a] of this.attrs) geo.setAttribute(n, a); }
     this.mesh = new THREE.InstancedMesh(geo, mat, max);
+    if (colors) this.mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(max * 3).fill(1), 3);
     this.mesh.name = name; this.mesh.count = 0; this.mesh.frustumCulled = false;
     this.mesh.castShadow = castShadow; this.mesh.receiveShadow = true;
     this._t = 0; this.visibleCount = 0;
@@ -60,8 +64,9 @@ export class NearInstancer {
     for (const [k, a] of this.grid) { const b = a.filter((it) => it.tag !== tag); if (b.length !== a.length) { if (b.length) this.grid.set(k, b); else this.grid.delete(k); } }
     this.items = this.items.filter((it) => it.tag !== tag);
   }
-  add(x, y, z, yaw = 0, scale = 1, sy = scale, tag) {
-    const it = { x, y, z, yaw, scale, sy, ok: undefined, tag };
+  /** ext (اختياري): { sx, sz, color: [r,g,b] linear, a: [قيم attrs بالترتيب] } */
+  add(x, y, z, yaw = 0, scale = 1, sy = scale, tag, ext) {
+    const it = { x, y, z, yaw, scale, sy, ok: undefined, tag, ext };
     this.items.push(it);
     const k = Math.floor(x / CELL) * 100003 + Math.floor(z / CELL);
     let a = this.grid.get(k); if (!a) this.grid.set(k, (a = [])); a.push(it);
@@ -85,10 +90,15 @@ export class NearInstancer {
     const M = this.mesh;
     for (let k = 0; k < pick.length; k++) {
       const it = pick[k];
-      _q.setFromAxisAngle(_Y, it.yaw); _p.set(it.x, it.y, it.z); _s.set(it.scale, it.sy, it.scale);
+      const e = it.ext;
+      _q.setFromAxisAngle(_Y, it.yaw); _p.set(it.x, it.y, it.z); _s.set(e?.sx ?? it.scale, it.sy, e?.sz ?? it.scale);
       M.setMatrixAt(k, _m.compose(_p, _q, _s));
+      if (M.instanceColor && e?.color) M.instanceColor.setXYZ(k, e.color[0], e.color[1], e.color[2]);
+      if (this.attrs && e?.a) for (let j = 0; j < this.attrs.length; j++) this.attrs[j][1].array[k] = e.a[j];
     }
     M.count = pick.length; M.instanceMatrix.needsUpdate = true;
+    if (M.instanceColor) M.instanceColor.needsUpdate = true;
+    if (this.attrs) for (const [, a] of this.attrs) a.needsUpdate = true;
     M.visible = pick.length > 0; // فاضية = مفيش draw call خالص (ولا في رسمة الضل)
     this.visibleCount = pick.length;
     void force;

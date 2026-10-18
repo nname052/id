@@ -118,11 +118,32 @@ vec3 fcol = vec3(1.0); vec3 fem = vec3(0.0);
   if (face > 3.5) {
     fcol = vec3(0.42, 0.41, 0.39) * (0.82 + 0.18 * h1(floor(vB.xz * 0.7) + seed));
   } else if (y < GF_) {
-    if (front && scell >= 0.0) { fcol = tS; fem = eS * uNight * 0.8; }
+    if (front && scell >= 0.0) {
+      fcol = tS; fem = eS * uNight * 0.8;
+      // بعض المحلات مقفولة بالصاج (باب صاج متقفل) — بيكسر تكرار صور المحلات
+      if (scell < 6.5 && h1(vec2(sbay * 3.0 + seed, 21.0)) < 0.28) {
+        vec2 fs = fract(sc);
+        float rib = 0.5 + 0.5 * sin(y * 48.0);
+        vec3 sh = mix(vec3(0.44, 0.45, 0.46), vec3(0.58, 0.59, 0.6), rib) * (0.85 + 0.25 * h1(vec2(sbay, seed + 4.0)));
+        bool inF = fs.x > 0.06 && fs.x < 0.94 && fs.y < 0.8;
+        fcol = inF ? sh * mix(0.75, 1.0, smoothstep(0.0, 0.25, fs.y)) : wall * 0.8;
+        fem = vec3(0.0);
+      }
+    }
     else fcol = wall * 0.8;
   } else if (y < top && windows) {
     fcol = brick ? tB : tP * vec3(0.86, 0.84, 0.8);
     fem = (brick ? eB : eP) * uNight * step(0.45, h1(vec2(bay + seed, row * 5.0)));
+    // عمق: أعمدة بين الفتحات + بلاطة الدور بارزة (خط فاتح وتحته ضل)
+    vec2 fw2 = fract(wc);
+    float aa2 = clamp(max(fwidth(wc.x), fwidth(wc.y)) * 3.0, 0.0, 1.0);
+    if (!brick) {
+      float pil = (1.0 - step(0.055, fw2.x)) + step(0.945, fw2.x);
+      fcol = mix(fcol, wall * 1.05, pil * (1.0 - aa2));
+    }
+    float slabL = 1.0 - step(0.06, fw2.y), shad = step(0.06, fw2.y) * (1.0 - step(0.1, fw2.y));
+    fcol = mix(fcol, (brick ? vec3(0.64, 0.63, 0.6) : wall * 1.08), slabL * (1.0 - aa2));
+    fcol *= 1.0 - 0.28 * shad * (1.0 - aa2);
   } else if (y >= top) {
     fcol = vec3(0.6, 0.59, 0.56) * (0.92 + 0.08 * h1(vec2(floor(u), seed)));
   } else fcol = wall;
@@ -149,7 +170,7 @@ diffuseColor.rgb *= fcol;`)
     // البعيد: شبابيك بسيطة من غير صور (أخف)
     if (low) sh.fragmentShader = sh.fragmentShader.replace('fcol = brick ? tB : tP * vec3(0.86, 0.84, 0.8);', 'vec2 ff = fract(wc); fcol = wall * (ff.x > 0.22 && ff.x < 0.78 && ff.y > 0.28 && ff.y < 0.8 ? 0.32 : 1.0);');
   };
-  mat.customProgramCacheKey = () => (low ? 'shibin-bld-low-3' : 'shibin-bld-3');
+  mat.customProgramCacheKey = () => (low ? 'shibin-bld-low-4' : 'shibin-bld-4');
   return mat;
 }
 

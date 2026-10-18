@@ -120,7 +120,7 @@ export class Game {
     if (this.mapId === 'shibin') {
       // ===== شبين الكوم الحقيقية: المربعات بتتحمل حوالين اللاعب، والأرض والـ GPS من نفس البيانات =====
       const t0 = performance.now();
-      this.world = await new ShibinWorld(this.M, { low: this.mobile }).init(S);
+      this.world = await new ShibinWorld(this.M, { low: this.mobile, tier: this.saverBoot ? 'low' : this.tier }).init(S);
       this.scene.add(this.world.group);
       this.route = this.world;
       setGroundProvider(this.world);

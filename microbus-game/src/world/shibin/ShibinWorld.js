@@ -6,6 +6,7 @@
 // =====================================================================
 import * as THREE from 'three';
 import { REGION_BASE, loadJSON, dropCache, buildGraph, edgePoint, edgesNear } from './ShibinData.js';
+import { StreetKit } from './ShibinStreetKit.js';
 import { buildingMaterial, buildTileBuildings, buildRealBuilding, tileKitItems, kitGeometries } from './ShibinBuildings.js';
 import { canvas, tex } from '../../render/textures.js';
 import { ShibinLamps } from './ShibinLamps.js';
@@ -19,8 +20,8 @@ export const SIDEWALK = { motorway: 0, trunk: 2, primary: 3, secondary: 2.5, ter
 const _v = new THREE.Vector3();
 
 export class ShibinWorld {
-  constructor(M, { id = 'shibin', low = false } = {}) {
-    this.M = M; this.id = id; this.low = low;
+  constructor(M, { id = 'shibin', low = false, tier = 'high' } = {}) {
+    this.M = M; this.id = id; this.low = low; this.tier = tier;
     this.base = REGION_BASE(id);
     this.group = new THREE.Group(); this.group.name = `region-${id}`;
     this.tiles = new Map();
@@ -60,6 +61,9 @@ export class ShibinWorld {
       this.kitAC = new NearInstancer(K.ac, K.mat, { R: this.low ? 70 : 110, max: this.low ? 160 : 360, name: 'ac-kit' });
       this.group.add(this.kitRoof.mesh);
       if (!this.low) this.group.add(this.kitAC.mesh); } // الموبايل: من غير تكييفات (تفصيلة صغيرة = draw call أقل)
+    // بلكونات + واجهات محلات + أعمدة كهربا وسلك + أسياخ الدور الأخير (القريب من الكاميرا بس)
+    this.streetKit = new StreetKit(this, { low: this.low || this.tier === 'low', tier: this.tier });
+    this.group.add(this.streetKit.group);
     this._ground();
     this._gates();
     this._landmarkSigns();
@@ -99,6 +103,8 @@ export class ShibinWorld {
     // الأسفلت: رقع جديدة أغمق، غطيان بلاعات، بقع زيت — كله حسابات في الـ shader (من غير صور ولا draw calls زيادة)
     const asphalt = this.M.asphalt.clone();
     asphalt.onBeforeCompile = (sh) => {
+      // لمعة الشمس على الأسفلت (لما تبص ناحية الشمس الطريق كان بيبيض كله): الأسفلت المترب مطفي تقريبًا
+      sh.fragmentShader = sh.fragmentShader.replace('#include <lights_physical_fragment>', '#include <lights_physical_fragment>\nmaterial.specularColor *= 0.3; material.specularF90 = 0.25;');
       sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec2 vAW;').replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvAW = (modelMatrix * vec4(transformed, 1.0)).xz;');
       sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
 varying vec2 vAW;
@@ -113,7 +119,7 @@ float nA(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
   diffuseColor.rgb *= mix(1.0, 0.72, patchM);
   // تفاوت لون الأسفلت + بقع زيت/تراب
   float n = nA(vAW * 0.08) * 0.6 + nA(vAW * 0.35) * 0.4;
-  diffuseColor.rgb *= mix(0.86, 1.08, n);
+  diffuseColor.rgb *= mix(0.86, 1.08, n) * 0.8; // أسفلت الدلتا أغمق من الرصيف (كان باهت قريب من لون البلاط)
   diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.5, 0.46, 0.4) * dot(diffuseColor.rgb, vec3(0.33)) * 1.7, smoothstep(0.62, 0.8, nA(vAW * 0.05 + 7.0)) * 0.35);
   // غطا بلاعة كل حوالي 25م
   vec2 mc = floor(vAW / 25.0); vec2 mp = (mc + vec2(0.3 + 0.4 * hA(mc + 3.1), 0.3 + 0.4 * hA(mc + 7.7))) * 25.0;
@@ -123,7 +129,7 @@ float nA(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
   diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.5), step(0.38, md) * step(md, 0.44) * step(0.55, hA(mc + 1.3)) * 0.6);
 }`);
     };
-    asphalt.customProgramCacheKey = () => 'shibin-asphalt-wear';
+    asphalt.customProgramCacheKey = () => 'shibin-asphalt-wear-3';
     const foot = new THREE.MeshStandardMaterial({ color: 0xa89878, roughness: 1 });
     const plain = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 });
     const concrete = new THREE.MeshStandardMaterial({ color: 0x9c9890, roughness: 0.9, side: DS });
@@ -135,6 +141,7 @@ float nA(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
     for (const m of [this.mats.bld, this.mats.bldLow]) m.userData.U.uNight.value = on ? 1 : 0;
     this.lamps?.setNight(on);
     this.landmarksLayer?.setNight(on);
+    this.streetKit?.setNight(on);
   }
 
   /**
@@ -455,7 +462,7 @@ float nA(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
     const TS = this.TS, cx = cam.x, cz = cam.z;
     this.lamps?.update(0.25, cam);
     this.landmarksLayer?.update(0.25, cam);
-    this._kitT = (this._kitT || 0) - 0.25; if (this._kitT <= 0) { this._kitT = 0.5; this.kitRoof?.update(cam); this.kitAC?.update(cam); }
+    this._kitT = (this._kitT || 0) - 0.25; if (this._kitT <= 0) { this._kitT = 0.5; this.kitRoof?.update(cam); this.kitAC?.update(cam); this.streetKit?.update(cam); }
     const tiles = this.meta.tiles;
     const r = Math.min(LOAD_R, viewDist + 120);
     const i0 = Math.floor((cx - r) / TS), i1 = Math.floor((cx + r) / TS), j0 = Math.floor((cz - r) / TS), j1 = Math.floor((cz + r) / TS);
@@ -522,7 +529,7 @@ float nA(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
       } else o.geometry.dispose();
     });
     this.stats.buildings -= T.nB;
-    this.kitRoof?.removeTag(T.name); this.kitAC?.removeTag(T.name);
+    this.kitRoof?.removeTag(T.name); this.kitAC?.removeTag(T.name); this.streetKit?.removeTile(T.name);
   }
 
   // ---------- الطرق ----------
@@ -690,6 +697,7 @@ float nA(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
       const kit = tileKitItems(Bd.gen);
       for (const [x, y, z, yaw] of kit.roofs) this.kitRoof.add(x, y, z, yaw, 1, 1, T.name);
       if (!this.low) for (const [x, y, z, yaw] of kit.acs) this.kitAC.add(x, y, z, yaw, 1, 1, T.name);
+      this.streetKit?.addTile(T.name, Bd.gen);
       for (const c of colliders) this._addCollider(c, T);
       this.stats.buildings += T.nB;
     }
