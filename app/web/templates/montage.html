@@ -107,6 +107,8 @@
         const cls = s.key === a.stage ? "on" : (i >= 0 && i < cur) || (i < 0 && s.current) ? "done" : "";
         return `<div class="ps ${cls}"><span class="dot"></span>${esc(s.label)}${s.key === a.stage ? ' <span class="spinner" style="width:14px;height:14px;border-width:2px"></span>' : ""}</div>`; }).join("")}</div>`;
     } else if (a.error) $("#autoBox").innerHTML = `<div class="note err">${esc(a.error)}</div>`;
+    else if (a.paused && (V.stages.find((s) => s.key === "s4_subs") || {}).status !== "approved")   // خطة المراجعة: وقفنا عند الترجمة
+      $("#autoBox").innerHTML = `<div class="note warn">✋ ${esc(a.paused)}. <a href="#st-s4_subs">روح للترجمة</a></div>`;
     else if (a.finished) $("#autoBox").innerHTML = `<div class="help">آخر تشغيل خلص في ${a.seconds} ث${a.note ? ` (${esc(a.note)})` : ""}.</div>`;
     else $("#autoBox").innerHTML = "";
   }
@@ -180,7 +182,7 @@
           <button data-act="propose" ${V.busy ? "disabled" : ""}>اعرض التغيير</button></div></div>`}
         ${prop}</div>`;
     }
-    return `<div class="stage-row ${isOpen ? "open" : ""}" data-key="${s.key}">
+    return `<div class="stage-row ${isOpen ? "open" : ""}" id="st-${s.key}" data-key="${s.key}">
       <button class="sr-head" data-act="toggle" aria-expanded="${isOpen}"><span class="num">${i + 1}</span><span class="nm">${esc(s.label)}</span>
         <span>${pill}</span><span class="ht">${esc(s.hint)}${s.current ? ` · v${s.current}${s.seconds ? ` · ${s.seconds} ث` : ""}` : ""}</span></button>${body}</div>`;
   }

@@ -248,6 +248,8 @@ def propose(key: str, doc: dict, text: str, wbs: dict) -> dict:
             ch["pos"] = "low" if params.get("pos") == "bottom" else "bottom"
         elif _has(r"(ستايل التيك توك|كلمة كلمة كبيرة|زي التيك توك|tiktok|bold captions)", t):
             ch["style"] = "bold"
+        elif _has(r"(زي فيديوهات التطبيق|زي المشروع|كاريوكي|karaoke)", t):
+            ch["style"] = "player"
         elif _has(r"(ترجمة عادية|سطر كامل|زي الأفلام|زي الافلام|classic)", t):
             ch["style"] = "line"
         elif _has(r"(صفرا|صفراء|أصفر|اصفر|yellow)", t):

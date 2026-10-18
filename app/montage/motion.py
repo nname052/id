@@ -210,7 +210,7 @@ def choose(idea: dict, speaker: bool, brief: dict, used_icons: set | None = None
 # ---------- 2) المكان ----------
 SIZES = {"keyword": (0.80, 0.15), "counter": (0.66, 0.17), "meter": (0.80, 0.18), "bars": (0.80, 0.20), "timeline": (0.84, 0.125), "lower_third": (0.70, 0.11),
          "title": (0.90, 0.17), "illus": (0.84, 0.30), "sticker": (0.30, 0.17), "checklist": (0.84, 0.22), "vs": (0.88, 0.16), "clock": (0.74, 0.16),
-         "doodle": (0.34, 0.19), "annotate": (0.30, 0.17)}
+         "doodle": (0.34, 0.19), "annotate": (0.26, 0.147), "visual": (0.27, 0.152)}
 STYLES = ("dark", "light", "accent", "glass", "marker")   # بتتبادل: مفيش جرافيكين ورا بعض بنفس الشكل
 ENTERS = ("pop", "slide", "wipe", "drop")
 PIP = {"9:16": (0.29, 0.055, 0.42), "16:9": (0.06, 0.12, 0.36)}   # صورتك المصغّرة: (x, y, القطر) نسبة من العرض/الارتفاع/العرض
@@ -242,7 +242,7 @@ def mask_png(D: int, out: Path) -> Path:
     return out
 
 
-def place(kind: str, occ: np.ndarray, aspect: str) -> dict | None:
+def place(kind: str, occ: np.ndarray, aspect: str, prefer_y: float | None = None, prefer_side: str | None = None) -> dict | None:
     """أحسن مستطيل فاضي للجرافيك: مفيش وش، والشخص ≤ 2% منه، بره منطقة الترجمة وبره عمود أزرار تيك توك. بيرجّع rect (نسبة) أو None."""
     from .vision import overlap_ratio
     w, h = SIZES[kind]
@@ -260,8 +260,13 @@ def place(kind: str, occ: np.ndarray, aspect: str) -> dict | None:
                 ov = overlap_ratio(occ, r)
                 if ov > 0.02:
                     continue
-                # الأفضل: أقل تداخل، وبعدين أقرب لمنتصف العرض، وأقرب لفوق
-                score = ov * 10 + abs((left + ww / 2) - 0.45) + 0.3 * top
+                # الأفضل: أقل تداخل، وبعدين (لو فيه تفضيل) قريب من ارتفاع الراس وفي الناحية المطلوبة، وإلا أقرب لمنتصف العرض وفوق
+                if prefer_y is not None:
+                    cxr = left + ww / 2
+                    side_pen = 0 if prefer_side is None else (0.0 if (cxr > 0.5) == (prefer_side == "right") else 0.25)
+                    score = ov * 10 + abs((top + hh / 2) - prefer_y) * 1.5 + side_pen + 0.15 * abs(cxr - (0.75 if prefer_side == "right" else 0.25))
+                else:
+                    score = ov * 10 + abs((left + ww / 2) - 0.45) + 0.3 * top
                 if best is None or score < best[0]:
                     best = (score, r, ov, scale)
         if best:
@@ -355,6 +360,19 @@ function setup(spec, dur){
     const hi = S.tw.findIndex(w => w.textContent.replace(/[^\p{L}]/gu,'') === (S.highlight||'').replace(/[^\p{L}]/gu,''));
     if (hi >= 0) { const w = S.tw[hi]; w.style.position = 'relative'; w.style.color = S.style === 'accent' ? 'var(--ink)' : '#fff'; w.style.webkitTextStroke = '0';
       w.insertAdjacentHTML('afterbegin', `<span class="hl" id="hl" style="inset:${-u*.1}px ${-u*.35}px ${-u*.05}px ${-u*.35}px"></span>`); }
+    return;
+  }
+  if (k === 'visual') {
+    // أيقونة ملوّنة في دايرة زجاج بيضا بضل ناعم، وحلقة بلون التأكيد بتترسم حواليها، ونقط صغيرة بتلف
+    const D = Math.min(S.bw, S.bh) * 0.9, R = D / 2;
+    r.innerHTML = `<div id="vb" style="position:absolute;left:${(S.bw-D)/2}px;top:${(S.bh-D)/2}px;width:${D}px;height:${D}px">
+      <div style="position:absolute;inset:6%;border-radius:50%;background:radial-gradient(circle at 35% 30%,#ffffff,#f1f3f7);box-shadow:0 ${u*.35}px ${u*1.1}px rgba(0,0,0,.3)"></div>
+      <svg id="ring" width="${D}" height="${D}" style="position:absolute;inset:0;overflow:visible"><circle cx="${R}" cy="${R}" r="${R*.97}" fill="none" stroke="var(--accent)" stroke-width="${u*.22}" stroke-linecap="round"
+        stroke-dasharray="${2*Math.PI*R*.97}" stroke-dashoffset="${2*Math.PI*R*.97}" transform="rotate(-90 ${R} ${R})"/></svg>
+      ${[0,1,2].map(i=>`<div class="dot" id="dt${i}" style="position:absolute;width:${u*(.55-i*.12)}px;height:${u*(.55-i*.12)}px;border-radius:50%;background:var(--accent);left:${R}px;top:${R}px"></div>`).join('')}
+      <div id="art" style="position:absolute;inset:20%">${S.svg}</div></div>`;
+    S.R = R;
+    if (!S.color) prepDraw();
     return;
   }
   if (k === 'doodle' || k === 'annotate') {
@@ -479,6 +497,7 @@ function prepDraw(){
     el.style.vectorEffect = 'non-scaling-stroke';
     const m = el.getCTM(), Ls = L * (m ? Math.hypot(m.a, m.b) : 1);
     if (S.kind === 'illus') { el.style.stroke = 'var(--ink)'; el.style.strokeWidth = (S.u*.09)+'px'; }
+    if (S.kind === 'visual') { el.style.stroke = '#2b2d42'; el.style.strokeWidth = (S.u*.2)+'px'; }
     if (S.kind === 'doodle') { el.style.stroke = '#fff'; el.style.strokeWidth = (S.u*.36)+'px'; el.style.strokeLinecap = 'round'; el.style.strokeLinejoin = 'round';
       if (filled) el.style.fill = '#fff'; }
     el.style.strokeDasharray = `${Ls} ${Ls}`; el.style.strokeDashoffset = Ls;
@@ -534,6 +553,14 @@ function render(t){
     idl.style.transform = I === 'beat' ? `scale(${1 + .09*Math.max(0, Math.sin(q*7))})` : I === 'swing' ? `rotate(${12*Math.sin(q*9)*Math.exp(-q*1.2)}deg)`
       : I === 'buzz' ? `translateX(${(Math.sin(q*60)*S.u*.12)*(Math.sin(q*3)>0?1:0)}px)` : I === 'spin' ? `rotate(${q*90}deg)` : `translateY(${Math.sin(q*3)*S.u*.15}px)`;
     if (I === 'glow') idl.style.filter = `drop-shadow(0 0 ${S.u*(.3+.3*Math.sin(q*5))}px var(--accent))`; }
+  if (k === 'visual') {
+    const vb = document.getElementById('vb'), a = back(seg(t, 0, .38)), o = eo(seg(t, D - .25, D));
+    vb.style.transform = `scale(${a * (1 - .25*o)}) rotate(${(1-a)*-14}deg) translateY(${Math.sin(t*2.2)*S.u*.18}px)`; vb.style.opacity = 1 - o;
+    const ring = document.querySelector('#ring circle'), L = +ring.getAttribute('stroke-dasharray'); ring.setAttribute('stroke-dashoffset', L*(1 - eo(seg(t, .15, .7))));
+    const art = document.getElementById('art'), ia = back(seg(t, .1, .48)); art.style.transform = `scale(${ia})`;
+    [0,1,2].forEach(i => { const d = document.getElementById('dt'+i), ang = t*(1.4 + i*.5) + i*2.1, rr = S.R*(1.05 + i*.06);
+      d.style.transform = `translate(${Math.cos(ang)*rr - 3}px, ${Math.sin(ang)*rr - 3}px)`; d.style.opacity = clamp(seg(t, .4 + i*.1, .7 + i*.1)) * (1 - o); });
+  }
   if (k === 'sticker' && S.anim) {
     const L = Math.max(1, S.lottie.op - S.lottie.ip); S.anim.goToAndStop(S.lottie.ip + ((t * S.lottie.fr) % L), true);
     const a = back(seg(t, 0, .32)); r.style.transform = `scale(${a}) rotate(${(1-a)*-25 + 4*Math.sin(t*5)}deg)`; r.style.clipPath = 'none';
@@ -572,7 +599,7 @@ def render(specs: list[dict], W: int, H: int, fps: int, out_root: Path, mood: st
                 w, h, x, y = W, H // 2, 0, H // 2
             else:
                 w, h, x, y = W, H, 0, 0
-            u = round(W / 30) if sp.get("kind") in ("doodle", "annotate") else round(min(w, H * 0.6) / 30) if mode == "overlay" else round(W / 30)   # الماركر على قد الكادر
+            u = round(W / 30) if sp.get("kind") in ("doodle", "annotate", "visual") else round(min(w, H * 0.6) / 30) if mode == "overlay" else round(W / 30)   # الماركر على قد الكادر
             spec = {**{kk: v for kk, v in sp.items() if kk not in ("rect",)}, "u": u, "icon_svg": sp.get("svg") or _icon_svg(sp.get("icon") or "sparkles"), "H": H,
                     "cy": int(H * 0.42) if mode == "explainer" else int(h * 0.16) if mode == "split" else int(h * 0.5)}   # split: المحتوى في أول النص التحتاني (50–60%)، فوق الترجمة
             if mode == "inset":   # المحتوى تحت المتكلم الصغير (فوق) وفوق الترجمة

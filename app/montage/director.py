@@ -12,6 +12,8 @@
 import json
 import re
 
+from pathlib import Path
+
 from ..config import ASSETS, LLM_MODEL
 from ..llm import claude_code
 from ..pipeline import assets as lib
@@ -19,8 +21,9 @@ from ..pipeline import drawn
 from ..store import read_json
 from .cuts import norm
 
-TEMPLATES = ["none", "sticker", "doodle", "annotate", "counter"]
-ANNOTATIONS = ["arrow_to_me", "circle_me", "sparkles", "question", "exclaim", "check", "cross", "heart", "lightning"]
+TEMPLATES = ["none", "visual", "annotate", "counter"]
+ANNOTATIONS = ["arrow_to_me", "sparkles", "question", "exclaim", "check", "cross", "heart", "lightning"]
+TASTE = Path(__file__).with_name("taste.md")
 SCHEMA = {
     "type": "object", "additionalProperties": False, "required": ["topic_en", "items"],
     "properties": {
@@ -30,24 +33,25 @@ SCHEMA = {
             "properties": {
                 "cue": {"type": "string"}, "at_word": {"type": "string"},
                 "template": {"type": "string", "enum": TEMPLATES},
-                "visual_en": {"type": "array", "items": {"type": "string"}, "description": "doodle: 1–3 كلمات إنجليزي للحاجة اللي تترسم (أهمها الأول)"},
-                "emoji": {"type": "string", "description": "للـ sticker: اسم إيموجي إنجليزي (smile, thumbs-up, fire, mind-blown, thinking...)"},
+                "visual_en": {"type": "array", "items": {"type": "string"}, "description": "visual: 1–3 كلمات إنجليزي للحاجة اللي تتشاف (أهمها الأول)"},
                 "annotation": {"type": "string", "enum": ANNOTATIONS},
                 "value": {"type": "number", "description": "counter: الرقم اللي اتقال"},
                 "why": {"type": "string"},
             }}},
     },
 }
-SYSTEM = """إنت مونتير فيديوهات قصيرة محترف (تيك توك/ريلز). قدامك تفريغ فيديو متكلم سطر سطر بالتوقيت.
-الكلام كله **مكتوب أصلًا في الترجمة**، فالموشن جرافيك **مش كلام**: صورة وحركة بتوضّح أو بتضحّك أو بتأكّد، في سياق الكلام بالظبط:
-- `sticker`: إيموجي متحرك صغير جنب الوش لمشاعر/رد فعل حقيقي في الكلام (مبسوط، مصدوم، بيفكر، زهقان).
-- `doodle`: رسمة بخط ماركر أبيض على الفيديو جنب المتكلم للحاجة اللي بيتكلم عنها (friends, phone, clock, money, heart, brain…). visual_en = الحاجة نفسها.
-- `annotate`: شخبطة بالماركر حوالين المتكلم: arrow_to_me (لما بيتكلم عن نفسه)، circle_me (تأكيد على كلامه)، sparkles (حاجة حلوة)،
-  question (سؤال/حيرة)، exclaim (مفاجأة/تحذير)، check (صح/موافق)، cross (غلط/لأ)، heart (حب/راحة)، lightning (طاقة/قوة).
+SYSTEM = """إنت مونتير فيديوهات قصيرة محترف (تيك توك/ريلز). قدامك تفريغ فيديو متكلم (اتراجع واتوافق عليه) سطر سطر بالتوقيت، وفهم المحتوى (الموضوع والأقسام).
+الكلام كله **مكتوب أصلًا في الترجمة**، فالموشن جرافيك **مش كلام**: صورة ملوّنة شيك بتوضّح الفكرة في نفس اللحظة:
+- `visual`: أيقونة ملوّنة للحاجة اللي بيتكلم عنها بالظبط (people, heart, idea, clock, money, phone, brain, home…). visual_en = الحاجة نفسها، أهم كلمة الأول.
+- `annotate`: علامة ملوّنة على قد المعنى: check (صح/موافق)، cross (غلط/لأ)، question (حيرة/سؤال)، exclaim (مفاجأة/تحذير)، sparkles (حاجة حلوة)،
+  heart (حب/راحة)، lightning (طاقة/قوة)، arrow_to_me (بيتكلم عن نفسه).
 - `counter`: بس لو اتقال رقم (value).
 - `none`: السطر مش محتاج.
-قواعد: جرافيك كل 3–6 ثواني بالكتير (أقل أحسن من زحمة)، ومش نفس النوع مرتين ورا بعض، ولازم يبقى ليه علاقة واضحة بالكلام.
-`at_word` كلمة من السطر الجرافيك يبدأ معاها بالظبط."""
+قواعد: جرافيك في كل قسم على الأقل، وحوالي واحد كل 3–6 ثواني، ونوّع، وكل واحد ليه معنى واضح في الكلام اللي بيتقال ساعتها.
+`at_word` كلمة من السطر الجرافيك يبدأ معاها بالظبط.
+
+ذوق صاحب الفيديو الثابت (التزم بيه):
+{taste}"""
 
 
 def _words(text: str) -> list[str]:
@@ -87,14 +91,38 @@ def with_negation(words: list[str], line: str) -> list[str]:
     return [x.strip("«»\"'.,،؛;:؟?!…") for x in lw[j:k]] + list(words)
 
 
-def plan(cues: list[dict], brief_text: str = "", ask_fn=None) -> dict:
-    """سطور الترجمة ← خطة جرافيك متراجعة بالكود: {"topic_en", "items": [...مقبولة], "rejected": [...+السبب]}."""
+OUTLINE_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["topic", "topic_en", "summary", "sections"],
+                  "properties": {"topic": {"type": "string"}, "topic_en": {"type": "string"}, "summary": {"type": "string"},
+                                 "sections": {"type": "array", "items": {"type": "object", "additionalProperties": False,
+                                              "required": ["from_cue", "to_cue", "title", "purpose"],
+                                              "properties": {"from_cue": {"type": "string"}, "to_cue": {"type": "string"},
+                                                             "title": {"type": "string"}, "purpose": {"type": "string"}}}}}}
+OUTLINE_SYSTEM = """إنت محرر محتوى. قدامك تفريغ فيديو متكلم سطر سطر (اتراجع واتوافق عليه).
+افهم الفيديو كأنه سكريبت: الموضوع في جملة، وملخص في سطرين، وقسّمه لأقسام (هوك/فكرة/مثال/خلاصة…) كل قسم من سطر لسطر وعنوانه وهدفه.
+اكتب بالعربي البسيط، ومن غير ما تألّف حاجة مش في الكلام."""
+
+
+def outline(cues: list[dict], ask_fn=None) -> dict:
+    """فهم المحتوى قبل الجرافيك: الموضوع والملخص والأقسام (من الترجمة اللي اتوافق عليها)."""
     lines = [f"c{k + 1} [{c['start']:.1f}–{c['end']:.1f}] {c['text']}" for k, c in enumerate(cues)]
-    user = "التفريغ:\n" + "\n".join(lines) + (f"\n\nطلب صاحب الفيديو: {brief_text}" if brief_text else "")
     try:
-        res = (ask_fn or (lambda sy, us, sc: claude_code.ask(sy, us, sc, model=LLM_MODEL)["data"]))(SYSTEM, user, SCHEMA)
+        return (ask_fn or (lambda sy, us, sc: claude_code.ask(sy, us, sc, model=LLM_MODEL)["data"]))(OUTLINE_SYSTEM, "\n".join(lines), OUTLINE_SCHEMA)
+    except Exception as e:
+        return {"error": str(e)[:200], "topic": "", "topic_en": "", "summary": "", "sections": []}
+
+
+def plan(cues: list[dict], brief_text: str = "", ask_fn=None, content: dict | None = None) -> dict:
+    """سطور الترجمة + فهم المحتوى ← خطة جرافيك متراجعة بالكود: {"topic_en", "outline", "items": [...مقبولة], "rejected": [...+السبب]}."""
+    content = content if content is not None else outline(cues, ask_fn)
+    lines = [f"c{k + 1} [{c['start']:.1f}–{c['end']:.1f}] {c['text']}" for k, c in enumerate(cues)]
+    user = (f"الموضوع: {content.get('topic')}\nالملخص: {content.get('summary')}\nالأقسام:\n"
+            + "\n".join(f"- {x['from_cue']}→{x['to_cue']}: {x['title']} ({x['purpose']})" for x in content.get("sections") or [])
+            + "\n\nالتفريغ:\n" + "\n".join(lines) + (f"\n\nطلب صاحب الفيديو: {brief_text}" if brief_text else ""))
+    system = SYSTEM.replace("{taste}", TASTE.read_text(encoding="utf-8") if TASTE.exists() else "")
+    try:
+        res = (ask_fn or (lambda sy, us, sc: claude_code.ask(sy, us, sc, model=LLM_MODEL)["data"]))(system, user, SCHEMA)
     except Exception as e:  # الجرافيك بالقواعد بيكمّل
-        return {"error": str(e)[:200], "items": [], "rejected": []}
+        return {"error": str(e)[:200], "items": [], "rejected": [], "outline": content}
     ok, bad = [], []
     for it in res.get("items") or []:
         m = re.fullmatch(r"c(\d+)", it.get("cue", ""))
@@ -108,15 +136,15 @@ def plan(cues: list[dict], brief_text: str = "", ask_fn=None) -> dict:
                    or norm(w["word"]).endswith(norm(it.get("at_word", "")) or "#")), None)
         if not at:
             bad.append({**it, "reject": f"«{it.get('at_word')}» مش في السطر"}); continue
-        if it["template"] == "doodle" and not it.get("visual_en"):
-            bad.append({**it, "reject": "doodle من غير حاجة تترسم"}); continue
+        if it["template"] == "visual" and not it.get("visual_en"):
+            bad.append({**it, "reject": "visual من غير حاجة تتشاف"}); continue
         if it["template"] == "annotate" and it.get("annotation") not in ANNOTATIONS:
             bad.append({**it, "reject": "شخبطة مش معروفة"}); continue
         if it["template"] == "counter" and (it.get("value") is None or not re.search(r"\d|" + "|".join(NUM_HINT), c["text"])):
             bad.append({**it, "reject": "مفيش رقم اتقال في السطر"}); continue
         ok.append({**it, "cue_i": k, "at": at["start"], "cue_end": c["end"]})
     ok.sort(key=lambda x: x["at"])
-    return {"topic_en": res.get("topic_en", ""), "items": ok, "rejected": bad}
+    return {"topic_en": res.get("topic_en", "") or content.get("topic_en", ""), "items": ok, "rejected": bad, "outline": content}
 
 
 # ---------- الأشكال ----------
@@ -162,6 +190,51 @@ def find_visual(kind: str, terms: list[str], used: set, idea: list[str] | None =
     return None
 
 
+COLOR_SETS = ["fluent-color", "flat-color-icons"]   # أيقونات ملوّنة (MIT): الشكل الأساسي للجرافيك (شيك وملوّن، مش خط أبيض)
+
+
+def find_color_icon(terms: list[str], used: set) -> dict | None:
+    """أيقونة ملوّنة من Iconify على قد الكلمة الأساسية (الاسم لازم فيه كلمة منها)، وبتتحفظ محلي ومتسجّلة برخصتها."""
+    import requests
+    from ..pipeline.scenes import _stem
+    for q in [terms[0], " ".join(terms[:2])] if terms else []:
+        head = {_stem(w) for w in lib._words(q)}
+        try:
+            r = requests.get("https://api.iconify.design/search", params={"query": q, "prefixes": ",".join(COLOR_SETS), "limit": 64}, headers=lib.UA, timeout=20)
+            icons = r.json().get("icons", []) if r.ok else []
+        except requests.RequestException:
+            return None
+        best = None
+        for full in icons:
+            prefix, name = full.split(":", 1)
+            words = {_stem(w) for w in lib._words(name)}
+            if not head & words:
+                continue
+            size = int(m.group(1)) if (m := re.search(r"-(\d+)$", name)) else 99
+            base = re.sub(r"-\d+$", "", name)
+            sc = (len(head & words) * 10 - len(words - head) * 2 + min(size, 48) / 48)
+            file = f"fetched/icons-color/{prefix}-{base}.svg"
+            if file in used:
+                continue
+            if best is None or sc > best[0]:
+                best = (sc, prefix, name, base, file)
+        if best:
+            _, prefix, name, base, file = best
+            path = ASSETS / file
+            if not path.exists():
+                try:
+                    svg = requests.get(f"https://api.iconify.design/{prefix}/{name}.svg", headers=lib.UA, timeout=20)
+                except requests.RequestException:
+                    return None
+                if not svg.ok or "<svg" not in svg.text:
+                    continue
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(svg.text, encoding="utf-8")
+            used.add(file)
+            return {"kind": "icon", "file": file, "name": base.replace("-", " "), "license": f"MIT ({prefix})", "color": True}
+    return None
+
+
 def svg_text(file: str) -> str:
     t = (ASSETS / file).read_text(encoding="utf-8")
     return re.sub(r"<\?xml[^>]*\?>", "", t)
@@ -174,7 +247,7 @@ def lottie_json(file: str) -> dict:
 # ---------- من الخطة لمواصفات جرافيك ----------
 IDLE = [(("heart", "love"), "beat"), (("bell", "notification", "alarm"), "swing"), (("phone", "call", "smartphone", "mobile"), "buzz"),
         (("bulb", "idea", "light", "lightbulb", "star", "sparkle"), "glow"), (("gear", "settings", "loading", "refresh", "clock", "time"), "spin")]
-DUR = {"sticker": 1.7, "doodle": 2.4, "annotate": 1.8, "counter": 2.4}
+DUR = {"visual": 2.3, "annotate": 1.8, "counter": 2.4}
 
 
 def idle_for(name: str) -> str:
@@ -187,25 +260,16 @@ def duration(it: dict) -> float:
 
 
 def to_spec(it: dict, used: set, idea_en: list[str] | None = None) -> dict | None:
-    """بند من الخطة ← مواصفات للرسم (motion.render)، أو None لو الشكل المطلوب مش موجود ولا اترسم. مفيش كلام بيظهر (الترجمة فيها الكلام)."""
+    """بند من الخطة ← مواصفات للرسم. مفيش كلام بيظهر (الكلام في الترجمة)، ومفيش إيموجي أصفر (ذوق صاحب الفيديو)."""
     tpl = it["template"]
     sp = {"kind": tpl, "title": "", "at": it["at"], "first_word": it.get("at_word"), "why": f"مخرج الجرافيك: {it.get('why', '')}",
           "visual_en": it.get("visual_en") or [], "template": tpl}
-    if tpl == "sticker":
-        e = find_emoji(it.get("emoji") or " ".join(it.get("visual_en") or []), used)
-        if not e:   # مفيش إيموجي متحرك بالاسم ده: رسمة ماركر بدله
-            tpl, sp["kind"] = "doodle", "doodle"
-            it = {**it, "visual_en": (it.get("visual_en") or []) + ([it["emoji"]] if it.get("emoji") else [])}
-        else:
-            used.add(e["file"])
-            sp.update(lottie=lottie_json(e["file"]), emoji_file=e["file"], license="CC BY 4.0 (Animated emoji by Google)")
-            return sp
-    if tpl == "doodle":
-        v = find_visual("icon", it.get("visual_en") or [], used, idea_en)
+    if tpl == "visual":
+        v = find_color_icon(it.get("visual_en") or [], used) or find_visual("icon", it.get("visual_en") or [], used, idea_en)
         if not v:
             return None
         sp.update(svg=svg_text(v["file"]), visual=v["file"], visual_name=v["name"], license=v.get("license"), drawn=bool(v.get("drawn")),
-                  idle=idle_for(v["name"] + " " + " ".join(it.get("visual_en") or [])))
+                  color=bool(v.get("color")), idle=idle_for(v["name"] + " " + " ".join(it.get("visual_en") or [])))
     elif tpl == "annotate":
         sp["annotation"] = it["annotation"]
     elif tpl == "counter":

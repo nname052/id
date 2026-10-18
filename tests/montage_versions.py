@@ -44,10 +44,15 @@ def main() -> int:
                 "edit": {"segments": [], "aspect": "9:16"}, "export": None})
     st = lambda k: stages.status(state.load(mid), k)  # noqa: E731
 
-    # 1) ضغطة واحدة ← كل المراحل لحد المعاينة الكاملة
+    # 1) ضغطة واحدة ← المراحل لحد الترجمة، وبيقف (خطة المراجعة) لحد ما توافق على الترجمة، وبعدها بيكمّل لوحده لحد المعاينة الكاملة
     todo = stages.run_all(mid, sync=True)
-    if todo != stages.PIPE or any(st(k) != "ready" for k in stages.PIPE):
-        fails.append(f"one click: todo={todo}, status={ {k: st(k) for k in stages.PIPE} }")
+    before_gate = stages.PIPE[:stages.PIPE.index(stages.REVIEW_GATE) + 1]
+    if todo != stages.PIPE or any(st(k) != "ready" for k in before_gate) or any(st(k) != "empty" for k in stages.AFTER_REVIEW) \
+            or not state.load(mid)["auto"].get("paused"):
+        fails.append(f"review gate: todo={todo}, status={ {k: st(k) for k in stages.PIPE} }")
+    stages.approve(mid, stages.REVIEW_GATE, sync=True)
+    if any(st(k) != "ready" for k in stages.AFTER_REVIEW):
+        fails.append(f"after approving subtitles: { {k: st(k) for k in stages.PIPE} }")
     # 2) التصدير قبل الموافقة: مرفوض
     try:
         stages.export(mid); fails.append("export allowed before approval")
@@ -61,6 +66,10 @@ def main() -> int:
     # 3) تعديل مرحلة واحدة (الترجمة) ← نسخة جديدة منها بس + اللي بعدها اتعاد، واللي قبلها زي ما هو
     before = versions(mid)
     stages.start(mid, "s4_subs", {"size": "large"}, origin="edit", note="الترجمة أكبر", sync=True, cascade=True)
+    # الترجمة اتعدّلت ← نسخة جديدة محتاجة موافقتك تاني، واللي بعدها بيستنى (خطة المراجعة)، وبعد الموافقة بيكمّل لوحده
+    if any(st(k) != "stale" for k in stages.AFTER_REVIEW):
+        fails.append(f"edited subtitles should pause later stages until approval: { {k: st(k) for k in stages.PIPE} }")
+    stages.approve(mid, stages.REVIEW_GATE, sync=True)
     after = versions(mid)
     changed = [k for k in stages.PIPE if after[k] != before[k]]
     if changed != ["s4_subs", "s5_graphics", "s6_audio", "s7_preview"] or any(after[k] - before[k] != 1 for k in changed):
@@ -68,7 +77,7 @@ def main() -> int:
     doc = stages.read_stage(mid, "s4_subs", state.load(mid)["stages"]["s4_subs"]["current"])
     if doc["params"]["size"] != "large" or doc["user_params"].get("size") != "large":
         fails.append("revision params not applied")
-    if any(st(k) != "ready" for k in stages.PIPE):
+    if any(st(k) not in ("ready", "approved") for k in stages.PIPE):
         fails.append(f"after revision not all fresh: { {k: st(k) for k in stages.PIPE} }")
     if stages.status(state.load(mid), "s7_preview") == "approved":
         fails.append("new preview should need approval again")

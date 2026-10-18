@@ -295,7 +295,28 @@ def _flash(d: float = 0.3) -> "np.ndarray":
     return x / (np.abs(x).max() + 1e-9)
 
 
-SFX = {"whoosh": (_whoosh, 0.22, -0.18), "pop": (_pop, 0.16, 0.0), "flash": (_flash, 0.14, -0.05)}   # (الصوت، الكسب، إزاحة البداية)
+def _ding(d: float = 0.7) -> "np.ndarray":
+    """جرس صغير: نغمتين متوافقتين بيخفّوا ببطء."""
+    import numpy as np
+    t = np.arange(int(SR * d)) / SR
+    x = (np.sin(2 * np.pi * 1318.5 * t) + 0.6 * np.sin(2 * np.pi * 1975.5 * t) + 0.25 * np.sin(2 * np.pi * 2637 * t)) * np.exp(-t * 6.5)
+    x *= np.minimum(1, t / 0.004)
+    return x / (np.abs(x).max() + 1e-9)
+
+
+def _click(d: float = 0.05) -> "np.ndarray":
+    import numpy as np
+    t = np.arange(int(SR * d)) / SR
+    x = np.sin(2 * np.pi * 2200 * t) * np.exp(-t * 160) + 0.5 * np.sin(2 * np.pi * 900 * t) * np.exp(-t * 90)
+    return x / (np.abs(x).max() + 1e-9)
+
+
+def _swoosh(seed: int = 3) -> "np.ndarray":
+    return _whoosh(0.26, seed)
+
+
+SFX = {"whoosh": (_whoosh, 0.22, -0.18), "pop": (_pop, 0.16, 0.0), "flash": (_flash, 0.14, -0.05), "ding": (_ding, 0.12, 0.0),
+       "click": (_click, 0.16, 0.0), "swoosh": (_swoosh, 0.14, -0.1)}   # (الصوت، الكسب، إزاحة البداية)
 
 
 def sfx_events(transitions: list[dict], gfx: list[dict]) -> list[dict]:
@@ -308,9 +329,18 @@ def sfx_events(transitions: list[dict], gfx: list[dict]) -> list[dict]:
             ev.append({"t": tr["t"], "sfx": "whoosh", "gain": 0.16, "why": "سحبة"})
         elif k == "jumpzoom":
             ev.append({"t": tr["t"], "sfx": "whoosh", "gain": 0.07, "why": "زووم تأكيد"})
+    n = 0
     for g in gfx:
-        if g.get("kind") in ("sticker", "doodle", "annotate"):
-            ev.append({"t": g["start"], "sfx": "pop", "gain": 0.09, "why": f"ظهور {g.get('kind')}"})
+        k, a = g.get("kind"), g.get("annotation")
+        if k == "annotate" and a in ("check", "sparkles", "heart", "lightning"):
+            ev.append({"t": g["start"] + 0.12, "sfx": "ding", "gain": 0.08, "why": f"علامة {a}"})
+        elif k == "annotate" and a in ("cross", "exclaim", "question"):
+            ev.append({"t": g["start"] + 0.08, "sfx": "click", "gain": 0.12, "why": f"علامة {a}"})
+        elif k in ("visual", "doodle", "sticker", "annotate"):
+            n += 1
+            ev.append({"t": g["start"], "sfx": "pop" if n % 2 else "swoosh", "gain": 0.1 if n % 2 else 0.08, "why": f"ظهور {k}"})
+        elif k == "counter":
+            ev.append({"t": g["start"] + 1.5, "sfx": "ding", "gain": 0.07, "why": "الرقم وصل"})
     return sorted(ev, key=lambda e: e["t"])
 
 
@@ -320,7 +350,7 @@ def sfx_track(events: list[dict], total: float, out: Path) -> Path:
     buf = np.zeros(int(SR * (total + 1)))
     for k, e in enumerate(events):
         fn, gain, off = SFX[e["sfx"]]
-        x = (fn(seed=k + 1) if e["sfx"] == "whoosh" else fn()) * e.get("gain", gain)
+        x = (fn(seed=k + 1) if e["sfx"] in ("whoosh", "swoosh") else fn()) * e.get("gain", gain)
         i = max(0, int((e["t"] + off) * SR))
         j = min(len(buf), i + len(x))
         buf[i:j] += x[:j - i]

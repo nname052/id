@@ -475,3 +475,56 @@ def render_bold(cues: list[dict], aspect: str, W: int, H: int, out_dir: Path, su
                                  "start": round(start, 3), "end": end, "text": " ".join(words), "inside_bottom_zone": True, "lines": 1, "states": states})
         b.close()
     return {"subs": subs_out, "cards": [], "overlaps": 0, "sub_font_px": fs, "card_font_px": 0}
+
+
+# ---------- ترجمة «زي فيديوهات التطبيق» (الافتراضي من 2026-10-19) ----------
+# ليه: ستايل التيك توك (كلمات كبيرة في نص الشاشة) اترفض: «الخط كبير واللون مش حلو، اعملها شبه فيديوهات المشروع ومش فوق كده».
+# فالترجمة بقت زي مشغّل التطبيق: الجملة كاملة (سطرين بالكتير) بخط متوسط تحت، اللي اتقال منوّر واللي لسه باهت، والكلمة الحالية بلون التأكيد.
+KARAOKE_FS = 0.027        # 52 بكسل في 1920 (نفس خط الترجمة في المشغّل)
+KARAOKE_ACCENT = {"white": "#7ee2b8", "yellow": "#ffd23f", "green": "#7ee2b8"}
+
+
+def render_karaoke(cues: list[dict], aspect: str, W: int, H: int, out_dir: Path, sub_style: dict) -> dict:
+    from playwright.sync_api import sync_playwright
+    out_dir.mkdir(parents=True, exist_ok=True)
+    safe = SAFE[aspect]
+    scale = {"small": 0.88, "medium": 1.0, "large": 1.15}.get(sub_style.get("size", "medium"), 1.0)
+    fs = round(H * KARAOKE_FS * scale * (1 if aspect == "9:16" else 1.35))
+    accent = KARAOKE_ACCENT.get(sub_style.get("color", "white"), "#7ee2b8")
+    max_w = int((safe["right"] - safe["left"]) * W)
+    cx = (safe["left"] + safe["right"]) / 2 * W
+    bottom = (safe["bottom"] + SUB_POS.get(sub_style.get("pos", "bottom"), 0)) * H
+    css = (f"@font-face{{font-family:Sub;src:url(data:font/ttf;base64,{_font('Alexandria-Variable.ttf')});font-weight:100 900}}"
+           f"html,body{{margin:0;background:transparent}}"
+           f"#s{{display:inline-block;max-width:{max_w}px;direction:rtl;text-align:center;text-wrap:balance;font:600 {fs}px/1.5 Sub,sans-serif;color:#fff;"
+           f"padding:{round(fs * .2)}px {round(fs * .35)}px;text-shadow:0 2px 8px rgba(0,0,0,.75),0 0 2px rgba(0,0,0,.9)}}"
+           f"#s span{{opacity:.42}}#s span.said{{opacity:1}}#s span.now{{opacity:1;color:{accent}}}")
+    subs_out = []
+    with sync_playwright() as p:
+        b = p.chromium.launch()
+        pg = b.new_page(viewport={"width": W, "height": H})
+        pg.set_content(f"<html><head><style>{css}</style></head><body><div id='s'></div></body></html>")
+        pg.evaluate("document.fonts.ready")
+        el = pg.locator("#s")
+        for k, c in enumerate(cues):
+            ws = c.get("words") or []
+            words = [_disp_sub(x["word"], i == len(ws) - 1) for i, x in enumerate(ws)]
+            bot = (c["pos_bottom"] * H) if c.get("pos_bottom") else bottom
+            states = []
+            for j in range(len(ws)):
+                pg.evaluate("""([ws, j]) => { document.getElementById('s').innerHTML = ws.map((w, i) => `<span class="${i < j ? 'said' : i === j ? 'now' : ''}">${w}</span>`).join(' '); }""", [words, j])
+                bb = el.bounding_box()
+                png = out_dir / f"k_{k + 1:03d}_{j + 1:02d}.png"
+                el.screenshot(path=str(png), omit_background=True)
+                w_, h_ = round(bb["width"]), round(bb["height"])
+                t0 = c["start"] if j == 0 else ws[j]["start"]
+                t1 = ws[j + 1]["start"] if j + 1 < len(ws) else c["end"]
+                if t1 - t0 > 0.001:
+                    states.append({"png": str(png), "start": round(t0, 3), "end": round(t1, 3), "x": round(cx - w_ / 2), "y": round(bot - h_), "w": w_, "h": h_})
+            if not states:
+                continue
+            base = states[-1]
+            subs_out.append({"id": c["id"], "png": base["png"], "x": base["x"], "y": base["y"], "w": base["w"], "h": base["h"], "start": c["start"], "end": c["end"],
+                             "inside_bottom_zone": base["y"] >= safe["top"] * H - 1, "lines": round(base["h"] / (fs * 1.5 + fs * .4)), "states": states})
+        b.close()
+    return {"subs": subs_out, "cards": [], "overlaps": 0, "sub_font_px": fs, "card_font_px": 0}

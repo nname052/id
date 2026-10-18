@@ -39,7 +39,7 @@ DEFAULTS = {
     "s1_analyze": {"language": "ar", "scene_detector": "adaptive", "adaptive_threshold": 3.0, "min_pause": 0.35, "silence_db": "auto"},
     "s2_cut": {"aspect": "9:16", "dead_air": 0.7, "breath_out": 0.22, "breath_in": 0.14, "transitions": "auto", "dissolve_frames": 0, "audio_xfade_ms": 60},
     "s3_look": {"look": "natural", "brightness": 0, "saturation": 0, "sharpen": None, "denoise": None},
-    "s4_subs": {"max_chars": 30, "min_dur": 1.2, "max_dur": 5.0, "size": "medium", "color": "white", "panel": True, "pos": "bottom", "fixes": {}, "style": "bold"},
+    "s4_subs": {"max_chars": 30, "min_dur": 1.2, "max_dur": 5.0, "size": "medium", "color": "white", "panel": True, "pos": "bottom", "fixes": {}, "style": "player"},
     "s5_graphics": {"graphics": "on", "mood": "clean", "density": "normal", "removed": []},
     "s6_audio": {"target_lufs": -14.0, "true_peak": -1.5, "music": "auto", "music_gain_db": -16.0, "duck": True, "denoise": "auto"},
     "s7_preview": {"crf": 18, "preset": "medium"},
@@ -266,8 +266,12 @@ def _auto_loop(mid: str, keys: list[str], origin_note: str | None = None, fresh:
     t0 = time.time()
     state.update(mid, lambda mm: mm.update(auto={"running": True, "todo": keys, "stage": keys[0] if keys else None, "started": t0,
                                                  "finished": None, "error": None, "note": origin_note}))
-    err = None
+    err, paused = None, None
     for k in keys:
+        # خطة المراجعة: الترجمة الأول، والمونتاج بيقف لحد ما توافق عليها (أو تصلّحها). بعد الموافقة بيكمّل لوحده من النقطة الثابتة دي
+        if k in AFTER_REVIEW and status(state.load(mid), REVIEW_GATE) != "approved":
+            paused = f"راجع «{LABELS[REVIEW_GATE]}» ووافق عليها (أو صلّح أي كلمة)، وبعدها المونتاج بيكمّل لوحده"
+            break
         state.update(mid, lambda mm: (mm["auto"].update(stage=k), record(mm, k).update(job="running", error=None)))
         _active.add((mid, k))
         try:
@@ -277,7 +281,7 @@ def _auto_loop(mid: str, keys: list[str], origin_note: str | None = None, fresh:
         if not ok:
             err = f"«{LABELS[k]}» فشلت: " + (record(state.load(mid), k).get("error") or "")
             break
-    state.update(mid, lambda mm: mm["auto"].update(running=False, stage=None, finished=time.time(), seconds=round(time.time() - t0, 1), error=err))
+    state.update(mid, lambda mm: mm["auto"].update(running=False, stage=None, finished=time.time(), seconds=round(time.time() - t0, 1), error=err, paused=paused))
 
 
 def _run_job(mid, key, params, origin, note, data_override, base_input) -> bool:
@@ -330,12 +334,23 @@ def _run_job(mid, key, params, origin, note, data_override, base_input) -> bool:
             return False
 
 
-def approve(mid: str, key: str) -> dict:
+REVIEW_GATE = "s4_subs"                                       # المراجعة الثابتة: الترجمة
+AFTER_REVIEW = ("s5_graphics", "s6_audio", "s7_preview")     # المراحل اللي ما بتشتغلش لوحدها قبل الموافقة على الترجمة
+
+
+def approve(mid: str, key: str, sync: bool = False) -> dict:
     m = state.load(mid)
     st = status(m, key)
     if st in ("empty", "stale"):
         raise Blocked("مفيش نسخة حديثة توافق عليها" if st == "empty" else "النسخة دي قديمة: دوس «اعمل المونتاج» علشان تتحدّث الأول")
-    return state.update(mid, lambda mm: record(mm, key).update(approved=record(mm, key)["current"]))
+    m = state.update(mid, lambda mm: record(mm, key).update(approved=record(mm, key)["current"]))
+    if key == REVIEW_GATE and not _busy(m):   # وافقت على الترجمة: الباقي بيكمّل لوحده من هنا
+        todo = [k for k in AFTER_REVIEW if status(m, k) in ("empty", "stale")] or []
+        if todo:
+            _auto.add(mid)
+            go = lambda: (_auto_loop(mid, todo, origin_note="بعد موافقتك على الترجمة"), _auto.discard(mid))  # noqa: E731
+            go() if sync else threading.Thread(target=go, daemon=True).start()
+    return m
 
 
 def revert(mid: str, key: str, n: int) -> dict:
@@ -852,7 +867,9 @@ def _finish_s4(ctx, data):
                     c["pos_bottom"] = round(bot, 3)
                     moved.append(c["id"])
                 break
-    if prm.get("style", "bold") == "bold":   # ستايل التيك توك (الافتراضي): 1–3 كلمات كبيرة، والكلمة الحالية منوّرة
+    if prm.get("style", "player") == "player":   # زي فيديوهات التطبيق (الافتراضي): الجملة تحت بخط متوسط، واللي اتقال منوّر
+        r = graphics.render_karaoke(data["cues"], data["aspect"], W, H, ctx["vd"] / "subs", style)
+    elif prm.get("style") == "bold":   # ستايل التيك توك: 1–3 كلمات كبيرة
         r = graphics.render_bold(data["cues"], data["aspect"], W, H, ctx["vd"] / "subs", style,
                                  faces_for=(lambda a, b: _faces_during(samples, data["segments"], a, b)) if samples else None)
     else:                                     # الستايل القديم: سطر في صندوق
@@ -871,8 +888,10 @@ def _finish_s4(ctx, data):
     data.update(subs=subs, subs_track=str(track.relative_to(ctx["d"])), sub_style=style, subs_check=sc)
     report = [f"{sc['cues']} سطر · {sc['word_states']} كلمة بتظهر كلمة كلمة مع صوتها · جوه المنطقة الآمنة تحت: {sc['inside_bottom_zone']}/{sc['cues']}",
               f"مدة السطر على الشاشة: من {sc['min_dur']} لـ {sc['max_dur']} ث · أقل من {prm['min_dur']}: {sc['under_min']} · أكتر من {prm['max_dur']}: {sc['over_max']}",
-              (f"ستايل التيك توك: {len(subs)} مجموعة (1–3 كلمات) · الخط {sc['font_px']}px = {sc['font_pct_height']}% من ارتفاع الفريم · الكلمة الحالية منوّرة · دخول بنطّة"
-               if prm.get("style", "bold") == "bold" else f"الخط {sc['font_px']}px = {sc['font_pct_height']}% من ارتفاع الفريم · خلفية غامقة خفيفة · سطرين بالكتير · السطور بتقف عند السكتات"),
+              (f"زي فيديوهات التطبيق: الجملة تحت · الخط {sc['font_px']}px = {sc['font_pct_height']}% من ارتفاع الفريم · اللي اتقال منوّر والكلمة الحالية بلون التأكيد"
+               if prm.get("style", "player") == "player" else
+               f"ستايل التيك توك: {len(subs)} مجموعة (1–3 كلمات) · الخط {sc['font_px']}px = {sc['font_pct_height']}% من ارتفاع الفريم · الكلمة الحالية منوّرة · دخول بنطّة"
+               if prm.get("style") == "bold" else f"الخط {sc['font_px']}px = {sc['font_pct_height']}% من ارتفاع الفريم · خلفية غامقة خفيفة · سطرين بالكتير · السطور بتقف عند السكتات"),
               f"فوق الوش: {face_hits if face_hits is not None else '—'} سطر" + (f" (اتحرك علشان الوش: {', '.join(moved)})" if moved else ""),
               (f"توقيت الكلمة مقابل أول صوتها (كلمات بعد سكتة، {lag['n']} كلمة): الوسيط {lag['median_ms']} مللي · أكبر {lag['max_ms']} مللي · تحت 100 مللي: {lag['under_100']}/{lag['n']}"
                if lag["n"] else "مفيش كلمات بعد سكتة واضحة علشان نقيس التأخير")]
@@ -998,7 +1017,8 @@ def run_s5(ctx):
         if prm["graphics"] != "off" and prm.get("director", "on") == "on" and inp.get("cues") else {"items": []}
     if dplan.get("items"):
         specs, log = _director_specs(dplan, its, inp, prm, samples, speaker, W, H, removed)
-    for it in ([] if dplan.get("items") else its):
+    # لو المخرج فشل: من غير جرافيك أحسن من كروت الكلام القديمة (اترفضت: «بتكتب الكلام وهو أصلًا مكتوب»)
+    for it in ([] if dplan.get("items") or prm.get("director", "on") == "on" else its):
         entry = {"idea": it["id"], "text": it["text"][:60], "start": it["start"], "end": it["end"]}
         if prm["graphics"] == "off":
             log.append({**entry, "decision": "skip", "why": "الجرافيك مقفول من الطلب"}); continue
@@ -1083,11 +1103,14 @@ def run_s5(ctx):
           "styles": [g.get("style") for g in rendered]}
     data = {**{k: v for k, v in inp.items() if k not in ("cards", "ideas", "cards_check", "card_zone", "gfx", "gfx_log", "gfx_check")},
             "cards": [], "gfx": rendered, "gfx_log": log, "gfx_check": {**cc, "items": checks}, "mood": prm["mood"],
-            "director": {"topic_en": dplan.get("topic_en"), "error": dplan.get("error"), "items": len(dplan.get("items") or []),
+            "director": {"topic_en": dplan.get("topic_en"), "error": dplan.get("error"), "items": len(dplan.get("items") or []), "outline": dplan.get("outline"),
                          "rejected": [{"cue": r.get("cue"), "template": r.get("template"), "why": r.get("reject")} for r in dplan.get("rejected") or []]}}
     credits = sorted({"Animated emoji by Google (CC BY 4.0)" for g in rendered if g.get("kind") == "sticker"})
+    ol = dplan.get("outline") or {}
+    understand = ([f"فهم المحتوى: {ol.get('topic', '')} — {ol.get('summary', '')}"] + [f"  قسم {x['from_cue']}→{x['to_cue']}: {x['title']} ({x['purpose']})" for x in ol.get("sections") or []]
+                  if ol.get("topic") else []) + ([f"⚠ مخرج الجرافيك فشل ({dplan['error']}): من غير جرافيك"] if dplan.get("error") else [])
     data["credits"] = credits
-    report = ([f"⚠ اكتب في وصف الفيديو: {', '.join(credits)} (شرط رخصة الإيموجي المتحرك)"] if credits else []) + [f"{len(rendered)} جرافيك لـ {len(its)} فكرة · الأنواع: " + "، ".join(f"{g['kind']}" for g in rendered) + f" · طرق العرض: {cc['modes']}",
+    report = understand + ([f"⚠ اكتب في وصف الفيديو: {', '.join(credits)} (شرط رخصة الإيموجي المتحرك)"] if credits else []) + [f"{len(rendered)} جرافيك لـ {len(its)} فكرة · الأنواع: " + "، ".join(f"{g['kind']}" for g in rendered) + f" · طرق العرض: {cc['modes']}",
               f"فوق الوش: {cc['face_overlaps']} · فوق الترجمة: {cc['subtitle_overlaps']} · أكبر فرق بين بداية الجرافيك وأول كلمة: {cc['max_start_lag_ms']} مللي · مربوط بالكلام: {cc['maps_to_speech']}/{len(rendered)}"]
     for e in log:
         report.append(f"{e['idea']} ({e['start']:.2f}–{e['end']:.2f}) «{e['text'][:40]}»: " + (f"اتشال ← {e['why']}" if e["decision"] == "skip" else
@@ -1122,35 +1145,20 @@ def _director_specs(dplan, its, inp, prm, samples, speaker, W, H, removed):
         sp.update(start=start, end=end, idea=entry["idea"], mode="overlay", style="marker", enter="pop")
         fb = _speaker_box(samples, inp["segments"], start, end) if samples else None
         kind = sp["kind"]
-        if kind == "counter" or not fb:
-            win = [x for t in np.linspace(start, end, 8) for x in vision.window(samples, out_to_src(inp["segments"], float(t))[1], out_to_src(inp["segments"], float(t))[1])]
-            rect = motion.place("counter" if kind == "counter" else "sticker", vision.occupancy(win), inp["aspect"])
-            if rect is None:
-                log.append({**entry, "decision": "skip", "why": "مفيش مساحة فاضية"}); continue
-            sp["rect"], sp["mode_why"] = rect, "في مساحة فاضية"
-        else:
-            fx0, fy0, fx1, fy1 = fb
-            fw, fh = fx1 - fx0, fy1 - fy0
-            room_r, room_l = 0.84 - fx1, fx0 - 0.04          # عمود أزرار تيك توك على اليمين (بعد 0.84)
-            side = side_pref if (room_r if side_pref == "right" else room_l) >= 0.22 else ("left" if side_pref == "right" else "right")
-            if kind == "annotate" and sp["annotation"] == "circle_me":
-                cx, cy, rw, rh = (fx0 + fx1) / 2, (fy0 + fy1) / 2, fw * 2.0, fh * 1.9
-                r = {"left": cx - rw / 2, "top": cy - rh / 2, "right": cx + rw / 2, "bottom": cy + rh / 2}
-                why = "دايرة حوالين راسك"
-            else:
-                w, h = {"sticker": (0.28, 0.16), "doodle": (0.34, 0.19), "annotate": (0.30, 0.17)}[kind]
-                left = fx1 + 0.03 if side == "right" else fx0 - 0.03 - w
-                top = fy0 - h * (0.55 if kind == "annotate" and sp["annotation"] in ("question", "exclaim", "sparkles", "lightning") else 0.15)
-                r = {"left": left, "top": top, "right": left + w, "bottom": top + h}
-                why = {"sticker": "إيموجي جنب الوش", "doodle": "رسمة ماركر جنبك", "annotate": "شخبطة جنبك"}[kind]
-            # جوه الكادر وفوق منطقة الترجمة
-            dx = max(0.02 - r["left"], 0) - max(r["right"] - 0.98, 0)
-            dy = max(0.04 - r["top"], 0) - max(r["bottom"] - 0.6, 0)
-            r = {k: round(v + (dx if k in ("left", "right") else dy), 3) for k, v in r.items()}
-            sp["rect"], sp["side"], sp["mode_why"] = r, side, why + f" ({'يمين' if side == 'right' else 'شمال'})"
-            sp["face"] = [round((fx0 - r["left"]) / (r["right"] - r["left"]), 3), round((fy0 - r["top"]) / (r["bottom"] - r["top"]), 3),
-                          round((fx1 - r["left"]) / (r["right"] - r["left"]), 3), round((fy1 - r["top"]) / (r["bottom"] - r["top"]), 3)]
-            side_pref = "left" if side == "right" else "right"
+        # المكان: المساحة الفاضية بقناع الشخص (الجسم كله + الوش) طول وقت الجرافيك، قريب من ارتفاع الراس، والناحية بتتبادل.
+        # ليه: قبل كده كان جنب صندوق الوش بس، فأحيانًا كان بيقع على الشعر/الكتف (ذوق صاحب الفيديو: عمره ما يكون على الوش أو الجسم)
+        win = [x for t in np.linspace(start, end, 10) for x in vision.window(samples, out_to_src(inp["segments"], float(t))[1], out_to_src(inp["segments"], float(t))[1])]
+        occ = vision.occupancy(win)
+        prefer_y = ((fb[1] + fb[3]) / 2) if fb else None
+        rect = motion.place(kind if kind in motion.SIZES else "visual", occ, inp["aspect"], prefer_y=prefer_y, prefer_side=side_pref)
+        if rect is None:
+            log.append({**entry, "decision": "skip", "why": "مفيش مساحة فاضية من غير ما يغطيك"}); continue
+        side = "right" if (rect["left"] + rect["right"]) / 2 > 0.5 else "left"
+        sp["rect"], sp["side"], sp["mode_why"] = rect, side, f"في المساحة الفاضية ({'يمين' if side == 'right' else 'شمال'}) من غير ما يلمس جسمك · تداخل {rect['overlap']:.1%}"
+        if fb:
+            sp["face"] = [round((fb[0] - rect["left"]) / (rect["right"] - rect["left"]), 3), round((fb[1] - rect["top"]) / (rect["bottom"] - rect["top"]), 3),
+                          round((fb[2] - rect["left"]) / (rect["right"] - rect["left"]), 3), round((fb[3] - rect["top"]) / (rect["bottom"] - rect["top"]), 3)]
+        side_pref = "left" if side == "right" else "right"
         specs.append(sp)
         log.append({**entry, "decision": sp["mode"], "kind": kind + (f":{sp.get('annotation')}" if kind == "annotate" else ""),
                     "why": sp["why"] + (f" · الشكل: {sp.get('visual_name') or sp.get('emoji_file') or ''}" + (" (مرسوم)" if sp.get("drawn") else "")),
