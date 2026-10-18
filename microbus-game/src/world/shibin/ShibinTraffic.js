@@ -615,6 +615,7 @@ export class ShibinTraffic {
     }
     // ناس بتعدّي الشارع قدامي: أقف
     for (const q of this.crowd?.crossers || []) {
+      if (q.cross?.blocked) continue; // واقف مستني العربية دي تمشي
       const dx = q.x - c.x, dz = q.z - c.z;
       if (Math.abs(dx) > 30 || Math.abs(dz) > 30) continue;
       const lon = dx * hx + dz * hz;

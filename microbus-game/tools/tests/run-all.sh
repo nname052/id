@@ -9,7 +9,7 @@ if ! curl -s -o /dev/null "$B"; then
   OWN=$!
   i=0; until curl -s -o /dev/null "$B" || [ $i -gt 60 ]; do sleep 1; i=$((i+1)); done
 fi
-TESTS=${*:-"wheel:taxi wheel:microbus wheel:tuktuk road-surface lane-scan city-life boarding checkpoint audio-radio tier-perf shibin-e2e"}
+TESTS=${*:-"wheel:taxi wheel:microbus wheel:tuktuk road-surface lane-scan city-life boarding checkpoint audio-radio perf-budget microbus-lines tier-perf shibin-e2e"}
 for t in $TESTS; do
   echo "===== $t"
   case $t in

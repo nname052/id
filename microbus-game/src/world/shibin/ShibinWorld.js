@@ -58,7 +58,8 @@ export class ShibinWorld {
     { const K = kitGeometries();
       this.kitRoof = new NearInstancer(K.roof, K.mat, { R: this.low ? 110 : 160, max: this.low ? 120 : 260, name: 'roof-kit' });
       this.kitAC = new NearInstancer(K.ac, K.mat, { R: this.low ? 70 : 110, max: this.low ? 160 : 360, name: 'ac-kit' });
-      this.group.add(this.kitRoof.mesh, this.kitAC.mesh); }
+      this.group.add(this.kitRoof.mesh);
+      if (!this.low) this.group.add(this.kitAC.mesh); } // الموبايل: من غير تكييفات (تفصيلة صغيرة = draw call أقل)
     this._ground();
     this._gates();
     this._landmarkSigns();
@@ -688,7 +689,7 @@ float nA(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
       // خزانات/دشات/أوض سلم/تكييفات: بتترسم للعمارات القريبة من الكاميرا بس (instancing واحد لكل نوع)
       const kit = tileKitItems(Bd.gen);
       for (const [x, y, z, yaw] of kit.roofs) this.kitRoof.add(x, y, z, yaw, 1, 1, T.name);
-      for (const [x, y, z, yaw] of kit.acs) this.kitAC.add(x, y, z, yaw, 1, 1, T.name);
+      if (!this.low) for (const [x, y, z, yaw] of kit.acs) this.kitAC.add(x, y, z, yaw, 1, 1, T.name);
       for (const c of colliders) this._addCollider(c, T);
       this.stats.buildings += T.nB;
     }

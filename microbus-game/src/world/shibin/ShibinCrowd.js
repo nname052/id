@@ -119,7 +119,19 @@ export class ShibinCrowd {
       return;
     }
     // عربية قريبة أوي من مكانه الجاي: يستنى في مكانه (مايمشيش قدامها)
-    if (this.traffic) for (const c of this.traffic.cars) if (c.on && !c.off && (c.x - C.x) ** 2 + (c.z - C.z) ** 2 < 4.5 * 4.5 && c.v > 0.3) return;
+    const t1 = C.t + (p.speed * 1.15 * dt) / C.len, u1 = Math.min(1, t1);
+    const nx = C.x0 + (C.tx - C.x0) * u1, nz = C.z0 + (C.tz - C.z0) * u1;
+    if (this.traffic) for (const c of this.traffic.cars) {
+      if (!c.on || c.off) continue;
+      const dx = nx - c.x, dz = nz - c.z;
+      if (dx * dx + dz * dz > 49) continue;
+      if (c.v > 0.3 && dx * dx + dz * dz < 4.5 * 4.5) { C.blocked = false; return; }
+      // عربية واقفة (حتى لو في نص لفة): مايعدّيش من جواها — يستنى لحد ما تتحرك أو يلف حواليها مش هيحصل
+      const lon = dx * c.lastDx + dz * c.lastDz, lat = dx * -c.lastDz + dz * c.lastDx;
+      if (Math.abs(lon) < c.len / 2 + 0.5 && Math.abs(lat) < c.width / 2 + 0.5) { C.blocked = true; return; } // (العربية مش هتستناه هو كمان → مفيش قفلة)
+    }
+    C.blocked = false;
+    C.t = t1 - (p.speed * 1.15 * dt) / C.len;
     C.t += (p.speed * 1.15 * dt) / C.len;
     const u = Math.min(1, C.t);
     C.x = C.x0 + (C.tx - C.x0) * u; C.z = C.z0 + (C.tz - C.z0) * u;

@@ -89,6 +89,7 @@ export class NearInstancer {
       M.setMatrixAt(k, _m.compose(_p, _q, _s));
     }
     M.count = pick.length; M.instanceMatrix.needsUpdate = true;
+    M.visible = pick.length > 0; // فاضية = مفيش draw call خالص (ولا في رسمة الضل)
     this.visibleCount = pick.length;
     void force;
   }
@@ -369,7 +370,8 @@ function buildCorniche(W, canals, out) {
       }
     }
   }
-  for (const k of ['rail', 'paving', 'bench', 'tree', 'kiosk', 'sit0', 'sit1']) out[k].check = groundOk;
+  for (const k of ['rail', 'paving', 'bench', 'kiosk', 'sit0', 'sit1']) out[k].check = groundOk;
+  out.tree.cornicheCheck = groundOk;
 }
 
 // ===================== شجر الأرصفة =====================
@@ -387,7 +389,9 @@ function streetTrees(W, inst) {
       }
     }
   }
+  const corn = inst.cornicheCheck;
   inst.check = (it) => {
+    if (it.tag === 'corniche') return corn(it);
     const Tl = W.tiles.get(W._tkey(Math.floor(it.x / W.TS), Math.floor(it.z / W.TS)));
     if (!Tl || !Tl.ready) return undefined;
     if (W._underDeck?.(it.x, it.z)) return false;
@@ -465,25 +469,30 @@ export function buildLandmarks(W, features, { mobile = false } = {}) {
   const sitV = humanVariants(2, 515, true);
   const out = {
     rail: new NearInstancer(railGeo(), PM, { R, max: mobile ? 220 : 380, name: 'corniche-rail' }),
-    paving: new NearInstancer(pavingGeo(), PM, { R, max: mobile ? 220 : 380, name: 'corniche-paving' }),
+    paving: mobile ? null : new NearInstancer(pavingGeo(), PM, { R, max: 380, name: 'corniche-paving' }), // الموبايل: من غير بلاط (تفصيلة صغيرة)
     bench: new NearInstancer(benchGeo(), PM, { R, max: 60, name: 'corniche-bench' }),
-    tree: new NearInstancer(treeGeo(rng(7)), PM, { R, max: 160, name: 'corniche-trees', castShadow: !mobile }),
+    tree: null, // نفس شجر الشوارع (instancing واحد للشجر كله)
     kiosk: new NearInstancer(kioskGeo(), PM, { R: R + 60, max: 20, name: 'corniche-kiosk', castShadow: true }),
     sit0: new NearInstancer(seatedGeometry(sitV[0].geo), humanStaticMaterial(), { R: mobile ? 80 : 120, max: 40, name: 'corniche-sit0' }),
-    sit1: new NearInstancer(seatedGeometry(sitV[1].geo), humanStaticMaterial(), { R: mobile ? 80 : 120, max: 40, name: 'corniche-sit1' }),
+    sit1: mobile ? null : new NearInstancer(seatedGeometry(sitV[1].geo), humanStaticMaterial(), { R: 120, max: 40, name: 'corniche-sit1' }),
     lamps: [],
   };
   const canals = (W._mmWater || []).filter((w) => w.name === 'ترعة بحر شبين' && w.kind === 'canal');
+  const trees = new NearInstancer(treeGeo(rng(13)), PM, { R: mobile ? 140 : 200, max: mobile ? 150 : 300, name: 'trees', castShadow: !mobile });
+  out.tree = trees;
+  const nop = { add() {}, items: [] };
+  if (!out.paving) out.paving = nop;
+  if (!out.sit1) out.sit1 = out.sit0;
   buildCorniche(W, canals, out);
-  stats.corniche = { canals: canals.length, rail: out.rail.items.length, benches: out.bench.items.length, trees: out.tree.items.length, kiosks: out.kiosk.items.length };
-  // شجر الأرصفة
-  const trees = new NearInstancer(treeGeo(rng(13)), PM, { R: mobile ? 140 : 200, max: mobile ? 140 : 260, name: 'street-trees', castShadow: !mobile });
+  stats.corniche = { canals: canals.length, rail: out.rail.items.length, benches: out.bench.items.length, trees: trees.items.length, kiosks: out.kiosk.items.length };
+  // شجر الأرصفة (نفس الـ instancer): شجر الكورنيش اتعلّم بـ tag عشان فحصه مختلف (أرض مش رصيف)
+  for (const it of trees.items) it.tag = 'corniche';
   streetTrees(W, trees);
   stats.streetTrees = trees.items.length;
   // يافطات المحلات
   const skip = new Set(W.landmarks.confirmed.map((l) => l.name));
   stats.poiSigns = features?.pois ? poiSigns(W, features.pois, group, skip) : 0;
-  const insts = [...['rail', 'paving', 'bench', 'tree', 'kiosk', 'sit0', 'sit1'].map((k) => out[k]), trees];
+  const insts = [...new Set([...['rail', 'paving', 'bench', 'kiosk', 'sit0', 'sit1'].map((k) => out[k]), trees])].filter((x) => x?.mesh);
   for (const it of insts) group.add(it.mesh);
   let t = 0;
   return {
