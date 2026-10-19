@@ -1,0 +1,305 @@
+{% extends "base.html" %}
+{% block title %}استوديو المونتاج{% endblock %}
+{% block body %}
+<div class="page-head">
+  <div><h1>استوديو المونتاج</h1><div class="sub">تحكّم كامل بإيدك: الترجمة، القصّ، الصورة والألوان، الموشن جرافيك، والصوت. كل حاجة بتتشاف قبل ما تتطبق، وبعد «طبّق» المراحل اللي بعدها بتتحدّث لوحدها.</div></div>
+  <a class="btn" href="/montage/{{ mid }}">→ صفحة المونتاج والمعاينة</a>
+</div>
+<div id="busy" class="note" hidden></div>
+
+<div class="studio-tabs" role="tablist">
+  <button role="tab" data-tab="subs" class="on">الترجمة</button>
+  <button role="tab" data-tab="cut">القصّ</button>
+  <button role="tab" data-tab="look">الصورة والألوان</button>
+  <button role="tab" data-tab="gfx">الموشن جرافيك</button>
+  <button role="tab" data-tab="audio">الصوت والمؤثرات</button>
+</div>
+
+<!-- ===== الترجمة ===== -->
+<section class="card studio-pane" id="pane-subs">
+  <div class="studio-split">
+    <div class="stack">
+      <div class="card-head"><h2>شكل الترجمة</h2><span class="hint">اختار ستايل جاهز، وعدّل عليه زي ما تحب. المعاينة جنبك على فيديوك (أو على ورقة).</span></div>
+      <div class="preset-grid" id="capPresets"></div>
+      <div class="ctl-grid">
+        <label>طريقة العرض<select id="c_mode"><option value="karaoke">الجملة كلها، واللي اتقال بينوّر</option><option value="words">الكلمات بتظهر واحدة واحدة</option><option value="chunks">1–3 كلمات كبيرة (تيك توك)</option></select></label>
+        <label>الخط<select id="c_font"></select></label>
+        <label>الحجم <b id="c_size_v"></b><input type="range" id="c_size" min="30" max="130" step="1"></label>
+        <label>التُّقل <b id="c_weight_v"></b><input type="range" id="c_weight" min="300" max="900" step="100"></label>
+        <label>لون الكلام<input type="color" id="c_color"></label>
+        <label>لون الكلمة الحالية<input type="color" id="c_accent"></label>
+        <label>الكلام اللي لسه هيتقال <b id="c_dim_v"></b><input type="range" id="c_dim" min="0.15" max="1" step="0.05"></label>
+        <label>المكان (من فوق لتحت) <b id="c_y_v"></b><input type="range" id="c_y" min="0.55" max="0.9" step="0.01"></label>
+        <label>حدود الحروف <b id="c_outline_v"></b><input type="range" id="c_outline" min="0" max="14" step="1"></label>
+        <label>لون الحدود<input type="color" id="c_outline_color"></label>
+        <label>الخلفية<select id="c_box"><option value="none">من غير</option><option value="line">صندوق ورا السطر</option></select></label>
+        <label class="row"><input type="checkbox" id="c_accent_bg"> الكلمة الحالية في صندوق ملوّن</label>
+        <label class="row"><input type="checkbox" id="c_shadow"> ضل ناعم</label>
+        <label class="row"><input type="checkbox" id="c_glow"> لمعة (نيون)</label>
+      </div>
+    </div>
+    <div class="stack">
+      <div class="chips" id="capBg"><span class="chip on" data-v="frame">على فيديوك</span><span class="chip" data-v="white">على ورقة</span><span class="chip" data-v="dark">على غامق</span></div>
+      <div class="preview-box"><img id="capPrev" alt="معاينة الترجمة"><span class="spinner" id="capSpin" hidden></span></div>
+      <div class="btn-row"><button class="primary lg" id="capApply">✓ طبّق على الفيديو</button><span class="muted" id="capMsg"></span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== القص ===== -->
+<section class="card studio-pane" id="pane-cut" hidden>
+  <div class="card-head"><h2>القصّ بإيدك</h2><span class="hint">اتفرج واقف عند اللحظة بالظبط (فريم فريم)، وحدّد بداية ونهاية كل جزء. Space تشغيل · ← → فريم · I بداية · O نهاية · S اقسم.</span></div>
+  <div class="cut-layout">
+    <div class="cut-player"><video id="cutVid" playsinline preload="auto"></video>
+      <div class="btn-row center">
+        <button data-k="-1">−1 ث</button><button data-k="-f">−1 فريم</button><button class="primary" id="cutPlay">▶</button><button data-k="+f">+1 فريم</button><button data-k="+1">+1 ث</button>
+      </div>
+      <div class="muted center" id="cutTime"></div>
+    </div>
+    <div class="stack">
+      <div class="timeline" id="tl"><img id="wave" alt=""><div id="tlSegs"></div><div class="playhead" id="ph"></div></div>
+      <div class="btn-row">
+        <button id="setIn">[ I ] بداية الجزء هنا</button><button id="setOut">نهاية الجزء هنا [ O ]</button><button id="splitHere">✂ اقسم هنا (S)</button>
+        <button id="addSeg">+ جزء جديد من هنا</button><button class="danger" id="delSeg">🗑 شيل الجزء</button>
+      </div>
+      <div class="seg-table" id="segTable"></div>
+      <div class="btn-row"><button id="playResult">▶ شغّل النتيجة (الأجزاء ورا بعض)</button><button class="primary lg" id="cutApply">✓ طبّق القصّ</button><span class="muted" id="cutMsg"></span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== الصورة ===== -->
+<section class="card studio-pane" id="pane-look" hidden>
+  <div class="studio-split">
+    <div class="stack">
+      <div class="card-head"><h2>الفلاتر</h2><span class="hint">كل فلتر متطبق على فريم من فيديوك، اختار اللي يعجبك.</span></div>
+      <div class="filter-grid" id="filters"></div>
+      <div class="card-head" style="margin-top:var(--s3)"><h2>الإضاءة والألوان بإيدك</h2><span class="hint">0 = من غير تغيير.</span></div>
+      <div class="ctl-grid" id="lookCtl"></div>
+      <label>الفريم اللي بتشوف عليه <b id="lt_v"></b><input type="range" id="lookT" min="0" max="30" step="0.5" value="8"></label>
+    </div>
+    <div class="stack">
+      <div class="ba"><figure><img id="lookBefore" alt=""><figcaption>قبل</figcaption></figure><figure><img id="lookAfter" alt=""><figcaption>بعد</figcaption></figure></div>
+      <div class="btn-row"><button id="lookReset">رجّع طبيعي</button><button class="primary lg" id="lookApply">✓ طبّق على الفيديو</button><span class="muted" id="lookMsg"></span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== الجرافيك ===== -->
+<section class="card studio-pane" id="pane-gfx" hidden>
+  <div class="studio-split">
+    <div class="stack">
+      <div class="card-head"><h2>إعدادات الموشن جرافيك</h2><span class="hint">دي الإعدادات الافتراضية لحد ما نزود أشكال تانية. مخرج الجرافيك بيلتزم بيها.</span></div>
+      <div class="field-label">الأنواع المسموحة</div>
+      <div class="row wrap" id="gKinds"></div>
+      <div class="field-label">الكثافة</div>
+      <div class="chips" id="gDensity"><span class="chip" data-v="few">قليل</span><span class="chip" data-v="normal">عادي</span><span class="chip" data-v="many">كتير</span></div>
+      <div class="field-label">شكل الأيقونة</div>
+      <div class="chips" id="gBadge"><span class="chip" data-v="glass">دايرة زجاج بحلقة</span><span class="chip" data-v="card">كارت مربع</span><span class="chip" data-v="none">من غير خلفية</span></div>
+      <div class="ctl-grid">
+        <label>لون التأكيد<input type="color" id="gAccent"></label>
+        <label>الحجم <b id="gSize_v"></b><input type="range" id="gSize" min="0.7" max="1.5" step="0.05"></label>
+        <label>أقصى عدد صور حقيقية <b id="gPhotos_v"></b><input type="range" id="gPhotos" min="0" max="5" step="1"></label>
+      </div>
+      <div class="btn-row"><button class="primary lg" id="gApply">✓ طبّق</button><span class="muted" id="gMsg"></span></div>
+    </div>
+    <div class="stack">
+      <div class="card-head"><h2>الجرافيك الحالي</h2><span class="hint">اللي اتعمل في آخر نسخة، ومكانه ووقته.</span></div>
+      <div id="gList" class="stack"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== الصوت ===== -->
+<section class="card studio-pane" id="pane-audio" hidden>
+  <div class="studio-split">
+    <div class="stack">
+      <div class="card-head"><h2>المؤثرات الصوتية</h2><span class="hint">أصوات حقيقية (CC0)، كل واحد في لحظة الحركة نفسها على الشاشة.</span></div>
+      <label class="row"><input type="checkbox" id="aSfx"> المؤثرات شغّالة</label>
+      <label>علو المؤثرات <b id="aVol_v"></b><input type="range" id="aVol" min="0" max="2" step="0.1"></label>
+      <label>علو المزيكا (لو فيه) <b id="aMusic_v"></b><input type="range" id="aMusic" min="-30" max="-6" step="1"></label>
+      <label>الصوت النهائي (LUFS) <b id="aLufs_v"></b><input type="range" id="aLufs" min="-20" max="-10" step="0.5"></label>
+      <div class="btn-row"><button class="primary lg" id="aApply">✓ طبّق</button><span class="muted" id="aMsg"></span></div>
+    </div>
+    <div class="stack">
+      <div class="card-head"><h2>المؤثرات في الفيديو</h2></div>
+      <div id="aList" class="stack"></div>
+    </div>
+  </div>
+</section>
+{% endblock %}
+{% block script %}
+<script>
+  const MID = "{{ mid }}";
+  let META = null, VIEW = null, DOCS = {};
+  const $$$ = (s, r = document) => [...r.querySelectorAll(s)];
+  const debounce = (fn, ms = 350) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
+  const doc = async (key) => { const s = VIEW.stages.find((x) => x.key === key); if (!s || s.current == null) return null;
+    return (DOCS[key + s.current] ??= await api(`/api/montage/${MID}/stages/${key}/v/${s.current}`)); };
+  const apply = async (stage, params, msgEl, note) => {
+    msgEl.textContent = "بيتطبق…";
+    try { await api(`/api/montage/${MID}/studio/apply`, { method: "POST", body: { stage, params, note } });
+      msgEl.innerHTML = `✓ اتبعت. المراحل اللي بعدها بتتحدّث، و<a href="/montage/${MID}">المعاينة</a> هتتحدّث لما تخلص.`; poll(); }
+    catch (e) { msgEl.textContent = e.message || "حصل خطأ"; } };
+
+  // ---------- التبويبات ----------
+  $$$(".studio-tabs button").forEach((b) => b.onclick = () => {
+    $$$(".studio-tabs button").forEach((x) => x.classList.toggle("on", x === b));
+    $$$(".studio-pane").forEach((p) => p.hidden = p.id !== "pane-" + b.dataset.tab);
+    INIT[b.dataset.tab]?.(); });
+
+  // ---------- الحالة ----------
+  async function poll() {
+    VIEW = await api(`/api/montage/${MID}/stages`);
+    const run = VIEW.stages.find((s) => s.job === "running");
+    $("#busy").hidden = !run && !VIEW.auto?.running;
+    if (run || VIEW.auto?.running) { $("#busy").innerHTML = `⏳ شغّال دلوقتي: «${esc((run || {}).label || "")}»… المعاينة هتتحدّث لوحدها.`; setTimeout(poll, 3000); }
+  }
+
+  // ---------- الترجمة ----------
+  let CAP = {}, capBg = "frame";
+  const CK = ["mode", "font", "size", "weight", "color", "accent", "dim", "y", "outline", "outline_color", "box", "accent_bg", "shadow", "glow"];
+  function capForm() {
+    for (const k of CK) { const el = $("#c_" + k); if (!el) continue;
+      if (el.type === "checkbox") el.checked = !!CAP[k]; else el.value = CAP[k];
+      const v = $(`#c_${k}_v`); if (v) v.textContent = k === "y" ? Math.round(CAP[k] * 100) + "%" : CAP[k]; }
+    $$$("#capPresets .preset").forEach((p) => p.classList.toggle("on", p.dataset.k === CAP.preset));
+  }
+  const capPreview = debounce(async () => {
+    $("#capSpin").hidden = false;
+    try { const r = await api(`/api/montage/${MID}/studio/caption-preview`, { method: "POST", body: { style: CAP, bg: capBg } }); $("#capPrev").src = r.url; }
+    finally { $("#capSpin").hidden = true; } });
+  const INIT = {
+    async subs() {
+      if (INIT.subs.done) return; INIT.subs.done = true;
+      $("#c_font").innerHTML = META.fonts.map((f) => `<option>${esc(f)}</option>`).join("");
+      const d = await doc("s4_subs");
+      CAP = { ...META.caption_presets.app, ...((d && d.params && d.params.caption) || {}) };
+      CAP.preset = CAP.preset || "app";
+      $("#capPresets").innerHTML = Object.entries(META.caption_presets).map(([k, p]) => `<button class="preset" data-k="${k}"><img alt="" loading="lazy"><span>${esc(p.label)}</span></button>`).join("");
+      for (const b of $$$("#capPresets .preset")) {
+        api(`/api/montage/${MID}/studio/caption-preview`, { method: "POST", body: { style: { preset: b.dataset.k }, bg: "frame" } }).then((r) => b.querySelector("img").src = r.url);
+        b.onclick = () => { CAP = { ...META.caption_presets[b.dataset.k], preset: b.dataset.k }; capForm(); capPreview(); };
+      }
+      for (const k of CK) { const el = $("#c_" + k); if (!el) continue;
+        el.oninput = () => { CAP[k] = el.type === "checkbox" ? el.checked : el.type === "range" ? +el.value : el.value; capForm(); capPreview(); }; }
+      $$$("#capBg .chip").forEach((c) => c.onclick = () => { $$$("#capBg .chip").forEach((x) => x.classList.remove("on")); c.classList.add("on"); capBg = c.dataset.v; capPreview(); });
+      $("#capApply").onclick = () => { const { label, ...st } = CAP; apply("s4_subs", { caption: st }, $("#capMsg"), `ستايل الترجمة: ${label || CAP.preset}`); };
+      capForm(); capPreview();
+    },
+
+    // ---------- القص ----------
+    async cut() {
+      if (INIT.cut.done) return; INIT.cut.done = true;
+      const d2 = await doc("s2_cut"), d3 = await doc("s3_look");
+      const vid = $("#cutVid"), s3 = VIEW.stages.find((s) => s.key === "s3_look");
+      vid.src = `/montage-files/${MID}/stages/s3_look/v${s3.current}/graded.mp4`;
+      const FPS = d2.data.fps || 30, SRC = d2.data.segments[0].source;
+      let segs = d2.data.segments.map((s) => ({ source: s.source, start: s.start, end: s.end })), sel = 0;
+      $("#wave").src = `/montage-files/${MID}/wave/${SRC}.png`;
+      const dur = () => vid.duration || 1;
+      const fmt = (x) => `${Math.floor(x / 60)}:${(x % 60).toFixed(2).padStart(5, "0")}`;
+      function draw() {
+        $("#tlSegs").innerHTML = segs.map((s, i) => `<div class="tseg ${i === sel ? "on" : ""}" data-i="${i}" style="left:${s.start / dur() * 100}%;width:${(s.end - s.start) / dur() * 100}%"><span>${i + 1}</span></div>`).join("");
+        $("#segTable").innerHTML = segs.map((s, i) => `<div class="seg-row ${i === sel ? "on" : ""}" data-i="${i}"><b>${i + 1}</b>
+          <label>من<input type="number" step="${(1 / FPS).toFixed(4)}" value="${s.start.toFixed(3)}" data-f="start"></label>
+          <label>لـ<input type="number" step="${(1 / FPS).toFixed(4)}" value="${s.end.toFixed(3)}" data-f="end"></label>
+          <span class="muted">${(s.end - s.start).toFixed(2)} ث</span><button data-act="go">▶</button></div>`).join("");
+        const total = segs.reduce((n, s) => n + s.end - s.start, 0);
+        $("#cutMsg").textContent = `${segs.length} جزء · الفيديو ${total.toFixed(2)} ث`;
+      }
+      const tick = () => { $("#ph").style.left = (vid.currentTime / dur() * 100) + "%"; $("#cutTime").textContent = `${fmt(vid.currentTime)} · فريم ${Math.round(vid.currentTime * FPS)}`;
+        if (playing) { const s = segs[pi]; if (s && vid.currentTime >= s.end) { pi++; if (pi < segs.length) vid.currentTime = segs[pi].start; else { vid.pause(); playing = false; } } }
+        requestAnimationFrame(tick); };
+      let playing = false, pi = 0;
+      vid.onloadedmetadata = draw; tick();
+      const step = (k) => { vid.pause(); vid.currentTime = Math.max(0, Math.min(dur(), vid.currentTime + ({ "-1": -1, "+1": 1, "-f": -1 / FPS, "+f": 1 / FPS }[k]))); };
+      $$$("[data-k]").forEach((b) => b.onclick = () => step(b.dataset.k));
+      $("#cutPlay").onclick = () => { playing = false; vid.paused ? vid.play() : vid.pause(); };
+      $("#tl").onclick = (e) => { const r = $("#tl").getBoundingClientRect(); vid.currentTime = (e.clientX - r.left) / r.width * dur();
+        const i = segs.findIndex((s) => vid.currentTime >= s.start && vid.currentTime <= s.end); if (i >= 0) { sel = i; draw(); } };
+      $("#setIn").onclick = () => { const s = segs[sel]; if (s && vid.currentTime < s.end - 0.05) { s.start = vid.currentTime; draw(); } };
+      $("#setOut").onclick = () => { const s = segs[sel]; if (s && vid.currentTime > s.start + 0.05) { s.end = vid.currentTime; draw(); } };
+      $("#splitHere").onclick = () => { const t = vid.currentTime, i = segs.findIndex((s) => t > s.start + 0.05 && t < s.end - 0.05);
+        if (i >= 0) { const s = segs[i]; segs.splice(i, 1, { ...s, end: t }, { ...s, start: t }); sel = i + 1; draw(); } };
+      $("#addSeg").onclick = () => { const t = vid.currentTime; segs.push({ source: SRC, start: t, end: Math.min(dur(), t + 2) }); segs.sort((a, b) => a.start - b.start); sel = segs.findIndex((s) => s.start === t); draw(); };
+      $("#delSeg").onclick = () => { if (segs.length > 1) { segs.splice(sel, 1); sel = Math.max(0, sel - 1); draw(); } };
+      $("#segTable").addEventListener("input", (e) => { const row = e.target.closest(".seg-row"); if (!row || !e.target.dataset.f) return;
+        segs[+row.dataset.i][e.target.dataset.f] = +e.target.value; vid.currentTime = +e.target.value; draw(); });
+      $("#segTable").addEventListener("click", (e) => { const row = e.target.closest(".seg-row"); if (!row) return; sel = +row.dataset.i;
+        if (e.target.dataset.act === "go") { playing = true; pi = sel; vid.currentTime = segs[sel].start; vid.play(); } draw(); });
+      $("#playResult").onclick = () => { playing = true; pi = 0; vid.currentTime = segs[0].start; vid.play(); };
+      document.addEventListener("keydown", (e) => { if ($("#pane-cut").hidden || ["INPUT", "SELECT"].includes(e.target.tagName)) return;
+        const k = e.key.toLowerCase();
+        if (k === " ") { e.preventDefault(); $("#cutPlay").click(); } else if (k === "arrowleft") step("-f"); else if (k === "arrowright") step("+f");
+        else if (k === "i") $("#setIn").click(); else if (k === "o") $("#setOut").click(); else if (k === "s") $("#splitHere").click(); });
+      $("#cutApply").onclick = async () => { $("#cutMsg").textContent = "بيتطبق…";
+        try { await api(`/api/montage/${MID}/stages/s2_cut/manual`, { method: "POST", body: { segments: segs } }); $("#cutMsg").innerHTML = `✓ اتبعت. الباقي بيتحدّث لوحده.`; poll(); }
+        catch (e) { $("#cutMsg").textContent = e.message; } };
+    },
+
+    // ---------- الصورة ----------
+    async look() {
+      if (INIT.look.done) return; INIT.look.done = true;
+      const d = await doc("s3_look"), p = (d && d.params) || {};
+      const KEYS = [["exposure", "الإضاءة"], ["contrast", "التباين"], ["saturation", "التشبّع"], ["warmth", "الدفا"], ["vibrance", "حيوية الألوان"], ["shadows", "الضل"], ["vignette", "إطار غامق"], ["sharpen", "الحدة"]];
+      let LK = { filter: META.filters[p.look] ? p.look : "natural", ...Object.fromEntries(KEYS.map(([k]) => [k, +p[k] || 0])) };
+      $("#lookCtl").innerHTML = KEYS.map(([k, l]) => `<label>${l} <b id="l_${k}_v"></b><input type="range" id="l_${k}" min="${["vignette", "sharpen"].includes(k) ? 0 : -1}" max="1" step="0.05"></label>`).join("");
+      const T = () => +$("#lookT").value;
+      const form = () => { KEYS.forEach(([k]) => { $("#l_" + k).value = LK[k]; $(`#l_${k}_v`).textContent = (+LK[k]).toFixed(2); });
+        $$$("#filters .preset").forEach((b) => b.classList.toggle("on", b.dataset.k === LK.filter)); $("#lt_v").textContent = T() + " ث"; };
+      const prev = debounce(async () => {
+        const [a, b] = await Promise.all([api(`/api/montage/${MID}/studio/look-preview`, { method: "POST", body: { style: {}, t: T() } }),
+                                          api(`/api/montage/${MID}/studio/look-preview`, { method: "POST", body: { style: LK, t: T() } })]);
+        $("#lookBefore").src = a.url; $("#lookAfter").src = b.url; }, 250);
+      $("#filters").innerHTML = Object.entries(META.filters).map(([k, f]) => `<button class="preset" data-k="${k}"><img alt="" loading="lazy"><span>${esc(f.label)}</span></button>`).join("");
+      for (const b of $$$("#filters .preset")) {
+        api(`/api/montage/${MID}/studio/look-preview`, { method: "POST", body: { style: { filter: b.dataset.k }, t: T() } }).then((r) => b.querySelector("img").src = r.url);
+        b.onclick = () => { LK.filter = b.dataset.k; form(); prev(); };
+      }
+      KEYS.forEach(([k]) => $("#l_" + k).oninput = (e) => { LK[k] = +e.target.value; form(); prev(); });
+      $("#lookT").oninput = () => { form(); prev(); };
+      $("#lookReset").onclick = () => { LK = { filter: "natural", ...Object.fromEntries(KEYS.map(([k]) => [k, 0])) }; form(); prev(); };
+      $("#lookApply").onclick = () => apply("s3_look", { look: LK.filter, ...Object.fromEntries(KEYS.map(([k]) => [k, LK[k]])) }, $("#lookMsg"), `فلتر ${META.filters[LK.filter].label} + إعدادات يدوية`);
+      form(); prev();
+    },
+
+    // ---------- الجرافيك ----------
+    async gfx() {
+      if (INIT.gfx.done) return; INIT.gfx.done = true;
+      const d = await doc("s5_graphics"), p = { ...META.graphics_defaults, ...((d && d.params) || {}) };
+      const KN = { visual: "أيقونات ملوّنة", annotate: "علامات (صح/غلط/لمعة/سهم…)", photo: "صور حقيقية (لقطة قطع)", counter: "أرقام" };
+      let G = { kinds: { ...META.graphics_defaults.kinds, ...(p.kinds || {}) }, density: p.density || "normal", badge: p.badge || "glass", accent: p.accent, size: +p.size || 1, max_photos: p.max_photos ?? 2 };
+      $("#gKinds").innerHTML = Object.entries(KN).map(([k, l]) => `<label class="row"><input type="checkbox" data-k="${k}" ${G.kinds[k] ? "checked" : ""}> ${l}</label>`).join("");
+      $$$("#gKinds input").forEach((c) => c.onchange = () => G.kinds[c.dataset.k] = c.checked);
+      const chips = (id, key) => $$$(`#${id} .chip`).forEach((c) => { c.classList.toggle("on", c.dataset.v === G[key]); c.onclick = () => { G[key] = c.dataset.v; chips(id, key); }; });
+      chips("gDensity", "density"); chips("gBadge", "badge");
+      $("#gAccent").value = G.accent; $("#gAccent").oninput = (e) => G.accent = e.target.value;
+      const sl = (id, key, f = (x) => x) => { $("#" + id).value = G[key]; $(`#${id}_v`).textContent = f(G[key]); $("#" + id).oninput = (e) => { G[key] = +e.target.value; $(`#${id}_v`).textContent = f(G[key]); }; };
+      sl("gSize", "size", (x) => "×" + (+x).toFixed(2)); sl("gPhotos", "max_photos");
+      $("#gApply").onclick = () => apply("s5_graphics", G, $("#gMsg"), "إعدادات الجرافيك من الاستوديو");
+      const gfx = (d && d.data && d.data.gfx) || [];
+      const NAME = { visual: "أيقونة", annotate: "علامة", photo: "صورة", counter: "رقم" };
+      const s5 = VIEW.stages.find((s) => s.key === "s5_graphics");
+      $("#gList").innerHTML = gfx.length ? gfx.map((g, i) => `<div class="file-row"><div class="ic">${i + 1}</div><div><div class="nm">${NAME[g.kind] || g.kind}${g.annotation ? ` · ${g.annotation}` : ""}${g.visual_name ? ` · ${esc(g.visual_name)}` : ""}</div>
+        <div class="meta"><span>${g.start.toFixed(2)}–${g.end.toFixed(2)} ث</span><span>${g.mode === "cutaway" ? "لقطة قطع بملو الشاشة" : "في المساحة الفاضية"}</span></div></div></div>`).join("") : `<span class="muted">لسه مفيش جرافيك.</span>`;
+    },
+
+    // ---------- الصوت ----------
+    async audio() {
+      if (INIT.audio.done) return; INIT.audio.done = true;
+      const d = await doc("s6_audio"), p = (d && d.params) || {};
+      let A = { sfx: p.sfx || "on", sfx_volume: p.sfx_volume ?? 1, music_gain_db: p.music_gain_db ?? -16, target_lufs: p.target_lufs ?? -14 };
+      $("#aSfx").checked = A.sfx === "on"; $("#aSfx").onchange = (e) => A.sfx = e.target.checked ? "on" : "off";
+      const sl = (id, key, f) => { $("#" + id).value = A[key]; $(`#${id}_v`).textContent = f(A[key]); $("#" + id).oninput = (e) => { A[key] = +e.target.value; $(`#${id}_v`).textContent = f(A[key]); }; };
+      sl("aVol", "sfx_volume", (x) => "×" + (+x).toFixed(1)); sl("aMusic", "music_gain_db", (x) => x + " dB"); sl("aLufs", "target_lufs", (x) => x + " LUFS");
+      $("#aApply").onclick = () => apply("s6_audio", A, $("#aMsg"), "إعدادات الصوت من الاستوديو");
+      const ev = (d && d.data && d.data.audio && d.data.audio.sfx) || [];
+      const SN = { whoosh: "سحبة (whoosh)", swoosh: "swoosh", pop: "pop", ding: "ding", click: "click", sparkle: "لمعة", impact: "خبطة" };
+      $("#aList").innerHTML = ev.length ? ev.map((e) => `<div class="file-row"><div class="ic">♪</div><div><div class="nm">${SN[e.sfx] || e.sfx}</div><div class="meta"><span>${(+e.t).toFixed(2)} ث</span><span>${esc(e.why || "")}</span></div></div></div>`).join("") : `<span class="muted">من غير مؤثرات.</span>`;
+    },
+  };
+
+  (async () => { META = await api("/api/montage-studio/meta"); await poll(); INIT.subs(); })();
+</script>
+{% endblock %}

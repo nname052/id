@@ -242,10 +242,11 @@ def mask_png(D: int, out: Path) -> Path:
     return out
 
 
-def place(kind: str, occ: np.ndarray, aspect: str, prefer_y: float | None = None, prefer_side: str | None = None) -> dict | None:
+def place(kind: str, occ: np.ndarray, aspect: str, prefer_y: float | None = None, prefer_side: str | None = None, scale: float = 1.0) -> dict | None:
     """أحسن مستطيل فاضي للجرافيك: مفيش وش، والشخص ≤ 2% منه، بره منطقة الترجمة وبره عمود أزرار تيك توك. بيرجّع rect (نسبة) أو None."""
     from .vision import overlap_ratio
     w, h = SIZES[kind]
+    w, h = w * scale, h * scale
     if aspect == "16:9":
         w, h = w * 0.55, h * 1.6
     best = None
@@ -316,6 +317,7 @@ let S, D;
 function words(el, text){ el.innerHTML = text.split(/\s+/).map(w=>`<span class="w">${w}</span>`).join(''); return [...el.children]; }
 function setup(spec, dur){
   S = spec; D = dur; const r = document.getElementById('root'), u = S.u;
+  if (S.accent_override) document.documentElement.style.setProperty('--accent', S.accent_override);
   r.style.setProperty('--u', u+'px');
   const full = S.mode !== 'overlay';
   let h = '';
@@ -381,7 +383,7 @@ function setup(spec, dur){
     // أيقونة ملوّنة في دايرة زجاج بيضا بضل ناعم، وحلقة بلون التأكيد بتترسم حواليها، ونقط صغيرة بتلف
     const D = Math.min(S.bw, S.bh) * 0.9, R = D / 2;
     r.innerHTML = `<div id="vb" style="position:absolute;left:${(S.bw-D)/2}px;top:${(S.bh-D)/2}px;width:${D}px;height:${D}px">
-      <div style="position:absolute;inset:6%;border-radius:50%;background:radial-gradient(circle at 35% 30%,#ffffff,#f1f3f7);box-shadow:0 ${u*.35}px ${u*1.1}px rgba(0,0,0,.3)"></div>
+      ${S.badge === 'none' ? '' : `<div style="position:absolute;inset:6%;border-radius:${S.badge === 'card' ? '22%' : '50%'};background:radial-gradient(circle at 35% 30%,#ffffff,#f1f3f7);box-shadow:0 ${u*.35}px ${u*1.1}px rgba(0,0,0,.3)"></div>`}
       <svg id="ring" width="${D}" height="${D}" style="position:absolute;inset:0;overflow:visible"><circle cx="${R}" cy="${R}" r="${R*.97}" fill="none" stroke="var(--accent)" stroke-width="${u*.22}" stroke-linecap="round"
         stroke-dasharray="${2*Math.PI*R*.97}" stroke-dashoffset="${2*Math.PI*R*.97}" transform="rotate(-90 ${R} ${R})"/></svg>
       ${[0,1,2].map(i=>`<div class="dot" id="dt${i}" style="position:absolute;width:${u*(.55-i*.12)}px;height:${u*(.55-i*.12)}px;border-radius:50%;background:var(--accent);left:${R}px;top:${R}px"></div>`).join('')}
@@ -578,7 +580,7 @@ function render(t){
   if (k === 'visual') {
     const vb = document.getElementById('vb'), a = back(seg(t, 0, .38)), o = eo(seg(t, D - .25, D));
     vb.style.transform = `scale(${a * (1 - .25*o)}) rotate(${(1-a)*-14}deg) translateY(${Math.sin(t*2.2)*S.u*.18}px)`; vb.style.opacity = 1 - o;
-    const ring = document.querySelector('#ring circle'), L = +ring.getAttribute('stroke-dasharray'); ring.setAttribute('stroke-dashoffset', L*(1 - eo(seg(t, .15, .7))));
+    const ring = document.querySelector('#ring circle'), L = +ring.getAttribute('stroke-dasharray'); ring.setAttribute('stroke-dashoffset', L*(1 - eo(seg(t, .15, .7)))); if (S.badge !== 'glass') ring.style.display = 'none';
     const art = document.getElementById('art'), ia = back(seg(t, .1, .48)); art.style.transform = `scale(${ia})`;
     [0,1,2].forEach(i => { const d = document.getElementById('dt'+i), ang = t*(1.4 + i*.5) + i*2.1, rr = S.R*(1.05 + i*.06);
       d.style.transform = `translate(${Math.cos(ang)*rr - 3}px, ${Math.sin(ang)*rr - 3}px)`; d.style.opacity = clamp(seg(t, .4 + i*.1, .7 + i*.1)) * (1 - o); });
@@ -630,6 +632,8 @@ def render(specs: list[dict], W: int, H: int, fps: int, out_root: Path, mood: st
                 spec["pip"] = sp["pip"]
                 spec["cy"] = sp["pip"][1] + sp["pip"][2] + int(H * 0.04)
             spec["bw"], spec["bh"] = w, h
+            if sp.get("accent"):
+                spec["accent_override"] = sp["accent"]
             if sp.get("photo"):
                 spec["photo_data"] = "data:image/jpeg;base64," + base64.b64encode((ASSETS / sp["photo"]).read_bytes()).decode()
             pg = b.new_page(viewport={"width": w, "height": h})

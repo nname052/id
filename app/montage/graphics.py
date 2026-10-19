@@ -528,3 +528,144 @@ def render_karaoke(cues: list[dict], aspect: str, W: int, H: int, out_dir: Path,
                              "inside_bottom_zone": base["y"] >= safe["top"] * H - 1, "lines": round(base["h"] / (fs * 1.5 + fs * .4)), "states": states})
         b.close()
     return {"subs": subs_out, "cards": [], "overlaps": 0, "sub_font_px": fs, "card_font_px": 0}
+
+
+# ---------- ستايلات الترجمة (تحكم كامل من «استوديو المونتاج») ----------
+# كل ستايل = شكل العرض بالكامل. فيه ستايلات جاهزة، وصاحب الفيديو بيختار ويعدّل (الخط، والحجم، والألوان، والحدود، والصندوق، والمكان).
+FONT_CHOICES = {   # اسم يظهر ← ملف الخط (كلهم OFL في fonts/)
+    "Alexandria": "Alexandria-Variable.ttf", "Cairo": "Cairo-Variable.ttf", "Tajawal": "Tajawal-Bold.ttf", "Tajawal Black": "Tajawal-Black.ttf",
+    "IBM Plex Arabic": "IBMPlexSansArabic-Bold.ttf", "Almarai": "Almarai-ExtraBold.ttf", "Readex Pro": "ReadexPro-Variable.ttf",
+    "Changa": "Changa-Variable.ttf", "El Messiri": "ElMessiri-Variable.ttf", "Lalezar": "Lalezar-Regular.ttf", "Zain": "Zain-Black.ttf",
+    "Marhey": "Marhey-Variable.ttf", "Lemonada": "Lemonada-Variable.ttf", "Reem Kufi": "ReemKufi-Variable.ttf", "Rakkas": "Rakkas-Regular.ttf",
+    "Noto Kufi": "NotoKufiArabic-Variable.ttf", "Baloo Bhaijaan": "BalooBhaijaan2-Variable.ttf", "Amiri": "Amiri-Bold.ttf",
+}
+CAPTION_DEFAULT = {"mode": "karaoke", "font": "Alexandria", "weight": 600, "size": 52, "color": "#ffffff", "dim": 0.42, "accent": "#7ee2b8",
+                   "accent_bg": False, "outline": 0, "outline_color": "#000000", "shadow": True, "glow": False, "box": "none",
+                   "box_color": "rgba(0,0,0,0.55)", "y": 0.80, "pop": False}
+CAPTION_PRESETS = {
+    "app": {"label": "زي فيديوهات التطبيق", **CAPTION_DEFAULT},
+    "classic": {"label": "كلاسيك في صندوق", **CAPTION_DEFAULT, "font": "IBM Plex Arabic", "weight": 700, "size": 50, "dim": 1.0, "accent": "#ffffff", "box": "line", "shadow": False},
+    "highlight": {"label": "الكلمة في صندوق ملوّن", **CAPTION_DEFAULT, "font": "Cairo", "weight": 800, "size": 56, "dim": 1.0, "accent": "#ffd23f", "accent_bg": True},
+    "bold": {"label": "تيك توك عريض", **CAPTION_DEFAULT, "mode": "chunks", "font": "Alexandria", "weight": 900, "size": 84, "dim": 1.0, "accent": "#ffd23f",
+             "outline": 9, "y": 0.70, "pop": True},
+    "words": {"label": "كلمة كلمة بتظهر", **CAPTION_DEFAULT, "mode": "words", "font": "Tajawal", "weight": 700, "size": 58, "dim": 1.0, "accent": "#ffffff", "outline": 4},
+    "neon": {"label": "نيون", **CAPTION_DEFAULT, "font": "Lalezar", "weight": 400, "size": 62, "dim": 0.5, "accent": "#5ee7ff", "glow": True},
+    "elegant": {"label": "فخم دهبي", **CAPTION_DEFAULT, "font": "El Messiri", "weight": 700, "size": 54, "color": "#f4ead5", "dim": 0.45, "accent": "#d4af6a"},
+    "minimal": {"label": "بسيط هادي", **CAPTION_DEFAULT, "font": "Readex Pro", "weight": 500, "size": 46, "dim": 0.55, "accent": "#ffffff", "y": 0.84},
+}
+
+
+def caption_style(st: dict | None) -> dict:
+    """ستايل كامل: الافتراضي ← الجاهز (لو اتختار) ← تعديلات صاحب الفيديو."""
+    st = st or {}
+    base = dict(CAPTION_PRESETS.get(st.get("preset") or "app", CAPTION_PRESETS["app"]))
+    base.update({k: v for k, v in st.items() if k in CAPTION_DEFAULT and v is not None})
+    base["preset"] = st.get("preset") or "app"
+    if base["font"] not in FONT_CHOICES:
+        base["font"] = "Alexandria"
+    return base
+
+
+def caption_css(st: dict, H: int, scale: float = 1.0) -> tuple[str, int]:
+    """CSS للسطر (#s) وكلماته (span) من الستايل. الحجم بيتحسب على ارتفاع الفريم (القيمة بالبكسل على 1920)."""
+    fs = round(st["size"] * H / 1920 * scale)
+    ol = round(st["outline"] * H / 1920)
+    shadow = []
+    if st["shadow"]:
+        shadow += ["0 2px 8px rgba(0,0,0,.75)", "0 0 2px rgba(0,0,0,.9)"]
+    if st["glow"]:
+        shadow += [f"0 0 {round(fs * .25)}px {st['accent']}", f"0 0 {round(fs * .5)}px {st['accent']}"]
+    box = f"background:{st['box_color']};border-radius:{round(fs * .3)}px;" if st["box"] == "line" else ""
+    css = (f"@font-face{{font-family:Cap;src:url(data:font/ttf;base64,{_font(FONT_CHOICES[st['font']])});font-weight:100 900}}"
+           f"#s{{display:inline-block;direction:rtl;text-align:center;text-wrap:balance;font:{st['weight']} {fs}px/1.45 Cap,sans-serif;color:{st['color']};"
+           f"padding:{round(fs * .2)}px {round(fs * .4)}px;{box}" + (f"text-shadow:{','.join(shadow)};" if shadow else "")
+           + (f"-webkit-text-stroke:{ol}px {st['outline_color']};paint-order:stroke fill;" if ol else "") + "}"
+           f"#s span{{display:inline-block;opacity:{st['dim']};border-radius:{round(fs * .2)}px;padding:0 {round(fs * .1)}px}}"
+           f"#s span.said{{opacity:1}}#s span.now{{opacity:1;color:{st['accent']};"
+           + (f"background:{st['accent']};color:#111;-webkit-text-stroke:0;text-shadow:none;" if st["accent_bg"] else "")
+           + ("transform:scale(1.1);" if st["mode"] == "chunks" else "") + "}"
+           f"#s span.hidden{{display:none}}")
+    return css, fs
+
+
+def render_styled(cues: list[dict], aspect: str, W: int, H: int, out_dir: Path, style: dict) -> dict:
+    """الترجمة بالستايل المختار. الأوضاع: karaoke (الجملة كلها واللي اتقال منوّر)، words (الكلمات بتظهر واحدة واحدة)، chunks (1–3 كلمات كبيرة)."""
+    from playwright.sync_api import sync_playwright
+    st = caption_style(style)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    safe = SAFE[aspect]
+    css, fs = caption_css(st, H, 1 if aspect == "9:16" else 1.3)
+    max_w = int((safe["right"] - safe["left"]) * W)
+    cx = (safe["left"] + safe["right"]) / 2 * W
+    subs_out = []
+    with sync_playwright() as p:
+        b = p.chromium.launch()
+        pg = b.new_page(viewport={"width": W, "height": H})
+        pg.set_content(f"<html><head><style>html,body{{margin:0;background:transparent}}{css}#s{{max-width:{max_w}px}}</style></head><body><div id='s'></div></body></html>")
+        pg.evaluate("document.fonts.ready")
+        el = pg.locator("#s")
+        for k, c in enumerate(cues):
+            groups = chunks(c) if st["mode"] == "chunks" else [c.get("words") or []]
+            for g, ws in enumerate(groups):
+                if not ws:
+                    continue
+                words = [_disp_sub(x["word"], i == len(ws) - 1) for i, x in enumerate(ws)]
+                if st["mode"] == "chunks":
+                    words = [w.strip("،,.؛;:؟?!…") for w in words]
+                g_start = c["start"] if g == 0 else ws[0]["start"]
+                if st["mode"] == "chunks":
+                    nxt = groups[g + 1][0]["start"] if g + 1 < len(groups) else c["end"]
+                    g_end = round(min(nxt, ws[-1]["end"] + 0.6), 3)
+                else:
+                    g_end = c["end"]
+                bot = ((c["pos_bottom"] if c.get("pos_bottom") else st["y"]) + (0 if st["y"] == 0.80 else 0)) * H
+                states = []
+                for j in range(len(ws)):
+                    cls = lambda i: ("said" if i < j else "now" if i == j else ("hidden" if st["mode"] == "words" else ""))  # noqa: E731
+                    pg.evaluate("([ws, cl]) => { document.getElementById('s').innerHTML = ws.map((w, i) => `<span class=\"${cl[i]}\">${w}</span>`).join(' '); }",
+                                [words, [cls(i) for i in range(len(ws))]])
+                    bb = el.bounding_box()
+                    png = out_dir / f"c_{k + 1:03d}_{g + 1:02d}_{j + 1:02d}.png"
+                    el.screenshot(path=str(png), omit_background=True)
+                    w_, h_ = round(bb["width"]), round(bb["height"])
+                    t0 = g_start if j == 0 else ws[j]["start"]
+                    t1 = ws[j + 1]["start"] if j + 1 < len(ws) else g_end
+                    if t1 - t0 > 0.001:
+                        states.append({"png": str(png), "start": round(t0, 3), "end": round(t1, 3), "x": round(cx - w_ / 2), "y": round(bot - h_), "w": w_, "h": h_})
+                if not states:
+                    continue
+                if st["pop"]:   # نطّة الدخول: أول 0.08 ث الحالة الأولى أصغر شوية (بنفس الصورة متكبّرة/متصغّرة في الرندر مش متاح، فبنعيد رسمها)
+                    pass
+                base = states[-1]
+                subs_out.append({"id": f"{c['id']}_{g + 1}" if st["mode"] == "chunks" else c["id"], "cue": c["id"], "png": base["png"], "x": base["x"], "y": base["y"],
+                                 "w": base["w"], "h": base["h"], "start": round(g_start, 3), "end": g_end, "inside_bottom_zone": True,
+                                 "lines": max(1, round(base["h"] / (fs * 1.45 + fs * .4))), "states": states})
+        b.close()
+    return {"subs": subs_out, "cards": [], "overlaps": 0, "sub_font_px": fs, "card_font_px": 0, "style": st}
+
+
+def preview_caption(style: dict, text: str, out: Path, W: int = 1080, H: int = 1920, bg: str = "white", frame_jpg: Path | None = None) -> Path:
+    """صورة معاينة للستايل: جملة مثال (الكلمة التانية هي الحالية) على ورقة بيضا أو على فريم من الفيديو، مقصوصة على منطقة الترجمة."""
+    import base64
+    from playwright.sync_api import sync_playwright
+    st = caption_style(style)
+    css, fs = caption_css(st, H)
+    words = text.split()[:9] or ["ده", "شكل", "الترجمة", "على", "الفيديو"]
+    j = min(2, len(words) - 1)
+    if st["mode"] == "chunks":
+        words, j = words[:3], min(1, len(words[:3]) - 1)
+    cls = ["said" if i < j else "now" if i == j else ("hidden" if st["mode"] == "words" else "") for i in range(len(words))]
+    back = f"background:url(data:image/jpeg;base64,{base64.b64encode(frame_jpg.read_bytes()).decode()}) center/cover" if bg == "frame" and frame_jpg else \
+        ("background:#e9e9ec" if bg == "white" else "background:#16181d")   # «ورقة» رمادي فاتح: الكلام الأبيض يبان عليها
+    html = (f"<html><head><style>html,body{{margin:0;{back};width:{W}px;height:{H}px;overflow:hidden}}{css}"
+            f"#wrap{{position:absolute;left:0;right:0;bottom:{(1 - st['y']) * H}px;text-align:center}}#s{{max-width:{int(W * .84)}px}}</style></head>"
+            f"<body><div id='wrap'><div id='s'>{' '.join(f'<span class={chr(34)}{c}{chr(34)}>{w}</span>' for w, c in zip(words, cls))}</div></div></body></html>")
+    with sync_playwright() as p:
+        b = p.chromium.launch()
+        pg = b.new_page(viewport={"width": W, "height": H})
+        pg.set_content(html)
+        pg.evaluate("document.fonts.ready")
+        top = max(0, int(st["y"] * H - H * 0.22))
+        pg.screenshot(path=str(out), clip={"x": 0, "y": top, "width": W, "height": int(min(H - top, H * 0.3))}, type="jpeg", quality=82)
+        b.close()
+    return out

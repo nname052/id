@@ -4,6 +4,7 @@
 المشترك بس: شكل الصفحات (base.html) ودوال حفظ JSON.
 """
 
+import json
 import secrets
 import shutil
 import threading
@@ -456,3 +457,118 @@ def page_edit(request: Request, mid: str):
     if not state.load(mid):
         raise HTTPException(404)
     return pages.TemplateResponse(request, "montage.html", {"mid": mid})
+
+
+# ---------- استوديو المونتاج (تحكم يدوي كامل + معاينة قبل التطبيق) ----------
+import hashlib as _hashlib  # noqa: E402
+
+from . import graphics as _graphics  # noqa: E402
+from . import look as _look  # noqa: E402
+
+
+class StudioBody(BaseModel):
+    stage: str
+    params: dict
+    note: str | None = None
+
+
+class PreviewBody(BaseModel):
+    style: dict | None = None
+    bg: str = "frame"
+    text: str | None = None
+    vf: str | None = None
+    t: float | None = None
+
+
+def _prev_dir(mid: str):
+    d = state.mdir(mid) / "work" / "previews"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def _sample_frame(mid: str, t: float | None = None) -> "Path | None":
+    """فريم من فيديوك (بعد الإطار والفريمات، من غير ألوان) للمعاينات: ترجمة وفلاتر."""
+    m = state.load(mid)
+    view = stages.view(m)
+    s3 = next((s for s in view["stages"] if s["key"] == "s3_look"), None)
+    src = next((s for s in m["sources"] if s.get("kind") == "video"), None)
+    if not src:
+        return None
+    tt = t if t is not None else min(8.0, (src.get("probe") or {}).get("duration", 10) / 2)
+    out = _prev_dir(mid) / f"frame_{tt:.2f}.jpg"
+    if not out.exists():
+        fit = exporter.fit_chain({"width": (src.get("probe") or {}).get("width"), "height": (src.get("probe") or {}).get("height")}, 1080, 1920)
+        exporter._run(["ffmpeg", "-v", "error", "-y", "-ss", f"{tt:.3f}", "-i", str(state.mdir(mid) / src["work"]), "-frames:v", "1", "-vf", fit, "-q:v", "3", str(out)], "فريم معاينة")
+    return out
+
+
+@router.get("/montage/{mid}/studio")
+def page_studio(request: Request, mid: str):
+    if not state.load(mid):
+        raise HTTPException(404)
+    return pages.TemplateResponse(request, "studio.html", {"mid": mid})
+
+
+@router.get("/api/montage-studio/meta")
+def studio_meta():
+    return {"caption_presets": {k: v for k, v in _graphics.CAPTION_PRESETS.items()}, "fonts": list(_graphics.FONT_CHOICES),
+            "caption_default": _graphics.CAPTION_DEFAULT, "filters": _look.FILTER_PRESETS, "graphics_defaults": stages.GRAPHICS_DEFAULTS}
+
+
+@router.post("/api/montage/{mid}/studio/caption-preview")
+def caption_preview(mid: str, body: PreviewBody):
+    _need(mid)
+    st = _graphics.caption_style(body.style)
+    key = _hashlib.sha1(json.dumps([st, body.bg, body.text], sort_keys=True, ensure_ascii=False).encode()).hexdigest()[:12]
+    out = _prev_dir(mid) / f"cap_{key}.jpg"
+    if not out.exists():
+        text = body.text or next((c["text"] for c in (stages.view(state.load(mid)).get("cues") or []) if len(c["text"].split()) >= 4), "ده شكل الترجمة على الفيديو بتاعك")
+        _graphics.preview_caption(st, text, out, bg=body.bg, frame_jpg=_sample_frame(mid) if body.bg == "frame" else None)
+    return {"url": f"/montage-files/{mid}/previews/{out.name}", "style": st}
+
+
+@router.post("/api/montage/{mid}/studio/look-preview")
+def look_preview(mid: str, body: PreviewBody):
+    """الفلتر/الإعدادات على فريم من فيديوك (قبل ما تتطبق)."""
+    _need(mid)
+    fr = _sample_frame(mid, body.t)
+    if not fr:
+        raise HTTPException(400, "مفيش فيديو")
+    vf = _look.studio_vf(body.style or {})
+    key = _hashlib.sha1(f"{fr.name}|{vf}".encode()).hexdigest()[:12]
+    out = _prev_dir(mid) / f"look_{key}.jpg"
+    if not out.exists():
+        exporter._run(["ffmpeg", "-v", "error", "-y", "-i", str(fr), "-vf", ",".join(x for x in [vf, "scale=360:-2"] if x), "-q:v", "3", str(out)], "معاينة فلتر")
+    return {"url": f"/montage-files/{mid}/previews/{out.name}", "vf": vf}
+
+
+@router.post("/api/montage/{mid}/studio/apply")
+def studio_apply(mid: str, body: StudioBody):
+    m = _need(mid)
+    try:
+        stages.studio_apply(mid, _key(m, body.stage), body.params, body.note or "")
+    except stages.Blocked as e:
+        raise HTTPException(409, str(e)) from e
+    return {"ok": True}
+
+
+@router.get("/montage-files/{mid}/previews/{name}")
+def preview_file(mid: str, name: str):
+    p = _prev_dir(mid) / name
+    if "/" in name or not p.exists():
+        raise HTTPException(404)
+    return FileResponse(p)
+
+
+@router.get("/montage-files/{mid}/wave/{sid}.png")
+def wave_png(mid: str, sid: str):
+    """موجة الصوت للتايملاين (القصّ اليدوي): صورة عرضها 3000 بكسل على طول الملف كله."""
+    m = _need(mid)
+    src = next((s for s in m["sources"] if s["id"] == sid), None)
+    if not src:
+        raise HTTPException(404)
+    out = _prev_dir(mid) / f"wave_{sid}.png"
+    if not out.exists():
+        exporter._run(["ffmpeg", "-v", "error", "-y", "-i", str(state.mdir(mid) / src["work"]), "-filter_complex",
+                       "aformat=channel_layouts=mono,compand=gain=6,showwavespic=s=3000x160:colors=#7ee2b8", "-frames:v", "1", str(out)], "موجة الصوت")
+    return FileResponse(out)

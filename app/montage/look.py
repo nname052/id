@@ -28,6 +28,45 @@ LOOKS = {   # اختيارية: بتتطبق بس لو إنت طلبتها في 
 }
 
 
+# ---------- الفلاتر والإعدادات اليدوية («استوديو المونتاج») ----------
+# كل فلتر بيتشاف على فريم من فيديوك قبل ما يتطبق. الافتراضي «طبيعي» (ذوق صاحب الفيديو: من غير تلوين بيغيّر دفا الأوضة).
+FILTER_PRESETS = {
+    "natural": {"label": "طبيعي", "vf": ""},
+    "warm": {"label": "دافي", "vf": "colortemperature=temperature=5200:mix=0.6"},
+    "cool": {"label": "بارد", "vf": "colortemperature=temperature=7600:mix=0.6"},
+    "vivid": {"label": "ألوان حيّة", "vf": "eq=contrast=1.06:saturation=1.22,vibrance=intensity=0.25"},
+    "cinematic": {"label": "سينمائي", "vf": "curves=preset=medium_contrast,colorbalance=rs=-0.04:bs=0.05:rh=0.05:bh=-0.04"},
+    "film": {"label": "فيلم قديم ناعم", "vf": "curves=master='0/0.05 0.5/0.5 1/0.94',eq=saturation=0.88"},
+    "soft": {"label": "هادي باهت", "vf": "curves=all='0/0.07 1/0.96',eq=saturation=0.85"},
+    "punchy": {"label": "قوي", "vf": "eq=contrast=1.14:saturation=1.12"},
+    "moody": {"label": "غامق مزاجي", "vf": "eq=brightness=-0.03:saturation=0.82,colorbalance=bs=0.05:bm=0.03"},
+    "sepia": {"label": "سيبيا", "vf": "colorchannelmixer=.393:.769:.189:0:.349:.686:.168:0:.272:.534:.131"},
+    "bw": {"label": "أبيض وأسود", "vf": "hue=s=0,curves=preset=medium_contrast"},
+}
+MANUAL_KEYS = ("exposure", "contrast", "saturation", "warmth", "vibrance", "shadows", "vignette", "sharpen")
+
+
+def studio_vf(st: dict) -> str:
+    """الإعدادات اليدوية (كل واحدة من −1 لـ +1، و 0 = من غير تغيير) + الفلتر ← سلسلة FFmpeg."""
+    f = lambda k: max(-1.0, min(1.0, float(st.get(k) or 0)))  # noqa: E731
+    steps = []
+    if f("exposure") or f("contrast") or f("saturation"):
+        steps.append(f"eq=brightness={0.12 * f('exposure'):.3f}:contrast={1 + 0.35 * f('contrast'):.3f}:saturation={1 + 0.7 * f('saturation'):.3f}")
+    if f("shadows"):
+        y = 0.25 + 0.12 * f("shadows")
+        steps.append(f"curves=master='0/0 0.25/{y:.3f} 1/1'")
+    if f("warmth"):
+        steps.append(f"colortemperature=temperature={6500 - 1800 * f('warmth'):.0f}:mix=0.7")
+    if f("vibrance"):
+        steps.append(f"vibrance=intensity={0.5 * f('vibrance'):.3f}")
+    if f("vignette") > 0:
+        steps.append(f"vignette=angle={0.3 + 0.5 * f('vignette'):.3f}")
+    if f("sharpen") > 0:
+        steps.append(f"unsharp=5:5:{0.8 * f('sharpen'):.2f}:5:5:0")
+    flt = FILTER_PRESETS.get(st.get("filter") or "natural", FILTER_PRESETS["natural"])["vf"]
+    return ",".join(x for x in steps + [flt] if x)
+
+
 def fps_plan(probe: dict, r_rate: float | None = None) -> dict:
     """معدل الفريمات: لو المصدر معدل قياسي ثابت بنحافظ عليه. لو متغيّر (VFR) أو غريب:
     لو قريب (≤ 1%) من معدل قياسي ← نفس المعدل ثابت، والفريمات الناقصة بتتملى بمزج (مش تكرار).
@@ -365,7 +404,7 @@ def plan_natural(m: dict, fs: dict | None, look: str = "natural", strength: dict
     if st.get("sharpen") is True or (st.get("sharpen") is None and m["sharpness"] < SHARP_MIN / 2):
         steps.append("unsharp=5:5:0.25:5:5:0")
         why.append(f"حدة خفيفة (الحدة {m['sharpness']:.1f})")
-    if look and look != "natural" and LOOKS.get(look):
+    if look and look != "natural" and look not in FILTER_PRESETS and LOOKS.get(look):
         steps.append(LOOKS[look])
         why.append(f"ستايل «{look}» (إنت اللي اخترته)")
     return {"vf": ",".join(steps), "steps": steps, "why": why, "look": look or "natural", "face": fs}

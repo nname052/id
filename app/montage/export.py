@@ -319,9 +319,21 @@ SFX = {"whoosh": (_whoosh, 0.22, -0.18), "pop": (_pop, 0.16, 0.0), "flash": (_fl
        "click": (_click, 0.16, 0.0), "swoosh": (_swoosh, 0.14, -0.1), "sparkle": (_ding, 0.1, 0.0), "impact": (_pop, 0.14, 0.0)}   # (الصوت، الكسب، إزاحة البداية)
 
 
+# توقيت كل صوت على لحظة الحركة نفسها في الرسمة (بالثواني من بداية الجرافيك). الأرقام من توقيتات الرسم في motion.JS:
+# الخطوط بتترسم من 0.08 لـ 0.55 ث، والأيقونة بتكبر من 0.1 لـ 0.48، والصورة بتدخل بتلاشي 0.3 ث.
+SFX_TIMING = {
+    ("annotate", "check"): ("ding", 0.42, 0.09), ("annotate", "cross"): ("click", 0.3, 0.12), ("annotate", "sparkles"): ("sparkle", 0.12, 0.07),
+    ("annotate", "heart"): ("sparkle", 0.38, 0.06), ("annotate", "lightning"): ("impact", 0.4, 0.06), ("annotate", "exclaim"): ("impact", 0.45, 0.06),
+    ("annotate", "question"): ("click", 0.4, 0.1), ("annotate", "arrow_to_me"): ("swoosh", 0.02, 0.07),
+    ("visual", None): ("pop", 0.12, 0.1), ("doodle", None): ("pop", 0.1, 0.09), ("sticker", None): ("pop", 0.05, 0.1),
+    ("photo", None): ("swoosh", -0.08, 0.09), ("counter", None): ("ding", 1.55, 0.07),
+}
+
+
 def sfx_events(transitions: list[dict], gfx: list[dict]) -> list[dict]:
-    """مؤثرات قليلة ومقصودة (كانت كتير وعالية): whoosh خفيف جدًا مع زووم التأكيد، و whoosh مع السحبة (لقطات مختلفة)،
-    و pop واطي مع ظهور الإيموجي/الرسمة/الشخبطة. الرقم والحاجات التانية من غير صوت."""
+    """مؤثر واحد مع كل حاجة بتحصل على الشاشة، في اللحظة اللي الحركة بتحصل فيها بالظبط (مش أول الجرافيك وخلاص):
+    صح ← ding لما العلامة تخلص رسم، غلط ← click مع آخر خط، لمعة/قلب ← sparkle مع ظهورها، أيقونة ← pop وهي بتكبر، صورة ← swoosh وهي داخلة،
+    وزووم التأكيد ← whoosh خفيف، والسحبة (لقطات مختلفة) ← whoosh."""
     ev = []
     for tr in transitions:
         k = tr["kind"]
@@ -329,22 +341,12 @@ def sfx_events(transitions: list[dict], gfx: list[dict]) -> list[dict]:
             ev.append({"t": tr["t"], "sfx": "whoosh", "gain": 0.16, "why": "سحبة"})
         elif k == "jumpzoom":
             ev.append({"t": tr["t"], "sfx": "whoosh", "gain": 0.07, "why": "زووم تأكيد"})
-    n = 0
     for g in gfx:
         k, a = g.get("kind"), g.get("annotation")
-        if k == "annotate" and a in ("sparkles", "heart"):
-            ev.append({"t": g["start"] + 0.1, "sfx": "sparkle", "gain": 0.07, "why": f"علامة {a}"})
-        elif k == "annotate" and a in ("check", "lightning"):
-            ev.append({"t": g["start"] + 0.12, "sfx": "ding", "gain": 0.08, "why": f"علامة {a}"})
-        elif k == "annotate" and a == "exclaim":
-            ev.append({"t": g["start"] + 0.05, "sfx": "impact", "gain": 0.07, "why": "علامة تعجب"})
-        elif k == "annotate" and a in ("cross", "question"):
-            ev.append({"t": g["start"] + 0.08, "sfx": "click", "gain": 0.12, "why": f"علامة {a}"})
-        elif k in ("visual", "doodle", "sticker", "annotate", "photo"):
-            n += 1
-            ev.append({"t": g["start"], "sfx": "pop" if n % 2 else "swoosh", "gain": 0.1 if n % 2 else 0.08, "why": f"ظهور {k}"})
-        elif k == "counter":
-            ev.append({"t": g["start"] + 1.5, "sfx": "ding", "gain": 0.07, "why": "الرقم وصل"})
+        rule = SFX_TIMING.get((k, a)) or SFX_TIMING.get((k, None))
+        if rule:
+            snd, off, gain = rule
+            ev.append({"t": round(g["start"] + off, 3), "sfx": snd, "gain": gain, "why": f"{k}{':' + a if a else ''} (+{off:.2f} ث)"})
     return sorted(ev, key=lambda e: e["t"])
 
 

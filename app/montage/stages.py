@@ -40,8 +40,9 @@ DEFAULTS = {
     "s2_cut": {"aspect": "9:16", "dead_air": 0.7, "breath_out": 0.22, "breath_in": 0.14, "transitions": "auto", "dissolve_frames": 0, "audio_xfade_ms": 60},
     "s3_look": {"look": "natural", "brightness": 0, "saturation": 0, "sharpen": None, "denoise": None},
     "s4_subs": {"max_chars": 30, "min_dur": 1.2, "max_dur": 5.0, "size": "medium", "color": "white", "panel": True, "pos": "bottom", "fixes": {}, "style": "player"},
-    "s5_graphics": {"graphics": "on", "mood": "clean", "density": "normal", "removed": []},
-    "s6_audio": {"target_lufs": -14.0, "true_peak": -1.5, "music": "auto", "music_gain_db": -16.0, "duck": True, "denoise": "auto"},
+    "s5_graphics": {"graphics": "on", "mood": "clean", "density": "normal", "removed": [], "kinds": {"visual": True, "annotate": True, "photo": True, "counter": True},
+                    "accent": "#7ee2b8", "size": 1.0, "max_photos": 2, "badge": "glass"},
+    "s6_audio": {"target_lufs": -14.0, "true_peak": -1.5, "music": "auto", "music_gain_db": -16.0, "duck": True, "denoise": "auto", "sfx": "on", "sfx_volume": 1.0},
     "s7_preview": {"crf": 18, "preset": "medium"},
 }
 PACE = {"fast": {"dead_air": 0.5, "breath_out": 0.16, "breath_in": 0.10}, "normal": {"dead_air": 0.7, "breath_out": 0.22, "breath_in": 0.14},
@@ -272,12 +273,21 @@ def _auto_loop(mid: str, keys: list[str], origin_note: str | None = None, fresh:
         if k in AFTER_REVIEW and status(state.load(mid), REVIEW_GATE) != "approved":
             paused = f"راجع «{LABELS[REVIEW_GATE]}» ووافق عليها (أو صلّح أي كلمة)، وبعدها المونتاج بيكمّل لوحده"
             break
+        # الترجمة اتعادت بسبب تعديل قبلها (قصّ/صورة) والكلام المتوافق عليه زي ما هو (نفس التصحيحات): الموافقة بتفضل
+        mk = state.load(mid)
+        rk = record(mk, k)
+        inherit = k == REVIEW_GATE and rk.get("approved") is not None and status(mk, k) in ("approved", "stale")
+        old_fixes = (read_stage(mid, k, rk["approved"]).get("user_params") or {}).get("fixes") if inherit else None
         state.update(mid, lambda mm: (mm["auto"].update(stage=k), record(mm, k).update(job="running", error=None)))
         _active.add((mid, k))
         try:
             ok = _run_job(mid, k, None, "auto", origin_note, None, None)
         finally:
             _active.discard((mid, k))
+        if ok and inherit:
+            cur = record(state.load(mid), k)["current"]
+            if (read_stage(mid, k, cur).get("user_params") or {}).get("fixes") == old_fixes:
+                state.update(mid, lambda mm: record(mm, k).update(approved=record(mm, k)["current"]))
         if not ok:
             err = f"«{LABELS[k]}» فشلت: " + (record(state.load(mid), k).get("error") or "")
             break
@@ -332,6 +342,42 @@ def _run_job(mid, key, params, origin, note, data_override, base_input) -> bool:
             traceback.print_exc()
             state.update(mid, lambda mm: record(mm, key).update(job="failed", error=str(e)[:500]))
             return False
+
+
+def studio_apply(mid: str, key: str, params: dict, note: str = "", sync: bool = False) -> None:
+    """تعديل يدوي من «استوديو المونتاج» ← نسخة جديدة من المرحلة، والمراحل اللي بعدها بتتحدّث لوحدها.
+    لو الترجمة كانت متوافق عليها والتعديل في الشكل بس (من غير تصحيح كلام)، الموافقة بتفضل والباقي بيكمّل."""
+    m = fix_orphans(state.load(mid))
+    check_can_run(m, key)
+    keep_approval = key == REVIEW_GATE and status(m, key) == "approved" and "fixes" not in params
+
+    def go():
+        ok = _run_job(mid, key, params, "manual", note or "تعديل من الاستوديو", None, None)
+        if not ok:
+            return
+        if keep_approval:
+            state.update(mid, lambda mm: record(mm, key).update(approved=record(mm, key)["current"]))
+        rest = PIPE[PIPE.index(key) + 1:]
+        if rest:
+            _auto.add(mid)
+            try:
+                _auto_loop(mid, rest, origin_note=f"بعد تعديل «{LABELS[key]}» من الاستوديو")
+            finally:
+                _auto.discard(mid)
+    _active.add((mid, key))
+    state.update(mid, lambda mm: record(mm, key).update(job="running", error=None))
+
+    def run():
+        try:
+            go()
+        finally:
+            _active.discard((mid, key))
+    run() if sync else threading.Thread(target=run, daemon=True).start()
+
+
+# إعدادات الجرافيك الافتراضية (بتتعدّل من الاستوديو): أنواع مسموحة، والكثافة، ولون التأكيد، والحجم، والصور، والمؤثرات
+GRAPHICS_DEFAULTS = {"kinds": {"visual": True, "annotate": True, "photo": True, "counter": True}, "density": "normal", "accent": "#7ee2b8",
+                     "size": 1.0, "max_photos": 2, "badge": "glass", "sfx": "on", "sfx_volume": 1.0}
 
 
 REVIEW_GATE = "s4_subs"                                       # المراجعة الثابتة: الترجمة
@@ -723,7 +769,7 @@ def run_s3(ctx):
     with_face = sum(bool(x["faces"]) for x in samples)
     speaker = bool(samples) and with_face >= 0.5 * len(samples)
     t_vision = round(time.time() - t0, 1)
-    strength = {k: prm.get(k) for k in ("brightness", "saturation", "sharpen", "denoise")}
+    strength = {k: prm.get(k) for k in ("brightness", "saturation", "sharpen", "denoise", *look.MANUAL_KEYS)}
     scenes = s1["sources"][mv["id"]]["scenes"]
     shots, report, stills, fs_main = [], [], [], None
     for k, sc in enumerate(scenes):
@@ -747,6 +793,12 @@ def run_s3(ctx):
                           "skin_warm_delta": chk["skin_warm_delta"], "ok": chk["ok"]})
             if chk["ok"]:
                 break
+        # إعداداتك اليدوية والفلتر (من الاستوديو) بعد التصحيح الطبيعي، من غير ما الفحص الأوتوماتيك يلغيهم: ده اختيارك إنت
+        manual = look.studio_vf({**{k: prm.get(k) for k in look.MANUAL_KEYS}, "filter": prm.get("look") if prm.get("look") in look.FILTER_PRESETS else None})
+        if manual:
+            pl = {**pl, "vf": ",".join(x for x in [pl["vf"], manual] if x), "why": pl["why"] + [f"إعداداتك من الاستوديو: {manual}"]}
+            after = look.measure(look.frames(src["path"], times, ",".join(x for x in [fit, pl["vf"]] if x), width=540))
+            chk = {**chk, **look.check(before, after)}
         fs_after = look.face_stats(look.frames(src["path"], times, ",".join(x for x in [fit, pl["vf"]] if x), width=540), faces) if fs else None
         shots.append({"index": k + 1, "start": a, "end": b, "vf": pl["vf"], "why": pl["why"], "before": before, "after": after, "check": chk,
                       "face_before": fs, "face_after": fs_after, "tries": tries, "wb_strength": pl.get("wb_strength")})
@@ -867,7 +919,9 @@ def _finish_s4(ctx, data):
                     c["pos_bottom"] = round(bot, 3)
                     moved.append(c["id"])
                 break
-    if prm.get("style", "player") == "player":   # زي فيديوهات التطبيق (الافتراضي): الجملة تحت بخط متوسط، واللي اتقال منوّر
+    if prm.get("caption"):   # ستايل من «استوديو المونتاج» (جاهز + تعديلات صاحب الفيديو)
+        r = graphics.render_styled(data["cues"], data["aspect"], W, H, ctx["vd"] / "subs", prm["caption"])
+    elif prm.get("style", "player") == "player":   # زي فيديوهات التطبيق (الافتراضي): الجملة تحت بخط متوسط، واللي اتقال منوّر
         r = graphics.render_karaoke(data["cues"], data["aspect"], W, H, ctx["vd"] / "subs", style)
     elif prm.get("style") == "bold":   # ستايل التيك توك: 1–3 كلمات كبيرة
         r = graphics.render_bold(data["cues"], data["aspect"], W, H, ctx["vd"] / "subs", style,
@@ -888,7 +942,9 @@ def _finish_s4(ctx, data):
     data.update(subs=subs, subs_track=str(track.relative_to(ctx["d"])), sub_style=style, subs_check=sc)
     report = [f"{sc['cues']} سطر · {sc['word_states']} كلمة بتظهر كلمة كلمة مع صوتها · جوه المنطقة الآمنة تحت: {sc['inside_bottom_zone']}/{sc['cues']}",
               f"مدة السطر على الشاشة: من {sc['min_dur']} لـ {sc['max_dur']} ث · أقل من {prm['min_dur']}: {sc['under_min']} · أكتر من {prm['max_dur']}: {sc['over_max']}",
-              (f"زي فيديوهات التطبيق: الجملة تحت · الخط {sc['font_px']}px = {sc['font_pct_height']}% من ارتفاع الفريم · اللي اتقال منوّر والكلمة الحالية بلون التأكيد"
+              (f"ستايل الترجمة: «{r['style'].get('label') or r['style']['preset']}» · خط {r['style']['font']} {r['style']['size']}px · لون {r['style']['color']} والكلمة الحالية {r['style']['accent']}"
+               if prm.get("caption") else
+               f"زي فيديوهات التطبيق: الجملة تحت · الخط {sc['font_px']}px = {sc['font_pct_height']}% من ارتفاع الفريم · اللي اتقال منوّر والكلمة الحالية بلون التأكيد"
                if prm.get("style", "player") == "player" else
                f"ستايل التيك توك: {len(subs)} مجموعة (1–3 كلمات) · الخط {sc['font_px']}px = {sc['font_pct_height']}% من ارتفاع الفريم · الكلمة الحالية منوّرة · دخول بنطّة"
                if prm.get("style") == "bold" else f"الخط {sc['font_px']}px = {sc['font_pct_height']}% من ارتفاع الفريم · خلفية غامقة خفيفة · سطرين بالكتير · السطور بتقف عند السكتات"),
@@ -1013,10 +1069,21 @@ def run_s5(ctx):
     subs_rects = [{"left": o["x"] / W, "right": (o["x"] + o["w"]) / W, "top": o["y"] / H, "bottom": (o["y"] + o["h"]) / H, "start": o["start"], "end": o["end"]}
                   for o in inp.get("subs", [])]
     # مخرج الجرافيك: رسمة/أيقونة/إيموجي متحرك على قد الكلام (من المكتبات أو بيترسم)، مربوط بكلمة في سطر. لو فشل: القواعد القديمة
-    dplan = director.plan(inp["cues"], (ctx["m"].get("brief") or {}).get("text", "")) \
+    allowed = [k for k, on in (prm.get("kinds") or {}).items() if on]
+    hint = {"few": "جرافيك قليل: واحد كل 6–8 ثواني بالكتير.", "many": "جرافيك أكتر: واحد كل 2–4 ثواني.", "normal": ""}.get(prm.get("density", "normal"), "")
+    hint += f" الأنواع المسموحة بس: {', '.join(allowed)}." if allowed and len(allowed) < 4 else ""
+    hint += f" الصور الحقيقية {int(prm.get('max_photos', 2))} بالكتير." if int(prm.get("max_photos", 2)) != 2 else ""
+    dplan = director.plan(inp["cues"], ((ctx["m"].get("brief") or {}).get("text", "") + " " + hint).strip()) \
         if prm["graphics"] != "off" and prm.get("director", "on") == "on" and inp.get("cues") else {"items": []}
-    if dplan.get("items"):
+    if dplan.get("items"):   # إعداداتك من الاستوديو هي الحَكَم: الأنواع المقفولة بتتشال، والصور على قد العدد اللي اخترته
+        kinds_on = prm.get("kinds") or {}
+        dplan["items"] = [x for x in dplan["items"] if kinds_on.get(x["template"], True)]
+        ph = [x for x in dplan["items"] if x["template"] == "photo"]
+        for x in ph[int(prm.get("max_photos", 2)):]:
+            dplan["items"].remove(x)
         specs, log = _director_specs(dplan, its, inp, prm, samples, speaker, W, H, removed)
+        for sp in specs:
+            sp["accent"], sp["badge"], sp["scale"] = prm.get("accent", "#7ee2b8"), prm.get("badge", "glass"), float(prm.get("size", 1.0))
     # لو المخرج فشل: من غير جرافيك أحسن من كروت الكلام القديمة (اترفضت: «بتكتب الكلام وهو أصلًا مكتوب»)
     for it in ([] if dplan.get("items") or prm.get("director", "on") == "on" else its):
         entry = {"idea": it["id"], "text": it["text"][:60], "start": it["start"], "end": it["end"]}
@@ -1159,7 +1226,7 @@ def _director_specs(dplan, its, inp, prm, samples, speaker, W, H, removed):
         win = [x for t in np.linspace(start, end, 10) for x in vision.window(samples, out_to_src(inp["segments"], float(t))[1], out_to_src(inp["segments"], float(t))[1])]
         occ = vision.occupancy(win)
         prefer_y = ((fb[1] + fb[3]) / 2) if fb else None
-        rect = motion.place(kind if kind in motion.SIZES else "visual", occ, inp["aspect"], prefer_y=prefer_y, prefer_side=side_pref)
+        rect = motion.place(kind if kind in motion.SIZES else "visual", occ, inp["aspect"], prefer_y=prefer_y, prefer_side=side_pref, scale=float(prm.get("size", 1.0)))
         if rect is None:
             log.append({**entry, "decision": "skip", "why": "مفيش مساحة فاضية من غير ما يغطيك"}); continue
         side = "right" if (rect["left"] + rect["right"]) / 2 > 0.5 else "left"
@@ -1237,6 +1304,8 @@ def run_s6(ctx):
                           duck=bool(prm["duck"]), music_stem=stem, pre_gain_db=pre, duck_release=int(prm.get("duck_release", 350)))
     # مؤثرات الصوت (whoosh مع السحبة والزووم، flash مع الفلاش، pop خفيف مع دخول الجرافيك): بيعملها التطبيق، وبتتقفل بـ «من غير مؤثرات»
     events = exporter.sfx_events(inp["transitions"], inp.get("gfx", [])) if prm.get("sfx", "on") == "on" else []
+    for e in events:   # علو المؤثرات من الاستوديو (1 = الافتراضي)
+        e["gain"] = e.get("gain", 0.1) * float(prm.get("sfx_volume", 1.0))
     if events:
         exporter.sfx_track(events, inp["total"], vd / "sfx.wav")
         exporter.mix_sfx(raw, vd / "sfx.wav", vd / "mix_sfx.wav")
