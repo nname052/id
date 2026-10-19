@@ -25,7 +25,7 @@ export class ShibinTraffic {
     this.scene = scene; this.makeCar = makeCar; this.audio = audio; this.world = world; this.graph = world.graph;
     this.R = rng(9091);
     this.cars = [];
-    this._stops = [];
+    this._stops = []; this._slows = [];
     this.parked = [];
     this.viewDist = 170;
     this.night = false;
@@ -545,6 +545,7 @@ export class ShibinTraffic {
     const fr = (this._frame = (this._frame || 0) + 1);
     this._simT = (this._simT || 0) + dt;
     this._stops = [...(this.world.rail?.stopZones || []), ...(this.extraStops?.() || [])];
+    this._slows = this.extraSlows?.() || [];
     if (!this.lineRoutes) this._buildLineRoutes();
     this._first = fr === 1;
     const C = this._cam || (this._cam = {});
@@ -601,7 +602,9 @@ export class ShibinTraffic {
     c.kox *= Math.exp(-dt * 0.8); c.koz *= Math.exp(-dt * 0.8);
     const e = c.e, L = e.length;
     if (!c.pull && c.laneHome !== undefined && c.laneHome !== c.lane && !c.turn) { const d = c.laneHome - c.lane; c.lane += Math.sign(d) * Math.min(Math.abs(d), dt * 0.9); }
-    const vMax = Math.max(4, (e.speed / 3.6) * c.vMul * (e.cls === 'residential' ? 0.8 : 1));
+    let vMax = Math.max(4, (e.speed / 3.6) * c.vMul * (e.cls === 'residential' ? 0.8 : 1));
+    // مناطق تهدية (كمين شغال…): السرعة القصوى بتقل جواها
+    for (const z of this._slows) if ((z.x - c.x) ** 2 + (z.z - c.z) ** 2 < z.r * z.r) vMax = Math.min(vMax, z.v);
     // ===== اللي قدامي (عربية أو اللاعب) في نفس اتجاهي =====
     let gap = 1e9, vLead = 30, playerAhead = false;
     const hx = c.lastDx, hz = c.lastDz;

@@ -29,7 +29,11 @@ const r = await page.evaluate(async () => {
   Math.random = rnd;
   out.visible = c.root.visible; out.barriers = c.colliders.length; out.state1 = c.state;
   // 2) وقفة عند الظابط → تفتيش → (الرخص سليمة) اتفضل
-  place(4); tick(10); out.state2 = c.state; tick(80); out.state3 = c.state;
+  place(4); tick(10); out.state2 = c.state;
+  // الظابط بيمشي لحد شباك السواق الأول (لحد 15 ثانية)، وبعدين يفتش
+  let walked = 0; const o0 = c.off.position.clone();
+  for (let i = 0; i < 450 && c.state !== 'done'; i++) { tick(1); walked = Math.max(walked, c.off.position.distanceTo(o0)); }
+  out.state3 = c.state; out.officerWalkedM = +walked.toFixed(1);
   // 3) الهروب: كمين تاني شغال، وعدّيته بسرعة
   c.state = 'idle'; c.cool = 0; c.rolled = false; c.on = true; Inc._cool = 0;
   place(60); tick(5);
@@ -60,7 +64,7 @@ const r = await page.evaluate(async () => {
   out.cardTitle = document.querySelector('#paycard .pc-h')?.textContent;
   return out;
 });
-const pass = r.visible && r.barriers >= 4 && r.state1 === 'signal' && ['signal', 'check', 'done'].includes(r.state2) && r.state3 === 'done' && r.chase === 'chase' && r.spawnDistFromPlayer > 25 && r.policeOffRoadSamples === 0 && r.minDistToPlayer >= 6.5 && r.afterStop === 'ticket' && !errors.length;
+const pass = r.visible && r.barriers >= 4 && r.state1 === 'signal' && ['signal', 'check', 'done'].includes(r.state2) && r.state3 === 'done' && r.officerWalkedM > 1 && r.chase === 'chase' && r.spawnDistFromPlayer > 25 && r.policeOffRoadSamples === 0 && r.minDistToPlayer >= 6.5 && r.afterStop === 'ticket' && !errors.length;
 console.log(JSON.stringify({ ...r, errors }));
 console.log(pass ? 'PASS checkpoint' : 'FAIL checkpoint');
 await browser.close();

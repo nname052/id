@@ -247,6 +247,7 @@ export class Game {
     if (this.mapId === 'shibin' && this.crowd?.extras) {
       this.emergency = new Emergency(this.scene, { world: this.world, crowd: this.crowd, traffic: this.traffic, makeBody: (t) => this._makeCarBody(t, 0xffffff, {}), audio: this.audio, hud: this.hud });
       this.traffic.extraStops = () => this.emergency.stopZones;
+      this.traffic.extraSlows = () => this.police?.slowZones || [];
       this.crowd.onHit = (p, severe, v) => {
         this.audio?.thump?.(Math.min(1, v / 12));
         this.hud?.toast(severe ? '⚠️ خبطت حد جامد! — الإسعاف والشرطة جايين' : '⚠️ خبطت واحد ماشي — قام الحمد لله، بس الشرطة جاية', 3);

@@ -147,8 +147,13 @@ export class Police {
       const off = officer();
       { const [ox, oz] = at(-2, road + 0.6); off.position.set(ox, groundHeight(ox, oz), oz); }
       root.add(off);
+      const home = off.position.clone();
+      // عسكري تاني واقف جنب عربية الشرطة (حراسة) — بيبص على العربيات اللي جاية
+      const guard = officer();
+      { const [gx, gz] = at(-12, road + 1.0); guard.position.set(gx, groundHeight(gx, gz), gz); guard.rotation.y = yaw + Math.PI; }
+      root.add(guard);
       scene.add(root);
-      this.cps.push({ def, q: { x: q.x, z: q.z, dx: q.dx, dz: q.dz, rx: q.rx, rz: q.rz, half: road }, root, car, off, colliders, state: 'idle', cool: 0, rolled: false, t: 0 });
+      this.cps.push({ def, q: { x: q.x, z: q.z, dx: q.dx, dz: q.dz, rx: q.rx, rz: q.rz, half: road }, root, car, off, home, guard, colliders, state: 'idle', cool: 0, rolled: false, t: 0 });
     }
     // مكان "اركن على جنب": علامة حمرا/زرقا على الأرض
     const mk = new THREE.Mesh(new THREE.PlaneGeometry(2.8, 6).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x3b82f6, transparent: true, opacity: 0.6, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, toneMapped: false }));
@@ -184,9 +189,21 @@ export class Police {
       if (!c.root.visible) continue;
       // الظابط بيشاور لما تقرب
       const arm = c.off.userData.arm;
-      const signal = c.on && c.state !== 'done' && d < 90;
+      const signal = c.on && (c.state === 'idle' || c.state === 'signal') && d < 90;
       arm.rotation.x += ((signal ? -2.6 + Math.sin(t * 6) * 0.25 : 0) - arm.rotation.x) * Math.min(1, dt * 6);
-      c.off.rotation.y = Math.atan2(dx, dz);
+      // التفتيش: بيمشي لحد شباك السواق (الشمال — مصر) وبيرجع مكانه بعد ما يخلص
+      const [fx0, fz0] = ph.forward;
+      // (يمين العربية = (−fz, fx) → الشمال = (fz, −fx))
+      const sw = ph.spec.halfWidth + 0.7, sf = ph.spec.halfLength * 0.35;
+      const win = c.state === 'check' ? { x: ph.x + fz0 * sw + fx0 * sf, z: ph.z - fx0 * sw + fz0 * sf } : null;
+      const tgt = win || (c.state === 'pullover' || c.state === 'fine' ? null : { x: c.home.x, z: c.home.z });
+      if (tgt) {
+        const o = c.off.position, wx = tgt.x - o.x, wz = tgt.z - o.z, wd = Math.hypot(wx, wz);
+        c.offArrived = wd < 0.25;
+        if (!c.offArrived) { const st = Math.min(wd, 1.5 * dt); o.x += wx / wd * st; o.z += wz / wd * st; o.y = groundHeight(o.x, o.z) + Math.abs(Math.sin(t * 9)) * 0.03; c.off.rotation.y = Math.atan2(wx, wz); }
+        else c.off.rotation.y = win ? Math.atan2(ph.x - o.x, ph.z - o.z) : Math.atan2(dx, dz);
+      } else c.off.rotation.y = Math.atan2(dx, dz);
+      if (c.guard) c.guard.rotation.y = Math.atan2(ph.x - c.guard.position.x, ph.z - c.guard.position.z);
       if (!c.on || c.cool > 0) continue;
       const along = dx * c.q.dx + dz * c.q.dz, lat = dx * c.q.rx + dz * c.q.rz;
       const onRoad = Math.abs(lat) < c.q.half + 2;
@@ -197,12 +214,14 @@ export class Police {
       }
       if (c.state === 'signal') {
         const inZone = Math.abs(along) < 16 && onRoad;
-        if (inZone && ph.speed < 0.7) { c.stopT += dt; if (c.stopT > 0.6) { c.state = 'check'; c.t = 1.4; this.hud?.toast('👮 رخصك يا أسطى؟', 2); } }
+        if (inZone && ph.speed < 0.7) { c.stopT += dt; if (c.stopT > 0.6) { c.state = 'check'; c.t = 1.6; c.offArrived = false; this.hud?.toast('👮 الظابط جاي ناحيتك — استنى', 2); } }
         // عدّى الظابط من غير ما يقف
         if (Math.sign(along) === -c.dir && Math.abs(along) > 8 && ph.speed > 3) this._flee(c);
         else if (d > 140) { c.state = 'idle'; this.active = null; }
       } else if (c.state === 'check') {
         if (ph.speed > 2.5) { this._flee(c); continue; }
+        if (!c.offArrived) continue; // لسه ماشي ناحية الشباك
+        if (!c.asked) { c.asked = true; this.hud?.toast('👮 رخصك يا أسطى؟', 2); }
         c.t -= dt;
         if (c.t <= 0) {
           const probs = this.licenses ? this.licenses.problems(kind) : [];
@@ -262,8 +281,11 @@ export class Police {
   /** المطاردة خلصت: عربية الكمين ترجع مكانها (لما تبقى بعيد عنها) */
   chaseOver() { for (const c of this.cps) if (c.chased) { c.chased = false; c.car.root.visible = true; } }
 
+  /** للمرور: كمين شغال قدامه → العربيات بتهدّي (سرعة قصوى قريب منه) */
+  get slowZones() { return this.cps.filter((c) => c.root.visible && c.on && c.state !== 'done').map((c) => ({ x: c.q.x, z: c.q.z, r: 30, v: 3.5 })); }
+
   _done(c) {
-    c.state = 'done'; c.cool = COOL; c.on = false;
+    c.state = 'done'; c.cool = COOL; c.on = false; c.asked = false;
     this.marker.visible = false;
     if (this.active === c) this.active = null;
     // بيفضل ظاهر لحد ما تبعد (120م) وبعدين بيرجع idle ويستخبى لما تبعد أكتر
