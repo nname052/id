@@ -35,6 +35,7 @@ import { FuelSystem } from '../gameplay/Fuel.js';
 import { Licenses } from '../gameplay/Licenses.js';
 import { Police } from '../gameplay/Police.js';
 import { Incidents } from '../gameplay/Incidents.js';
+import { Emergency } from '../gameplay/Emergency.js';
 import { Race } from '../gameplay/Race.js';
 import { buildRaceTrack } from '../world/RaceTrack.js';
 import { buildFootbridge } from '../world/Footbridge.js';
@@ -205,6 +206,7 @@ export class Game {
       this.incidents?.colliders(box, out);
       this.police?.colliders(box, out);
       this.world?.rail?.colliders(box, out);
+      this.emergency?.colliders(box, out);
       this.raceTrack?.colliders(box, out);
       this.race?.colliders(box, out);
       return out;
@@ -241,6 +243,17 @@ export class Game {
       this.passengers.stops.some((st) => (st.mx ?? st.x) - x < r + 8 && x - (st.mx ?? st.x) < r + 8 && Math.hypot((st.mx ?? st.x) - x, (st.mz ?? st.z) - z) < r + 8) ||
       (this.world.policeSpots || []).some((sp) => Math.hypot(sp.q.x - x, sp.q.z - z) < r + 40);
     this.incidents = new Incidents(this.scene, { hud: this.hud, wallet: this.wallet, licenses: this.licenses, passengers: this.passengers, audio: this.audio });
+    // حوادث المشاة + الإسعاف (شبين)
+    if (this.mapId === 'shibin' && this.crowd?.extras) {
+      this.emergency = new Emergency(this.scene, { world: this.world, crowd: this.crowd, traffic: this.traffic, makeBody: (t) => this._makeCarBody(t, 0xffffff, {}), audio: this.audio, hud: this.hud });
+      this.traffic.extraStops = () => this.emergency.stopZones;
+      this.crowd.onHit = (p, severe, v) => {
+        this.audio?.thump?.(Math.min(1, v / 12));
+        this.hud?.toast(severe ? '⚠️ خبطت حد جامد! — الإسعاف والشرطة جايين' : '⚠️ خبطت واحد ماشي — قام الحمد لله، بس الشرطة جاية', 3);
+        if (severe) this.emergency.dispatch(p);
+        if (this.started && !this.race?.active) this.incidents.trigger(severe ? 'ped' : 'pedMinor', this.player.physics, this.player.kind);
+      };
+    }
     // هروب من كمين → مطاردة من مكان عربية الكمين على شبكة الطرق
     this.police.onFlee = (c, x, z) => this.incidents.pursueFrom(x, z, this.player.physics, this.player.kind);
     this.incidents.onFinish = () => this.police.chaseOver();
@@ -833,6 +846,7 @@ export class Game {
     // إيدين السواق على الجادون بتبان من الكابينة بس (من برا الموديل بتاع السواق هو اللي باين)
     if (this.player.rig.hands) this.player.rig.hands.visible = this.cams.mode === 0;
     this.crowd.update(dt, this.camera.position, this.player.physics, this.camera.getWorldDirection(this._camDir || (this._camDir = new THREE.Vector3())));
+    this.emergency?.update(dt, this.camera.position);
     this.passengers.camPos = this.camera.position;
     if (this.started) this.passengers.update(dt, ph);
     // البنزين، الرخص، الكماين، والبنزينة

@@ -12,7 +12,7 @@ import { groundHeight } from '../world/ground.js';
 import { findRoute, projectToGraph } from '../nav/RoadGraph.js';
 
 const KEY = 'egy-police-block-v1';
-const FINE = { crash: 300, flip: 500, flee: 1500, checkpoint: 1000 };
+const FINE = { crash: 300, flip: 500, flee: 1500, checkpoint: 1000, ped: 3000, pedMinor: 600 };
 const MAX_V = 30;          // أقصى سرعة لعربية الشرطة (م/ث ≈ 108 كم/س) — ممكن تهرب منها
 const CHASE_TIME = 60;     // المطاردة دقيقة؛ لو فضلت بعيد عنها لحد ما تخلص = هربت
 

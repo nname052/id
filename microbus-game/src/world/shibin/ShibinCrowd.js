@@ -20,7 +20,7 @@ export class ShibinCrowd {
     this.group = new THREE.Group(); this.group.name = 'crowd';
     scene.add(this.group);
     this.batch = new HumanBatch(this.group, humanVariants(VARIANTS, 777, true), this.cap);
-    this.people = [];
+    this.people = []; this.extras = [];
     for (let i = 0; i < this.cap; i++) this.people.push({ on: false, variant: i % VARIANTS, phase: this.R() * 10, heading: 0, scared: 0 });
     this.setCount(count);
     this._trim = new Map();
@@ -190,7 +190,11 @@ export class ShibinCrowd {
         continue;
       }
       const d2 = (p.x - cx) ** 2 + (p.z - cz) ** 2;
-      if (d2 > RECYCLE * RECYCLE) { p.on = false; p.cross = null; p.group = null; continue; }
+      if (d2 > RECYCLE * RECYCLE && !p.hit) { p.on = false; p.cross = null; p.group = null; p.ret = null; continue; }
+      if (p.hitCool) p.hitCool = Math.max(0, p.hitCool - dt);
+      if (p.hit) { this._hitStep(p, dt); continue; }
+      if (p.ret) { this._returnStep(p, dt); continue; }
+      if (ph && Math.abs(p.x - ph.x) < 4.5 && Math.abs(p.z - ph.z) < 4.5 && this._hitTest(p, ph)) continue;
       if (ph && !p.cross && d2 < 400 && Math.abs(p.x - ph.x) < 9 && Math.abs(p.z - ph.z) < 9) this._dodge(p, dt, ph);
       p.scared = Math.max(0, p.scared - dt);
       if (!p.standing) {
@@ -221,11 +225,81 @@ export class ShibinCrowd {
       if (!p.on || (p.x - cx) ** 2 + (p.z - cz) ** 2 > VIEW * VIEW) continue;
       const talk = p.standing && !p.scared && (p.variant + i) % 4 === 0 ? 0.18 + Math.sin(p.phase * 0.7) * 0.08 : 0;
       const amp = p.standing && !p.scared ? 0 : p.scared ? 1.5 : Math.min(1.2, p.speed * 0.8);
+      if (p.hit || p.ret) {
+        const H = p.hit;
+        this.batch.add(p.variant, p.x, H ? H.y : this.world.height(p.x, p.z, 0), p.z, p.heading, 1, p.phase, H ? 0 : 0.6, 0, 0, H ? H.fall : 0);
+        continue;
+      }
       const y = p.cross && p.cross.wait <= 0 && p.cross.t > 0.08 && p.cross.t < 0.92 ? 0 : 0.15;
       this.batch.add(p.variant, p.x, y, p.z, p.heading, 1, p.phase, p.cross && p.cross.wait > 0 ? 0 : amp, talk, 0);
     }
+    // ناس من برا الزحمة (المسعفين، المصاب على النقالة)
+    for (const q of this.extras) this.batch.add(q.variant, q.x, q.y, q.z, q.yaw, 1, q.phase || 0, q.amp || 0, q.armR || 0, q.armL || 0, q.fall || 0);
     this.batch.flush();
   }
+
+  // ===================== الحوادث =====================
+  /** العربية لمست الماشي ده؟ (صندوق العربية + هامش) → يقع. السرعة بتحدد: خبطة خفيفة (بيقوم) ولا خطيرة (إسعاف) */
+  _hitTest(p, ph) {
+    const v = Math.abs(ph.forwardSpeed);
+    if (v < 1.6 || p.hitCool > 0) return false;
+    const [fx, fz] = ph.forward, dx = p.x - ph.x, dz = p.z - ph.z;
+    const lon = dx * fx + dz * fz, lat = dx * -fz + dz * fx;
+    if (Math.abs(lon) > ph.spec.halfLength + 0.25 || Math.abs(lat) > ph.spec.halfWidth + 0.25) return false;
+    // (لو في نص العربية بالجنب مش هيتخبط من الوش: الخبطة من قدام/ورا حسب اتجاه الحركة)
+    const sgn = Math.sign(ph.forwardSpeed);
+    if (lon * sgn < -ph.spec.halfLength * 0.4) return false;
+    const severe = v > 8.5; // ~30 كم/س
+    const vx = fx * ph.forwardSpeed, vz = fz * ph.forwardSpeed, side = Math.sign(lat) || 1;
+    p.hit = { t: 0, y: p.cross ? 0 : 0.15, vy: 1.2 + v * 0.12, vx: vx * 0.7 + -fz * side * 0.9, vz: vz * 0.7 + fx * side * 0.9, fall: 0, severe, rest: 0 };
+    p.heading = Math.atan2(vx, vz) + Math.PI; // بيقع على ضهره بعكس اتجاه الخبطة
+    p.cross = null; p.group = null; p.standing = false;
+    // اللي حواليه بيتخضوا ويبعدوا
+    for (const q of this.people) if (q.on && q !== p && !q.hit && (q.x - p.x) ** 2 + (q.z - p.z) ** 2 < 25 * 25) { q.scared = 4; q.standing = false; q.speed ||= 1.2; }
+    this.onHit?.(p, severe, v);
+    return true;
+  }
+
+  _hitStep(p, dt) {
+    const H = p.hit; H.t += dt;
+    const g = this.world.height(p.x, p.z, 0);
+    if (H.y > g + 0.01 || H.vy > 0) {
+      H.vy -= 9.8 * dt; H.y += H.vy * dt;
+      if (H.y <= g) { H.y = g; H.vy = 0; }
+    } else { const k = Math.exp(-dt * 5); H.vx *= k; H.vz *= k; }
+    p.x += H.vx * dt; p.z += H.vz * dt;
+    if (H.rest <= 3.5) H.fall = Math.min(1, H.fall + dt * 3.2); // (وهو بيقوم بيقل بس — مش بيتشد للأرض تاني)
+    if (H.severe) { this._victimStain(p, H); return; } // بيفضل نايم لحد ما الإسعاف تشيله (Emergency)
+    // خبطة خفيفة: بيفضل في الأرض شوية وبعدين يقوم ويرجع للرصيف
+    if (H.vy === 0 && Math.hypot(H.vx, H.vz) < 0.2) H.rest += dt;
+    if (H.rest > 3.5) { H.fall = Math.max(0, H.fall - dt * 2.5); if (H.fall === 0) { const lx = p.x, lz = p.z; p.hit = null; p.hitCool = 6; p.scared = 4; this._pos(p); p.ret = { tx: p.x, tz: p.z }; p.x = lx; p.z = lz; } }
+  }
+
+  /** بعد ما قام: بيمشي (بيعرج) لمكانه على الرصيف بدل ما ينط له */
+  _returnStep(p, dt) {
+    const R = p.ret, dx = R.tx - p.x, dz = R.tz - p.z, d = Math.hypot(dx, dz);
+    p.hitCool = Math.max(0, (p.hitCool || 0) - dt);
+    if (d < 0.2) { p.ret = null; this._pos(p); return; }
+    const sp = Math.min(d, 0.9 * dt);
+    p.x += dx / d * sp; p.z += dz / d * sp; p.heading = Math.atan2(dx, dz); p.phase += dt * 3;
+  }
+
+  _victimStain(p, H) {
+    if (H.stain || H.vy !== 0 || Math.hypot(H.vx, H.vz) > 0.3) return;
+    // بقعة صغيرة غامقة تحت المصاب (محدودة، مش دموية) — بتختفي لما الإسعاف تمشي
+    const m = new THREE.Mesh(this._stainGeo ||= new THREE.CircleGeometry(0.55, 14).rotateX(-Math.PI / 2), this._stainMat ||= new THREE.MeshBasicMaterial({ color: 0x3a0b0b, transparent: true, opacity: 0.55, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }));
+    m.scale.set(1, 1, 0.7 + this.R() * 0.4); m.rotation.y = this.R() * 6; m.position.set(p.x + Math.sin(p.heading) * 0.5, H.y + 0.012, p.z + Math.cos(p.heading) * 0.5);
+    this.group.add(m); H.stain = m;
+  }
+
+  /** الإسعاف شالت المصاب */
+  removeVictim(p) {
+    if (p.hit?.stain) { const s = p.hit.stain; setTimeout(() => s.removeFromParent(), 20000); }
+    p.hit = null; p.on = false;
+  }
+
+  /** مصابين على الأرض (للمرور: يقفوا قبلهم) */
+  get victims() { return this.people.filter((p) => p.on && p.hit && p.hit.vy === 0); }
 
   randomNear(x, z, r = 40) {
     for (let k = 0; k < 12; k++) {

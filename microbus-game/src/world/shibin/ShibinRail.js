@@ -419,7 +419,9 @@ export class ShibinRail {
     }
     // المزلقانات: تقفل لو قطر جاي (أقل من 320م وماشي ناحيتها) أو جسمه عليها
     const t = performance.now() / 1000;
+    if (this.stationGroup) { const b = this.stationGroup.children[2]; this.stationGroup.visible = !b || Math.hypot(b.position.x - cam.x, b.position.z - cam.z) < 650; }
     for (const C of this.crossings) {
+      C.group.visible = Math.hypot(C.x - cam.x, C.z - cam.z) < 380; // البعيد مايترسمش (كل مزلقان ~11 draw call)
       let close = false;
       for (const T of this.trains) {
         if (T.state === 'away') continue;

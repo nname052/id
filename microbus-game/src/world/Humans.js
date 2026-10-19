@@ -328,10 +328,13 @@ export class HumanBatch {
     });
   }
   begin() { for (const v of this.vars) v.n = 0; }
-  add(variant, x, y, z, yaw, scale, phase, amp, armR = 0, armL = 0) {
+  /** fall: 0 واقف → 1 نايم على ضهره (بيلف حوالين رجليه لورا) — للحوادث والنقالة */
+  add(variant, x, y, z, yaw, scale, phase, amp, armR = 0, armL = 0, fall = 0) {
     const V = this.vars[variant % this.vars.length], i = V.n++;
     if (i >= V.mesh.instanceMatrix.count) { V.n--; return; }
-    _m.compose(_p.set(x, y, z), _q.setFromAxisAngle(_Y, yaw), _s.setScalar(scale * V.scale));
+    _q.setFromAxisAngle(_Y, yaw);
+    if (fall) _q.multiply(_qx.setFromAxisAngle(_X, -fall * Math.PI / 2));
+    _m.compose(_p.set(x, y, z), _q, _s.setScalar(scale * V.scale));
     V.mesh.setMatrixAt(i, _m);
     const a = V.anim.array; a[i * 4] = phase; a[i * 4 + 1] = amp; a[i * 4 + 2] = armR; a[i * 4 + 3] = armL;
   }
@@ -343,4 +346,4 @@ export class HumanBatch {
   }
   setShadows(on) { for (const V of this.vars) V.mesh.castShadow = on; }
 }
-const _m = new THREE.Matrix4(), _p = new THREE.Vector3(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(), _Y = new THREE.Vector3(0, 1, 0);
+const _m = new THREE.Matrix4(), _p = new THREE.Vector3(), _q = new THREE.Quaternion(), _qx = new THREE.Quaternion(), _s = new THREE.Vector3(), _Y = new THREE.Vector3(0, 1, 0), _X = new THREE.Vector3(1, 0, 0);
