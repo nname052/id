@@ -373,8 +373,10 @@ export class Game {
     } catch (e) { console.warn('[precompile]', e); }
     this.renderer.setRenderTarget(null);
     const progs = this.renderer.info.programs || [];
+    // سقف وقت (6 ث): على جهاز بطيء جدًا/كارت مشغول التحميل مايقفش — اللي مالحقش بيتربط وقت أول استخدام زي الأول
     let t0 = performance.now();
-    for (let i = 0; i < progs.length; i++) {
+    const until = t0 + 6000;
+    for (let i = 0; i < progs.length && performance.now() < until; i++) {
       progs[i].getUniforms(); // (لو اتربط خلاص: ولا حاجة)
       if (performance.now() - t0 > 40) { onProgress?.(i / progs.length * 0.6); await nextFrame(); t0 = performance.now(); }
     }
@@ -386,6 +388,7 @@ export class Game {
     });
     let i = 0;
     for (const t of texs) {
+      if (performance.now() > until) break;
       try { this.renderer.initTexture(t); } catch { /* */ }
       if (performance.now() - t0 > 40) { onProgress?.(0.6 + (i / texs.size) * 0.4); await nextFrame(); t0 = performance.now(); }
       i++;

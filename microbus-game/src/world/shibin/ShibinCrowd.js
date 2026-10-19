@@ -194,7 +194,11 @@ export class ShibinCrowd {
       if (p.hitCool) p.hitCool = Math.max(0, p.hitCool - dt);
       if (p.hit) { this._hitStep(p, dt); continue; }
       if (p.ret) { this._returnStep(p, dt); continue; }
-      if (p.shop) { this._shopStep(p, dt); continue; }
+      // اللي رايح/راجع من محل ماشي على الرصيف عادي: لازم يتخبط لو عربية طلعت عليه (كان بيتعدّى الفحص ده خالص)
+      if (p.shop) {
+        if (p.shop.phase !== 'in' && ph && Math.abs(p.x - ph.x) < 4.5 && Math.abs(p.z - ph.z) < 4.5 && this._hitTest(p, ph)) continue;
+        this._shopStep(p, dt); continue;
+      }
       // بيدخل محل/بيتفرج على فاترينة (مرة كل شوية، من الرصيف بس)
       if (!p.cross && !p.group && !p.scared && !p.standing && d2 < 90 * 90 && this.R() < dt * 0.05) this._tryShop(p);
       if (ph && Math.abs(p.x - ph.x) < 4.5 && Math.abs(p.z - ph.z) < 4.5 && this._hitTest(p, ph)) continue;
@@ -306,6 +310,7 @@ export class ShibinCrowd {
     p.hit = { t: 0, y: p.cross ? 0 : 0.15, vy: 1.2 + v * 0.12, vx: vx * 0.7 + -fz * side * 0.9, vz: vz * 0.7 + fx * side * 0.9, fall: 0, severe, rest: 0 };
     p.heading = Math.atan2(vx, vz) + Math.PI; // بيقع على ضهره بعكس اتجاه الخبطة
     p.cross = null; p.group = null; p.standing = false;
+    if (p.shop) { p.shop.it.busy = false; p.shop = null; } // (كان رايح محل: الزيارة اتلغت)
     // اللي حواليه بيتخضوا ويبعدوا
     for (const q of this.people) if (q.on && q !== p && !q.hit && (q.x - p.x) ** 2 + (q.z - p.z) ** 2 < 25 * 25) { q.scared = 4; q.standing = false; q.speed ||= 1.2; }
     this.onHit?.(p, severe, v);

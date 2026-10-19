@@ -81,11 +81,11 @@ drive = await page.evaluate(async () => {
   ph.reset(sp.x, sp.z, sp.yaw);
   for (let k = 0; k < 200; k++) { W.updateVisibility({ x: sp.x, z: sp.z }, 560); W.update(dt); if (!W.queue.length && k > 10) break; await new Promise((r) => setTimeout(r, 10)); }
   const m1 = mem();
-  return { km: +(dist / 1000).toFixed(2), steps, tilesVisited: loads.size, junctions: junctions.size, maxWorldUpdateMs: +maxUpd.toFixed(1), buildMsMax: +W.stats.buildMsMax.toFixed(1), maxQueue, maxRenderMs: +maxRender.toFixed(0), m0, mid, m1 };
+  return { km: +(dist / 1000).toFixed(2), steps, tilesVisited: loads.size, junctions: junctions.size, maxWorldUpdateMs: +maxUpd.toFixed(1), buildMsMax: +W.stats.buildMsMax.toFixed(1), buildMaxJob: W.stats.buildMaxJob, bldParts: W.stats.bldParts, maxQueue, maxRenderMs: +maxRender.toFixed(0), m0, mid, m1 };
 });
 T(2, 'سواقة طويلة عبر مربعات كتير', drive.km > 2 && drive.tilesVisited > 15, { km: drive.km, tilesVisited: drive.tilesVisited });
 T(3, 'المرور على تقاطعات كتير', drive.junctions >= 20, { junctions: drive.junctions });
-T(4, 'حدود المربعات من غير تهنيج', drive.buildMsMax < 40 && drive.maxWorldUpdateMs < 50, { buildJobMaxMs: drive.buildMsMax, worldUpdateMaxMs: drive.maxWorldUpdateMs, note: 'CPU software rendering (swiftshader) — real devices are faster' });
+T(4, 'حدود المربعات من غير تهنيج', drive.buildMsMax < 40 && drive.maxWorldUpdateMs < 50, { buildJobMaxMs: drive.buildMsMax, slowestJob: drive.buildMaxJob, bldParts: drive.bldParts, worldUpdateMaxMs: drive.maxWorldUpdateMs, note: 'CPU software rendering (swiftshader) — real devices are faster' });
 const leak = drive.m1 && drive.m0 ? drive.m1.geo - drive.m0.geo : null;
 T('16-info', 'الذاكرة بعد سواقة طويلة (معلومة بس: المربعات اللي في نطاق الـ hysteresis بتفضل متحملة)', true, { start: drive.m0, farthest: drive.mid, back: drive.m1 });
 
@@ -259,6 +259,9 @@ await page.screenshot({ path: path.join(OUT, 'shibin-desktop.jpg'), quality: 80 
 // ===== 12) شاشة الموبايل =====
 if (run('mobile')) {
 {
+  // الصفحة الأولى (كمبيوتر) بتوقف رسمها: الصفحتين بيتقسموا على نفس كارت الشاشة السوفتوير (ثانية+ للفريم)،
+  // وده مش سيناريو حقيقي (لعبتين بيترسموا في نفس الوقت) وبيوقّف تحميل صفحة الموبايل
+  await page.evaluate(() => game.renderer.setAnimationLoop(null)).catch(() => {});
   const m = await browser.newContext({ viewport: { width: 390, height: 780 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
   const mp = await m.newPage(); mp.setDefaultTimeout(1200000);
   const merr = []; mp.on('pageerror', (e) => merr.push(e.message));
