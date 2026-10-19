@@ -80,6 +80,7 @@ export class ShibinWorld {
     this.lamps = new ShibinLamps(this, { mobile: this.low, extra: this.landmarksLayer?.lampSpots || [] });
     // السكة الشغالة (قطر + مزلقانات + محطة) — قبل تحميل المربعات عشان مكان المحطة يتشال من العمارات المولّدة
     try { this.rail = new ShibinRail(this, this.group, { low: this.low }); } catch (e) { console.warn('[rail]', e); this.rail = null; }
+    this._breakables(); // (بعد الشجر وأعمدة الكهربا)
     this.group.add(this.lamps.group);
     this.stats.loadMs = Math.round(performance.now() - t0);
     return this;
@@ -235,6 +236,57 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
     }
     return out;
   }
+
+  // ===================== الحاجات اللي بتتكسر (شجر + عواميد كهربا) =====================
+  /** كل شجرة/عمود ليه تصادم صغير؛ الخبطة الجامدة بتوقّعه (breakProp) */
+  _breakables() {
+    this.fallen = [];
+    const add = (inst, r, h) => { if (!inst) return; for (const it of inst.items) this._addCollider({ cx: it.x, cz: it.z, hx: r, hz: r, angle: 0, restitution: 0.12, kind: 'breakable', item: it, inst, h, yMax: 2.5 }, null); };
+    const tree = this.landmarksLayer?.instancers?.find((q) => q.mesh.name === 'trees');
+    add(tree, 0.22, 4.5);
+    add(this.streetKit?.pole, 0.17, 8.6);
+  }
+
+  /** العربية خبطت حاجة بتتكسر بسرعة v (م/ث) في اتجاه (vx,vz) → بتقع ناحية الحركة */
+  breakProp(c, vx, vz) {
+    if (c.dead) return false;
+    c.dead = true;
+    const it = c.item, inst = c.inst;
+    it.ok = false;
+    // السلك اللي متعلق في العمود ده بيقع معاه
+    if (this.streetKit && inst === this.streetKit.pole) for (const w of this.streetKit.wire.near(it.x, it.z, 50)) if (w.ext?.from === it || w.ext?.to === it) w.ok = false;
+    if (this._lastCam) { inst.update(this._lastCam); this.streetKit?.wire.update(this._lastCam); }
+    const pivot = new THREE.Group(); pivot.position.set(it.x, it.y, it.z);
+    const m = new THREE.Mesh(inst.mesh.geometry, inst.mesh.material);
+    m.rotation.y = it.yaw; m.scale.set(it.ext?.sx ?? it.scale, it.sy, it.ext?.sz ?? it.scale); m.castShadow = true;
+    pivot.add(m); this.group.add(pivot);
+    const l = Math.hypot(vx, vz) || 1;
+    const F = { pivot, ax: new THREE.Vector3(vz / l, 0, -vx / l), a: 0, w: 0.4, t: 0, x: it.x, z: it.z, dx: vx / l, dz: vz / l, h: c.h, done: false };
+    this.fallen.push(F);
+    return true;
+  }
+
+  _updateFallen(dt) {
+    for (let i = this.fallen.length - 1; i >= 0; i--) {
+      const F = this.fallen[i]; F.t += dt;
+      if (!F.done) {
+        F.w += 4.5 * dt * Math.cos(F.a); F.a = Math.min(Math.PI / 2 - 0.06, F.a + F.w * dt); // بيتسارع زي الجاذبية لحد ما ينام
+        F.pivot.quaternion.setFromAxisAngle(F.ax, F.a);
+        if (F.a >= Math.PI / 2 - 0.06) {
+          F.done = true;
+          // نايم على الأرض: تصادم بطوله (من على الأرض بس)
+          const L = F.h * 0.9, cx = F.x + F.dx * L / 2, cz = F.z + F.dz * L / 2;
+          F.col = { cx, cz, hx: 0.3, hz: L / 2, angle: Math.atan2(F.dx, F.dz), restitution: 0.2, kind: 'prop', yMax: 1.2 };
+          this._addCollider(F.col, null);
+        }
+      }
+      // بعد دقيقة البلدية شالته
+      if (F.t > 60) { F.pivot.removeFromParent(); if (F.col) F.col.dead = true; this.fallen.splice(i, 1); }
+    }
+  }
+
+  /** للمرور: حاجة واقعة في الشارع */
+  get fallenStops() { return this.fallen.filter((F) => F.done).map((F) => ({ x: F.x + F.dx * F.h * 0.45, z: F.z + F.dz * F.h * 0.45, r: Math.max(3, F.h * 0.5), gap: 2 })); }
 
   /** شارع أرضي معدّي تحت النقطة دي (جوه عرضه + هامش)؟ */
   _groundRoadUnder(x, z, pad = 0, cross = null) {
@@ -466,6 +518,8 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
       for (const c of a) {
         if (seen.has(c)) continue; seen.add(c);
         // المستوى: الحواجز اللي على الكوبري للعربيات اللي فوقه بس، وجناب الترعة للي تحت
+        if (c.dead) continue;
+        if (c.item) { if (c.item.ok === undefined && c.inst?.check) c.item.ok = c.inst.check(c.item); if (c.item.ok === false) continue; }
         if (c.yMin !== undefined && y < c.yMin) continue;
         if (c.yMax !== undefined && y > c.yMax) continue;
         out.push(c);
@@ -525,6 +579,7 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
   _tkey(i, j) { return i * 1000 + j; }
 
   update(dt) {
+    if (this.fallen?.length) this._updateFallen(dt);
     // بنبني على دفعات: ميزانية وقت صغيرة كل فريم
     const budget = this.low ? 4 : 7;
     const t0 = performance.now();
@@ -542,6 +597,7 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
     const TS = this.TS, cx = cam.x, cz = cam.z;
     this.lamps?.update(0.25, cam);
     this.landmarksLayer?.update(0.25, cam);
+    this._lastCam = cam;
     this._kitT = (this._kitT || 0) - 0.25; if (this._kitT <= 0) { this._kitT = 0.5; this.kitRoof?.update(cam); this.kitAC?.update(cam); this.streetKit?.update(cam); }
     const tiles = this.meta.tiles;
     const r = Math.min(LOAD_R, viewDist + 120);

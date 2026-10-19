@@ -544,7 +544,7 @@ export class ShibinTraffic {
     let n = 0;
     const fr = (this._frame = (this._frame || 0) + 1);
     this._simT = (this._simT || 0) + dt;
-    this._stops = [...(this.world.rail?.stopZones || []), ...(this.extraStops?.() || [])];
+    this._stops = [...(this.world.rail?.stopZones || []), ...(this.world.fallenStops || []), ...(this.extraStops?.() || [])];
     this._slows = this.extraSlows?.() || [];
     if (!this.lineRoutes) this._buildLineRoutes();
     this._first = fr === 1;

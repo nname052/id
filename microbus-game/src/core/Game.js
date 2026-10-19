@@ -388,6 +388,8 @@ export class Game {
     // الخبطة الواحدة بتطلع عشرات الأحداث (كل خطوة فيزيا وهي لازقة): بناخد أقوى واحدة بس،
     // والبعجة/الخدش بيتحسبوا بعد الفيزيا مرة واحدة (كانوا سبب اللاج وقت الخبط)
     ph.onImpact = (v, px, pz, other, nx, nz) => {
+      // شجرة/عمود كهربا: الخبطة الجامدة (≈16 كم/س+) بتوقّعه ناحية الحركة (قبل فلتر تكرار الخبطات)
+      if (other?.kind === 'breakable' && v >= 4.5 && this.world?.breakProp?.(other, ph.vx, ph.vz)) this.hud?.toast(other.inst?.mesh.name === 'kit-pole' ? '⚡ وقّعت عمود كهربا!' : '🌳 وقّعت شجرة!', 2.2);
       const now = performance.now();
       const fresh = now - (this._hitT || 0) > 350;
       if (!fresh && v < (this._hitV || 0) * 1.6) return;
