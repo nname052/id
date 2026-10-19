@@ -63,10 +63,13 @@ const first = await page.evaluate(async () => {
   const f0 = game.renderer.info.render.frame;
   while (game.renderer.info.render.frame < f0 + 2 || !game.started) await new Promise((r) => requestAnimationFrame(r));
   document.querySelector('#linepick .lp-close')?.click();
-  return { goToFirstFrameMs: Math.round(performance.now() - t) };
+  // وقت أول فريم قابل للعب = من فتح الصفحة لحد أول فريم من كرسي السواق (لو داس "يلا بينا" أول ما الزرار اتفتح)
+  return { goToFirstFrameMs: Math.round(performance.now() - t), timeToPlayableMs: Math.round(performance.now()) };
 });
 await page.waitForTimeout(1500);
 await page.evaluate(() => document.querySelector('#linepick .lp-close')?.click());
+// PROF=1: بروفايل المعالج وقت السواقة (أكتر الدوال وقت + أطول المهام) — يفضّل على سيرفر التطوير (الأسماء واضحة)
+if (process.env.PROF) { await cdp.send('Profiler.enable'); await cdp.send('Profiler.setSamplingInterval', { interval: 1000 }); await cdp.send('Profiler.start'); }
 // سواقة بالسرعة على طريق حقيقي (اللوب الحقيقي شغال: رسم + مربعات + مرور + مشاة)
 const drive = await page.evaluate(async (DRIVE_S) => {
   const g = game, W = g.world, ph = g.player.physics;
@@ -113,11 +116,22 @@ const drive = await page.evaluate(async (DRIVE_S) => {
     over50ms: ft.filter((x) => x > 50).length, over100ms: ft.filter((x) => x > 100).length, over250ms: ft.filter((x) => x > 250).length,
     cpuP50: +cs[Math.floor(cs.length * 0.5)].toFixed(1), cpuP95: +cs[Math.floor(cs.length * 0.95)].toFixed(1), cpuMax: Math.round(cs[cs.length - 1]),
     longTasks: longs.length, longMax: Math.max(0, ...longs.map((l) => l[1])), longSum: longs.reduce((a, l) => a + l[1], 0),
-    buildJobMaxMs: Math.round(W.stats.buildMsMax), tiles: W.stats.tilesLoaded,
+    buildJobMaxMs: Math.round(W.stats.buildMsMax), buildMaxJob: W.stats.buildMaxJob, bldParts: W.stats.bldParts && Object.fromEntries(Object.entries(W.stats.bldParts).map(([k, v]) => [k, Math.round(v)])), tiles: W.stats.tilesLoaded,
     heapStartMB: heap0 && Math.round(heap0 / 1048576), heapEndMB: heap1 && Math.round(heap1 / 1048576),
     drawCalls: g.renderer.info.render.calls, triangles: g.renderer.info.render.triangles, quality: g._q?.level, pixelRatio: g.renderer.getPixelRatio(), fpsCap: g.fpsCap || 0,
   };
 }, DRIVE_S);
-const out = { drawCalls: process.env.NODRAW === '0' ? 'real (SwiftShader)' : 'skipped (CPU/JS cost only)', profile: PROFILE + (mobile ? ` (emulated: touch, ${VW}x${VH}, CPU x4 slower, SwiftShader software GPU)` : ` (${VW}x${VH}, SwiftShader software GPU)`), mode: MODE, load, first, drive, errors };
+let prof = null;
+if (process.env.PROF) {
+  const { profile } = await cdp.send('Profiler.stop');
+  const byId = new Map(profile.nodes.map((n) => [n.id, n])); const parent = new Map(); for (const n of profile.nodes) for (const c of n.children || []) parent.set(c, n.id);
+  const key = (n) => { const f = n.callFrame; return `${f.functionName || '(anon)'} ${f.url.split('/').slice(-2).join('/').split('?')[0]}:${f.lineNumber + 1}`; };
+  const cnt = new Map(); profile.samples.forEach((id, i) => cnt.set(id, (cnt.get(id) || 0) + profile.timeDeltas[i]));
+  const total = new Map(), self = new Map();
+  for (const [id, us] of cnt) { self.set(key(byId.get(id)), (self.get(key(byId.get(id))) || 0) + us); const seen = new Set(); let x = id; while (x != null) { const k = key(byId.get(x)); if (!seen.has(k)) { total.set(k, (total.get(k) || 0) + us); seen.add(k); } x = parent.get(x); } }
+  // أطول المهام: عينات متتالية جوه نفس الفريم (من غير idle) — بنجمع كل عينة على أعمق دالة من كودنا
+  prof = { total: [...total].sort((a, b) => b[1] - a[1]).slice(0, 45).map(([k, v]) => `${(v / 1000).toFixed(0).padStart(6)} ms ${k}`), self: [...self].sort((a, b) => b[1] - a[1]).slice(0, 20).map(([k, v]) => `${(v / 1000).toFixed(0).padStart(6)} ms ${k}`) };
+}
+const out = { prof, drawCalls: process.env.NODRAW === '0' ? 'real (SwiftShader)' : 'skipped (CPU/JS cost only)', profile: PROFILE + (mobile ? ` (emulated: touch, ${VW}x${VH}, CPU x4 slower, SwiftShader software GPU)` : ` (${VW}x${VH}, SwiftShader software GPU)`), mode: MODE, load, first, drive, errors };
 console.log(JSON.stringify(out, null, 1));
 await browser.close();

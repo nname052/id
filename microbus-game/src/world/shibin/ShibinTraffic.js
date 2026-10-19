@@ -9,6 +9,12 @@ import * as THREE from 'three';
 import { edgePoint, edgesNear } from './ShibinData.js';
 import { CAR_COLORS } from '../../vehicles/CarModels.js';
 import { makeLodMesh, lodStats } from '../../vehicles/TrafficLod.js';
+
+// العربية المستخبية (مش في الشارع، أو مرسومة بنسخة الـ LOD) مالهاش لازمة لحساب مصفوفات ~30 قطعة فيها كل فريم:
+// three.js بيلف على المستخبي كمان. التحديث مربوط بالظهور — أول ما تبان بتتحسب في نفس الفريم
+function skipHidden(root) {
+  Object.defineProperty(root, 'matrixWorldAutoUpdate', { get() { return this.visible; }, set() { /* ثابت: مربوط بالظهور */ }, configurable: true });
+}
 import { findRoute } from '../../nav/RoadGraph.js';
 import { canvas, tex } from '../../render/textures.js';
 
@@ -36,6 +42,7 @@ export class ShibinTraffic {
       const type = TYPES[i % TYPES.length];
       const rig = makeCar(type, CAR_COLORS[Math.floor(this.R() * CAR_COLORS.length)]);
       rig.root.visible = false;
+      skipHidden(rig.root);
       scene.add(rig.root);
       const lod = makeLodMesh(rig.root);
       if (lod) scene.add(lod);
@@ -51,6 +58,7 @@ export class ShibinTraffic {
       const type = PT[i % PT.length];
       const rig = makeCar(type, CAR_COLORS[Math.floor(this.R() * CAR_COLORS.length)], { parked: true });
       rig.root.visible = false;
+      skipHidden(rig.root);
       rig.root.traverse((o) => { if (o.isMesh) o.castShadow = false; });
       scene.add(rig.root);
       const lod = makeLodMesh(rig.root);

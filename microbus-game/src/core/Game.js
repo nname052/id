@@ -332,7 +332,7 @@ export class Game {
     // الحاجات المستخبية دلوقتي (عربيات المرور قبل ما تظهر، نسخ الـ LOD، الليل...) بتتفتح لحظة عشان شيدرزها تتجهز كمان
     S('تجهيز الشيدرز...', 0.97);
     await nextFrame();
-    await this.precompile([this.scene]);
+    await this.precompile([this.scene], true, (f) => S('تجهيز الشيدرز...', 0.97 + f * 0.025));
     if (this.world) { renderer.render(this.scene, this.camera); this.loadInfo.readyMs = Math.round(performance.now() - this._initT0); }
     this.clock = new THREE.Clock();
     this.acc = 0;
@@ -352,26 +352,63 @@ export class Game {
     S('جاهز!', 1);
   }
 
-  /** تجهيز شيدرز كل اللي في المشاهد دي (بما فيهم المستخبي) بالتوازي — من غير رسم */
-  async precompile(roots, withMirrors = true) {
-    const hidden = [];
-    for (const r of roots) r.traverse((o) => { if (!o.visible && !o.isLight) { o.visible = true; hidden.push(o); } });
+  /**
+   * تجهيز شيدرز كل خامات المشهد (compile بيلف على كل الأشكال، حتى المستخبية) — من غير رسم.
+   * لو كارت الشاشة بيدعم KHR_parallel_shader_compile: بيتجهزوا بالتوازي ومن غير ما الصفحة تقف.
+   * لو مش بيدعمه: الربط (link) بيحصل في أول استخدام = أول فريم بعد "جاهز" كان بيقف ثواني →
+   * بنخلّص الربط هنا وقت التحميل على دفعات (وشريط التحميل بيتحرك)
+   */
+  async precompile(roots, withMirrors = true, onProgress = null) {
+    void roots;
     try {
       await this.renderer.compileAsync(this.scene, this.camera);
       // نسخة المرايات (الرسم جوه render target بيحتاج نسخة شيدر مختلفة)
       const rt = withMirrors && this.player?.mirrorCams?.[0]?.rt;
       if (rt) { this.renderer.setRenderTarget(rt); await this.renderer.compileAsync(this.scene, this.camera); }
+      this.renderer.setRenderTarget(null);
+      // المرايات اللي على حرف الشاشة (مشهد لوحده بكاميرا Ortho) — كانت بتتجهز أول ما تدوس "يلا بينا" (~نص ثانية)
+      if (this.mirrorInsets) await this.renderer.compileAsync(this.mirrorInsets.scene, this.mirrorInsets.cam);
     } catch (e) { console.warn('[precompile]', e); }
     this.renderer.setRenderTarget(null);
-    for (const o of hidden) o.visible = false;
+    const progs = this.renderer.info.programs || [];
+    let t0 = performance.now();
+    for (let i = 0; i < progs.length; i++) {
+      progs[i].getUniforms(); // (لو اتربط خلاص: ولا حاجة)
+      if (performance.now() - t0 > 40) { onProgress?.(i / progs.length * 0.6); await nextFrame(); t0 = performance.now(); }
+    }
+    // الصور كمان بتترفع على كارت الشاشة دلوقتي (مش أول ما تتشاف: عدادات/شاشات الكابينة كانت بتترفع لما تدوس "يلا بينا")
+    const texs = new Set();
+    this.scene.traverse((o) => {
+      const ms = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : [];
+      for (const m of ms) for (const k in m) { const v = m[k]; if (v && v.isTexture && !v.isRenderTargetTexture) texs.add(v); }
+    });
+    let i = 0;
+    for (const t of texs) {
+      try { this.renderer.initTexture(t); } catch { /* */ }
+      if (performance.now() - t0 > 40) { onProgress?.(0.6 + (i / texs.size) * 0.4); await nextFrame(); t0 = performance.now(); }
+      i++;
+    }
   }
 
-  /** بعد ما السواقة تبدأ: العربيات التانية بتتبني وشيدرزها بتتجهز في الخلفية (واحدة كل شوية) عشان التبديل يبقى لحظي */
+  /**
+   * بعد ما السواقة تبدأ: العربيات التانية بتتبني وشيدرزها بتتجهز في الخلفية عشان التبديل يبقى لحظي.
+   * بناء عربية = ~0.3 ث على كمبيوتر و~1 ث على موبايل (مرة واحدة) → بيحصل بس والعربية واقفة
+   * (موقف/إشارة/ركاب) مش وانت بتسوق. لو اللاعب بدّل قبلها: setVehicle بيبنيها ساعتها.
+   */
   async _prepareVehicles() {
     const idle = () => new Promise((r) => (window.requestIdleCallback ? requestIdleCallback(() => r(), { timeout: 1500 }) : setTimeout(r, 300)));
+    const stopped = async () => {
+      let still = 0;
+      while (still < 1.2) {
+        await new Promise((r) => setTimeout(r, 300));
+        const ph = this.player.physics;
+        still = !this.paused && Math.abs(ph.speed) < 0.3 ? still + 0.3 : 0;
+      }
+    };
     for (const kind of ['microbus', 'taxi', 'tuktuk']) {
       if (this.vehicles[kind]) continue;
       await new Promise((r) => setTimeout(r, 2500));
+      await stopped();
       await idle();
       if (this.vehicles[kind]) continue;
       const v = new PlayerVehicle(this.scene, this.assets, { lowPower: this.mobile, kind });
@@ -379,10 +416,19 @@ export class Game {
       v.rig.root.removeFromParent();
       this.vehicles[kind] = v;
       this._applyLivery(v, this.settings.get('livery'));
-      // شيدرزها: بنحطها في مشهد صغير لوحدها لحظة (بنفس أنوار المشهد عشان نفس نسخة الشيدر)
-      const g = v.rig.root; g.position.set(0, -500, 0); this.scene.add(g);
-      await this.precompile([g], false);
-      g.removeFromParent();
+      // شيدرزها من غير ما تدخل المشهد: compile(العربية، الكاميرا، المشهد) = خاماتها بأنوار المشهد + أنوارها هي.
+      // أنوار العربية الحالية بتتطفي لحظة (وقت ما مفاتيح الشيدرز بتتحسب) → نفس عدد الأنوار اللي هيبقى لما
+      // العربية الجديدة تحل مكانها. (لو اتحطت في المشهد جنب الحالية: عدد الأنوار بيتغير = كل خامات المدينة
+      // بتتجهز من الأول في نص السواقة = تهنيجة ~1.5 ث)
+      const mine = [];
+      this.player.rig.root.traverse((o) => { if (o.isLight && o.visible) { o.visible = false; mine.push(o); } });
+      const hid = [];
+      v.rig.root.traverse((o) => { if (!o.visible && !o.isLight) { o.visible = true; hid.push(o); } });
+      let p;
+      try { p = this.renderer.compileAsync(v.rig.root, this.camera, this.scene); } catch (e) { console.warn('[prepare]', e); }
+      for (const o of mine) o.visible = true;
+      try { await p; } catch { /* */ }
+      for (const o of hid) o.visible = false;
     }
   }
 

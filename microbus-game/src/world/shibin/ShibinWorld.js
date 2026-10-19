@@ -414,6 +414,16 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
     const block = new THREE.BoxGeometry(1.9, 0.8, 0.55), cap = new THREE.BoxGeometry(1.92, 0.12, 0.57);
     const pole = new THREE.CylinderGeometry(0.05, 0.05, 2.2, 6), board = new THREE.PlaneGeometry(2.2, 0.82);
     this.gateList = [];
+    // كل قطعة من نوع واحد = InstancedMesh واحدة (كانت ~1400 Mesh منفصلة: الشجرة كلها بتتلف كل فريم
+    // لحساب المصفوفات، وكل كتلة خرسانة قريبة = draw call لوحدها)
+    const lists = new Map(); // geo|mat → [matrix]
+    const _o = new THREE.Object3D();
+    const put = (geo, mat, x, y, z, ry, shadow = false) => {
+      const k = `${geo.uuid}|${mat.uuid}`;
+      if (!lists.has(k)) lists.set(k, { geo, mat, shadow, ms: [] });
+      _o.position.set(x, y, z); _o.rotation.set(0, ry, 0); _o.updateMatrix();
+      lists.get(k).ms.push(_o.matrix.clone());
+    };
     for (const gt of this.region.gates) {
       const e = this.graph.edges.find((ed) => ed.src === gt.edge) || null;
       // اتجاه الطريق عند البوابة (برا المنطقة)
@@ -425,17 +435,26 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
       const n = Math.max(2, Math.ceil((half * 2) / 1.95));
       for (let k = 0; k < n; k++) {
         const off = -half + (k + 0.5) * (half * 2 / n);
-        const b = new THREE.Mesh(block, jersey); b.position.set(cx + rx * off, 0.4, cz + rz * off); b.rotation.y = yaw + Math.PI / 2; b.castShadow = true; G.add(b);
-        const s = new THREE.Mesh(cap, stripe); s.position.set(b.position.x, 0.86, b.position.z); s.rotation.y = b.rotation.y; G.add(s);
+        const bx = cx + rx * off, bz = cz + rz * off;
+        put(block, jersey, bx, 0.4, bz, yaw + Math.PI / 2, true);
+        put(cap, stripe, bx, 0.86, bz, yaw + Math.PI / 2);
       }
       const sx = cx - fx * 0.8, sz = cz - fz * 0.8;
-      for (const o of [-0.95, 0.95]) { const p = new THREE.Mesh(pole, stripe); p.position.set(sx + rx * o, 1.1, sz + rz * o); G.add(p); }
-      const bd = new THREE.Mesh(board, signMat); bd.position.set(sx, 1.85, sz); bd.rotation.y = yaw + Math.PI; G.add(bd);
-      const bd2 = new THREE.Mesh(board, signMat); bd2.position.set(sx + fx * 0.02, 1.85, sz + fz * 0.02); bd2.rotation.y = yaw; G.add(bd2);
+      for (const o of [-0.95, 0.95]) put(pole, stripe, sx + rx * o, 1.1, sz + rz * o, 0);
+      put(board, signMat, sx, 1.85, sz, yaw + Math.PI);
+      put(board, signMat, sx + fx * 0.02, 1.85, sz + fz * 0.02, yaw);
       // حاجز غير مرئي على عرض الطريق كله (مفيش عدّي)
       this._addCollider({ cx, cz, hx: half + 0.5, hz: 0.6, angle: yaw, restitution: 0.15, kind: 'wall', gate: gt.id }, null);
       this.gateList.push({ ...gt, edgeRef: e });
     }
+    for (const { geo, mat, shadow, ms } of lists.values()) {
+      const im = new THREE.InstancedMesh(geo, mat, ms.length);
+      ms.forEach((m, i) => im.setMatrixAt(i, m));
+      im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); im.castShadow = shadow;
+      G.add(im);
+    }
+    // ثابتة: المصفوفات بتتحسب مرة واحدة بس
+    G.updateMatrixWorld(true); G.matrixAutoUpdate = false; G.matrixWorldAutoUpdate = false;
     this.group.add(G);
   }
 
@@ -591,7 +610,7 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
       const s = performance.now();
       job();
       const ms = performance.now() - s;
-      if (ms > this.stats.buildMsMax) this.stats.buildMsMax = ms;
+      if (ms > this.stats.buildMsMax) { this.stats.buildMsMax = ms; this.stats.buildMaxJob = job.label || job.toString().slice(0, 60); }
     }
   }
 
@@ -638,14 +657,18 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
       if (T.dead) return;
       const D = Object.fromEntries(arr);
       // كل طبقة شغلانة لوحدها (البناء متوزع على كذا فريم)
-      if (D.roads) this.queue.push(() => !T.dead && this._buildRoads(T, D.roads));
-      if (D.water) this.queue.push(() => !T.dead && this._buildWater(T, D.water));
-      if (D.railways) this.queue.push(() => !T.dead && this._buildRail(T, D.railways));
-      if (D.buildings) this.queue.push(() => !T.dead && this._buildBuildings(T, D.buildings));
+      const job = (label, f) => { f.label = label; this.queue.push(f); };
+      // الطرق على 4 دفعات (أسفلت/رصيف+حرف/علامات/كباري): كانت شغلانة واحدة ~40 مللي على موبايل متوسط
+      if (D.roads) for (const part of ['asphalt', 'sidewalk', 'marks', 'decks']) job('roads-' + part, () => !T.dead && this._buildRoads(T, D.roads, part));
+      if (D.water) job('water', () => !T.dead && this._buildWater(T, D.water));
+      if (D.railways) job('rail', () => !T.dead && this._buildRail(T, D.railways));
+      if (D.buildings) job('buildings', () => !T.dead && this._buildBuildings(T, D.buildings));
       this.queue.push(() => {
         if (T.dead) return;
         T.ready = true;
         this.group.add(T.group);
+        // المربع ثابت: المصفوفات بتتحسب مرة واحدة (مش كل فريم لكل شكل جوه المربع)
+        T.group.updateMatrixWorld(true); T.group.matrixAutoUpdate = false; T.group.matrixWorldAutoUpdate = false;
       });
     }).catch((e) => { console.warn('[Shibin] tile', w.name, e); this.tiles.delete(w.k); });
   }
@@ -672,15 +695,15 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
   }
 
   // ---------- الطرق ----------
-  _buildRoads(T, R) {
-    const M = this.M;
-    if (R.asphalt) {
+  _buildRoads(T, R, part = null) {
+    const M = this.M, all = !part;
+    if ((all || part === 'asphalt') && R.asphalt) {
       const g = flatGeo(R.asphalt.v, R.asphalt.i, 0, 1 / 7, [0.92, 0.92, 0.92]);
       const m = new THREE.Mesh(g, this.mats.asphalt); m.receiveShadow = true; m.name = 'asphalt';
       T.group.add(m);
     }
-    if (R.foot) { const m = new THREE.Mesh(flatGeo(R.foot.v, R.foot.i, 0.03, 1 / 4), this.mats.foot); m.receiveShadow = true; T.group.add(m); }
-    if (R.sidewalk) {
+    if ((all || part === 'asphalt') && R.foot) { const m = new THREE.Mesh(flatGeo(R.foot.v, R.foot.i, 0.03, 1 / 4), this.mats.foot); m.receiveShadow = true; T.group.add(m); }
+    if ((all || part === 'sidewalk') && R.sidewalk) {
       const S = R.sidewalk;
       const m = new THREE.Mesh(flatGeo(S.v, S.i, SIDE_Y, 1 / 2, [0.86, 0.84, 0.8]), M.sidewalkTop); m.receiveShadow = true; m.name = 'sidewalk';
       T.group.add(m);
@@ -688,11 +711,11 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
       if (curb) { const c = new THREE.Mesh(curb, this.mats.curb); c.receiveShadow = true; T.detail.add(c); }
       T.sideGrid = triGrid(S.v, S.i, 6);
     }
-    if (R.marks?.length) {
+    if ((all || part === 'marks') && R.marks?.length) {
       const g = marksGeo(R.marks);
       if (g) { const m = new THREE.Mesh(g, this.mats.paint); m.renderOrder = 1; T.detail.add(m); }
     }
-    if (R.decks?.length) this._buildDecks(T, R.decks);
+    if ((all || part === 'decks') && R.decks?.length) this._buildDecks(T, R.decks);
   }
 
   _buildDecks(T, decks) {
@@ -870,14 +893,18 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
     // أماكن محجوزة (المحطة…): العمارات المولّدة اللي جواها بتتشال
     if (this.exclude?.length && Bd.gen?.length) Bd = { ...Bd, gen: Bd.gen.filter(([x, z, w, d]) => !this.exclude.some((r) => { const dx = x - r.cx, dz = z - r.cz, ca = Math.cos(r.angle), sa = Math.sin(r.angle); const lx = dx * ca - dz * sa, lz = dx * sa + dz * ca; const m = Math.max(w, d) / 2; return Math.abs(lx) < r.hx + m && Math.abs(lz) < r.hz + m; })) };
     if (Bd.gen?.length) {
+      const P = (this.stats.bldParts ||= { geo: 0, kit: 0, street: 0, col: 0, real: 0, n: 0 }); let t = performance.now();
+      const lap = (k) => { const n = performance.now(); P[k] = Math.max(P[k], n - t); t = n; };
       const { mesh, colliders } = buildTileBuildings(Bd.gen, this.mats.bld);
-      T.group.add(mesh); T.bld = mesh; T.nB = Bd.gen.length;
+      T.group.add(mesh); T.bld = mesh; T.nB = Bd.gen.length; lap('geo');
       // خزانات/دشات/أوض سلم/تكييفات: بتترسم للعمارات القريبة من الكاميرا بس (instancing واحد لكل نوع)
       const kit = tileKitItems(Bd.gen);
       for (const [x, y, z, yaw] of kit.roofs) this.kitRoof.add(x, y, z, yaw, 1, 1, T.name);
       if (!this.low) for (const [x, y, z, yaw] of kit.acs) this.kitAC.add(x, y, z, yaw, 1, 1, T.name);
-      this.streetKit?.addTile(T.name, Bd.gen);
+      lap('kit');
+      this.streetKit?.addTile(T.name, Bd.gen); lap('street');
       for (const c of colliders) this._addCollider(c, T);
+      lap('col'); P.n = Math.max(P.n, Bd.gen.length);
       this.stats.buildings += T.nB;
     }
     for (const rb of Bd.real || []) {
