@@ -301,9 +301,11 @@ export class Game {
       // شبين: المربعات اللي حوالين البداية بتتحمل الأول (اللي اللاعب هيشوفه)، والباقي بيكمل في الخلفية وهو بيسوق
       const sp = this.world.spawnPose(), cam = this.camera;
       cam.position.set(sp.x + 12, 10, sp.z + 12); cam.lookAt(sp.x, 0, sp.z); cam.updateMatrixWorld();
+      // المرحلة (أ): المربعات القريبة بس (~300 م حوالين البداية) قبل "جاهز" — الباقي بيكمل في الخلفية وانت بتسوق
+      // (كانت بتستنى كل المربعات لحد مدى الرؤية كله ~700 م)
       for (let k = 0; k < 400 && (this.world.queue.length || this.world.stats.tilesLoaded < 4 || k < 3); k++) {
         S('تحميل شوارع شبين حواليك...', 0.9 + Math.min(0.06, k * 0.002));
-        this.world.updateVisibility(cam.position, this.viewDist || 560);
+        this.world.updateVisibility(cam.position, 180);
         this.world.update(0.016);
         await nextFrame();
       }
