@@ -40,7 +40,7 @@ export function buildGraph(G) {
     const e = {
       id: edges.length, src: k, from: nodes[a], to: nodes[b], pts, cum, length: cum[cum.length - 1], name, line: 'osm',
       cls, lanes, width, half: width / 2, speed, oneway: !!ow, closed: !!(flags & FLAG.gate), bridge: !!(flags & FLAG.bridge),
-      noAccess: !!(flags & FLAG.noAccess), elevated: !!hs, osm: G.edge_osm?.[k],
+      noAccess: !!(flags & FLAG.noAccess), tunnel: !!(flags & FLAG.tunnel), elevated: !!hs, osm: G.edge_osm?.[k],
     };
     e.cost = e.length * (COST[cls.replace('_link', '')] || 1.1) * (e.noAccess ? 3 : 1);
     edges.push(e);

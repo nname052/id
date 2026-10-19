@@ -7,6 +7,7 @@
 import * as THREE from 'three';
 import { REGION_BASE, loadJSON, dropCache, buildGraph, edgePoint, edgesNear } from './ShibinData.js';
 import { StreetKit } from './ShibinStreetKit.js';
+import { ShibinRail } from './ShibinRail.js';
 import { buildingMaterial, buildTileBuildings, buildRealBuilding, tileKitItems, kitGeometries } from './ShibinBuildings.js';
 import { canvas, tex } from '../../render/textures.js';
 import { ShibinLamps } from './ShibinLamps.js';
@@ -77,6 +78,8 @@ export class ShibinWorld {
     } catch (e) { console.warn('[landmarks]', e); this.landmarksLayer = null; }
     this.features = features;
     this.lamps = new ShibinLamps(this, { mobile: this.low, extra: this.landmarksLayer?.lampSpots || [] });
+    // السكة الشغالة (قطر + مزلقانات + محطة) — قبل تحميل المربعات عشان مكان المحطة يتشال من العمارات المولّدة
+    try { this.rail = new ShibinRail(this, this.group, { low: this.low }); } catch (e) { console.warn('[rail]', e); this.rail = null; }
     this.group.add(this.lamps.group);
     this.stats.loadMs = Math.round(performance.now() - t0);
     return this;
@@ -805,6 +808,8 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
 
   // ---------- العمارات ----------
   _buildBuildings(T, Bd) {
+    // أماكن محجوزة (المحطة…): العمارات المولّدة اللي جواها بتتشال
+    if (this.exclude?.length && Bd.gen?.length) Bd = { ...Bd, gen: Bd.gen.filter(([x, z, w, d]) => !this.exclude.some((r) => { const dx = x - r.cx, dz = z - r.cz, ca = Math.cos(r.angle), sa = Math.sin(r.angle); const lx = dx * ca - dz * sa, lz = dx * sa + dz * ca; const m = Math.max(w, d) / 2; return Math.abs(lx) < r.hx + m && Math.abs(lz) < r.hz + m; })) };
     if (Bd.gen?.length) {
       const { mesh, colliders } = buildTileBuildings(Bd.gen, this.mats.bld);
       T.group.add(mesh); T.bld = mesh; T.nB = Bd.gen.length;

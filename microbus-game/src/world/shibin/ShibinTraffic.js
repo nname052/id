@@ -25,6 +25,7 @@ export class ShibinTraffic {
     this.scene = scene; this.makeCar = makeCar; this.audio = audio; this.world = world; this.graph = world.graph;
     this.R = rng(9091);
     this.cars = [];
+    this._stops = [];
     this.parked = [];
     this.viewDist = 170;
     this.night = false;
@@ -543,6 +544,7 @@ export class ShibinTraffic {
     let n = 0;
     const fr = (this._frame = (this._frame || 0) + 1);
     this._simT = (this._simT || 0) + dt;
+    this._stops = [...(this.world.rail?.stopZones || []), ...(this.extraStops?.() || [])];
     if (!this.lineRoutes) this._buildLineRoutes();
     this._first = fr === 1;
     const C = this._cam || (this._cam = {});
@@ -623,6 +625,15 @@ export class ShibinTraffic {
       if (lon <= 0) continue;
       if (Math.abs(dx * -hz + dz * hx) > c.width / 2 + 1.2) continue;
       const g = lon - c.len / 2 - 1.5;
+      if (g < gap) { gap = Math.max(0.1, g); vLead = 0; }
+    }
+    // أماكن لازم يقف قبلها (مزلقان مقفول، كمين…): من الأنظمة التانية — بتتحسب مرة كل خطوة
+    for (const z of this._stops) {
+      const dx = z.x - c.x, dz = z.z - c.z;
+      if (Math.abs(dx) > 45 || Math.abs(dz) > 45) continue;
+      const lon = dx * hx + dz * hz; if (lon <= -0.5) continue;
+      if (Math.abs(dx * -hz + dz * hx) > z.r) continue;
+      const g = lon - c.len / 2 - (z.gap ?? 3.5);
       if (g < gap) { gap = Math.max(0.1, g); vLead = 0; }
     }
     for (const q of this.parked) {

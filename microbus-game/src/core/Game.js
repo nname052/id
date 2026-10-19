@@ -204,6 +204,7 @@ export class Game {
       this.mp?.colliders(box, out);
       this.incidents?.colliders(box, out);
       this.police?.colliders(box, out);
+      this.world?.rail?.colliders(box, out);
       this.raceTrack?.colliders(box, out);
       this.race?.colliders(box, out);
       return out;
@@ -793,6 +794,7 @@ export class Game {
 
     this.lights.update(dt);
     this.traffic.update(dt, this.player, this.camera.position);
+    if (this.world?.rail) { this.world.rail.audio ||= this.audio; this.world.rail.update(dt, this.camera.position); }
     this.route.update(dt);
     this._visTimer = (this._visTimer || 0) - dt;
     if (this._visTimer <= 0) {
