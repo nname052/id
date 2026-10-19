@@ -695,6 +695,19 @@ export class ShibinTraffic {
         if (rem <= T1 + 0.05 && (c.hold === this._endNode(c) || node.edges.length < 3)) this._beginTurn(c);
       }
     }
+    // ===== اللي لسه داخل الوصلة الجاية (خلّص لفته قدامي): المسافة على المسار مش على اتجاهي =====
+    // (أثناء اللفة اتجاه العربية بيتغير، فالفحص العادي بالـ lon/lat كان بيفوّت العربية اللي في أول الوصلة الجاية)
+    if (c.next && c.next !== 'hold') {
+      const ne = c.next.e, nd = c.next.dir;
+      const T2 = c.turn ? c.turn.T2 : Math.min(6, ne.length * 0.45);
+      const toEntry = c.turn ? (1 - c.turnU) * c.turn.len : Math.max(0, L - c.s - Math.min(6, L * 0.45)) + 4;
+      for (const o of this.cars) {
+        if (o === c || !o.on || o.off || o.e !== ne || o.dir !== nd || o.turn) continue;
+        if (Math.abs((o.y || 0) - (c.y || 0)) > 2.5) continue;
+        const g2 = toEntry + (o.s - T2) - (o.len + c.len) / 2 - 0.8;
+        if (o.s < T2 + 30 && g2 < gap) { gap = Math.max(0.1, g2); vLead = o.v; }
+      }
+    }
     // ===== شغل السواقين: الميكروباص (وساعات التاكسي) بيقف على جنب في أماكن الركوب يحمّل/ينزّل =====
     c.lcCd = (c.lcCd || 0) - dt;
     this._tryLaneChange(c, gap, vLead);
