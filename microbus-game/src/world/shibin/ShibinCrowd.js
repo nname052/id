@@ -256,7 +256,7 @@ export class ShibinCrowd {
     for (const d of [0.4, 0.8, 1.3, 1.9]) { const x = it.x + ox * d, z = it.z + oz * d; if (this._ok(x, z)) { door = { x, z }; break; } }
     if (!door) return;
     // الطريق للمحل كله رصيف (مش محل في الناحية التانية من الشارع / مدخل عربيات في النص)
-    const clear = (tx, tz) => { const L = Math.hypot(tx - p.x, tz - p.z), n = Math.ceil(L / 0.4); for (let k = 1; k <= n; k++) if (!this._ok(p.x + (tx - p.x) * k / n, p.z + (tz - p.z) * k / n)) return false; return true; };
+    const clear = (tx, tz) => { const L = Math.hypot(tx - p.x, tz - p.z), n = Math.ceil(L / 0.2); for (let k = 1; k <= n; k++) if (!this._ok(p.x + (tx - p.x) * k / n, p.z + (tz - p.z) * k / n)) return false; return true; };
     if (!clear(door.x, door.z)) return;
     const look = this.R() < 0.4 && this._ok(door.x + ox * 0.9, door.z + oz * 0.9) && clear(door.x + ox * 0.9, door.z + oz * 0.9);
     p.shop = { phase: 'go', it, door, look, back: { x: p.x, z: p.z }, t: look ? 4 + this.R() * 8 : 8 + this.R() * 25, faceYaw: it.yaw + Math.PI };

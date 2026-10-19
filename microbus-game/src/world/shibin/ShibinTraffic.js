@@ -340,7 +340,11 @@ export class ShibinTraffic {
         if (d2 > 240 * 240) { q.on = false; this._show(q, false, 0); continue; }
         const dc2 = (q.x - cx) ** 2 + (q.z - cz) ** 2;
         this._show(q, dc2 < far2, dc2);
-      } else if (n++ < (first ? 99 : 1)) this._spawnParked(q, px, pz, fx, fz, first);
+      } else if (n++ < (first ? 99 : 1) && this._spawnParked(q, px, pz, fx, fz, first)) {
+        // تظهر في نفس الفريم اللي اتركنت فيه (وهي ورا الكاميرا) — مش الفريم اللي بعده
+        const dc2 = (q.x - cx) ** 2 + (q.z - cz) ** 2;
+        this._show(q, dc2 < far2, dc2);
+      }
     }
   }
 

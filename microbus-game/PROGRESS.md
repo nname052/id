@@ -49,6 +49,9 @@ Legend: [x] done + covered by a test · [~] partial · [!] limitation / needs th
 - [x] Pedestrians enter shops, window-shop, come back out to the pavement (never onto the road).
 - [x] Horn: the car ahead speeds up / a loading microbus leaves / gives way if a lane is free; crossing
       pedestrians hurry. Test: `living-city`.
+- [x] Denser traffic stability (`city-life` 8/8 consecutive passes): cars keep distance to a car that just
+      entered the next edge; no respawn within 14 m of another car (incl. mid-turn) or 10 m of a crossing
+      pedestrian; stopped cars don't drift back into a car beside them.
 
 ## 4b. Destructibles
 - [x] Street trees and utility poles break on hits ≥ ~16 km/h and fall in the direction of travel
@@ -63,4 +66,8 @@ Legend: [x] done + covered by a test · [~] partial · [!] limitation / needs th
 - [!] Real-device FPS/thermals need checking on a phone (tests run on software rendering).
 
 ## Regression / publish
-- [~] Full suite + tier-perf, build, publish new Artifact version (see final report).
+- [x] Full suite (19 tests): all pass; `shibin-e2e` 21/22 in the long sequential run — item 16 (heap +9 MB
+      after the first far/back lap, flat after; limit 8) — re-run alone: 6/6, heap 172 → 169 → 169 MB.
+- [x] `city-life` after the final traffic fixes: 8/8 consecutive passes.
+- [x] tier-perf mobile MED: 155 draw calls, 169k triangles, 140 MB, pixelRatio 1.4 + MSAA.
+- [x] Built and published as a new version of the same Artifact (V33).

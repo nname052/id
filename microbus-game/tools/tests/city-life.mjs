@@ -72,6 +72,8 @@ const r = await page.evaluate(async () => {
 });
 const pass = r.pedOnRoad === 0 && r.carThroughPed === 0 && r.crossSeen > 0 && r.groupsSeen > 0 && r.aiStopsServed > 0 && r.pedPopIn === 0 && r.popIn === 0 && r.vanish === 0 && r.overlapsMax === 0 && r.parkedHit === 0 && r.parkedOffAsphalt === 0 && !errors.length;
 console.log(JSON.stringify({ ...r, errors }, null, 1));
+const brief = ['pedOnRoad', 'carThroughPed', 'crossSeen', 'groupsSeen', 'aiStopsServed', 'pedPopIn', 'popIn', 'vanish', 'overlapsMax', 'parkedHit', 'parkedOffAsphalt'].map((k) => `${k}=${r[k]}`).join(' ') + (errors.length ? ` errors=${errors.length}` : '');
+console.log(brief);
 console.log(pass ? 'PASS city-life' : 'FAIL city-life');
 await browser.close();
 process.exit(pass ? 0 : 1);
