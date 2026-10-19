@@ -32,17 +32,28 @@ Measured with `tools/tests/perf-bench.mjs` (see "How measured" below). "Was" = V
 - [x] Start screen lists Shibin first and marks the old map as fictional. Test `default-map`: spawn on a real road
       (شارع الشهيد عبد العزيز المناخلي), camera in the driver seat, both picks persist.
 
-## Phase 3/4 — Loading and stutter (SwiftShader software GPU; see "How measured")
+## Phase 3/4 — Loading and stutter (final, built game, 2 runs each where shown; SwiftShader — see "How measured")
+"Time to playable" = page open → first cockpit frame when start is pressed as soon as it unlocks (includes any
+stall right after the button unlocks). Run-to-run noise here is about ±2 s.
+
 | Metric | V33 | Now |
 |---|---|---|
-| Desktop cold: start button usable (incl. the stall right after it) | ~13.2 s | 8.6 s |
-| Desktop cold: time to first playable cockpit frame | ~16.5 s | 9.1 s |
-| Desktop: first frame after pressing start | 0.4–4 s | ~0.05–0.3 s |
-| Mobile emu (CPU ×4) cold: start button | 23.2 s (+2.2 s stall) | see final table |
-| Mobile emu drive 40–60 s: avg FPS (cap 30) / 1% low | 24.7 / 8.8 | 29.1 / 11.2 |
-| Mobile emu drive: frames > 50 ms / longest frame | 321 / 136 ms (+665 ms with vehicle prep) | 70 / 134 ms |
-| Desktop drive: frames > 50 ms / longest | 20 / 221 ms | 7 / 101 ms |
+| Desktop cold — time to playable | 15.1 s (button 7.7 s + 4.7 s shader stall after it) | 11.3 / 11.4 s (button 10.1–10.3 s, no stall after) |
+| Desktop warm (HTTP cache) — time to playable | ~8.1 s (5.9 s + 2.2 s stall) | 6.4 s |
+| Mobile emu cold — time to playable | 27.6 s | 22.2 / 23.2 s |
+| Mobile emu warm — time to playable | 23.5 s | 18.3 s |
+| Desktop: first frame after pressing start (button pressed 1.5 s after it unlocks) | 2.3 s | 0.28 s |
+| Mobile emu drive 60 s: avg FPS (cap 30) / 1% low | 24.7–25.6 / 8.7–8.8 | 26.0–27.5 / 9.2–9.7 |
+| Mobile emu drive: frames > 50 ms / > 100 ms | 280–321 / 9–11 | 206–259 / 5–9 |
+| Mobile emu drive: one-off stall from building another vehicle | (built at load) | none while driving (built when stopped) |
+| Mobile emu: slowest single tile-build job | 70–132 ms | 59–79 ms |
+| Desktop drive: frames > 50 ms / longest frame | 10–20 / 85–221 ms | 10–14 / 94–131 ms |
 | Scene objects re-matrixed per frame | 3,412 | 669 |
+| tier-perf mobile MED: draw calls / resident geometries / heap | 155 / 401 / 140 MB | 141 / 225 / 129 MB |
+| Download (cold) | 4.75 MB | 4.59 MB |
+
+Target "playable in ~5 s on a capable phone with cache": **not verified** — needs a real device. In this container
+(CPU-only GPU, phone emulated as a 4x slower CPU) warm time-to-playable is 18.3 s; desktop warm 6.4 s.
 
 ## Phase 5 — HiAce front white patches
 - [x] Root cause: the procedural interior dashboard (`dashLow` light grey + `dashUp`) was a straight extrusion
@@ -61,6 +72,24 @@ Measured with `tools/tests/perf-bench.mjs` (see "How measured" below). "Was" = V
 - [x] Cluster: real needles (speed, rpm), LCD gear/fuel/odometer + new engine temperature (simulated warm-up)
       and indicator lamps from real state (headlights, handbrake, low fuel, overheating). Test `cockpit-view`.
 - [!] Cockpit geometry polish beyond this (vents, glovebox detail) not done in this pass — camera/visibility first.
+
+## Phase 9/10 — Regression and visual checks
+- Full suite (`run-all.sh`, 22 tests): default-map, hiace-front, cockpit-view, wheel ×3, road-surface, lane-scan,
+  city-life, boarding, checkpoint, audio-radio, perf-budget, microbus-lines, street-kit, bridge-audit, rail-system,
+  living-city, destructibles, tier-perf — PASS.
+- accident-ems failed once → real bug found (shoppers skipped the hit test) → fixed → PASS.
+- shibin-e2e: phone page hung while the desktop page kept rendering on the shared software GPU (my new sync shader
+  linking made it wait behind it) → linking capped at 6 s + test pauses the desktop page → item 12 PASS;
+  item 4 (tile-build hitch) 41.6 ms once in the full run, 25.9 ms alone (limit 40) → PASS alone.
+- Visual: `visual-tour` (start screen defaults to the real map, street chase/cockpit, bridge, night cockpit),
+  `hiace-front` (front/45°/high/sides/cockpit, day/night/headlights), `cockpit-view` (phone + desktop sizes).
+
+## Recommended next steps
+1. Measure on a real mid-range Android phone and an iPhone (time to playable, FPS, thermals) — the numbers above are
+   from a CPU-only container.
+2. Reduce draw calls further (merge per-tile props, instance shop signs/awnings) — the biggest remaining CPU cost.
+3. Fewer shader variants (share materials that differ only in colour → vertex colours) to cut compile time.
+4. Dashboard geometry polish (vents/glovebox/door cards) using the 2005 HiAce reference.
 
 ## How measured
 - `tools/tests/perf-bench.mjs [url] desktop|mobile cold|warm` on the built game (`vite preview`).
