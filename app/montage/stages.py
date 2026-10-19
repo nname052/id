@@ -1086,11 +1086,12 @@ def run_s5(ctx):
                 {"x": gr["left"], "y": gr["top"], "w": gr["right"] - gr["left"], "h": gr["bottom"] - gr["top"]}) for r in subs_rects)
         else:   # explainer/split/inset: الوش بيتنقل (inset/split) أو بيتخبى بمزج (explainer)؛ الجرافيك بعيد عن منطقة الترجمة
             face_hit, sub_hit = False, False
-        first = next((w for c in it["cues"] for w in c["words"] if w["word"] == g["first_word"]), None)
+        # أقرب نطق للكلمة لبداية الجرافيك (الكلمة ممكن تتقال أكتر من مرة في نفس الفكرة: «مبسوط» في 0.13 و 1.95)
+        first = min((w for c in it["cues"] for w in c["words"] if w["word"] == g["first_word"]), key=lambda w: abs(w["start"] - g["start"]), default=None)
         lag_ms = round((g["start"] - first["start"]) * 1000) if first else None
         spoken = {cuts.norm(w["word"]) for c in it["cues"] for w in c["words"]}
         shown = [cuts.norm(x) for x in (g.get("title") or "").split()] + [cuts.norm(y) for x in g.get("items") or [] for y in (x["label"] if isinstance(x, dict) else x).split()]
-        maps = all(x in spoken for x in shown if x) and bool(shown or g["kind"] in ("counter", "sticker", "clock", "doodle", "annotate"))
+        maps = all(x in spoken for x in shown if x) and bool(shown or g["kind"] in ("counter", "sticker", "clock", "doodle", "annotate", "visual", "photo"))
         checks.append({"id": f"g{len(checks) + 1}", "kind": g["kind"], "mode": g["mode"], "face_overlap": face_hit, "subtitle_overlap": sub_hit,
                        "start_lag_ms": lag_ms, "maps_to_speech": maps, "motion": True})
     for g in rendered:
@@ -1099,18 +1100,19 @@ def run_s5(ctx):
             g["mask"] = str(Path(g["mask"]).relative_to(ctx["d"]))
     cc = {"graphics": len(rendered), "ideas": len(its), "face_overlaps": sum(c["face_overlap"] for c in checks), "subtitle_overlaps": sum(c["subtitle_overlap"] for c in checks),
           "max_start_lag_ms": max([abs(c["start_lag_ms"]) for c in checks if c["start_lag_ms"] is not None] or [0]), "maps_to_speech": sum(c["maps_to_speech"] for c in checks),
-          "modes": {m: sum(g["mode"] == m for g in rendered) for m in ("overlay", "pip", "explainer", "split", "inset")},
+          "modes": {m: sum(g["mode"] == m for g in rendered) for m in ("overlay", "cutaway", "pip", "explainer", "split", "inset")},
           "styles": [g.get("style") for g in rendered]}
     data = {**{k: v for k, v in inp.items() if k not in ("cards", "ideas", "cards_check", "card_zone", "gfx", "gfx_log", "gfx_check")},
             "cards": [], "gfx": rendered, "gfx_log": log, "gfx_check": {**cc, "items": checks}, "mood": prm["mood"],
             "director": {"topic_en": dplan.get("topic_en"), "error": dplan.get("error"), "items": len(dplan.get("items") or []), "outline": dplan.get("outline"),
                          "rejected": [{"cue": r.get("cue"), "template": r.get("template"), "why": r.get("reject")} for r in dplan.get("rejected") or []]}}
-    credits = sorted({"Animated emoji by Google (CC BY 4.0)" for g in rendered if g.get("kind") == "sticker"})
+    credits = sorted({"Animated emoji by Google (CC BY 4.0)" for g in rendered if g.get("kind") == "sticker"} |
+                     {"صورة: " + g["photo_credit"] for g in rendered if g.get("photo_credit")})
     ol = dplan.get("outline") or {}
     understand = ([f"فهم المحتوى: {ol.get('topic', '')} — {ol.get('summary', '')}"] + [f"  قسم {x['from_cue']}→{x['to_cue']}: {x['title']} ({x['purpose']})" for x in ol.get("sections") or []]
                   if ol.get("topic") else []) + ([f"⚠ مخرج الجرافيك فشل ({dplan['error']}): من غير جرافيك"] if dplan.get("error") else [])
     data["credits"] = credits
-    report = understand + ([f"⚠ اكتب في وصف الفيديو: {', '.join(credits)} (شرط رخصة الإيموجي المتحرك)"] if credits else []) + [f"{len(rendered)} جرافيك لـ {len(its)} فكرة · الأنواع: " + "، ".join(f"{g['kind']}" for g in rendered) + f" · طرق العرض: {cc['modes']}",
+    report = understand + ([f"⚠ اكتب في وصف الفيديو (شرط الرخصة): {' · '.join(credits)}"] if credits else []) + [f"{len(rendered)} جرافيك لـ {len(its)} فكرة · الأنواع: " + "، ".join(f"{g['kind']}" for g in rendered) + f" · طرق العرض: {cc['modes']}",
               f"فوق الوش: {cc['face_overlaps']} · فوق الترجمة: {cc['subtitle_overlaps']} · أكبر فرق بين بداية الجرافيك وأول كلمة: {cc['max_start_lag_ms']} مللي · مربوط بالكلام: {cc['maps_to_speech']}/{len(rendered)}"]
     for e in log:
         report.append(f"{e['idea']} ({e['start']:.2f}–{e['end']:.2f}) «{e['text'][:40]}»: " + (f"اتشال ← {e['why']}" if e["decision"] == "skip" else
@@ -1145,6 +1147,13 @@ def _director_specs(dplan, its, inp, prm, samples, speaker, W, H, removed):
         sp.update(start=start, end=end, idea=entry["idea"], mode="overlay", style="marker", enter="pop")
         fb = _speaker_box(samples, inp["segments"], start, end) if samples else None
         kind = sp["kind"]
+        if kind == "photo":   # الصورة: لقطة قطع بملو الكادر (B-roll) ~2 ث، مش كارت صغير في ركن (المساحة جنب المتكلم ضيقة)
+            sp["end"] = end = round(min(end, start + 2.2), 3)
+            sp.update(mode="cutaway", side=side_pref, mode_why="لقطة قطع بملو الكادر (B-roll) وصوتك والترجمة مكمّلين")
+            side_pref = "left" if side_pref == "right" else "right"
+            specs.append(sp)
+            log.append({**entry, "decision": "cutaway", "kind": kind, "why": sp["why"] + f" · الصورة: {sp.get('visual_name') or ''}", "mode_why": sp["mode_why"], "start": start, "end": end})
+            continue
         # المكان: المساحة الفاضية بقناع الشخص (الجسم كله + الوش) طول وقت الجرافيك، قريب من ارتفاع الراس، والناحية بتتبادل.
         # ليه: قبل كده كان جنب صندوق الوش بس، فأحيانًا كان بيقع على الشعر/الكتف (ذوق صاحب الفيديو: عمره ما يكون على الوش أو الجسم)
         win = [x for t in np.linspace(start, end, 10) for x in vision.window(samples, out_to_src(inp["segments"], float(t))[1], out_to_src(inp["segments"], float(t))[1])]

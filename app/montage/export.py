@@ -316,7 +316,7 @@ def _swoosh(seed: int = 3) -> "np.ndarray":
 
 
 SFX = {"whoosh": (_whoosh, 0.22, -0.18), "pop": (_pop, 0.16, 0.0), "flash": (_flash, 0.14, -0.05), "ding": (_ding, 0.12, 0.0),
-       "click": (_click, 0.16, 0.0), "swoosh": (_swoosh, 0.14, -0.1)}   # (الصوت، الكسب، إزاحة البداية)
+       "click": (_click, 0.16, 0.0), "swoosh": (_swoosh, 0.14, -0.1), "sparkle": (_ding, 0.1, 0.0), "impact": (_pop, 0.14, 0.0)}   # (الصوت، الكسب، إزاحة البداية)
 
 
 def sfx_events(transitions: list[dict], gfx: list[dict]) -> list[dict]:
@@ -332,11 +332,15 @@ def sfx_events(transitions: list[dict], gfx: list[dict]) -> list[dict]:
     n = 0
     for g in gfx:
         k, a = g.get("kind"), g.get("annotation")
-        if k == "annotate" and a in ("check", "sparkles", "heart", "lightning"):
+        if k == "annotate" and a in ("sparkles", "heart"):
+            ev.append({"t": g["start"] + 0.1, "sfx": "sparkle", "gain": 0.07, "why": f"علامة {a}"})
+        elif k == "annotate" and a in ("check", "lightning"):
             ev.append({"t": g["start"] + 0.12, "sfx": "ding", "gain": 0.08, "why": f"علامة {a}"})
-        elif k == "annotate" and a in ("cross", "exclaim", "question"):
+        elif k == "annotate" and a == "exclaim":
+            ev.append({"t": g["start"] + 0.05, "sfx": "impact", "gain": 0.07, "why": "علامة تعجب"})
+        elif k == "annotate" and a in ("cross", "question"):
             ev.append({"t": g["start"] + 0.08, "sfx": "click", "gain": 0.12, "why": f"علامة {a}"})
-        elif k in ("visual", "doodle", "sticker", "annotate"):
+        elif k in ("visual", "doodle", "sticker", "annotate", "photo"):
             n += 1
             ev.append({"t": g["start"], "sfx": "pop" if n % 2 else "swoosh", "gain": 0.1 if n % 2 else 0.08, "why": f"ظهور {k}"})
         elif k == "counter":
@@ -344,13 +348,41 @@ def sfx_events(transitions: list[dict], gfx: list[dict]) -> list[dict]:
     return sorted(ev, key=lambda e: e["t"])
 
 
+REAL = {"whoosh": "whoosh", "swoosh": "swipe", "pop": "pop", "ding": "ding", "click": "click", "sparkle": "sparkle", "impact": "impact", "flash": "whoosh"}
+
+
+def _real(kind: str, k: int):
+    """صوت حقيقي من مكتبة المشروع (CC0 من Openverse/Freesound) بالدور، وعلوه متظبط (RMS −20 dB). None لو المكتبة فاضية."""
+    import wave
+    import numpy as np
+    from . import library
+    files = library.sfx_files(REAL.get(kind, kind))
+    if not files:
+        return None
+    f = files[k % len(files)]
+    with wave.open(str(f)) as w:
+        x = np.frombuffer(w.readframes(w.getnframes()), np.int16).astype(np.float64) / 32768
+        if w.getnchannels() > 1:
+            x = x.reshape(-1, w.getnchannels()).mean(axis=1)
+    rms = np.sqrt((x ** 2).mean()) + 1e-9
+    x = x * min(0.1 / rms, 0.95 / (np.abs(x).max() + 1e-9))
+    return x, f.name
+
+
 def sfx_track(events: list[dict], total: float, out: Path) -> Path:
+    """المؤثرات: صوت حقيقي من المكتبة لو موجود (بالدور علشان ما يتكررش ورا بعض)، وإلا الصوت اللي بيعمله التطبيق."""
     import wave
     import numpy as np
     buf = np.zeros(int(SR * (total + 1)))
+    turn: dict = {}
     for k, e in enumerate(events):
-        fn, gain, off = SFX[e["sfx"]]
-        x = (fn(seed=k + 1) if e["sfx"] in ("whoosh", "swoosh") else fn()) * e.get("gain", gain)
+        fn, gain, off = SFX.get(e["sfx"], SFX["pop"])
+        real = _real(e["sfx"], turn.get(e["sfx"], 0))
+        turn[e["sfx"]] = turn.get(e["sfx"], 0) + 1
+        if real is not None:
+            x, e["file"] = real[0] * e.get("gain", gain) * 2.2, real[1]
+        else:
+            x = (fn(seed=k + 1) if e["sfx"] in ("whoosh", "swoosh") else fn()) * e.get("gain", gain)
         i = max(0, int((e["t"] + off) * SR))
         j = min(len(buf), i + len(x))
         buf[i:j] += x[:j - i]

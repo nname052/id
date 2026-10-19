@@ -21,7 +21,8 @@ from ..pipeline import drawn
 from ..store import read_json
 from .cuts import norm
 
-TEMPLATES = ["none", "visual", "annotate", "counter"]
+TEMPLATES = ["none", "visual", "photo", "annotate", "counter"]
+MAX_PHOTOS = 2
 ANNOTATIONS = ["arrow_to_me", "sparkles", "question", "exclaim", "check", "cross", "heart", "lightning"]
 TASTE = Path(__file__).with_name("taste.md")
 SCHEMA = {
@@ -45,6 +46,7 @@ SYSTEM = """إنت مونتير فيديوهات قصيرة محترف (تيك �
 - `visual`: أيقونة ملوّنة للحاجة اللي بيتكلم عنها بالظبط (people, heart, idea, clock, money, phone, brain, home…). visual_en = الحاجة نفسها، أهم كلمة الأول.
 - `annotate`: علامة ملوّنة على قد المعنى: check (صح/موافق)، cross (غلط/لأ)، question (حيرة/سؤال)، exclaim (مفاجأة/تحذير)، sparkles (حاجة حلوة)،
   heart (حب/راحة)، lightning (طاقة/قوة)، arrow_to_me (بيتكلم عن نفسه).
+- `photo`: صورة حقيقية لموقف بيوصفه الكلام (a person reading alone, friends laughing together…)، مرتين بالكتير في الفيديو، للحظات المهمة. visual_en = وصف الصورة.
 - `counter`: بس لو اتقال رقم (value).
 - `none`: السطر مش محتاج.
 قواعد: جرافيك في كل قسم على الأقل، وحوالي واحد كل 3–6 ثواني، ونوّع، وكل واحد ليه معنى واضح في الكلام اللي بيتقال ساعتها.
@@ -136,7 +138,7 @@ def plan(cues: list[dict], brief_text: str = "", ask_fn=None, content: dict | No
                    or norm(w["word"]).endswith(norm(it.get("at_word", "")) or "#")), None)
         if not at:
             bad.append({**it, "reject": f"«{it.get('at_word')}» مش في السطر"}); continue
-        if it["template"] == "visual" and not it.get("visual_en"):
+        if it["template"] in ("visual", "photo") and not it.get("visual_en"):
             bad.append({**it, "reject": "visual من غير حاجة تتشاف"}); continue
         if it["template"] == "annotate" and it.get("annotation") not in ANNOTATIONS:
             bad.append({**it, "reject": "شخبطة مش معروفة"}); continue
@@ -144,6 +146,9 @@ def plan(cues: list[dict], brief_text: str = "", ask_fn=None, content: dict | No
             bad.append({**it, "reject": "مفيش رقم اتقال في السطر"}); continue
         ok.append({**it, "cue_i": k, "at": at["start"], "cue_end": c["end"]})
     ok.sort(key=lambda x: x["at"])
+    photos = [x for x in ok if x["template"] == "photo"]
+    for x in photos[MAX_PHOTOS:]:   # صورتين بالكتير
+        ok.remove(x); bad.append({**x, "reject": f"أكتر من {MAX_PHOTOS} صور"})
     return {"topic_en": res.get("topic_en", "") or content.get("topic_en", ""), "items": ok, "rejected": bad, "outline": content}
 
 
@@ -193,11 +198,22 @@ def find_visual(kind: str, terms: list[str], used: set, idea: list[str] | None =
 COLOR_SETS = ["fluent-color", "flat-color-icons"]   # أيقونات ملوّنة (MIT): الشكل الأساسي للجرافيك (شيك وملوّن، مش خط أبيض)
 
 
+# مرادفات للبحث في الأيقونات الملوّنة (أسماءها إنجليزي بسيط): «friends» مش موجودة فكانت بتنزل لأيقونة خط شبه يافطة الحمّام
+SYN = {"friends": "people", "friend": "person", "community": "people community", "crowd": "people team", "society": "people community",
+       "social": "people chat", "introvert": "person", "alone": "person", "happy": "emoji smile", "life": "home", "living": "home",
+       "relationship": "people", "group": "people team", "talk": "chat", "conversation": "chat multiple"}
+
+
 def find_color_icon(terms: list[str], used: set) -> dict | None:
-    """أيقونة ملوّنة من Iconify على قد الكلمة الأساسية (الاسم لازم فيه كلمة منها)، وبتتحفظ محلي ومتسجّلة برخصتها."""
+    """أيقونة ملوّنة من Iconify على قد المعنى: كل كلمة من كلمات المخرج (بالترتيب) ومرادفها، والاسم لازم فيه كلمة منها. بتتحفظ محلي برخصتها."""
     import requests
     from ..pipeline.scenes import _stem
-    for q in [terms[0], " ".join(terms[:2])] if terms else []:
+    qs = []
+    for t in terms:
+        for w in [t, SYN.get(t.lower().strip())] + [SYN.get(x) for x in t.lower().split()]:
+            if w and w not in qs:
+                qs.append(w)
+    for q in qs[:6]:
         head = {_stem(w) for w in lib._words(q)}
         try:
             r = requests.get("https://api.iconify.design/search", params={"query": q, "prefixes": ",".join(COLOR_SETS), "limit": 64}, headers=lib.UA, timeout=20)
@@ -247,7 +263,7 @@ def lottie_json(file: str) -> dict:
 # ---------- من الخطة لمواصفات جرافيك ----------
 IDLE = [(("heart", "love"), "beat"), (("bell", "notification", "alarm"), "swing"), (("phone", "call", "smartphone", "mobile"), "buzz"),
         (("bulb", "idea", "light", "lightbulb", "star", "sparkle"), "glow"), (("gear", "settings", "loading", "refresh", "clock", "time"), "spin")]
-DUR = {"visual": 2.3, "annotate": 1.8, "counter": 2.4}
+DUR = {"visual": 2.3, "photo": 2.8, "annotate": 1.8, "counter": 2.4}
 
 
 def idle_for(name: str) -> str:
@@ -265,11 +281,21 @@ def to_spec(it: dict, used: set, idea_en: list[str] | None = None) -> dict | Non
     sp = {"kind": tpl, "title": "", "at": it["at"], "first_word": it.get("at_word"), "why": f"مخرج الجرافيك: {it.get('why', '')}",
           "visual_en": it.get("visual_en") or [], "template": tpl}
     if tpl == "visual":
-        v = find_color_icon(it.get("visual_en") or [], used) or find_visual("icon", it.get("visual_en") or [], used, idea_en)
+        # ملوّنة الأول، ولو مفيش: التطبيق بيرسمها (مش أيقونة خط من المكتبة: «friends» طلعت شبه يافطة الحمّام)
+        v = find_color_icon(it.get("visual_en") or [], used)
+        if not v:
+            got = drawn.draw("", it.get("visual_en") or [], idea_en, used)
+            v = {"kind": "icon", "file": got["asset"], "name": got["asset_name"], "license": got["license"], "drawn": True} if got else None
         if not v:
             return None
         sp.update(svg=svg_text(v["file"]), visual=v["file"], visual_name=v["name"], license=v.get("license"), drawn=bool(v.get("drawn")),
                   color=bool(v.get("color")), idle=idle_for(v["name"] + " " + " ".join(it.get("visual_en") or [])))
+    elif tpl == "photo":
+        from . import library
+        ph = library.find_photo(it.get("visual_en") or [], used)
+        if not ph:
+            return None
+        sp.update(photo=ph["file"], photo_credit=ph.get("credit"), license=ph.get("license"), visual_name=ph.get("title"))
     elif tpl == "annotate":
         sp["annotation"] = it["annotation"]
     elif tpl == "counter":

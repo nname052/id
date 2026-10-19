@@ -210,7 +210,7 @@ def choose(idea: dict, speaker: bool, brief: dict, used_icons: set | None = None
 # ---------- 2) المكان ----------
 SIZES = {"keyword": (0.80, 0.15), "counter": (0.66, 0.17), "meter": (0.80, 0.18), "bars": (0.80, 0.20), "timeline": (0.84, 0.125), "lower_third": (0.70, 0.11),
          "title": (0.90, 0.17), "illus": (0.84, 0.30), "sticker": (0.30, 0.17), "checklist": (0.84, 0.22), "vs": (0.88, 0.16), "clock": (0.74, 0.16),
-         "doodle": (0.34, 0.19), "annotate": (0.26, 0.147), "visual": (0.27, 0.152)}
+         "doodle": (0.34, 0.19), "annotate": (0.26, 0.147), "visual": (0.27, 0.152), "photo": (0.36, 0.17)}
 STYLES = ("dark", "light", "accent", "glass", "marker")   # بتتبادل: مفيش جرافيكين ورا بعض بنفس الشكل
 ENTERS = ("pop", "slide", "wipe", "drop")
 PIP = {"9:16": (0.29, 0.055, 0.42), "16:9": (0.06, 0.12, 0.36)}   # صورتك المصغّرة: (x, y, القطر) نسبة من العرض/الارتفاع/العرض
@@ -360,6 +360,21 @@ function setup(spec, dur){
     const hi = S.tw.findIndex(w => w.textContent.replace(/[^\p{L}]/gu,'') === (S.highlight||'').replace(/[^\p{L}]/gu,''));
     if (hi >= 0) { const w = S.tw[hi]; w.style.position = 'relative'; w.style.color = S.style === 'accent' ? 'var(--ink)' : '#fff'; w.style.webkitTextStroke = '0';
       w.insertAdjacentHTML('afterbegin', `<span class="hl" id="hl" style="inset:${-u*.1}px ${-u*.35}px ${-u*.05}px ${-u*.35}px"></span>`); }
+    return;
+  }
+  if (k === 'photo' && S.mode === 'cutaway') {
+    // لقطة قطع (B-roll): الصورة بملو الكادر وبتقرّب ببطء، وضلمة خفيفة على الأطراف، والصوت والترجمة مكمّلين فوقها
+    r.innerHTML = `<div style="position:absolute;inset:0;overflow:hidden;background:#000"><img id="pimg" src="${S.photo_data}" style="width:100%;height:100%;object-fit:cover;transform-origin:${S.side === 'left' ? '40%' : '60%'} 40%"></div>
+      <div style="position:absolute;inset:0;background:radial-gradient(ellipse at 50% 45%,transparent 55%,rgba(0,0,0,.35) 100%)"></div>
+      <div style="position:absolute;inset:0;background:linear-gradient(180deg,transparent 48%,rgba(0,0,0,.6) 78%,rgba(0,0,0,.7) 100%)"></div>`;   // الترجمة البيضا تتقري على صورة فاتحة
+    return;
+  }
+  if (k === 'photo') {
+    // صورة حقيقية في برواز أبيض بضل ناعم ومايلة سنة، والصورة نفسها بتقرّب ببطء جواه
+    const pw = S.bw * .92, ph = S.bh * .86;
+    r.innerHTML = `<div id="pf" style="position:absolute;left:${(S.bw-pw)/2}px;top:${(S.bh-ph)/2}px;width:${pw}px;height:${ph}px;background:#fff;padding:${u*.35}px;border-radius:${u*.55}px;
+      box-shadow:0 ${u*.45}px ${u*1.4}px rgba(0,0,0,.35);box-sizing:border-box"><div style="width:100%;height:100%;overflow:hidden;border-radius:${u*.3}px">
+      <img id="pimg" src="${S.photo_data}" style="width:100%;height:100%;object-fit:cover;transform-origin:50% 45%"></div></div>`;
     return;
   }
   if (k === 'visual') {
@@ -553,6 +568,13 @@ function render(t){
     idl.style.transform = I === 'beat' ? `scale(${1 + .09*Math.max(0, Math.sin(q*7))})` : I === 'swing' ? `rotate(${12*Math.sin(q*9)*Math.exp(-q*1.2)}deg)`
       : I === 'buzz' ? `translateX(${(Math.sin(q*60)*S.u*.12)*(Math.sin(q*3)>0?1:0)}px)` : I === 'spin' ? `rotate(${q*90}deg)` : `translateY(${Math.sin(q*3)*S.u*.15}px)`;
     if (I === 'glow') idl.style.filter = `drop-shadow(0 0 ${S.u*(.3+.3*Math.sin(q*5))}px var(--accent))`; }
+  if (k === 'photo' && S.mode === 'cutaway') {
+    document.getElementById('pimg').style.transform = `scale(${1.02 + 0.08*clamp(t / D)}) translateX(${(S.side === 'left' ? 1 : -1) * 1.2 * clamp(t / D)}%)`;
+  } else if (k === 'photo') {
+    const pf = document.getElementById('pf'), a = back(seg(t, 0, .4)), o = eo(seg(t, D - .28, D)), tilt = S.side === 'left' ? -4 : 4;
+    pf.style.transform = `scale(${a * (1 - .2*o)}) rotate(${tilt * a}deg) translateY(${Math.sin(t*1.8)*S.u*.12}px)`; pf.style.opacity = 1 - o;
+    document.getElementById('pimg').style.transform = `scale(${1.04 + 0.06*clamp(t / D)})`;
+  }
   if (k === 'visual') {
     const vb = document.getElementById('vb'), a = back(seg(t, 0, .38)), o = eo(seg(t, D - .25, D));
     vb.style.transform = `scale(${a * (1 - .25*o)}) rotate(${(1-a)*-14}deg) translateY(${Math.sin(t*2.2)*S.u*.18}px)`; vb.style.opacity = 1 - o;
@@ -599,7 +621,7 @@ def render(specs: list[dict], W: int, H: int, fps: int, out_root: Path, mood: st
                 w, h, x, y = W, H // 2, 0, H // 2
             else:
                 w, h, x, y = W, H, 0, 0
-            u = round(W / 30) if sp.get("kind") in ("doodle", "annotate", "visual") else round(min(w, H * 0.6) / 30) if mode == "overlay" else round(W / 30)   # الماركر على قد الكادر
+            u = round(W / 30) if sp.get("kind") in ("doodle", "annotate", "visual", "photo") else round(min(w, H * 0.6) / 30) if mode == "overlay" else round(W / 30)   # الماركر على قد الكادر
             spec = {**{kk: v for kk, v in sp.items() if kk not in ("rect",)}, "u": u, "icon_svg": sp.get("svg") or _icon_svg(sp.get("icon") or "sparkles"), "H": H,
                     "cy": int(H * 0.42) if mode == "explainer" else int(h * 0.16) if mode == "split" else int(h * 0.5)}   # split: المحتوى في أول النص التحتاني (50–60%)، فوق الترجمة
             if mode == "inset":   # المحتوى تحت المتكلم الصغير (فوق) وفوق الترجمة
@@ -608,6 +630,8 @@ def render(specs: list[dict], W: int, H: int, fps: int, out_root: Path, mood: st
                 spec["pip"] = sp["pip"]
                 spec["cy"] = sp["pip"][1] + sp["pip"][2] + int(H * 0.04)
             spec["bw"], spec["bh"] = w, h
+            if sp.get("photo"):
+                spec["photo_data"] = "data:image/jpeg;base64," + base64.b64encode((ASSETS / sp["photo"]).read_bytes()).decode()
             pg = b.new_page(viewport={"width": w, "height": h})
             pg.set_content(f"<html><head><style>{css}</style></head><body><div id='root'></div><script>{lot}</script><script>{js}</script></body></html>")
             pg.evaluate("document.fonts.ready")

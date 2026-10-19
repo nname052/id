@@ -31,9 +31,10 @@ def _env() -> dict:
     return env
 
 
-def ask(system: str, prompt: str, schema: dict, model: str = "opus", timeout: int = 600) -> dict:
-    """طلب واحد ← {"data": <JSON حسب الـ schema>, "rate_limit": {...} أو None}"""
-    message = {"type": "user", "message": {"role": "user", "content": [{"type": "text", "text": prompt}]}}
+def ask(system: str, prompt: str, schema: dict, model: str = "opus", timeout: int = 600, images: list[tuple[str, str]] | None = None) -> dict:
+    """طلب واحد ← {"data": <JSON حسب الـ schema>, "rate_limit": {...} أو None}. images: [(media_type, base64)] بتتبعت قبل الكلام (مراجعة بالنظر)."""
+    content = [{"type": "image", "source": {"type": "base64", "media_type": mt, "data": b64}} for mt, b64 in images or []]
+    message = {"type": "user", "message": {"role": "user", "content": content + [{"type": "text", "text": prompt}]}}
     cmd = ["claude", "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose",
            "--json-schema", json.dumps(schema), "--system-prompt", system, "--model", model,
            "--tools", "", "--permission-mode", "dontAsk", *LEAN]
