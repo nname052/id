@@ -722,6 +722,7 @@ export class Game {
     this.fuel?.attach(next);
     if (this.touch) this.touch.maxWheel = next.physics.maxWheelAngle;
     for (const k of ['keySteer', 'mirrorQuality', 'seat', 'headlights']) this._applySetting(k, this.settings.get(k));
+    this.cams.snap = true;
     next.setNight(!!this._night);
     if (this.settings.get('headlights') !== 'auto') this._applySetting('headlights', this.settings.get('headlights'));
     this.audio.setEngineKind(kind);
@@ -742,9 +743,14 @@ export class Game {
       case 'vehicle': this.setVehicle(v); break;
       case 'mirrorInsets': this.mirrorInsets.mode = v; break;
       case 'keySteer': this.player.physics.keySens = +v; break;
-      case 'seat': {
+      case 'seat': case 'seatH': case 'seatZ': {
+        // مكان العين = الكرسي (قريب/عادي/لورا) + ظبط دقيق (ارتفاع، لقدام/لورا) — الكاميرا بتتنقل له بنعومة
         const rig = this.player.rig;
-        if (rig.eyeBase) { const o = { near: [-0.16, -0.03], normal: [0, 0], back: [0.14, 0.04] }[v] || [0, 0]; rig.eye.position.set(rig.eyeBase.x, rig.eyeBase.y + o[1], rig.eyeBase.z + o[0]); }
+        if (rig.eyeBase) {
+          const o = { near: [-0.16, -0.03], normal: [0, 0], back: [0.14, 0.04] }[this.settings.get('seat')] || [0, 0];
+          const h = (this.settings.get('seatH') || 0) / 100, zf = (this.settings.get('seatZ') || 0) / 100;
+          rig.eye.position.set(rig.eyeBase.x, rig.eyeBase.y + o[1] + h, rig.eyeBase.z + o[0] + zf);
+        }
         break;
       }
       case 'mirrorQuality': this.player.setMirrorQuality(this.saver ? 'saver' : v); break;

@@ -9,8 +9,13 @@ export const SCHEMA = [
   { key: 'vehicle', type: 'seg', label: 'بتسوق إيه؟', options: [['microbus', 'ميكروباص'], ['taxi', 'تاكسي'], ['tuktuk', 'توكتوك']], def: 'microbus' },
   { key: 'livery', type: 'seg', label: 'شكل الميكروباص', options: [['shibin', 'شبين (تركواز)'], ['blue', 'أبيض/أزرق'], ['green', 'أبيض/أخضر'], ['plain', 'أبيض']], def: 'shibin' },
   { group: 'الكاميرا' },
-  { key: 'fov', type: 'range', label: 'زاوية الرؤية من كرسي السواق (زووم)', min: 45, max: 95, step: 1, fmt: (v) => `${v}°`, def: 62 },
+  // زاوية الرؤية بالعرض (مش بالطول): نفس المنظر على شاشة موبايل عريضة وعلى الكمبيوتر
+  // (كانت بالطول: 60° على موبايل 2.16:1 = 102° بالعرض = تمطيط على الأطراف)
+  { key: 'fovH', type: 'range', label: 'زاوية الرؤية من كرسي السواق (بالعرض)', min: 70, max: 115, step: 1, fmt: (v) => `${v}°`, def: 92 },
   { key: 'seat', type: 'seg', label: 'مكان الكرسي (كاميرا السواق)', options: [['near', 'قريب'], ['normal', 'عادي'], ['back', 'لورا']], def: 'normal' },
+  { key: 'seatH', type: 'range', label: 'ارتفاع عين السواق', min: -12, max: 12, step: 1, fmt: (v) => `${v > 0 ? '+' : ''}${v} سم`, def: 0 },
+  { key: 'seatZ', type: 'range', label: 'الكرسي لقدام/لورا', min: -15, max: 15, step: 1, fmt: (v) => (v ? `${Math.abs(v)} سم ${v < 0 ? 'لقدام' : 'لورا'}` : 'عادي'), def: 0 },
+  { key: 'camMotion', type: 'seg', label: 'حركة الراس مع العربية', options: [['low', 'هادية'], ['normal', 'عادية'], ['off', 'ثابتة']], def: 'normal' },
   { key: 'keySteer', type: 'seg', label: 'حساسية الدركسيون بالكيبورد', options: [['0.6', 'هادية'], ['1', 'عادية'], ['1.4', 'سريعة']], def: '1' },
   { key: 'lookSens', type: 'range', label: 'حساسية لف الكاميرا', min: 0.4, max: 2, step: 0.1, fmt: (v) => `${(+v).toFixed(1)}×`, def: 1 },
   { key: 'mirrorInsets', type: 'seg', label: 'المرايات الجانبية على حرف الشاشة', options: [['auto', 'تلقائي'], ['on', 'دايمًا'], ['off', 'مقفولة']], def: 'auto' },
@@ -39,7 +44,7 @@ const GEAR_SVG = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M19.14 1
 export class Settings {
   constructor({ mobile = false } = {}) {
     // زاوية رؤية أضيق شوية على الموبايل (الشاشة عريضة جدًا → الأطراف بتتمط)
-    this.values = { ...DEFAULTS, mirrorQuality: mobile ? 'med' : 'high', fov: mobile ? 60 : 64 };
+    this.values = { ...DEFAULTS, mirrorQuality: mobile ? 'med' : 'high' };
     try {
       const saved = JSON.parse(localStorage.getItem(KEY) || '{}');
       if (saved.fovV !== 3) delete saved.fov; // الافتراضي اتغير في التحديث ده

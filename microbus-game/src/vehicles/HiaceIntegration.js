@@ -538,6 +538,7 @@ function buildHiaceInterior(group, rig, D) {
       st.gear = ph.gearMode; st.gearN = ph.gear; st.hb = ph.handbrake > 0.1;
       st.fuel = P.fuel ? P.fuel.level / P.fuel.capacity : 0.6;
       st.mapCanvas = P.navCanvas; st.navTitle = P.navTitle; st.navLine = P.navLine;
+      st.head = !!P.headOn; st.temp = P.engineTemp;
       lcd.update(dt, st); nav.update(dt, st);
     },
     setNight(on) {
@@ -716,10 +717,12 @@ function buildHiaceInterior(group, rig, D) {
 
   // ===== عين السواق: ورا الدركسيون وناحية الشمال =====
   const eye = new THREE.Object3D();
-  eye.position.set(DX, Math.min(D.roofY - 0.3, floorY + 1.04), z(seatF + 0.04) + 0.02); // أقرب للزجاج = الزجاج باين أكبر
+  // العين في نص الزجاج تقريبًا (كانت عند ~70% من ارتفاعه: إطار الزجاج والسقف كانوا واخدين شريط عريض فوق،
+  // والميل لتحت عشان الطريق كان بيجيب التابلوه كله). أوطى 10 سم وميل أقل: الطريق باين من ~3 م، والدركسيون باين
+  eye.position.set(DX, Math.min(D.roofY - 0.4, floorY + 0.94), z(seatF + 0.04) + 0.02); // أقرب للزجاج = الزجاج باين أكبر
   group.add(eye);
   rig.eye = eye;
-  rig.eyePitch = -0.17; // السقف مايقفلش الرؤية من فوق والتابلوه باين
+  rig.eyePitch = -0.1;
   rig.eyeBase = eye.position.clone();
 
   if (!mats.beige) mats.beige = new THREE.MeshStandardMaterial({ color: 0xcfc6b2, roughness: 0.9, vertexColors: true });

@@ -18,7 +18,10 @@ const _bus = new THREE.Vector3(), _q3 = new THREE.Quaternion(), _v2 = new THREE.
 // والكاميرات اللي برا = مضاعف للمسافة/الزاوية. الحدود بتمنع الكاميرا تدخل جوه العربية أو تبعد أوي
 const ZOOM_KEY = 'egy-microbus-zoom-v1';
 const ZOOM_LIMITS = { chase: [0.62, 1.75], close: [0.7, 1.6], cinematic: [0.55, 1.6] };
-const FOV_LIMITS = [45, 95];
+const FOV_LIMITS = [70, 115]; // زاوية الرؤية بالعرض (كرسي السواق)
+// حركة الراس/الأفق في كرسي السواق: [قصور الراس، كام من ميل المساعدين (قدام/ورا)، كام من الميلان (يمين/شمال)]
+// ميل الطريق نفسه (كوبري/مطلع) بيتاخد كامل دايمًا — اللي بيتقلل هو هزة المساعدين بس (أفق ثابت وانت سايق)
+const MOTION = { normal: [1, 0.45, 0.3], low: [0.5, 0.25, 0.12], off: [0, 0, 0] };
 const _v = new THREE.Vector3(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _m = new THREE.Matrix4();
 
 export class CameraSystem {
@@ -46,8 +49,8 @@ export class CameraSystem {
     const id = this.modeId;
     if (id === 'cockpit') {
       if (!this.settings) return;
-      const fov = THREE.MathUtils.clamp(this.settings.get('fov') * f, FOV_LIMITS[0], FOV_LIMITS[1]);
-      this.settings.set('fov', Math.round(fov));
+      const fov = THREE.MathUtils.clamp(this.settings.get('fovH') * f, FOV_LIMITS[0], FOV_LIMITS[1]);
+      this.settings.set('fovH', Math.round(fov));
       return;
     }
     const lim = ZOOM_LIMITS[id];
@@ -182,27 +185,36 @@ export class CameraSystem {
     this.shake = Math.max(0, this.shake - dt * 3);
 
     if (id === 'cockpit') {
-      // زاوية الرؤية من الإعدادات (55°–90°، بتتحفظ)
-      cam.fov = this.settings ? this.settings.get('fov') : 62;
+      // زاوية الرؤية بالعرض من الإعدادات → زاوية الكاميرا بالطول على قد الشاشة (موبايل عريض = نفس المنظر من غير تمطيط)
+      const hf = THREE.MathUtils.degToRad(this.settings ? this.settings.get('fovH') : 92);
+      cam.fov = THREE.MathUtils.clamp(THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(hf / 2) / Math.max(0.5, cam.aspect))), 40, 85);
       cam.near = 0.04;
+      const [kHead, kPitch, kRoll] = MOTION[this.settings?.get('camMotion')] || MOTION.normal;
       // قصور الراس (head inertia): زنبرك بسيط
       const target = _v.set(
-        THREE.MathUtils.clamp(-ph.accelLat * 0.006, -0.05, 0.05),
-        THREE.MathUtils.clamp(-ph.heaveVel * 0.01, -0.03, 0.03),
-        THREE.MathUtils.clamp(ph.accelLong * 0.007, -0.05, 0.05),
+        THREE.MathUtils.clamp(-ph.accelLat * 0.006, -0.05, 0.05) * kHead,
+        THREE.MathUtils.clamp(-ph.heaveVel * 0.01, -0.03, 0.03) * kHead,
+        THREE.MathUtils.clamp(ph.accelLong * 0.007, -0.05, 0.05) * kHead,
       );
       const k = 60, d = 11;
       this.headVel.addScaledVector(target.sub(this.headOffset), k * dt).multiplyScalar(Math.max(0, 1 - d * dt));
       this.headOffset.addScaledVector(this.headVel, dt);
       const eye = p.rig.eye;
-      eye.updateWorldMatrix(true, false);
+      // مكان العين بيتنقل بنعومة لما الكرسي يتظبط (مش نطّة)
+      if (this.snap || !this._eyeL || this._eyeOf !== eye) { this._eyeL = eye.position.clone(); this._eyeOf = eye; }
+      else this._eyeL.lerp(eye.position, Math.min(1, dt * 5));
+      eye.parent.updateWorldMatrix(true, false);
       // لما تبص ورا: الراس بتلف وتميل ناحية نص الكابينة (زي السواق الحقيقي وهو بيرجع)
       const ay = Math.abs(this.look.yaw);
       const turn = Math.min(1, Math.max(0, (ay - 1.0) / 1.6));
       const lean = _v2.set(0.34 * turn, 0.1 * turn, 0.18 * turn);
-      const pos = _v.copy(this.headOffset).add(lean).applyMatrix4(eye.matrixWorld);
+      const pos = _v.copy(this.headOffset).add(lean).add(this._eyeL).applyMatrix4(eye.parent.matrixWorld);
       cam.position.copy(pos);
-      p.rig.body.getWorldQuaternion(_q);
+      // الأفق: اتجاه العربية + ميل الطريق كامل + جزء من ميل المساعدين (كان كله = الأفق بيتهز مع كل مطب ولفة)
+      const gp = p.groundPitch ?? ph.pitch, gr = p.groundRoll ?? ph.roll;
+      const camPitch = gp + (ph.pitch - gp) * kPitch, camRoll = gr + (ph.roll - gr) * kRoll;
+      p.rig.root.getWorldQuaternion(_q);
+      _q.multiply(_q3.setFromEuler(_e.set(camPitch, 0, camRoll, 'YXZ')));
       // بص شوية في اتجاه اللفة (زي السواق الحقيقي)
       const steerLook = ph.steerSmooth * 0.07 * Math.min(1, Math.abs(ph.forwardSpeed) / 6);
       _e.set((p.rig.eyePitch ?? -0.2) + this.look.pitch, this.look.yaw + steerLook, 0, 'YXZ');
@@ -261,8 +273,10 @@ export class CameraSystem {
       cam.near = 0.1;
     }
     if (this.shake > 0) {
-      cam.position.x += (Math.random() - 0.5) * this.shake * 0.06;
-      cam.position.y += (Math.random() - 0.5) * this.shake * 0.06;
+      // هزة الخبطة: موجات ناعمة (مش رقم عشوائي جديد كل فريم = رعشة)
+      const t = (this._shT = (this._shT || 0) + dt);
+      cam.position.x += (Math.sin(t * 37) + Math.sin(t * 23 + 1.3) * 0.5) * this.shake * 0.02;
+      cam.position.y += (Math.sin(t * 31 + 0.7) + Math.sin(t * 19 + 2.1) * 0.5) * this.shake * 0.02;
     }
     cam.updateProjectionMatrix();
     this.snap = false;

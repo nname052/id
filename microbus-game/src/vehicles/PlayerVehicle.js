@@ -384,6 +384,14 @@ export class PlayerVehicle {
       w._tipped = tipped;
       w.spin.rotation.x = -pw.spin;
     }
+    // ميل الطريق نفسه تحت العجل (من غير هزة المساعدين) — كاميرا السواق بتمشي معاه كامل ومع المساعدين جزء بس
+    {
+      const W = ph.wheels;
+      if (W[0].ground !== undefined) {
+        this.groundPitch = Math.atan2((W[0].ground + W[1].ground) / 2 - (W[2].ground + W[3].ground) / 2, ph.spec.wheelBase);
+        this.groundRoll = Math.atan2((W[1].ground + W[3].ground) / 2 - (W[0].ground + W[2].ground) / 2, ph.spec.track);
+      }
+    }
     if (rig.contactShadow) {
       // الضل بيمشي مع ميل الأرض (من ارتفاع الأرض تحت العجل) وبيخف لما العربية تعلى عن الأرض
       const W = ph.wheels;
@@ -422,6 +430,11 @@ export class PlayerVehicle {
     if (this.reverseMat) this.reverseMat.emissiveIntensity = rev * 2.5;
     rig.setReverse?.(rev);
     if (this.reverseLight) this.reverseLight.intensity = rev * (this._night ? 60 : 15);
+    // حرارة الموتور (محاكاة بسيطة): بيبدأ بارد ويسخن مع اللفات لحد ~90°، ولو العربية واقفة يبرد شوية
+    {
+      const T = (this.engineTemp ??= 32), target = 86 + Math.min(1, ph.rpm / 4200) * 10 - (Math.abs(ph.speed) < 0.5 && ph.rpm < 1200 ? 4 : 0);
+      this.engineTemp = T + (target - T) * Math.min(1, dt * (T < target ? 0.012 + ph.rpm / 2.5e5 : 0.02));
+    }
     // الكابينة (عدادات ديجيتال/شاشات/جادون...) لو العربية ليها كابينة جديدة
     rig.cockpit?.update?.(dt, ph, this);
     // العدادات بالإبر

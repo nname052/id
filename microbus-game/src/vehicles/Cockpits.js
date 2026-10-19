@@ -136,10 +136,23 @@ export function drawVanLCD(x, W, H, s) {
   for (let i = 0; i < n; i++) { x.fillStyle = (i + 0.5) / n <= s.fuel + 0.02 ? (low ? '#ff9a1a' : '#bfe6ff') : 'rgba(191,230,255,0.14)'; x.fillRect(14 + i * bw, H * 0.46, bw - 3, H * 0.1); }
   x.font = `bold ${Math.round(H * 0.08)}px Arial`; x.fillStyle = low ? '#ff9a1a' : '#7fa6b8';
   x.fillText('E', 7, H * 0.51); x.fillText('F', W - 7, H * 0.51);
+  // حرارة الموتور (C—H): 6 شرط، أحمر لو سخن
+  if (s.temp !== undefined) {
+    const t = Math.min(1, Math.max(0, (s.temp - 40) / 80)), hot = s.temp > 108;
+    for (let i = 0; i < 6; i++) { const on = (i + 0.5) / 6 <= t + 0.02; x.fillStyle = on ? (hot ? '#ff4a3a' : i >= 4 ? '#ffb24a' : '#bfe6ff') : 'rgba(191,230,255,0.14)'; x.fillRect(18 + i * ((W - 36) / 6), H * 0.6, (W - 36) / 6 - 3, H * 0.05); }
+    x.font = `bold ${Math.round(H * 0.07)}px Arial`; x.fillStyle = hot ? '#ff4a3a' : '#7fa6b8';
+    x.fillText('C', 8, H * 0.625); x.fillText('H', W - 8, H * 0.625);
+  }
   x.font = `bold ${Math.round(H * 0.1)}px Arial`; x.fillStyle = '#cfe6f2';
-  x.fillText(`${Math.floor(s.odo)} km`, W / 2, H * 0.72);
-  if (s.hb) { x.fillStyle = '#ff4a3a'; x.fillText('(P)', W / 2, H * 0.88); }
-  else if (low) { x.fillStyle = '#ff9a1a'; x.fillText('⛽ LOW', W / 2, H * 0.88); }
+  x.fillText(`${Math.floor(s.odo)} km`, W / 2, H * 0.75);
+  // لمبات البيان: الكشافات (أخضر)، فرامل اليد (P أحمر)، بنزين قليل، حرارة عالية — كلها من حالة العربية الحقيقية
+  const lamps = [];
+  if (s.head) lamps.push(['#3fdc6a', '◐']);
+  if (s.hb) lamps.push(['#ff4a3a', '(P)']);
+  if (low) lamps.push(['#ff9a1a', '⛽']);
+  if (s.temp > 108) lamps.push(['#ff4a3a', '🌡']);
+  x.font = `bold ${Math.round(H * 0.09)}px Arial`;
+  lamps.forEach(([c, t], i) => { x.fillStyle = c; x.fillText(t, W / 2 + (i - (lamps.length - 1) / 2) * W * 0.26, H * 0.9); });
 }
 
 /**
