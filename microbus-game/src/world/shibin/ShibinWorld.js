@@ -14,6 +14,7 @@ import { buildLandmarks, NearInstancer } from './ShibinLandmarks.js';
 
 const LOAD_R = 650, UNLOAD_R = 900, DETAIL_R = 380, LOWMAT_R = 520;
 const SIDE_Y = 0.15, WATER_Y = -0.55, WATER_FLOOR = -0.9;
+const RAMP_FILL_H = 4.2; // تحت الارتفاع ده المطلع ردم بحيطان ساندة، وفوقه بلاطة على عواميد
 // عرض الرصيف حسب نوع الطريق (نفس جدول build_region.py)
 export const SIDEWALK = { motorway: 0, trunk: 2, primary: 3, secondary: 2.5, tertiary: 2, unclassified: 1.5, residential: 1.2, road: 1.2 };
 
@@ -133,8 +134,29 @@ float nA(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
     const foot = new THREE.MeshStandardMaterial({ color: 0xa89878, roughness: 1 });
     const plain = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 });
     const concrete = new THREE.MeshStandardMaterial({ color: 0x9c9890, roughness: 0.9, side: DS });
+    // خرسانة الكباري: ألواح (فواصل كل 4م) + تفاوت لون + سيل مطر/تراب تحت — من غير صور
+    concrete.onBeforeCompile = (sh) => {
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vCW; varying vec3 vCN;').replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvCW = (modelMatrix * vec4(transformed, 1.0)).xyz; vCN = normalize(mat3(modelMatrix) * objectNormal);');
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
+varying vec3 vCW; varying vec3 vCN;
+float hC(vec2 p) { return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5453); }
+float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(hC(i), hC(i + vec2(1, 0)), f.x), mix(hC(i + vec2(0, 1)), hC(i + vec2(1, 1)), f.x), f.y); }`)
+        .replace('#include <map_fragment>', `#include <map_fragment>
+{
+  vec2 q = abs(vCN.y) > 0.7 ? vCW.xz : vec2(vCW.x + vCW.z, vCW.y);
+  float n = nC(q * 0.6) * 0.5 + nC(q * 2.3) * 0.3 + nC(q * 9.0) * 0.2;
+  diffuseColor.rgb *= 0.86 + 0.24 * n;
+  float jf = fract((vCW.x + vCW.z) / 4.0), jd = min(jf, 1.0 - jf) * 4.0; // المسافة (م) لأقرب فاصل
+  float joint = 1.0 - smoothstep(0.015, 0.045, jd);
+  diffuseColor.rgb *= 1.0 - 0.18 * clamp(joint, 0.0, 1.0) * step(abs(vCN.y), 0.7);
+  diffuseColor.rgb *= mix(0.78, 1.0, smoothstep(0.0, 1.6, vCW.y)); // وسخ الشارع تحت
+  diffuseColor.rgb *= vCN.y < -0.7 ? 0.7 : 1.0; // بطن البلاطة أغمق
+}`);
+    };
+    concrete.customProgramCacheKey = () => 'shibin-concrete-1';
+    const steel = new THREE.MeshStandardMaterial({ color: 0x8a8e92, roughness: 0.45, metalness: 0.6, side: DS });
     const pitch = new THREE.MeshStandardMaterial({ color: 0x3f8f3a, roughness: 0.95 });
-    this.mats = { asphalt, water, ballast, rail, bank, foot, plain, concrete, pitch, curb, paint, bld: buildingMaterial(M), bldLow: buildingMaterial(M, { low: true }) };
+    this.mats = { asphalt, water, ballast, rail, bank, foot, plain, concrete, steel, pitch, curb, paint, bld: buildingMaterial(M), bldLow: buildingMaterial(M, { low: true }) };
   }
 
   setNight(on) {
@@ -180,6 +202,22 @@ float nA(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
     g.setIndex(idx); g.computeVertexNormals();
     const m = new THREE.Mesh(g, this.mats.asphalt); m.receiveShadow = true; m.name = 'ramps';
     this.group.add(m);
+  }
+
+  /** شارع أرضي معدّي تحت النقطة دي (جوه عرضه + هامش)؟ */
+  _groundRoadUnder(x, z, pad = 0, cross = null) {
+    for (const e of edgesNear(this.graph, x, z, 30)) {
+      if (e.elevated || e.closed) continue;
+      for (let i = 0; i < e.pts.length - 1; i++) {
+        const a = e.pts[i], b = e.pts[i + 1], ex = b.x - a.x, ez = b.z - a.z, l2 = ex * ex + ez * ez || 1e-9;
+        if ((a.y || 0) > 0.3 || (b.y || 0) > 0.3) continue;
+        // cross=[dx,dz]: الشوارع اللي بتعدّي بالعرض بس (مش الشارع اللي الكوبري ماشي فوقه بطوله)
+        if (cross && Math.abs((ex * cross[0] + ez * cross[1]) / Math.sqrt(l2)) > 0.6) continue;
+        const t = Math.max(0, Math.min(1, ((x - a.x) * ex + (z - a.z) * ez) / l2));
+        if (Math.hypot(x - (a.x + ex * t), z - (a.z + ez * t)) < e.half + 0.8 + pad) return true;
+      }
+    }
+    return false;
   }
 
   /** فيه طريق على الأرض (مش كوبري) خطه أقرب من d للنقطة دي، والنقطة جوه عرضه؟ (نادر: بيتنادى عند أطراف المطالع بس) */
@@ -567,7 +605,7 @@ float nA(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
   }
 
   _buildDecks(T, decks) {
-    const M = this.M, pos = [], nor = [], uvs = [], col = [], idx = [], cpos = [], cnor = [], cidx = [];
+    const M = this.M, pos = [], nor = [], uvs = [], col = [], idx = [], cpos = [], cnor = [], cidx = [], rpos = [], rnor = [], ridx = [];
     const pushQuad = (P, N, I, a, b, c, d, n) => { const k = P.length / 3; P.push(...a, ...b, ...c, ...d); for (let q = 0; q < 4; q++) N.push(...n); I.push(k, k + 1, k + 2, k, k + 2, k + 3); };
     for (const D of decks) {
       const p = D.p, n = p.length / 3, hw = D.w / 2;
@@ -613,16 +651,42 @@ float nA(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
           const ym = (l0[1] + l1[1]) / 2;
           const inL = this._insideOtherDeck((l0[0] + l1[0]) / 2, (l0[2] + l1[2]) / 2, ym, D.edge);
           const inR = this._insideOtherDeck((r0[0] + r1[0]) / 2, (r0[2] + r1[2]) / 2, ym, D.edge);
-          if (!inL) pushQuad(cpos, cnor, cidx, dn(l1, -0.9), dn(l0, -0.9), dn(l0, 0.95), dn(l1, 0.95), nl);
-          if (!inR) pushQuad(cpos, cnor, cidx, dn(r0, -0.9), dn(r1, -0.9), dn(r1, 0.95), dn(r0, 0.95), nr);
-          pushQuad(cpos, cnor, cidx, dn(l0, -0.9), dn(l1, -0.9), dn(r1, -0.9), dn(r0, -0.9), [0, -1, 0]);
-          // جوه السور (ناحية الأسفلت)
-          const il0 = [l0[0] + nr[0] * 0.25, l0[1], l0[2] + nr[2] * 0.25], il1 = [l1[0] + nr[0] * 0.25, l1[1], l1[2] + nr[2] * 0.25];
-          const ir0 = [r0[0] + nl[0] * 0.25, r0[1], r0[2] + nl[2] * 0.25], ir1 = [r1[0] + nl[0] * 0.25, r1[1], r1[2] + nl[2] * 0.25];
-          if (!inL) pushQuad(cpos, cnor, cidx, dn(il0, 0), dn(il1, 0), dn(il1, 0.95), dn(il0, 0.95), nr);
-          if (!inR) pushQuad(cpos, cnor, cidx, dn(ir1, 0), dn(ir0, 0), dn(ir0, 0.95), dn(ir1, 0.95), nl);
-          if (!inL) pushQuad(cpos, cnor, cidx, dn(l0, 0.95), dn(il0, 0.95), dn(il1, 0.95), dn(l1, 0.95), [0, 1, 0]);
-          if (!inR) pushQuad(cpos, cnor, cidx, dn(ir0, 0.95), dn(r0, 0.95), dn(r1, 0.95), dn(ir1, 0.95), [0, 1, 0]);
+          // المطلع الواطي (لحد 4.2م): ردم بحيطان ساندة لحد الأرض (مش سطح طاير) — العالي: بلاطة 0.9م على عواميد
+          // (مايتردمش لو فيه شارع أرضي معدّي تحته)
+          const fill = Math.max(l0[1], l1[1]) < RAMP_FILL_H && !(ym > 1.6 && this._groundRoadUnder((l0[0] + r1[0]) / 2, (l0[2] + r1[2]) / 2, 0));
+          const lowY = (v) => (fill ? [v[0], -0.1, v[2]] : dn(v, -0.9));
+          if (!inL) pushQuad(cpos, cnor, cidx, lowY(l1), lowY(l0), dn(l0, 0.12), dn(l1, 0.12), nl);
+          if (!inR) pushQuad(cpos, cnor, cidx, lowY(r0), lowY(r1), dn(r1, 0.12), dn(r0, 0.12), nr);
+          if (!fill) pushQuad(cpos, cnor, cidx, dn(l0, -0.9), dn(l1, -0.9), dn(r1, -0.9), dn(r0, -0.9), [0, -1, 0]);
+          // حاجز نيوجيرسي: الوش اللي برا قايم، واللي ناحية الأسفلت مايل (قاعدة 0.55م → راس 0.22م) + ماسورة حديد فوق
+          const off = (v, nn, d) => [v[0] + nn[0] * d, v[1], v[2] + nn[2] * d];
+          for (const [side, a0, a1, inward, out, skip] of [['L', l0, l1, nr, nl, inL], ['R', r1, r0, nl, nr, inR]]) {
+            if (skip) continue;
+            const b0 = off(a0, inward, 0.55), b1 = off(a1, inward, 0.55), m0 = off(a0, inward, 0.34), m1 = off(a1, inward, 0.34), t0 = off(a0, inward, 0.22), t1 = off(a1, inward, 0.22);
+            pushQuad(cpos, cnor, cidx, dn(a1, 0.12), dn(a0, 0.12), dn(a0, 0.88), dn(a1, 0.88), out);                       // برا
+            pushQuad(cpos, cnor, cidx, dn(b0, 0), dn(b1, 0), dn(m1, 0.3), dn(m0, 0.3), [inward[0] * 0.8, 0.6, inward[2] * 0.8]); // الميل التحتاني
+            pushQuad(cpos, cnor, cidx, dn(m0, 0.3), dn(m1, 0.3), dn(t1, 0.88), dn(t0, 0.88), [inward[0] * 0.98, 0.15, inward[2] * 0.98]);
+            pushQuad(cpos, cnor, cidx, dn(a0, 0.88), dn(t0, 0.88), dn(t1, 0.88), dn(a1, 0.88), [0, 1, 0]);                   // الراس
+            // الماسورة: صندوق رفيع فوق نص الحاجز + قايم كل ~3م
+            const c0 = off(a0, inward, 0.11), c1 = off(a1, inward, 0.11);
+            const rq = (P, Q, h0, h1, wv) => { const w0 = off(P, out, wv), w1 = off(Q, out, wv), u0 = off(P, inward, wv), u1 = off(Q, inward, wv);
+              pushQuad(rpos, rnor, ridx, dn(w1, h1), dn(w0, h1), dn(w0, h0), dn(w1, h0), out); pushQuad(rpos, rnor, ridx, dn(u0, h1), dn(u1, h1), dn(u1, h0), dn(u0, h0), inward);
+              pushQuad(rpos, rnor, ridx, dn(w0, h0), dn(u0, h0), dn(u1, h0), dn(w1, h0), [0, 1, 0]); };
+            rq(c0, c1, 1.16, 1.1, 0.035);
+            const sl = Math.hypot(a1[0] - a0[0], a1[2] - a0[2]), np = Math.max(1, Math.round(sl / 3));
+            for (let q = 0; q < np; q++) {
+              const t = q / np, P = [c0[0] + (c1[0] - c0[0]) * t, c0[1] + (c1[1] - c0[1]) * t, c0[2] + (c1[2] - c0[2]) * t];
+              const dx2 = (c1[0] - c0[0]) / (sl || 1) * 0.03, dz2 = (c1[2] - c0[2]) / (sl || 1) * 0.03;
+              rq([P[0] - dx2, P[1], P[2] - dz2], [P[0] + dx2, P[1], P[2] + dz2], 1.1, 0.88, 0.025);
+            }
+            void side;
+          }
+          // تصادم الحيطة الساندة للي ماشي تحت جنب المطلع (العربيات اللي فوق السطح مش بتتأثر)
+          if (fill && Math.min(l0[1], l1[1]) > 0.7) for (const [a0, a1, nn, skip] of [[l0, l1, nl, inL], [r0, r1, nr, inR]]) {
+            if (skip) continue;
+            const sl = Math.hypot(a1[0] - a0[0], a1[2] - a0[2]); if (sl < 0.5) continue;
+            this._addCollider({ cx: (a0[0] + a1[0]) / 2 + nn[0] * 0.2, cz: (a0[2] + a1[2]) / 2 + nn[2] * 0.2, hx: 0.25, hz: sl / 2, angle: Math.atan2(a1[0] - a0[0], a1[2] - a0[2]), restitution: 0.15, kind: 'wall', yMax: Math.min(l0[1], l1[1]) - 0.6 }, T);
+          }
         }
       }
       // عواميد تحت الكوبري كل ~24م
@@ -630,17 +694,23 @@ float nA(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
       for (let i = 1; i < n; i++) {
         const x = p[i * 3], y = p[i * 3 + 1], z = p[i * 3 + 2];
         acc += Math.hypot(x - p[(i - 1) * 3], z - p[(i - 1) * 3 + 2]);
-        if (acc < 24 || y < 2.6) continue;
-        acc = 0;
-        const hh = y - 0.9, w = 0.9;
+        if (acc < 24 || y < RAMP_FILL_H - 0.3) continue;
+        const hh = y - 0.9, w = 1.0, cw = Math.min(D.w * 0.45, 3.2), capH = 1.1;
         const dx = x - p[(i - 1) * 3], dz = z - p[(i - 1) * 3 + 2], l = Math.hypot(dx, dz) || 1, ang = Math.atan2(dx / l, dz / l);
-        const box = new THREE.BoxGeometry(Math.min(D.w * 0.6, 4), hh, w).translate(0, hh / 2, 0).rotateY(ang).translate(x, 0, z);
-        const P2 = box.toNonIndexed();
-        for (let q = 0; q < P2.attributes.position.count; q++) { cpos.push(P2.attributes.position.getX(q), P2.attributes.position.getY(q), P2.attributes.position.getZ(q)); cnor.push(P2.attributes.normal.getX(q), P2.attributes.normal.getY(q), P2.attributes.normal.getZ(q)); }
-        const base = cpos.length / 3 - P2.attributes.position.count;
-        for (let q = 0; q < P2.attributes.position.count; q++) cidx.push(base + q);
+        if (this._groundRoadUnder(x, z, 1.2, [dx / l, dz / l])) continue; // مايتحطش عمود في نص شارع معدّي من تحت (يتأجل للنقطة اللي بعدها)
+        acc = 0;
+        // عمود T: جسم العمود + راس عرضها قد البلاطة تقريبًا (زي كباري مصر الخرسانة)
+        for (const box of [
+          new THREE.BoxGeometry(cw, hh - capH + 0.05, w).translate(0, (hh - capH) / 2, 0),
+          new THREE.BoxGeometry(Math.min(D.w - 0.6, cw + 3.4), capH, w + 0.3).translate(0, hh - capH / 2, 0),
+          new THREE.BoxGeometry(cw + 0.5, 0.25, w + 0.5).translate(0, 0.12, 0), // قاعدة
+        ]) {
+          const P2 = box.rotateY(ang).translate(x, 0, z).toNonIndexed();
+          const base = cpos.length / 3;
+          for (let q = 0; q < P2.attributes.position.count; q++) { cpos.push(P2.attributes.position.getX(q), P2.attributes.position.getY(q), P2.attributes.position.getZ(q)); cnor.push(P2.attributes.normal.getX(q), P2.attributes.normal.getY(q), P2.attributes.normal.getZ(q)); cidx.push(base + q); }
+        }
         // العمود تحت: تصادم للي تحت الكوبري
-        this._addCollider({ cx: x, cz: z, hx: Math.min(D.w * 0.6, 4) / 2, hz: w / 2, angle: ang, restitution: 0.1, kind: 'prop', yMax: 1.5 }, T);
+        this._addCollider({ cx: x, cz: z, hx: (cw + 0.5) / 2, hz: (w + 0.5) / 2, angle: ang, restitution: 0.1, kind: 'prop', yMax: 1.5 }, T);
       }
     }
     if (idx.length) {
@@ -653,6 +723,11 @@ float nA(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
       const g = new THREE.BufferGeometry();
       g.setAttribute('position', new THREE.Float32BufferAttribute(cpos, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(cnor, 3)); g.setIndex(cidx);
       const m = new THREE.Mesh(g, this.mats.concrete); m.castShadow = true; m.receiveShadow = true; m.name = 'deck-structure'; T.group.add(m);
+    }
+    if (ridx.length) {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(rpos, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(rnor, 3)); g.setIndex(ridx);
+      const m = new THREE.Mesh(g, this.mats.steel); m.name = 'deck-rail'; T.detail.add(m);
     }
   }
 
