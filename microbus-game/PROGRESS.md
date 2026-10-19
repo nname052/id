@@ -84,6 +84,10 @@ Target "playable in ~5 s on a capable phone with cache": **not verified** — ne
 - Visual: `visual-tour` (start screen defaults to the real map, street chase/cockpit, bridge, night cockpit),
   `hiace-front` (front/45°/high/sides/cockpit, day/night/headlights), `cockpit-view` (phone + desktop sizes).
 
+## Delivery
+- [x] Built and published as Artifact **Version 34** (same link as V33; only `index.html` + the new JS changed).
+- [x] Final checkpoint = the commit that adds this line on `claude/festive-bohr-xry4vg`.
+
 ## Recommended next steps
 1. Measure on a real mid-range Android phone and an iPhone (time to playable, FPS, thermals) — the numbers above are
    from a CPU-only container.
