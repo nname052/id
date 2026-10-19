@@ -223,6 +223,9 @@ export function integrateHiace(rig, asset, spec, A) {
   rig.shell.add(rigInt);
   buildHiaceInterior(rigInt, rig, D);
   rig.interiorGroup = rigInt;
+  // الصالون جوه الصاج: التابلوه (وأي قطعة صالون) كان صندوق بعرض الكابينة كله، بس قدام الهاي إس مدوّر
+  // فطرفين التابلوه كانوا طالعين من الصاج عند الركنين اللي قدام = "الحتت البيضا" اللي باينة من برا
+  rig.interiorClipped = clipInteriorToBody(rigInt, rig.shell, D.wsBase[1] + 0.02);
 
   // ===== المرايات الحقيقية (على مرايات الموديل) =====
   for (const m of rig.mirrors) if (!m.hiace) m.holder.visible = false;
@@ -308,6 +311,55 @@ export function integrateHiace(rig, asset, spec, A) {
   // تنعيم كل حواف الجسم (بعد ما خلصنا فصل الباب والإكصدامات اللي محتاجة index)
   smoothShell(rig.shell);
   return D;
+}
+
+/**
+ * بيدخّل أي رأس من الصالون طالع برا جلد العربية (الصاج) لجوه بـ 2.5 سم.
+ * لكل رأس بعيد عن النص: شعاع من نص الكابينة (نفس الارتفاع والطول) لبره ناحيته على الصاج؛ لو الرأس أبعد من
+ * أول صاج بيقابله → بيترجع لجوه. الوشوش اللي بين الرؤوس بتتبع شكل الجسم المدوّر من نفسها.
+ * بيرجّع عدد الرؤوس اللي اتعدلت.
+ */
+const CLIP_PARTS = new Set(['dashUp', 'dashLow', 'dash', 'floor']);
+function clipInteriorToBody(group, shell, maxY) {
+  // الجلد = كل القطع اللي برا من الموديل (الصاج + الفوانيس + التلبيس الأسود + الشبكة) — مش الزجاج
+  const skin = [];
+  shell.traverse((o) => { if (o.isMesh && o.visible && (o.userData.role === 'paint' || /^(lights|black|chrome_grill|material)$/.test(o.userData.matName || ''))) skin.push(o); });
+  if (!skin.length) return 0;
+  shell.updateMatrixWorld(true);
+  const rc = new THREE.Raycaster(), o = new THREE.Vector3(), d = new THREE.Vector3(), v = new THREE.Vector3();
+  const toShell = new THREE.Matrix4().copy(shell.matrixWorld).invert();
+  const cache = new Map(); // نفس النقطة (لأقرب 5 مم) = نفس الشعاع
+  let moved = 0;
+  // التابلوه والأرضية بس، وتحت قاعدة الزجاج بس (العواميد والإطارات لازقة في الجلد عن قصد)
+  group.traverse((m) => {
+    if (!m.isMesh || !CLIP_PARTS.has(m.name)) return;
+    const P = m.geometry.attributes.position;
+    const toW = m.matrixWorld, inv = new THREE.Matrix4().copy(toW).invert();
+    let changed = false;
+    for (let i = 0; i < P.count; i++) {
+      v.fromBufferAttribute(P, i).applyMatrix4(toW);           // عالم
+      const ls = v.clone().applyMatrix4(toShell);              // إحداثيات الجسم
+      if (Math.abs(ls.x) < 0.45 || ls.y > maxY) continue;
+      const sx = Math.sign(ls.x);
+      const key = `${sx}:${Math.round(ls.y * 200)}:${Math.round(ls.z * 200)}`;
+      let lim = cache.get(key);
+      if (lim === undefined) {
+        o.set(0, ls.y, ls.z).applyMatrix4(shell.matrixWorld);
+        d.set(sx, 0, 0).transformDirection(shell.matrixWorld);
+        rc.set(o, d); rc.far = 3;
+        const h = rc.intersectObjects(skin, false)[0];
+        lim = h ? h.distance - 0.025 : Infinity;
+        cache.set(key, lim);
+      }
+      if (Math.abs(ls.x) <= lim) continue;
+      ls.x = sx * lim;
+      v.copy(ls).applyMatrix4(shell.matrixWorld).applyMatrix4(inv);
+      P.setXYZ(i, v.x, v.y, v.z);
+      changed = true; moved++;
+    }
+    if (changed) { P.needsUpdate = true; m.geometry.computeBoundingSphere(); m.geometry.computeBoundingBox(); }
+  });
+  return moved;
 }
 
 // =====================================================================
