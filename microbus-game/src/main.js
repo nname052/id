@@ -6,12 +6,15 @@ const bar = document.getElementById('bar');
 const go = document.getElementById('go');
 const start = document.getElementById('start');
 
-// الخريطة المختارة (لازم تتعرف قبل البناء): ?map=shibin في اللينك أو آخر اختيار محفوظ
-const MAPS = ['current', 'shibin'];
+// الخريطة المختارة (لازم تتعرف قبل البناء): ?map=... في اللينك أو آخر اختيار محفوظ.
+// الافتراضي = شبين الكوم الحقيقية (بيانات OSM). الخريطة القديمة بتفضل متاحة لو اللاعب اختارها بنفسه.
+// (المفتاح الجديد egy-map2: المفتاح القديم كان ممكن يكون فيه 'current' من الأيام اللي كانت فيها هي الافتراضية)
+const MAPS = ['shibin', 'current'];
+const MAP_KEY = 'egy-map2';
 let mapPick = (() => {
   const q = new URLSearchParams(location.search).get('map');
   if (MAPS.includes(q)) return q;
-  try { const v = localStorage.getItem('egy-map'); return MAPS.includes(v) ? v : 'current'; } catch { return 'current'; }
+  try { const v = localStorage.getItem(MAP_KEY); return MAPS.includes(v) ? v : 'shibin'; } catch { return 'shibin'; }
 })();
 
 const game = new Game(document.getElementById('app'), (text, p) => {
@@ -41,7 +44,7 @@ maps.addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (!b || b.disabled) return;
   const m = b.dataset.m;
   if (m === mapPick) return;
-  try { localStorage.setItem('egy-map', m); } catch { /* مفيش تخزين */ }
+  try { localStorage.setItem(MAP_KEY, m); } catch { /* مفيش تخزين */ }
   mapPick = m; syncMap();
   go.disabled = true;
   statusEl.textContent = m === 'shibin' ? 'بنحمّل شبين الكوم الحقيقية...' : 'بنحمّل الخريطة...';

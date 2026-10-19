@@ -70,7 +70,7 @@ export class Game {
     this.status = status;
     this.started = false;
     // الخريطة: 'current' = الخريطة القديمة، 'shibin' = شبين الكوم الحقيقية (OpenStreetMap)
-    this.mapId = map === 'shibin' ? 'shibin' : 'current';
+    this.mapId = map === 'current' ? 'current' : 'shibin'; // الافتراضي: شبين الحقيقية
   }
 
   async init() {
@@ -128,6 +128,7 @@ export class Game {
       setGroundProvider(this.world);
       setGraph(this.world.graph);
       attachJobs(this.world, findRoute);
+      this.findRoute = findRoute; // (للاختبارات والقياس: حساب مسار على شبكة الطرق من الـ Console)
       PlayerVehicle.world = this.world;
       this.raceTrack = null;
       this.lights = new TrafficLights(); // (الإشارات بتاعة الخريطة القديمة مش بتترسم هنا)
@@ -291,65 +292,26 @@ export class Game {
 
     // الإعدادات المحفوظة (قبل تجهيز الشيدرز: الضل والجودة بيغيروا نوع الشيدر المطلوب)
     for (const [k, v] of Object.entries(this.settings.values)) this._applySetting(k, v);
-    // العربيات التانية بتتجهز دلوقتي (وقت التحميل) عشان التبديل في نص اللعب يبقى لحظي:
-    // بنبنيهم مرة واحدة، ونجهز الشيدرز بتاعتهم بنفس عدد الأنوار (عربية واحدة في المشهد كل مرة)
-    for (const kind of ['microbus', 'taxi', 'tuktuk']) {
-      if (this.vehicles[kind]) continue;
-      S('تجهيز العربيات...', 0.88);
-      await nextFrame();
-      const v = new PlayerVehicle(this.scene, this.assets, { lowPower: this.mobile, kind });
-      v.lowPower = this.mobile;
-      v.rig.root.removeFromParent();
-      this.vehicles[kind] = v;
-      this._applyLivery(v, this.settings.get('livery'));
-    }
+    // العربيات التانية (تاكسي/توكتوك) مش بتتبني وقت التحميل: بتتبني في الخلفية بعد ما السواقة تبدأ (_prepareVehicles)
+    // ولو اللاعب بدّل قبلها بتتبني ساعتها (setVehicle) — التحميل أسرع ~نص ثانية + شيدرزهم
     this._applyLivery(this.player, this.settings.get('livery'));
-    S('تجهيز الشيدرز...', 0.92);
-    await nextFrame();
-    // كل عربية: نسخة الشاشة + نسخة المرايات (الرسم جوه render target بيحتاج شيدر مختلف)
-    const warmRT = new THREE.WebGLRenderTarget(64, 64), warmCam = new THREE.PerspectiveCamera(60, 1, 0.1, 100);
-    const warm = async (v) => {
-      v.syncVisuals(0);
-      // رسمة صغيرة مخفية للعربية من برا ومن جوه: بترفع الأشكال والصور على كارت الشاشة من دلوقتي
-      const r = v.rig.root.position;
-      for (const [dx, dy, dz] of [[6, 2.5, 6], [-6, 2, -6], [0, 1.4, 0]]) {
-        warmCam.position.set(r.x + dx, r.y + dy, r.z + dz); warmCam.lookAt(r.x, r.y + 1, r.z); warmCam.updateMatrixWorld();
-        renderer.setRenderTarget(warmRT); renderer.render(this.scene, warmCam);
-      }
-      renderer.setRenderTarget(null);
-      try {
-        await renderer.compileAsync(this.scene, this.camera);
-        const rt = v.mirrorCams?.[0]?.rt;
-        if (rt) { renderer.setRenderTarget(rt); await renderer.compileAsync(this.scene, this.camera); renderer.setRenderTarget(null); }
-      } catch { renderer.setRenderTarget(null); }
-    };
-    for (const v of Object.values(this.vehicles)) {
-      if (v === this.player) continue;
-      this.player.rig.root.removeFromParent(); this.scene.add(v.rig.root);
-      await warm(v);
-      v.rig.root.removeFromParent(); this.scene.add(this.player.rig.root);
-    }
+    this.player.syncVisuals(0);
     this.cams.update(0.016);
-    await warm(this.player);
-    warmRT.dispose();
-    // تسخين: نلف الكاميرا على كل المناطق مرة (بالضلال) عشان مفيش تقطيع أول ما تشوف حاجة جديدة
     if (this.world) {
-      // شبين: نحمّل المربعات اللي حوالين البداية كاملة قبل ما نبدأ (ومن غير تقطيع بعد كده)
+      // شبين: المربعات اللي حوالين البداية بتتحمل الأول (اللي اللاعب هيشوفه)، والباقي بيكمل في الخلفية وهو بيسوق
       const sp = this.world.spawnPose(), cam = this.camera;
       cam.position.set(sp.x + 12, 10, sp.z + 12); cam.lookAt(sp.x, 0, sp.z); cam.updateMatrixWorld();
       for (let k = 0; k < 400 && (this.world.queue.length || this.world.stats.tilesLoaded < 4 || k < 3); k++) {
-        S('تحميل شوارع شبين حواليك...', 0.92 + Math.min(0.07, k * 0.002));
+        S('تحميل شوارع شبين حواليك...', 0.9 + Math.min(0.06, k * 0.002));
         this.world.updateVisibility(cam.position, this.viewDist || 560);
         this.world.update(0.016);
         await nextFrame();
       }
-      renderer.render(this.scene, cam);
-      this.loadInfo.readyMs = Math.round(performance.now() - this._initT0);
     } else {
       const spots = [100, 300, 600, 900, 1150, 1400, 1700, 1950, 2200, 2400, 2700, 3000];
       const cam = this.camera, q = {};
       for (let i = 0; i < spots.length; i++) {
-        S('تجهيز الشيدرز...', 0.92 + (0.07 * i) / spots.length);
+        S('تجهيز الشيدرز...', 0.9 + (0.06 * i) / spots.length);
         loopAt(spots[i], q);
         cam.position.set(q.x + q.rx * 14, q.y + 6, q.z + q.rz * 14);
         cam.lookAt(q.x, q.y, q.z);
@@ -364,6 +326,14 @@ export class Game {
       renderer.render(this.scene, cam);
       this.route.updateVisibility(this.player.rig.root.position, 600);
     }
+    // ===== الشيدرز: مرة واحدة لكل المشهد بعد ما المدينة اتحملت =====
+    // (كانت بتتجهز للعربيات بس قبل المدينة → أول فريم كان بيجهز شيدرز المدينة على المين ثريد = تهنيج 3-5 ث)
+    // compileAsync بيجهزهم بالتوازي (KHR_parallel_shader_compile) من غير ما يوقف الصفحة.
+    // الحاجات المستخبية دلوقتي (عربيات المرور قبل ما تظهر، نسخ الـ LOD، الليل...) بتتفتح لحظة عشان شيدرزها تتجهز كمان
+    S('تجهيز الشيدرز...', 0.97);
+    await nextFrame();
+    await this.precompile([this.scene]);
+    if (this.world) { renderer.render(this.scene, this.camera); this.loadInfo.readyMs = Math.round(performance.now() - this._initT0); }
     this.clock = new THREE.Clock();
     this.acc = 0;
     this.lampTimer = 0;
@@ -380,6 +350,40 @@ export class Game {
       }
     });
     S('جاهز!', 1);
+  }
+
+  /** تجهيز شيدرز كل اللي في المشاهد دي (بما فيهم المستخبي) بالتوازي — من غير رسم */
+  async precompile(roots, withMirrors = true) {
+    const hidden = [];
+    for (const r of roots) r.traverse((o) => { if (!o.visible && !o.isLight) { o.visible = true; hidden.push(o); } });
+    try {
+      await this.renderer.compileAsync(this.scene, this.camera);
+      // نسخة المرايات (الرسم جوه render target بيحتاج نسخة شيدر مختلفة)
+      const rt = withMirrors && this.player?.mirrorCams?.[0]?.rt;
+      if (rt) { this.renderer.setRenderTarget(rt); await this.renderer.compileAsync(this.scene, this.camera); }
+    } catch (e) { console.warn('[precompile]', e); }
+    this.renderer.setRenderTarget(null);
+    for (const o of hidden) o.visible = false;
+  }
+
+  /** بعد ما السواقة تبدأ: العربيات التانية بتتبني وشيدرزها بتتجهز في الخلفية (واحدة كل شوية) عشان التبديل يبقى لحظي */
+  async _prepareVehicles() {
+    const idle = () => new Promise((r) => (window.requestIdleCallback ? requestIdleCallback(() => r(), { timeout: 1500 }) : setTimeout(r, 300)));
+    for (const kind of ['microbus', 'taxi', 'tuktuk']) {
+      if (this.vehicles[kind]) continue;
+      await new Promise((r) => setTimeout(r, 2500));
+      await idle();
+      if (this.vehicles[kind]) continue;
+      const v = new PlayerVehicle(this.scene, this.assets, { lowPower: this.mobile, kind });
+      v.lowPower = this.mobile;
+      v.rig.root.removeFromParent();
+      this.vehicles[kind] = v;
+      this._applyLivery(v, this.settings.get('livery'));
+      // شيدرزها: بنحطها في مشهد صغير لوحدها لحظة (بنفس أنوار المشهد عشان نفس نسخة الشيدر)
+      const g = v.rig.root; g.position.set(0, -500, 0); this.scene.add(g);
+      await this.precompile([g], false);
+      g.removeFromParent();
+    }
   }
 
   // أحداث الفيزياء: خبطات (صوت + هزة كاميرا) — بتتوصل تاني لو الفيزياء اتعملت من جديد
@@ -471,6 +475,7 @@ export class Game {
     if (this.mobile) document.documentElement.requestFullscreen?.().catch(() => {});
     this.hud.toast(this.mobile ? 'امسك الدركسيون ولفّه، ودوس بنزين' : 'إنت دلوقتي في كرسي السواق — دوس W', 3);
     this.incidents.start(this.player.physics);
+    this._prepareVehicles();
     // الميكروباص في شبين: اختار خطك الأول (اللعبة شغالة عادي في الخلفية، واختيار تاني من زرار تغيير الخط)
     if (this.world && this.player.kind === 'microbus' && this.passengers.LINES.length > 1) this.openLinePicker();
   }

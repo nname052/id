@@ -8,7 +8,7 @@
 import * as THREE from 'three';
 import { edgePoint, edgesNear } from './ShibinData.js';
 import { CAR_COLORS } from '../../vehicles/CarModels.js';
-import { makeLodMesh } from '../../vehicles/TrafficLod.js';
+import { makeLodMesh, lodStats } from '../../vehicles/TrafficLod.js';
 import { findRoute } from '../../nav/RoadGraph.js';
 import { canvas, tex } from '../../render/textures.js';
 
@@ -865,6 +865,8 @@ export class ShibinTraffic {
   }
 
   /** للاختبار: كام عربية شغالة، وهل فيه عربيتين جوه بعض */
+  get lodStats() { return lodStats; }
+
   debugStats() {
     const on = this.cars.filter((c) => c.on && !c.off);
     let overlaps = 0;

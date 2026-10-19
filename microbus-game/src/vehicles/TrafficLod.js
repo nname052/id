@@ -10,6 +10,9 @@ import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferG
 
 const texAvg = new WeakMap();
 const cache = new Map();
+const _inv = new THREE.Matrix4(), _m = new THREE.Matrix4();
+/** للقياس: كام شكل اتخبز وكام لون اتعمل */
+export const lodStats = { shapes: 0, variants: 0, ms: 0 };
 let lodMat = null;
 
 function averageColor(tex) {
@@ -34,65 +37,93 @@ export function lodMaterial() {
   return (lodMat ||= new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.1 }));
 }
 
-/**
- * بيخبز rig عربية لـ geometry واحدة (في إحداثيات root). key = نوع+لون للتخزين.
- * العناصر اللي userData.role بتاعها shadow (ضل التلامس) بتفضل برا (هي أصلًا رخيصة ومنفصلة).
- */
-export function bakeLod(root, key) {
-  if (cache.has(key)) return cache.get(key);
-  root.updateMatrixWorld(true);
-  const inv = new THREE.Matrix4().copy(root.matrixWorld).invert();
-  const parts = [];
-  const m = new THREE.Matrix4();
-  const col = new THREE.Color();
+// القطع اللي بتدخل في الـ LOD (بنفس الترتيب دايمًا) + لون كل قطعة
+function lodParts(root, fn) {
   root.traverse((o) => {
     if (!o.isMesh || o.userData.role === 'shadow' || o.isInstancedMesh || o.isSkinnedMesh && !o.geometry) return;
     // مخفي عن قصد (قطع اتشالت/اتبدلت) — بس العجل بتتحسب حتى لو مخفية عشان المسافة
-    let hidden = false; for (let p = o; p && p !== root; p = p.parent) if (!p.visible && !p.userData?.lodKeep) { hidden = true; break; }
-    if (hidden) return;
+    for (let p = o; p && p !== root; p = p.parent) if (!p.visible && !p.userData?.lodKeep) return;
     const mat = Array.isArray(o.material) ? o.material[0] : o.material;
     if (!mat || mat.visible === false) return;
     const role = o.userData.role;
     const glass = role === 'glass' || /glass|gls/i.test(mat.name || '') || (mat.transparent && mat.opacity < 0.7 && !mat.map);
     if (mat.transparent && !glass && (mat.opacity ?? 1) < 0.3) return; // ملصقات شبه شفافة
-    let g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
-    for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal' && k !== 'color') g.deleteAttribute(k);
-    if (!g.attributes.normal) g.computeVertexNormals();
-    m.multiplyMatrices(inv, o.matrixWorld);
-    g.applyMatrix4(m);
-    // اللون: لون الخامة × متوسط الصورة (أو اللون اللي على الرؤوس لو موجود)
-    if (glass) col.setRGB(0.06, 0.08, 0.09);
-    else {
-      col.copy(mat.color || col.setRGB(1, 1, 1));
-      const a = averageColor(mat.map);
-      if (a) col.multiply(a);
-      if (mat.emissive && mat.emissiveIntensity > 0.5 && !mat.map) col.lerp(mat.emissive, 0.3);
-    }
-    const n = g.attributes.position.count;
-    let carr;
-    if (g.attributes.color && !glass) {
-      const src = g.attributes.color; carr = new Float32Array(n * 3);
-      for (let i = 0; i < n; i++) { carr[i * 3] = src.getX(i) * col.r; carr[i * 3 + 1] = src.getY(i) * col.g; carr[i * 3 + 2] = src.getZ(i) * col.b; }
-    } else { carr = new Float32Array(n * 3); for (let i = 0; i < n; i++) { carr[i * 3] = col.r; carr[i * 3 + 1] = col.g; carr[i * 3 + 2] = col.b; } }
-    g.setAttribute('color', new THREE.BufferAttribute(carr, 3));
-    parts.push(g);
+    fn(o, mat, glass);
   });
-  let geo = parts.length ? mergeGeometries(parts, false) : null;
-  for (const g of parts) g.dispose();
-  // نفس الرؤوس المكررة (من التحويل لـ non-indexed) بتتدمج → ذاكرة أقل بحوالي 3 مرات
-  if (geo) { const ix = mergeVertices(geo, 1e-4); geo.dispose(); geo = ix; }
-  // تبسيط سريع (vertex clustering): الرؤوس اللي في نفس خانة 11سم بتبقى رأس واحد، والمثلثات اللي اتقفلت بتتشال.
-  // الـ LOD بيتشاف من 30م وأبعد → التفاصيل الأصغر من 11سم مش باينة أصلًا (المثلثات بتقل للنص أو أكتر)
-  if (geo) { const sg = clusterSimplify(geo, 0.11); geo.dispose(); geo = sg; }
-  if (geo) geo.computeBoundingSphere();
+}
+
+function partColor(mat, glass, out) {
+  // اللون: لون الخامة × متوسط الصورة
+  if (glass) return out.setRGB(0.06, 0.08, 0.09);
+  out.copy(mat.color || out.setRGB(1, 1, 1));
+  const a = averageColor(mat.map);
+  if (a) out.multiply(a);
+  if (mat.emissive && mat.emissiveIntensity > 0.5 && !mat.map) out.lerp(mat.emissive, 0.3);
+  return out;
+}
+
+/**
+ * الشكل بيتخبز مرة واحدة لكل نوع عربية (key الشكل من غير الألوان): geometry واحدة + رقم القطعة لكل رأس.
+ * كل لون جديد = بس مصفوفة ألوان جديدة (لفة واحدة على الرؤوس) على نفس الـ position/normal/index (متشاركين على كارت الشاشة).
+ * (كانت كل عربية بلون مختلف بتتخبز وتتبسط من الأول: ~50 مرة وقت التحميل = 1.4 ث)
+ */
+export function bakeLod(root, key, shapeKey = key) {
+  if (cache.has(key)) return cache.get(key);
+  const t0 = performance.now();
+  let shape = cache.get('shape:' + shapeKey);
+  if (shape === undefined) {
+    lodStats.shapes++;
+    root.updateMatrixWorld(true);
+    const inv = new THREE.Matrix4().copy(root.matrixWorld).invert();
+    const parts = [];
+    const m = new THREE.Matrix4();
+    let pid = 0;
+    lodParts(root, (o, mat, glass) => {
+      let g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
+      for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal' && k !== 'color') g.deleteAttribute(k);
+      if (!g.attributes.normal) g.computeVertexNormals();
+      m.multiplyMatrices(inv, o.matrixWorld);
+      g.applyMatrix4(m);
+      const n = g.attributes.position.count;
+      // base = لون الرؤوس الأصلي (لو موجود) — بيتضرب في لون القطعة بعدين؛ pid = رقم القطعة
+      const base = new Float32Array(n * 3).fill(1);
+      if (g.attributes.color && !glass) { const src = g.attributes.color; for (let i = 0; i < n; i++) { base[i * 3] = src.getX(i); base[i * 3 + 1] = src.getY(i); base[i * 3 + 2] = src.getZ(i); } }
+      g.deleteAttribute('color');
+      g.setAttribute('color', new THREE.BufferAttribute(base, 3));
+      g.setAttribute('pid', new THREE.BufferAttribute(new Float32Array(n).fill(pid++), 1));
+      parts.push(g);
+    });
+    let geo = parts.length ? mergeGeometries(parts, false) : null;
+    for (const g of parts) g.dispose();
+    // نفس الرؤوس المكررة (من التحويل لـ non-indexed) بتتدمج → ذاكرة أقل بحوالي 3 مرات
+    if (geo) { const ix = mergeVertices(geo, 1e-4); geo.dispose(); geo = ix; }
+    // تبسيط سريع (vertex clustering): الرؤوس اللي في نفس خانة 11سم بتبقى رأس واحد، والمثلثات اللي اتقفلت بتتشال.
+    // الـ LOD بيتشاف من 30م وأبعد → التفاصيل الأصغر من 11سم مش باينة أصلًا (المثلثات بتقل للنص أو أكتر)
+    if (geo) { const sg = clusterSimplify(geo, 0.11); geo.dispose(); geo = sg; geo.computeBoundingSphere(); }
+    shape = geo ? { geo, nParts: pid } : null;
+    cache.set('shape:' + shapeKey, shape);
+  }
+  if (!shape) { cache.set(key, null); return null; }
+  // ألوان القطع للعربية دي (نفس ترتيب الخَبز)
+  const cols = []; const c = new THREE.Color();
+  lodParts(root, (o, mat, glass) => { partColor(mat, glass, c); cols.push(c.r, c.g, c.b); });
+  const S = shape.geo, base = S.attributes.color.array, pidA = S.attributes.pid.array, n = pidA.length;
+  const carr = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) { const k = pidA[i] * 3; carr[i * 3] = base[i * 3] * (cols[k] ?? 1); carr[i * 3 + 1] = base[i * 3 + 1] * (cols[k + 1] ?? 1); carr[i * 3 + 2] = base[i * 3 + 2] * (cols[k + 2] ?? 1); }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', S.attributes.position); geo.setAttribute('normal', S.attributes.normal);
+  geo.setIndex(S.index);
+  geo.setAttribute('color', new THREE.BufferAttribute(carr, 3));
+  geo.boundingSphere = S.boundingSphere; geo.boundingBox = S.boundingBox;
   cache.set(key, geo);
+  lodStats.variants++; lodStats.ms += performance.now() - t0;
   return geo;
 }
 
 function clusterSimplify(geo, cell) {
-  const P = geo.attributes.position, N = geo.attributes.normal, C = geo.attributes.color, I = geo.index;
+  const P = geo.attributes.position, N = geo.attributes.normal, C = geo.attributes.color, D = geo.attributes.pid, I = geo.index;
   const map = new Int32Array(P.count), keys = new Map();
-  const pos = [], nor = [], col = [];
+  const pos = [], nor = [], col = [], pid = [];
   for (let i = 0; i < P.count; i++) {
     // الـ normal جزء من المفتاح (مقرّب): الأوش المختلفة الاتجاه ماتتدمجش (عشان الإضاءة تفضل صح)
     const k = Math.round(P.getX(i) / cell) + ',' + Math.round(P.getY(i) / cell) + ',' + Math.round(P.getZ(i) / cell) + ',' +
@@ -100,7 +131,7 @@ function clusterSimplify(geo, cell) {
     let j = keys.get(k);
     if (j === undefined) {
       j = pos.length / 3; keys.set(k, j);
-      pos.push(P.getX(i), P.getY(i), P.getZ(i)); nor.push(N.getX(i), N.getY(i), N.getZ(i)); col.push(C.getX(i), C.getY(i), C.getZ(i));
+      pos.push(P.getX(i), P.getY(i), P.getZ(i)); nor.push(N.getX(i), N.getY(i), N.getZ(i)); col.push(C.getX(i), C.getY(i), C.getZ(i)); if (D) pid.push(D.getX(i));
     }
     map[i] = j;
   }
@@ -113,6 +144,7 @@ function clusterSimplify(geo, cell) {
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
   g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  if (D) g.setAttribute('pid', new THREE.Float32BufferAttribute(pid, 1));
   g.setIndex(idx);
   return g;
 }
@@ -120,10 +152,22 @@ function clusterSimplify(geo, cell) {
 /** Mesh الـ LOD لعربية (بتتحط في المشهد جنب العربية الكاملة) */
 export function makeLodMesh(root) {
   // مفتاح التخزين: نفس القطع + نفس الألوان/الصور = نفس الـ geometry (حتى لو الخامة نسخة منفصلة)
-  const sig = [];
-  root.traverse((o) => { if (o.isMesh && o.userData.role !== 'shadow') { const mt = Array.isArray(o.material) ? o.material[0] : o.material; sig.push(o.geometry.uuid.slice(0, 8) + (mt?.color?.getHexString() || '') + (mt?.map?.uuid.slice(0, 6) || '')); } });
-  const key = sig.join('|');
-  const geo = bakeLod(root, key);
+  // مفتاح الشكل = محتوى الهندسة نفسه (عدد الرؤوس + الصندوق + مكان القطعة جوه العربية لأقرب سم):
+  // كل عربية بتعمل geometries بتاعتها (uuid مختلف) فالـ uuid عمره ما بيتكرر
+  root.updateMatrixWorld(true);
+  const inv = _inv.copy(root.matrixWorld).invert();
+  const sig = [], shp = [];
+  root.traverse((o) => {
+    if (!o.isMesh || o.userData.role === 'shadow') return;
+    const mt = Array.isArray(o.material) ? o.material[0] : o.material, g = o.geometry;
+    if (!g.boundingBox) g.computeBoundingBox();
+    const b = g.boundingBox, e = _m.multiplyMatrices(inv, o.matrixWorld).elements, r = (v) => Math.round(v * 100);
+    let vis = ''; for (let q = o; q && q !== root; q = q.parent) if (!q.visible) { vis = 'h'; break; }
+    const k = `${g.attributes.position.count}:${g.index?.count || 0}:${r(b.min.x)},${r(b.min.y)},${r(b.min.z)},${r(b.max.x)},${r(b.max.y)},${r(b.max.z)}:${e.map(r).join(',')}${vis}`;
+    shp.push(k);
+    sig.push(k + (mt?.color?.getHexString() || '') + (mt?.map?.uuid.slice(0, 6) || '') + (mt?.transparent ? 't' + mt.opacity : ''));
+  });
+  const geo = bakeLod(root, sig.join('|'), shp.join('|'));
   if (!geo) return null;
   const mesh = new THREE.Mesh(geo, lodMaterial());
   mesh.name = 'traffic-lod';

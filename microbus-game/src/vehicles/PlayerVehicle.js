@@ -185,8 +185,9 @@ export class PlayerVehicle {
       renderer.shadowMap.autoUpdate = sAuto;
       mc.renders++;
       mc.error = null;
-      // مرة واحدة: نتأكد إن الصورة اللي في المراية مش فاضية (للتشخيص)
-      if (!mc.checked && mc.renders >= 4) {
+      // مرة واحدة: نتأكد إن الصورة اللي في المراية مش فاضية — في وضع التشخيص (#debug) بس:
+      // قراية البكسلات من كارت الشاشة بتوقف المعالج لحد ما الكارت يخلّص كل اللي قبلها (تهنيجة أول السواقة)
+      if (!mc.checked && mc.renders >= 4 && /debug/.test(location.hash)) {
         mc.checked = true;
         const px = new Uint8Array(4 * 16);
         renderer.readRenderTargetPixels(rt, (rt.width >> 1) - 2, (rt.height >> 1) - 2, 4, 4, px);
