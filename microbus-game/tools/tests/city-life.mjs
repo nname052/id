@@ -25,7 +25,7 @@ const r = await page.evaluate(async () => {
   let pedOnRoad = 0, crossSeen = 0, groupsSeen = 0, carThroughPed = 0, dwells = 0, pullers = new Set(), pedPop = 0, popIn = 0, vanish = 0, overlapsMax = 0, parkedHit = 0, parkedBad = 0, parkedMax = 0, activeSum = 0, n = 0, pedSum = 0, steps = 0;
   const wasVis = new Map(), pop = [];
   for (const [a, b] of legs) {
-    const rt = findRoute(a.x ?? a.rx, a.z ?? a.rz, b.rx ?? b.x, b.rz ?? b.z);
+    const rt = findRoute(a.rx ?? a.x, a.rz ?? a.z, b.rx ?? b.x, b.rz ?? b.z); // (المرحلة التانية تبدأ من نفس نقطة الطريق اللي الأولى خلصت عندها: مفيش نطّة كاميرا)
     for (let s = 0; s < rt.length; s += v * dt) {
       let i = 0; while (i < rt.pts.length - 2 && rt.cum[i + 1] < s) i++;
       const p0 = rt.pts[i], p1 = rt.pts[i + 1], t = (s - rt.cum[i]) / ((rt.cum[i + 1] - rt.cum[i]) || 1);
@@ -52,18 +52,23 @@ const r = await page.evaluate(async () => {
         if (vis !== was && steps > 2 && was === false && (dx * fx + dz * fz) / (d || 1) > 0.6 && d < 70) pedPop++;
         wasVis.set(p, vis);
       }
+      if (globalThis.__H !== false) {
+        for (const c of tr.cars) { if (!c.on || c.off) continue; (c._h ||= []).push({ st: steps, e: c.e?.id, s: +c.s.toFixed(1), v: +c.v.toFixed(1), turn: c.turn ? +c.turnU.toFixed(2) : -1, nx: c.next?.e?.id, lane: +(c.lane || 0).toFixed(1), x: +c.x.toFixed(1), z: +c.z.toFixed(1) }); if (c._h.length > 40) c._h.shift(); }
+        for (const q of cr.crossers || []) { (q._h ||= []).push({ st: steps, t: +q.cross.t.toFixed(2), w: +q.cross.wait.toFixed(1), x: +q.x.toFixed(1), z: +q.z.toFixed(1), bl: !!q.cross.blocked, bk: !!q.cross.back }); if (q._h.length > 30) q._h.shift(); }
+        if (!globalThis.__ovH) { const on = tr.cars.filter((c) => c.on && !c.off); for (let i = 0; i < on.length && !globalThis.__ovH; i++) for (let j = i + 1; j < on.length; j++) { const a = on[i], b = on[j]; if (Math.hypot(a.x - b.x, a.z - b.z) < 1.6 && Math.abs(a.y - b.y) < 1) { globalThis.__ovH = { a: a.type, b: b.type, ha: a._h.slice(-25), hb: b._h.slice(-25) }; break; } } }
+      }
       for (const c of tr.cars) { if (c.dwell > 0 && !c._dw) { dwells++; pullers.add(c.type); } c._dw = c.dwell > 0; }
       if (steps % 15 === 0) {
         const st = tr.debugStats(); if (st.overlaps) globalThis.__ov = tr.lastOverlap; overlapsMax = Math.max(overlapsMax, st.overlaps); parkedHit += st.parkedHit; parkedMax = Math.max(parkedMax, st.parked);
         activeSum += st.active; n++; const pr = cr.debugOnRoad(); pedSum += pr.people; pedOnRoad += pr.onRoad; (globalThis.__acc = (globalThis.__acc || 0) + pr.accident); (globalThis.__shopOff = (globalThis.__shopOff || 0) + pr.shopOff); crossSeen += pr.crossing; groupsSeen = Math.max(groupsSeen, pr.groups);
-        for (const q of cr.crossers || []) for (const c of tr.cars) if (c.on && !c.off && Math.hypot(c.x - q.x, c.z - q.z) < 1.4) carThroughPed++;
+        for (const q of cr.crossers || []) for (const c of tr.cars) if (c.on && !c.off && Math.hypot(c.x - q.x, c.z - q.z) < 1.4) { carThroughPed++; globalThis.__ctp ||= { hc: (c._h || []).slice(-20), hp: (q._h || []).slice(-20), car: c.type, v: +c.v.toFixed(1), turn: !!c.turn, virt: !!c.virtual, stopsNear: tr._stops.length, ped: { t: +q.cross.t.toFixed(2), wait: +q.cross.wait.toFixed(1), blocked: !!q.cross.blocked, back: !!q.cross.back, blockT: +(q.cross.blockT || 0).toFixed(1), speed: q.speed, scared: q.scared } }; }
         for (const q of tr.parked) if (q.on && Math.abs(W.height(q.x, q.z, 0)) > 0.05) parkedBad++;
       }
       steps++;
       if (steps % 60 === 0) await new Promise((r) => setTimeout(r, 0));
     }
   }
-  return { lastOverlap: globalThis.__ov || null, accidentSamples: globalThis.__acc || 0, shopOffSamples: globalThis.__shopOff || 0, pedOnRoad, crossSeen, groupsSeen, carThroughPed, aiStopsServed: dwells, aiStopTypes: [...pullers], pedPopIn: pedPop, simSeconds: Math.round(steps * dt), popIn, vanish, pop, overlapsMax, parkedHit, parkedOffAsphalt: parkedBad, parkedMax, avgTraffic: +(activeSum / n).toFixed(1), avgPeds: Math.round(pedSum / n) };
+  return { ovH: globalThis.__ovH || null, ctp: globalThis.__ctp || null, lastOverlap: globalThis.__ov || null, accidentSamples: globalThis.__acc || 0, shopOffSamples: globalThis.__shopOff || 0, pedOnRoad, crossSeen, groupsSeen, carThroughPed, aiStopsServed: dwells, aiStopTypes: [...pullers], pedPopIn: pedPop, simSeconds: Math.round(steps * dt), popIn, vanish, pop, overlapsMax, parkedHit, parkedOffAsphalt: parkedBad, parkedMax, avgTraffic: +(activeSum / n).toFixed(1), avgPeds: Math.round(pedSum / n) };
 });
 const pass = r.pedOnRoad === 0 && r.carThroughPed === 0 && r.crossSeen > 0 && r.groupsSeen > 0 && r.aiStopsServed > 0 && r.pedPopIn === 0 && r.popIn === 0 && r.vanish === 0 && r.overlapsMax === 0 && r.parkedHit === 0 && r.parkedOffAsphalt === 0 && !errors.length;
 console.log(JSON.stringify({ ...r, errors }, null, 1));

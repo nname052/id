@@ -130,6 +130,14 @@ export class ShibinTraffic {
     sg.material = m;
   }
 
+  /** مفيش حد بيعدّي الشارع (أو ضحية حادثة) قريب من مكان ظهور عربية */
+  _pedClear(x, z) {
+    const cr = this.crowd; if (!cr) return true;
+    for (const q of cr.crossers || []) if ((q.x - x) ** 2 + (q.z - z) ** 2 < 10 * 10) return false;
+    for (const q of cr.victims || []) if ((q.x - x) ** 2 + (q.z - z) ** 2 < 10 * 10) return false;
+    return true;
+  }
+
   _spawnLine(c, px, pz) {
     const LRs = this.lineRoutes;
     for (let t = 0; t < 14; t++) {
@@ -141,6 +149,7 @@ export class ShibinTraffic {
       if (d < (this._first ? 25 : SPAWN_MIN) || d > ACTIVE_R) continue;
       if (!this._first && this._inView(_b.x, _b.z)) continue;
       if (this.cars.some((o) => o.on && (o.x - _b.x) ** 2 + (o.z - _b.z) ** 2 < 14 * 14)) continue;
+      if (!this._pedClear(_b.x, _b.z)) continue;
       if (this.parked.some((q) => q.on && (q.x - _b.x) ** 2 + (q.z - _b.z) ** 2 < 8 * 8)) continue;
       c.line = LR; c.ri = ri;
       c.stopIdx = LR.stops.findIndex((st) => st.ri > ri || (st.ri === ri && st.s > sT + 3));
@@ -223,7 +232,7 @@ export class ShibinTraffic {
     c.x = _b.x; c.z = _b.z; c.y = _b.y;
     // يرجع عربية حقيقية: جوه نطاق المرور، برا عين الكاميرا، ومفيش حد مكانه
     const d2 = (c.x - px) ** 2 + (c.z - pz) ** 2;
-    if (d2 < ACTIVE_R * ACTIVE_R && !c.off && !this._inView(c.x, c.z) && !this.cars.some((o) => o !== c && o.on && (o.x - c.x) ** 2 + (o.z - c.z) ** 2 < 12 * 12)) {
+    if (d2 < ACTIVE_R * ACTIVE_R && !c.off && !this._inView(c.x, c.z) && !this.cars.some((o) => o !== c && o.on && (o.x - c.x) ** 2 + (o.z - c.z) ** 2 < 12 * 12) && this._pedClear(c.x, c.z)) {
       c.virtual = false; c.on = true;
       c.lane = c.laneHome = this._laneOff(el.e); c.turn = null; c.next = null; c.hold = null; c.deadEnd = false; c.pull = null;
       c.dwell = Math.max(0, c.vdwell || 0); c.vdwell = 0; c.v = c.dwell > 0 ? 0 : 5; c.bumped = 0; c.kox = c.koz = 0; c.stuck = 0;
@@ -444,10 +453,12 @@ export class ShibinTraffic {
       const e = cand[Math.floor(this.R() * cand.length)];
       const dir = e.oneway ? 1 : this.R() < 0.5 ? 1 : -1;
       const s = 4 + this.R() * (e.length - 8);
-      // مفيش عربية قريبة على نفس الوصلة
+      // مفيش عربية قريبة على نفس الوصلة، ولا عربية قريبة بالمسافة (اللي في نص لفة داخلة على الوصلة دي)
       if (this.cars.some((o) => o.on && o.e === e && o.dir === dir && Math.abs(o.s - s) < 14)) continue;
-      // مش فوق عربية مركونة، ومش قدام عينك
       this._at(e, dir, s, 0, _b);
+      if (this.cars.some((o) => o.on && !o.off && o !== c && (o.x - _b.x) ** 2 + (o.z - _b.z) ** 2 < 14 * 14)) continue;
+      if (!this._pedClear(_b.x, _b.z)) continue;
+      // مش فوق عربية مركونة، ومش قدام عينك
       if (!this._first && this._inView(_b.x, _b.z)) continue;
       if (this.parked.some((q) => q.on && (q.x - _b.x) ** 2 + (q.z - _b.z) ** 2 < 8 * 8)) continue;
       c.e = e; c.dir = dir; c.s = s; c.lane = c.laneHome = this._laneOff(e); c.turn = null; c.next = null; c.hold = null; c.deadEnd = false; c.pull = null; c.dwell = 0;
@@ -601,7 +612,12 @@ export class ShibinTraffic {
     }
     c.kox *= Math.exp(-dt * 0.8); c.koz *= Math.exp(-dt * 0.8);
     const e = c.e, L = e.length;
-    if (!c.pull && c.laneHome !== undefined && c.laneHome !== c.lane && !c.turn) { const d = c.laneHome - c.lane; c.lane += Math.sign(d) * Math.min(Math.abs(d), dt * 0.9); }
+    if (!c.pull && c.laneHome !== undefined && c.laneHome !== c.lane && !c.turn) {
+      // يرجع لحارته بالراحة — بس مش لو فيه عربية جنبه في الناحية دي (كانوا بيتزنقوا في بعض وهما واقفين)
+      const d = c.laneHome - c.lane, nl = c.lane + Math.sign(d) * Math.min(Math.abs(d), dt * 0.9);
+      const side = this.cars.some((o) => o !== c && o.on && !o.off && o.e === e && o.dir === c.dir && !o.turn && Math.abs(o.s - c.s) < (o.len + c.len) / 2 + 0.8 && Math.sign(o.lane - c.lane) === Math.sign(d) && Math.abs(o.lane - nl) < (o.width + c.width) / 2 + 0.25);
+      if (!side) c.lane = nl;
+    }
     let vMax = Math.max(4, (e.speed / 3.6) * c.vMul * (e.cls === 'residential' ? 0.8 : 1));
     // اتكلكس له: بيسرّع شوية (لحد 15% فوق سرعته) لو قدامه فاضي
     if (c.hornT > 0) { c.hornT -= dt; vMax *= 1.15; }
@@ -702,10 +718,16 @@ export class ShibinTraffic {
       const T2 = c.turn ? c.turn.T2 : Math.min(6, ne.length * 0.45);
       const toEntry = c.turn ? (1 - c.turnU) * c.turn.len : Math.max(0, L - c.s - Math.min(6, L * 0.45)) + 4;
       for (const o of this.cars) {
-        if (o === c || !o.on || o.off || o.e !== ne || o.dir !== nd || o.turn) continue;
+        if (o === c || !o.on || o.off) continue;
         if (Math.abs((o.y || 0) - (c.y || 0)) > 2.5) continue;
-        const g2 = toEntry + (o.s - T2) - (o.len + c.len) / 2 - 0.8;
-        if (o.s < T2 + 30 && g2 < gap) { gap = Math.max(0.1, g2); vLead = o.v; }
+        let oPos, oTurning = false; // مكان o على الوصلة الجاية بالنسبة لنقطة نهاية اللفة (T2)
+        if (o.e === ne && o.dir === nd && !o.turn) oPos = o.s - T2; // (ممكن يكون سالب شوية: دخل من غير لفة قبل T2 — بس هو قدامي)
+        else if (o.turn && o.next && o.next !== 'hold' && o.next.e === ne && o.next.dir === nd) { oPos = -(1 - o.turnU) * o.turn.len; oTurning = true; }
+        else continue;
+        // اتنين داخلين في نفس الوقت من اتجاهين: الأقرب لنهاية لفته يعدّي الأول والتاني يستنى
+        if (oTurning && -oPos > toEntry - 0.01) continue;
+        const g2 = toEntry + oPos - (o.len + c.len) / 2 - 0.8;
+        if (oPos < 30 && g2 < gap) { gap = Math.max(0.1, g2); vLead = oPos < 0 ? 0 : o.v; }
       }
     }
     // ===== شغل السواقين: الميكروباص (وساعات التاكسي) بيقف على جنب في أماكن الركوب يحمّل/ينزّل =====
