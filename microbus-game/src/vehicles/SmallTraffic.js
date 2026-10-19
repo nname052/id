@@ -31,14 +31,21 @@ function tuktukGeo(body) {
   const dark = [0.08, 0.08, 0.09], canvasC = [0.1, 0.1, 0.1];
   const g = mergeGeometries([
     part(new THREE.BoxGeometry(1.25, 0.55, 2.3), body, M(0, 0.55, 0.1)),             // الجسم
-    part(new THREE.BoxGeometry(1.2, 0.5, 0.5), body, M(0, 0.85, -0.95)),              // المقدمة
-    part(new THREE.BoxGeometry(1.22, 0.06, 2.0), canvasC, M(0, 1.72, 0.2)),           // السقف
-    part(new THREE.BoxGeometry(0.06, 0.95, 0.06), dark, M(-0.58, 1.25, -0.6)),
-    part(new THREE.BoxGeometry(0.06, 0.95, 0.06), dark, M(0.58, 1.25, -0.6)),
-    part(new THREE.BoxGeometry(1.22, 0.9, 0.06), canvasC, M(0, 1.27, 1.2)),           // ضهر قماش
-    part(new THREE.BoxGeometry(1.1, 0.7, 0.04), [0.55, 0.65, 0.7], M(0, 1.3, -1.06, -0.25)), // قزاز قدام
+    part(new THREE.BoxGeometry(1.2, 0.5, 0.5), body, M(0, 0.85, -0.95)),              // المقدمة (لحد 1.1م)
+    part(new THREE.BoxGeometry(1.05, 0.08, 0.32), body, M(0, 1.1, -0.86, 0.35)),      // تابلوه مايل بيوصّل المقدمة بالقزاز
+    part(new THREE.BoxGeometry(1.3, 0.07, 2.12), canvasC, M(0, 1.74, 0.2)),           // السقف: من فوق القزاز لحد الضهر
+    part(new THREE.BoxGeometry(1.26, 0.1, 0.08), dark, M(0, 1.68, -0.82)),            // حرف السقف قدام
+    part(new THREE.BoxGeometry(0.06, 0.68, 0.06), dark, M(-0.58, 1.39, -0.74, -0.12)), // قوايم القزاز
+    part(new THREE.BoxGeometry(0.06, 0.68, 0.06), dark, M(0.58, 1.39, -0.74, -0.12)),
+    part(new THREE.BoxGeometry(0.05, 0.92, 0.05), dark, M(-0.6, 1.27, 1.22)),          // قوايم ورا
+    part(new THREE.BoxGeometry(0.05, 0.92, 0.05), dark, M(0.6, 1.27, 1.22)),
+    part(new THREE.BoxGeometry(1.22, 0.9, 0.06), canvasC, M(0, 1.27, 1.22)),           // ضهر قماش
+    part(new THREE.BoxGeometry(1.1, 0.6, 0.03), [0.55, 0.65, 0.7], M(0, 1.4, -0.75, -0.12)), // قزاز قدام (بين القوايم، تحت حرف السقف)
     part(new THREE.BoxGeometry(1.0, 0.35, 0.5), [0.42, 0.2, 0.16], M(0, 0.95, 0.7)),  // الكنبة
+    part(new THREE.BoxGeometry(1.0, 0.45, 0.12), [0.42, 0.2, 0.16], M(0, 1.3, 0.98, 0.1)), // ضهر الكنبة
+    part(new THREE.BoxGeometry(0.7, 0.05, 0.05), dark, M(0, 1.12, -0.55)),            // الجادون
     part(new THREE.SphereGeometry(0.09, 6, 4), [1, 0.95, 0.75], M(0, 0.95, -1.22)),   // الفانوس
+    part(new THREE.BoxGeometry(0.34, 0.12, 0.36), body, M(0, 0.56, -1.0)),            // رفرف العجلة القدامانية
     wheel(0, 0.25, -1.0, 0.25, 0.14), wheel(-0.58, 0.25, 0.75, 0.25, 0.14), wheel(0.58, 0.25, 0.75, 0.25, 0.14),
   ]);
   geoCache.set(key, g);

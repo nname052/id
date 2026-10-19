@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { contactShadow } from './CarModels.js';
+import { replacePlates, rearHalfWidth } from './EgyptPlates.js';
 
 // ميكروباصات المرور بنفس موديل الهاي إس الحقيقي (نسخة منفصلة من الملف، من غير صالون مصري).
 // العجل بتلف، وفيه فوانيس فرامل ونور بالليل. الخامات مشتركة بين كل النسخ (أداء).
@@ -63,12 +64,15 @@ export function buildTrafficHiace(asset, R = Math.random) {
   // فوانيس فرامل (مستطيلات حمرا فوق فوانيس الموديل)
   const bb = new THREE.Box3().setFromObject(model);
   const brake = new THREE.MeshStandardMaterial({ color: 0x5a0000, emissive: 0xff1a0a, emissiveIntensity: 0.15, transparent: true, opacity: 0.85, depthWrite: false });
+  // (كان من الصندوق اللي فيه المرايات → الفوانيس طالعة 20سم برا الصاج)
+  const rw = (shared.rw ||= rearHalfWidth(model, body)); // (مرة واحدة: كل النسخ نفس الموديل)
   for (const sx of [-1, 1]) {
     const p = new THREE.Mesh(new THREE.PlaneGeometry(0.13, 0.34), brake);
-    p.position.set(sx * ((bb.max.x - bb.min.x) / 2 - 0.07), 0.82, bb.max.z + 0.012);
+    p.position.set(sx * (rw.hx - 0.08), 0.82, rw.zMax + 0.012);
     p.userData.role = 'tail';
     body.add(p);
   }
+  replacePlates(model, body, Math.floor(R() * 8));
   const sh = contactShadow(bb.max.x - bb.min.x + 0.15, bb.max.z - bb.min.z + 0.15);
   sh.material.opacity = 0.55;
   root.add(sh);

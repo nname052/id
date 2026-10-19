@@ -349,7 +349,7 @@ function partsGeometry(kind) {
   for (const sx of [-1, 1]) {
     // مراية جنب (فضي زي الصورة) على الباب القدام
     add(dark, new THREE.CapsuleGeometry(0.055, 0.09, 4, 10).scale(1.45, 0.95, 0.75), sx * 0.97, 1.0, -0.8, 0, 0, Math.PI / 2);
-    add(dark, new THREE.BoxGeometry(0.12, 0.05, 0.08), sx * 0.88, 0.97, -0.79);
+    add(dark, new THREE.BoxGeometry(0.24, 0.05, 0.1), sx * 0.82, 0.97, -0.79); // دراع المراية لحد الصاج (كان فيه فراغ بين المراية والعربية)
     // أكر الأبواب
     for (const z of [-0.32, 0.72]) add(chrome, new THREE.BoxGeometry(0.02, 0.028, 0.15), sx * 0.858, 0.9, z);
     // مساحات الزجاج (سودا عند قاعدة الزجاج)

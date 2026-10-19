@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { replacePlates } from './EgyptPlates.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { GeoBuilder } from '../render/GeoBuilder.js';
 import { addEyeCharm, addBobbleDog } from './CabAccessories.js';
@@ -66,6 +67,7 @@ export function integrateHiace(rig, asset, spec, A) {
   holder.position.set(-A.xMid, spec.wheelRadius - A.wheelY, -spec._cgZ);
   rig.shell.add(holder);
   holder.updateMatrixWorld(true);
+  replacePlates(holder, rig.shell, 0); // لوحة مصرية (ن ق ل) بدل اليابانية اللي جاية مع الموديل
   // الميكروباص القديم (المكعبات) بيتشال من المشهد خالص — مش بس بيستخبى
   rig.exterior.removeFromParent();
   rig.interiorGroup.removeFromParent();

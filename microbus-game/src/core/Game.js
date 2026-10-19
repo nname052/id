@@ -89,9 +89,10 @@ export class Game {
     const saved = (() => { try { return JSON.parse(localStorage.getItem('egy-microbus-settings-v1') || '{}'); } catch { return {}; } })();
     this.tier = resolveTier(saved.graphics, this.mobile);
     this.saverBoot = saved.graphics === 'saver';
-    // الموبايل: من غير MSAA في الواطية/المتوسطة (أكبر توفير لحرارة كارت الشاشة بعد الدقة)
-    const renderer = (this.renderer = new THREE.WebGLRenderer({ antialias: !this.mobile || this.tier === 'high' || this.tier === 'ultra', powerPreference: this.mobile ? 'default' : 'high-performance' }));
-    this.basePR = Math.min(window.devicePixelRatio, this.mobile ? 1.25 : 1.5);
+    // الموبايل: MSAA في المتوسطة والعالية (كروت الموبايل tile-based: الـ 4x MSAA تقريبًا ببلاش على الشاشة نفسها
+    // وبيشيل التسنين اللي كان باين) — الواطية وموفّر البطارية من غيره
+    const renderer = (this.renderer = new THREE.WebGLRenderer({ antialias: !this.mobile || (this.tier !== 'low' && !this.saverBoot), powerPreference: this.mobile ? 'default' : 'high-performance' }));
+    this.basePR = Math.min(window.devicePixelRatio, this.mobile ? 1.4 : 1.5);
     renderer.setPixelRatio(this.basePR);
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -545,7 +546,8 @@ export class Game {
     // الدقة آخر حاجة بتقل (وعمرها ما تنزل عن دقة الشاشة العادية): الجرافيك المبكسل أوحش من ضل أقل أو مسافة رؤية أقصر
     const floor = Math.min(1, window.devicePixelRatio || 1);
     // الموبايل: الدقة بسقف ثابت لكل مستوى (شاشات 3x بترسم 9 أضعاف البكسلات من غير فرق واضح)
-    const MPR = [1.5, 1.35, 1.2, 1.0, 0.85];
+    // (كانت 1.5/1.35/1.2/1.0/0.85 — على شاشة 3x المتوسطة كانت بتتمط 2.5 مرة = مبكسلة/مغبشة)
+    const MPR = [1.65, 1.5, 1.4, 1.15, 1.0];
     const pr = this.mobile
       ? Math.min(window.devicePixelRatio, level < 0 ? 1.75 : MPR[level])
       : level < 0 ? Math.min(window.devicePixelRatio, 2) : Math.max(floor, [base, base, base * 0.9, base * 0.8, base * 0.72][level]);
