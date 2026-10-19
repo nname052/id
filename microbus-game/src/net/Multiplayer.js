@@ -48,6 +48,21 @@ export class Multiplayer {
       const use = window.claude?.use;
       this.room = use ? await use('room') : null;
     } catch { this.room = null; }
+    // برا Claude (اللينك العام على GitHub Pages): اتصال مباشر بين الأجهزة. الأوضة: ?room=اسم (والافتراضي "shibin")
+    // (محليًا/في الاختبارات مقفول إلا بـ ?p2p=1 — عشان الاختبارات ماتتصلش بسيرفرات برا)
+    if (!this.room && !window.claude) {
+      const q = new URLSearchParams(location.search);
+      const local = /^(localhost|127\.|0\.0\.0\.0|\[::1\])/.test(location.hostname);
+      if (q.get('p2p') === '1' || (!local && q.get('p2p') !== '0')) {
+        try {
+          const { joinP2PRoom } = await import('./P2PRoom.js');
+          const name = (q.get('room') || 'shibin').toLowerCase().replace(/[^a-z0-9\u0600-\u06ff_-]/g, '').slice(0, 32) || 'shibin';
+          this.room = await joinP2PRoom(name);
+          this.roomName = name;
+        } catch (e) { console.warn('[P2P]', e); this.room = null; }
+      }
+    }
+    this.mode = this.room?.mode || (this.room ? 'claude' : null);
     this.available = !!this.room;
     if (!this.room) { this._emitLobby(); return; }
     this.room.onPeers(() => this._emitLobby(), () => { this.available = false; this._emitLobby(); });

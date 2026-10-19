@@ -94,10 +94,11 @@ const renderSeats = () => {
     seatsEl.appendChild(b);
   }
   if (!mp) lobbyStatus.textContent = 'بيتحمّل...';
-  else if (!mp.available) lobbyStatus.textContent = 'اللعب الجماعي مش متاح هنا (لازم تكون داخل بحساب Claude ومعزوم على اللعبة). تقدر تلعب لوحدك.';
+  else if (!mp.available) lobbyStatus.textContent = 'اللعب الجماعي مش متاح هنا دلوقتي. تقدر تلعب لوحدك.';
   else {
     const n = mp.others().length;
-    lobbyStatus.textContent = (mp.connected ? `أونلاين · ${n ? `${n} لاعب تاني موجود` : 'مفيش حد تاني لسه'}` : 'بيتصل...') + (me.seat ? '' : ' — اختار رقمك');
+    const where = mp.mode === 'p2p' ? ` · أوضة "${mp.roomName}"` : '';
+    lobbyStatus.textContent = (mp.connected ? `أونلاين${where} · ${n ? `${n} لاعب تاني موجود` : 'مفيش حد تاني لسه — ابعت اللينك لصحابك'}` : 'بيتصل...') + (me.seat ? '' : ' — اختار رقمك');
   }
 };
 seatsEl.addEventListener('click', (e) => {
