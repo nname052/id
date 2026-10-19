@@ -658,3 +658,33 @@ def render(specs: list[dict], W: int, H: int, fps: int, out_root: Path, mood: st
 
 def spec_json(g: dict) -> str:
     return json.dumps({k: v for k, v in g.items() if k not in ("dir",)}, ensure_ascii=False)
+
+
+
+def preview_html(sp: dict, W: int, H: int, bg_url: str, mood: str = "clean") -> str:
+    """صفحة معاينة لجرافيك واحد بنفس كود الرسم (render(t)) متحرك في حلقة فوق فريم من فيديوك (للاستوديو)."""
+    pal = dict(PALETTES.get(mood, PALETTES["clean"]))
+    css = (f"@font-face{{font-family:Card;src:url(data:font/ttf;base64,{_font('Alexandria-Variable.ttf')});font-weight:100 900}}"
+           f":root{{{';'.join(f'--{k}:{v}' for k, v in pal.items())}}}" + CSS)
+    js = JS.replace("%ENTER%", str(ENTER)).replace("%EXIT%", str(EXIT))
+    lot = (ASSETS / "vendor" / "lottie_svg.min.js").read_text(encoding="utf-8") if sp.get("kind") == "sticker" else ""
+    if sp.get("mode") == "overlay" and sp.get("rect"):
+        r = sp["rect"]
+        x, y, w, h = int(r["left"] * W), int(r["top"] * H), int((r["right"] - r["left"]) * W), int((r["bottom"] - r["top"]) * H)
+    else:
+        x, y, w, h = 0, 0, W, H
+    u = round(W / 30) if sp.get("kind") in ("doodle", "annotate", "visual", "photo") else round(min(w, H * 0.6) / 30)
+    spec = {**{k: v for k, v in sp.items() if k != "rect"}, "u": u, "icon_svg": sp.get("svg") or _icon_svg(sp.get("icon") or "sparkles"), "H": H, "bw": w, "bh": h,
+            "cy": int(h * 0.5)}
+    if sp.get("photo"):
+        spec["photo_data"] = "data:image/jpeg;base64," + base64.b64encode((ASSETS / sp["photo"]).read_bytes()).decode()
+    if sp.get("accent"):
+        spec["accent_override"] = sp["accent"]
+    dur = max(1.2, sp["end"] - sp["start"])
+    return f"""<html><head><meta charset="utf-8"><style>{css}
+html,body{{margin:0;height:100%;overflow:hidden;background:#000}}#stage{{position:absolute;top:0;left:0;width:{W}px;height:{H}px;transform-origin:0 0}}
+#stage>img{{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}}#root{{inset:auto;left:{x}px;top:{y}px;width:{w}px;height:{h}px}}</style></head>
+<body><div id="stage"><img src="{bg_url}"><div id="root"></div></div><script>{lot}</script><script>{js}</script>
+<script>const fit=()=>document.getElementById('stage').style.transform=`scale(${{innerWidth/{W}}})`;addEventListener('resize',fit);fit();
+setup({json.dumps(spec, ensure_ascii=False)},{dur});const D0={dur};let t0=performance.now();
+(function loop(n){{const t=((n-t0)/1000)%(D0+0.8);render(Math.min(t,D0-0.01));document.getElementById('root').style.visibility=t<D0?'visible':'hidden';requestAnimationFrame(loop)}})(performance.now());</script></body></html>"""

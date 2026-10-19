@@ -669,3 +669,91 @@ def preview_caption(style: dict, text: str, out: Path, W: int = 1080, H: int = 1
         pg.screenshot(path=str(out), clip={"x": 0, "y": top, "width": W, "height": int(min(H - top, H * 0.3))}, type="jpeg", quality=82)
         b.close()
     return out
+
+
+# ---------- محرّك الترجمة الموحّد (نفس captions.js بتاع المعاينة الحية) ----------
+ENGINE_JS = Path(__file__).resolve().parents[1] / "web" / "static" / "captions.js"
+
+
+def engine_style(st: dict | None) -> dict:
+    """ستايل المحرّك + ملف الخط (data URI علشان الرسم من غير سيرفر)."""
+    st = dict(st or {})
+    font = st.get("font") or "Alexandria"
+    if font not in FONT_CHOICES:
+        font = "Alexandria"
+    st["font"] = font
+    st["font_url"] = f"data:font/ttf;base64,{_font(FONT_CHOICES[font])}"
+    return st
+
+
+def render_engine(cues: list[dict], aspect: str, W: int, H: int, out_dir: Path, style: dict, total: float, fps: int = 30) -> dict:
+    """الترجمة فريم فريم بنفس محرّك المعاينة: بنصوّر بس لما الشكل يتغيّر (كلمة جديدة أو حركة شغّالة)، وكل صورة ليها مدتها.
+    بيرجّع subs بنفس شكل الطرق التانية (حالات بصور الكادر كله) علشان الرندر والفحوصات زي ما هم."""
+    from playwright.sync_api import sync_playwright
+    out_dir.mkdir(parents=True, exist_ok=True)
+    st = engine_style(style)
+    cues_js = [{"id": c["id"], "start": c["start"], "end": c["end"], "words": [{"word": w["word"], "start": w["start"], "end": w["end"]} for w in c.get("words") or []]}
+               for c in cues]
+    states, cur = [], None
+    with sync_playwright() as p:
+        b = p.chromium.launch()
+        pg = b.new_page(viewport={"width": W, "height": H})
+        pg.set_content(f"<html><head><style>html,body{{margin:0;background:transparent;width:{W}px;height:{H}px;overflow:hidden}}</style></head>"
+                       f"<body><div id='root' style='position:absolute;inset:0'></div><script>{ENGINE_JS.read_text(encoding='utf-8')}</script></body></html>")
+        pg.evaluate("([st, cues, W, H]) => { window.E = Captions.create(document.getElementById('root'), {W, H, style: st, cues}); }", [st, cues_js, W, H])
+        pg.evaluate("document.fonts.ready")
+        n = int(total * fps) + 1
+        for i in range(n):
+            t = i / fps
+            sig = pg.evaluate("t => E.render(t)", t)
+            if cur and cur["sig"] == sig:
+                cur["end"] = round((i + 1) / fps, 4)
+                continue
+            if sig == "none":
+                cur = {"sig": sig, "start": round(t, 4), "end": round((i + 1) / fps, 4), "png": None}
+                states.append(cur)
+                continue
+            png = out_dir / f"e_{len(states):05d}.png"
+            pg.screenshot(path=str(png), omit_background=True)
+            box = pg.evaluate("() => { const r = document.querySelector('.cap').getBoundingClientRect(); return [r.x, r.y, r.width, r.height]; }")
+            cur = {"sig": sig, "start": round(t, 4), "end": round((i + 1) / fps, 4), "png": str(png), "box": [round(v) for v in box]}
+            states.append(cur)
+        b.close()
+    subs = []
+    for c in cues:   # حالة لكل سطر (علشان الفحوصات: الوش، والمنطقة، والتأخير)
+        sts = [s for s in states if s["png"] and s["start"] < c["end"] and s["end"] > c["start"]]
+        if not sts:
+            continue
+        bx = sts[-1]["box"]
+        subs.append({"id": c["id"], "cue": c["id"], "png": sts[-1]["png"], "x": bx[0], "y": bx[1], "w": bx[2], "h": bx[3], "start": c["start"], "end": c["end"],
+                     "inside_bottom_zone": True, "lines": 1, "states": [{"png": s["png"], "start": max(s["start"], c["start"]), "end": min(s["end"], c["end"]),
+                                                                          "x": 0, "y": 0, "w": W, "h": H} for s in sts]})
+    fs = round(({"s": 42, "m": 52, "l": 64, "xl": 86}.get(st.get("size", "m"), 52)) * H / 1920)
+    return {"subs": subs, "cards": [], "overlaps": 0, "sub_font_px": fs, "card_font_px": 0, "style": {k: v for k, v in st.items() if k != "font_url"},
+            "frames_drawn": sum(1 for s in states if s["png"]), "frames_total": int(total * fps) + 1}
+
+
+# ستايلات جاهزة للمحرّك الموحّد (الاستوديو بيعرضها متحركة، وصاحب الفيديو بيعدّل عليها)
+ENGINE_PRESETS = {
+    "app": {"label": "زي فيديوهات التطبيق", "mode": "karaoke", "font": "Alexandria", "weight": 600, "size": "m", "color": "#ffffff", "accent": "#7ee2b8",
+            "upcoming": "dim", "position": "bottom", "anim": "fade", "enter": "fade", "shadow": True},
+    "pop_box": {"label": "الكلمة بتنط في صندوق", "mode": "karaoke", "font": "Cairo", "weight": 800, "size": "l", "color": "#ffffff", "accent": "#ffd23f",
+                "upcoming": "dim", "position": "bottom", "anim": "pop", "box": "word", "enter": "slide", "shadow": True},
+    "tiktok": {"label": "تيك توك عريض", "mode": "chunks", "font": "Alexandria", "weight": 900, "size": "xl", "color": "#ffffff", "accent": "#ffd23f",
+               "upcoming": "show", "position": "middle", "anim": "zoom", "enter": "pop", "outline": 8, "shadow": True},
+    "typewriter": {"label": "آلة كاتبة", "mode": "words", "font": "IBM Plex Arabic", "weight": 700, "size": "m", "color": "#ffffff", "accent": "#ffffff",
+                   "upcoming": "hide", "position": "bottom", "anim": "typewriter", "enter": "none", "box": "line", "box_color": "rgba(0,0,0,0.6)", "shadow": False},
+    "highlight": {"label": "هايلايتر بيتمد", "mode": "karaoke", "font": "Tajawal", "weight": 800, "size": "l", "color": "#ffffff", "accent": "#ff7a59",
+                  "upcoming": "show", "position": "bottom", "anim": "highlight", "enter": "fade", "shadow": True},
+    "bordered": {"label": "إطار حوالين الكلمة", "mode": "karaoke", "font": "Readex Pro", "weight": 700, "size": "l", "color": "#ffffff", "accent": "#ffffff",
+                 "upcoming": "dim", "position": "bottom", "anim": "bounce", "border": "word", "border_color": "#7ee2b8", "enter": "fade", "shadow": True},
+    "neon": {"label": "نيون", "mode": "karaoke", "font": "Lalezar", "weight": 400, "size": "l", "color": "#ffffff", "accent": "#5ee7ff",
+             "upcoming": "dim", "position": "bottom", "anim": "fade", "enter": "fade", "glow": True, "shadow": False},
+    "elegant": {"label": "فخم دهبي", "mode": "karaoke", "font": "El Messiri", "weight": 700, "size": "m", "color": "#f4ead5", "accent": "#d4af6a",
+                "upcoming": "dim", "position": "bottom", "anim": "slide", "enter": "slide", "shadow": True},
+    "boxed_line": {"label": "سطر في صندوق بإطار", "mode": "karaoke", "font": "Almarai", "weight": 800, "size": "m", "color": "#ffffff", "accent": "#ffd23f",
+                   "upcoming": "show", "position": "bottom", "anim": "fade", "box": "line", "box_color": "rgba(10,12,18,0.72)", "border": "line",
+                   "border_color": "#ffd23f", "enter": "pop", "shadow": False},
+    "wave": {"label": "موجة", "mode": "karaoke", "font": "Changa", "weight": 700, "size": "l", "color": "#ffffff", "accent": "#b98cff",
+             "upcoming": "dim", "position": "bottom", "anim": "wave", "enter": "slide", "outline": 3, "shadow": True},
+}

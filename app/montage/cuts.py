@@ -274,7 +274,29 @@ ENUM = {norm(w) for w in ("اولا", "أولا", "تانيا", "ثانيا", "�
                           "تاني", "تالت", "رابع", "first", "second", "third", "step", "finally")}
 REVEAL = {norm(w) for w in ("الحقيقه", "الحقيقة", "المفاجأه", "المفاجأة", "المفاجاه", "تخيل", "تخيّل", "السر", "الصدمه", "الصدمة", "فجأة", "فجأه", "surprise", "imagine")}
 # xfade لكل نوع انتقال (والمدة بالثواني). whip بيتبادل اتجاهه علشان ما يبانش متكرر
-XFADE = {"dissolve": ("fade", None), "whip": ("smoothleft", 0.22), "whip_r": ("smoothright", 0.22), "zoom": ("zoomin", 0.32), "flash": ("fadewhite", 0.2)}
+XFADE = {"dissolve": ("fade", None), "whip": ("smoothleft", 0.22), "whip_r": ("smoothright", 0.22), "zoom": ("zoomin", 0.32), "flash": ("fadewhite", 0.2),
+         "fadeblack": ("fadeblack", 0.4), "slide": ("slideleft", 0.3), "circle": ("circleopen", 0.4), "blur": ("hblur", 0.35), "wipe": ("wipeleft", 0.3)}
+# أسماء الانتقالات للاستوديو (اختيار يدوي لكل قطعة)
+TRANSITION_KINDS = {"hard": "قطع عادي", "jumpzoom": "زووم على الوش", "dissolve": "مزج ناعم", "fadeblack": "إظلام", "flash": "فلاش أبيض",
+                    "whip": "سحبة سريعة", "slide": "انزلاق", "zoom": "زووم دخول", "circle": "دايرة بتتفتح", "blur": "ضباب", "wipe": "مسح"}
+
+
+def apply_overrides(transitions: list[dict], overrides: dict, fps: int) -> int:
+    """اختيارك لكل قطعة من الاستوديو بيكسب على الخطة الأوتوماتيك: {رقم القطعة: {kind, speed}}. speed: fast/normal/slow."""
+    n = 0
+    for tr in transitions:
+        o = (overrides or {}).get(str(tr["index"]))
+        if not o or o.get("kind") not in TRANSITION_KINDS:
+            continue
+        k = o["kind"]
+        mult = {"fast": 0.6, "normal": 1.0, "slow": 1.7}.get(o.get("speed", "normal"), 1.0)
+        base = XFADE[k][1] if k in XFADE and XFADE[k][1] else (0.33 if k == "dissolve" else 0)
+        frames = int(round(base * mult * fps)) if k in XFADE else 0
+        frames += frames % 2
+        tr.update(kind=k, xfade=XFADE[k][0] if k in XFADE else None, frames=frames, zoom_after=PUNCH_Z if k == "jumpzoom" else 1.0,
+                  reason=f"اختيارك: {TRANSITION_KINDS[k]}" + (f" ({ {'fast': 'سريع', 'slow': 'بطيء'}[o['speed']] })" if o.get("speed") in ("fast", "slow") else ""))
+        n += 1
+    return n
 FANCY = ("whip", "zoom", "flash")
 FANCY_GAP = 5.0       # ثواني بين أي انتقالين «ظاهرين» (أكتر من كده بيبقى زحمة ومش احترافي)
 JUMP_ZOOMS = (1.0, 1.14, 1.0, 1.22)   # تأطير الأجزاء ورا بعض في نفس اللقطة: واسع ← أقرب ← واسع ← أقرب أكتر

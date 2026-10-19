@@ -125,8 +125,18 @@ def plan(cues: list[dict], brief_text: str = "", ask_fn=None, content: dict | No
         res = (ask_fn or (lambda sy, us, sc: claude_code.ask(sy, us, sc, model=LLM_MODEL)["data"]))(system, user, SCHEMA)
     except Exception as e:  # الجرافيك بالقواعد بيكمّل
         return {"error": str(e)[:200], "items": [], "rejected": [], "outline": content}
+    ok, bad = validate(res.get("items") or [], cues)
+    ok.sort(key=lambda x: x["at"])
+    photos = [x for x in ok if x["template"] == "photo"]
+    for x in photos[MAX_PHOTOS:]:   # صورتين بالكتير
+        ok.remove(x); bad.append({**x, "reject": f"أكتر من {MAX_PHOTOS} صور"})
+    return {"topic_en": res.get("topic_en", "") or content.get("topic_en", ""), "items": ok, "rejected": bad, "outline": content}
+
+
+def validate(items: list[dict], cues: list[dict]) -> tuple[list[dict], list[dict]]:
+    """كل بند (من المخرج أو من اختيار صاحب الفيديو) بيتراجع بالكود: السطر موجود، والكلمة فيه، والنوع مكتمل."""
     ok, bad = [], []
-    for it in res.get("items") or []:
+    for it in items:
         m = re.fullmatch(r"c(\d+)", it.get("cue", ""))
         k = int(m.group(1)) - 1 if m else -1
         if it["template"] == "none":
@@ -145,11 +155,38 @@ def plan(cues: list[dict], brief_text: str = "", ask_fn=None, content: dict | No
         if it["template"] == "counter" and (it.get("value") is None or not re.search(r"\d|" + "|".join(NUM_HINT), c["text"])):
             bad.append({**it, "reject": "مفيش رقم اتقال في السطر"}); continue
         ok.append({**it, "cue_i": k, "at": at["start"], "cue_end": c["end"]})
-    ok.sort(key=lambda x: x["at"])
-    photos = [x for x in ok if x["template"] == "photo"]
-    for x in photos[MAX_PHOTOS:]:   # صورتين بالكتير
-        ok.remove(x); bad.append({**x, "reject": f"أكتر من {MAX_PHOTOS} صور"})
-    return {"topic_en": res.get("topic_en", "") or content.get("topic_en", ""), "items": ok, "rejected": bad, "outline": content}
+    return ok, bad
+
+
+# ---------- اقتراحات لكل مشهد (الاستوديو) ----------
+SUGGEST_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["scenes"], "properties": {"scenes": {"type": "array", "items": {
+    "type": "object", "additionalProperties": False, "required": ["cue", "options"], "properties": {
+        "cue": {"type": "string"}, "options": {"type": "array", "items": SCHEMA["properties"]["items"]["items"]}}}}}}
+SUGGEST_SYSTEM = """إنت مونتير فيديوهات قصيرة محترف. قدامك تفريغ فيديو متكلم سطر سطر وفهم المحتوى.
+لكل سطر اقترح **3 اختيارات مختلفة** لموشن جرافيك (صورة وحركة، مش كلام) يختار منهم صاحب الفيديو:
+visual (أيقونة ملوّنة للحاجة: visual_en)، photo (صورة حقيقية للموقف: visual_en وصف قصير)، annotate (علامة: check/cross/question/exclaim/sparkles/heart/lightning/arrow_to_me)،
+counter (لو اتقال رقم). نوّع بين الاختيارات (مثلًا أيقونة + صورة + علامة)، وكل اختيار ليه علاقة واضحة بالسطر. at_word كلمة من السطر.
+
+ذوق صاحب الفيديو الثابت:
+{taste}"""
+
+
+def suggest(cues: list[dict], content: dict | None = None, ask_fn=None) -> dict:
+    """لكل سطر 3 اختيارات جرافيك متراجعة بالكود (صاحب الفيديو بيختار في الاستوديو)."""
+    content = content if content is not None else outline(cues, ask_fn)
+    lines = [f"c{k + 1} [{c['start']:.1f}–{c['end']:.1f}] {c['text']}" for k, c in enumerate(cues)]
+    user = f"الموضوع: {content.get('topic')}\nالملخص: {content.get('summary')}\n\nالتفريغ:\n" + "\n".join(lines)
+    system = SUGGEST_SYSTEM.replace("{taste}", TASTE.read_text(encoding="utf-8") if TASTE.exists() else "")
+    try:
+        res = (ask_fn or (lambda sy, us, sc: claude_code.ask(sy, us, sc, model=LLM_MODEL)["data"]))(system, user, SUGGEST_SCHEMA)
+    except Exception as e:
+        return {"error": str(e)[:200], "scenes": [], "outline": content}
+    out = []
+    for sc in res.get("scenes") or []:
+        ok, _ = validate([{**o, "cue": sc["cue"]} for o in sc.get("options") or [] if o.get("template") != "none"], cues)
+        if ok:
+            out.append({"cue": sc["cue"], "cue_i": ok[0]["cue_i"], "text": cues[ok[0]["cue_i"]]["text"], "options": ok[:3]})
+    return {"scenes": out, "outline": content}
 
 
 # ---------- الأشكال ----------
@@ -172,7 +209,7 @@ def find_emoji(name: str, used: set) -> dict | None:
     return best[1] if best else None
 
 
-def find_visual(kind: str, terms: list[str], used: set, idea: list[str] | None = None) -> dict | None:
+def find_visual(kind: str, terms: list[str], used: set, idea: list[str] | None = None, allow_draw: bool = True) -> dict | None:
     """أيقونة أو رسمة على قد المعنى (نفس قواعد السبورة): المكتبة ← Iconify ← رسمة جديدة بيرسمها التطبيق."""
     from ..pipeline.scenes import relevant
     if not terms:
@@ -275,15 +312,15 @@ def duration(it: dict) -> float:
     return DUR.get(it["template"], 2.0)
 
 
-def to_spec(it: dict, used: set, idea_en: list[str] | None = None) -> dict | None:
+def to_spec(it: dict, used: set, idea_en: list[str] | None = None, allow_draw: bool = True) -> dict | None:
     """بند من الخطة ← مواصفات للرسم. مفيش كلام بيظهر (الكلام في الترجمة)، ومفيش إيموجي أصفر (ذوق صاحب الفيديو)."""
     tpl = it["template"]
     sp = {"kind": tpl, "title": "", "at": it["at"], "first_word": it.get("at_word"), "why": f"مخرج الجرافيك: {it.get('why', '')}",
           "visual_en": it.get("visual_en") or [], "template": tpl}
     if tpl == "visual":
         # ملوّنة الأول، ولو مفيش: التطبيق بيرسمها (مش أيقونة خط من المكتبة: «friends» طلعت شبه يافطة الحمّام)
-        v = find_color_icon(it.get("visual_en") or [], used)
-        if not v:
+        v = find_color_icon(it.get("visual_en") or [], used) or (None if allow_draw else find_visual("icon", it.get("visual_en") or [], used, idea_en, allow_draw=False))
+        if not v and allow_draw:
             got = drawn.draw("", it.get("visual_en") or [], idea_en, used)
             v = {"kind": "icon", "file": got["asset"], "name": got["asset_name"], "license": got["license"], "drawn": True} if got else None
         if not v:

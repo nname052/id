@@ -42,6 +42,18 @@ FILTER_PRESETS = {
     "moody": {"label": "غامق مزاجي", "vf": "eq=brightness=-0.03:saturation=0.82,colorbalance=bs=0.05:bm=0.03"},
     "sepia": {"label": "سيبيا", "vf": "colorchannelmixer=.393:.769:.189:0:.349:.686:.168:0:.272:.534:.131"},
     "bw": {"label": "أبيض وأسود", "vf": "hue=s=0,curves=preset=medium_contrast"},
+    # سينمائية
+    "teal_orange": {"label": "سينما: تيل وبرتقالي", "group": "cinema", "vf": "colorbalance=rs=-0.08:gs=-0.02:bs=0.1:rh=0.08:gh=0.02:bh=-0.08,eq=contrast=1.08:saturation=1.08"},
+    "bleach": {"label": "سينما: باهت حاد", "group": "cinema", "vf": "eq=contrast=1.22:saturation=0.55,curves=master='0/0 0.5/0.47 1/1'"},
+    "golden": {"label": "سينما: ساعة دهبي", "group": "cinema", "vf": "colortemperature=temperature=4600:mix=0.55,eq=saturation=1.1,curves=r='0/0.03 1/1':b='0/0 1/0.92'"},
+    "moonlight": {"label": "سينما: ضي القمر", "group": "cinema", "vf": "colortemperature=temperature=9000:mix=0.6,eq=brightness=-0.04:saturation=0.75,curves=master='0/0.04 1/0.95'"},
+    "noir": {"label": "سينما: نوار", "group": "cinema", "vf": "hue=s=0,eq=contrast=1.35:brightness=-0.03,vignette=angle=0.6"},
+    "matte": {"label": "سينما: مطفي", "group": "cinema", "vf": "curves=all='0/0.1 0.5/0.5 1/0.9',eq=saturation=0.9"},
+    "kodak": {"label": "سينما: كوداك دافي", "group": "cinema", "vf": "colorbalance=rs=0.04:gs=0.01:bs=-0.05:rh=0.03:bh=-0.04,curves=master='0/0.03 0.5/0.52 1/0.97',eq=saturation=1.05"},
+    "fuji": {"label": "سينما: فوجي أخضر", "group": "cinema", "vf": "colorbalance=gs=0.04:bs=0.02:rh=-0.02,curves=master='0/0.02 0.5/0.5 1/0.97',eq=saturation=0.95"},
+    "pastel": {"label": "باستيل", "vf": "eq=saturation=0.7:brightness=0.04,curves=all='0/0.08 1/1'"},
+    "cyber": {"label": "سايبر (بنفسجي وسماوي)", "group": "cinema", "vf": "colorbalance=rs=0.06:bs=0.1:gm=-0.06:rh=-0.04:bh=0.06,eq=contrast=1.1:saturation=1.2"},
+    "high_key": {"label": "منوّر ناعم", "vf": "eq=brightness=0.06:contrast=0.92,curves=all='0/0.06 1/1'"},
 }
 MANUAL_KEYS = ("exposure", "contrast", "saturation", "warmth", "vibrance", "shadows", "vignette", "sharpen")
 

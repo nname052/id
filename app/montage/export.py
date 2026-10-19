@@ -339,6 +339,10 @@ def sfx_events(transitions: list[dict], gfx: list[dict]) -> list[dict]:
         k = tr["kind"]
         if k in ("whip", "whip_r"):
             ev.append({"t": tr["t"], "sfx": "whoosh", "gain": 0.16, "why": "سحبة"})
+        elif k in ("slide", "wipe", "circle", "zoom"):
+            ev.append({"t": tr["t"], "sfx": "swoosh", "gain": 0.1, "why": f"انتقال {k}"})
+        elif k == "flash":
+            ev.append({"t": tr["t"], "sfx": "impact", "gain": 0.06, "why": "فلاش"})
         elif k == "jumpzoom":
             ev.append({"t": tr["t"], "sfx": "whoosh", "gain": 0.07, "why": "زووم تأكيد"})
     for g in gfx:
@@ -353,12 +357,16 @@ def sfx_events(transitions: list[dict], gfx: list[dict]) -> list[dict]:
 REAL = {"whoosh": "whoosh", "swoosh": "swipe", "pop": "pop", "ding": "ding", "click": "click", "sparkle": "sparkle", "impact": "impact", "flash": "whoosh"}
 
 
-def _real(kind: str, k: int):
+def _real(kind: str, k: int, pick: str | None = None):
     """صوت حقيقي من مكتبة المشروع (CC0 من Openverse/Freesound) بالدور، وعلوه متظبط (RMS −20 dB). None لو المكتبة فاضية."""
     import wave
     import numpy as np
     from . import library
+    from ..config import ASSETS
     files = library.sfx_files(REAL.get(kind, kind))
+    if pick and (ASSETS / pick).exists():   # الصوت اللي اخترته بالاسم من الاستوديو
+        files = [ASSETS / pick]
+        k = 0
     if not files:
         return None
     f = files[k % len(files)]
@@ -379,7 +387,7 @@ def sfx_track(events: list[dict], total: float, out: Path) -> Path:
     turn: dict = {}
     for k, e in enumerate(events):
         fn, gain, off = SFX.get(e["sfx"], SFX["pop"])
-        real = _real(e["sfx"], turn.get(e["sfx"], 0))
+        real = _real(e["sfx"], turn.get(e["sfx"], 0), e.get("pick"))
         turn[e["sfx"]] = turn.get(e["sfx"], 0) + 1
         if real is not None:
             x, e["file"] = real[0] * e.get("gain", gain) * 2.2, real[1]

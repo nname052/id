@@ -11,6 +11,7 @@
   <button role="tab" data-tab="subs" class="on">الترجمة</button>
   <button role="tab" data-tab="cut">القصّ</button>
   <button role="tab" data-tab="look">الصورة والألوان</button>
+  <button role="tab" data-tab="trans">الانتقالات</button>
   <button role="tab" data-tab="gfx">الموشن جرافيك</button>
   <button role="tab" data-tab="audio">الصوت والمؤثرات</button>
 </div>
@@ -19,36 +20,27 @@
 <section class="card studio-pane" id="pane-subs">
   <div class="studio-split">
     <div class="stack">
-      <div class="card-head"><h2>شكل الترجمة</h2><span class="hint">اختار ستايل جاهز، وعدّل عليه زي ما تحب. المعاينة جنبك على فيديوك (أو على ورقة).</span></div>
-      <div class="preset-grid" id="capPresets"></div>
-      <div class="ctl-grid">
-        <label>طريقة العرض<select id="c_mode"><option value="karaoke">الجملة كلها، واللي اتقال بينوّر</option><option value="words">الكلمات بتظهر واحدة واحدة</option><option value="chunks">1–3 كلمات كبيرة (تيك توك)</option></select></label>
-        <label>الخط<select id="c_font"></select></label>
-        <label>الحجم <b id="c_size_v"></b><input type="range" id="c_size" min="30" max="130" step="1"></label>
-        <label>التُّقل <b id="c_weight_v"></b><input type="range" id="c_weight" min="300" max="900" step="100"></label>
-        <label>لون الكلام<input type="color" id="c_color"></label>
-        <label>لون الكلمة الحالية<input type="color" id="c_accent"></label>
-        <label>الكلام اللي لسه هيتقال <b id="c_dim_v"></b><input type="range" id="c_dim" min="0.15" max="1" step="0.05"></label>
-        <label>المكان (من فوق لتحت) <b id="c_y_v"></b><input type="range" id="c_y" min="0.55" max="0.9" step="0.01"></label>
-        <label>حدود الحروف <b id="c_outline_v"></b><input type="range" id="c_outline" min="0" max="14" step="1"></label>
-        <label>لون الحدود<input type="color" id="c_outline_color"></label>
-        <label>الخلفية<select id="c_box"><option value="none">من غير</option><option value="line">صندوق ورا السطر</option></select></label>
-        <label class="row"><input type="checkbox" id="c_accent_bg"> الكلمة الحالية في صندوق ملوّن</label>
-        <label class="row"><input type="checkbox" id="c_shadow"> ضل ناعم</label>
-        <label class="row"><input type="checkbox" id="c_glow"> لمعة (نيون)</label>
-      </div>
+      <div class="card-head"><h2>ستايلات جاهزة</h2><span class="hint">كل ستايل شغّال قدامك على فيديوك. اختار واحد وعدّل عليه تحت.</span></div>
+      <div class="preset-grid live" id="capPresets"></div>
+      <div id="capOpts" class="stack"></div>
     </div>
-    <div class="stack">
-      <div class="chips" id="capBg"><span class="chip on" data-v="frame">على فيديوك</span><span class="chip" data-v="white">على ورقة</span><span class="chip" data-v="dark">على غامق</span></div>
-      <div class="preview-box"><img id="capPrev" alt="معاينة الترجمة"><span class="spinner" id="capSpin" hidden></span></div>
-      <div class="btn-row"><button class="primary lg" id="capApply">✓ طبّق على الفيديو</button><span class="muted" id="capMsg"></span></div>
+    <div class="sticky-preview">
+      <div class="chips small" id="capBg"><span class="chip on" data-v="frame">على فيديوك</span><span class="chip" data-v="paper">على ورقة</span><span class="chip" data-v="dark">على غامق</span></div>
+      <div class="stage916" id="capStage"><div class="stage-inner" id="capInner"><img id="capBgImg" alt=""><div id="capRoot" class="eng-root"></div></div></div>
+      <div class="btn-row center"><button id="capPlay">⏸</button><button id="capRestart">↺ من الأول</button></div>
+      <button class="primary lg" id="capApply">✓ طبّق على الفيديو</button><div class="muted" id="capMsg"></div>
     </div>
   </div>
 </section>
 
 <!-- ===== القص ===== -->
 <section class="card studio-pane" id="pane-cut" hidden>
-  <div class="card-head"><h2>القصّ بإيدك</h2><span class="hint">اتفرج واقف عند اللحظة بالظبط (فريم فريم)، وحدّد بداية ونهاية كل جزء. Space تشغيل · ← → فريم · I بداية · O نهاية · S اقسم.</span></div>
+  <div class="card-head"><h2>القصّ</h2><span class="hint">إما السكتات تتشال لوحدها، أو تقص بإيدك وإنت سامع الصوت.</span></div>
+  <div class="opt-group"><div class="opt-label">شيل السكتات تلقائي</div>
+    <div class="chips" id="autoSil"><span class="chip" data-v="99">لأ، أنا هقص بإيدي</span><span class="chip" data-v="0.7">السكتات الطويلة بس (أكتر من 0.7 ث)</span><span class="chip" data-v="0.4">كل السكتات (أكتر من 0.4 ث)</span></div>
+    <div class="btn-row"><button id="silApply">✓ طبّق القصّ التلقائي</button><span class="muted" id="silMsg"></span></div></div>
+  <ol class="guide"><li>شغّل الفيديو (Space) واسمع، والسكتات متعلّمة بالرمادي على الموجة.</li><li>لما توصل لبداية الكلام اللي عايزه، دوس <b>I</b>، ولما توصل للنهاية دوس <b>O</b>.</li>
+    <li>عايز تشيل حتة من النص؟ قف عندها ودوس <b>S</b> (اقسم)، وبعدين اختار الحتة الزيادة ودوس «شيل الجزء».</li><li>اتحرك فريم فريم بالأسهم ← →، وجرّب «شغّل النتيجة»، وبعدين «طبّق القصّ».</li></ol>
   <div class="cut-layout">
     <div class="cut-player"><video id="cutVid" playsinline preload="auto"></video>
       <div class="btn-row center">
@@ -57,7 +49,7 @@
       <div class="muted center" id="cutTime"></div>
     </div>
     <div class="stack">
-      <div class="timeline" id="tl"><img id="wave" alt=""><div id="tlSegs"></div><div class="playhead" id="ph"></div></div>
+      <div class="timeline" id="tl"><img id="wave" alt=""><div id="tlSil"></div><div id="tlSegs"></div><div class="playhead" id="ph"></div></div>
       <div class="btn-row">
         <button id="setIn">[ I ] بداية الجزء هنا</button><button id="setOut">نهاية الجزء هنا [ O ]</button><button id="splitHere">✂ اقسم هنا (S)</button>
         <button id="addSeg">+ جزء جديد من هنا</button><button class="danger" id="delSeg">🗑 شيل الجزء</button>
@@ -72,63 +64,68 @@
 <section class="card studio-pane" id="pane-look" hidden>
   <div class="studio-split">
     <div class="stack">
-      <div class="card-head"><h2>الفلاتر</h2><span class="hint">كل فلتر متطبق على فريم من فيديوك، اختار اللي يعجبك.</span></div>
-      <div class="filter-grid" id="filters"></div>
-      <div class="card-head" style="margin-top:var(--s3)"><h2>الإضاءة والألوان بإيدك</h2><span class="hint">0 = من غير تغيير.</span></div>
-      <div class="ctl-grid" id="lookCtl"></div>
-      <label>الفريم اللي بتشوف عليه <b id="lt_v"></b><input type="range" id="lookT" min="0" max="30" step="0.5" value="8"></label>
+      <div class="card-head"><h2>الفلاتر</h2><span class="hint">كل فلتر متطبق على فريم من فيديوك. اختار واحد، والمعاينة جنبك بتوريك قبل وبعد.</span></div>
+      <div class="opt-label">أساسي</div><div class="filter-grid" id="filtersBasic"></div>
+      <div class="opt-label">سينمائي</div><div class="filter-grid" id="filtersCinema"></div>
+      <div class="card-head" style="margin-top:var(--s3)"><h2>الإضاءة والألوان بإيدك</h2><span class="hint">كل إعداد ليه 5 درجات، والنص = من غير تغيير.</span></div>
+      <div id="lookCtl" class="stack"></div>
+      <div class="opt-group"><div class="opt-label">الفريم اللي بتشوف عليه</div><div class="chips" id="lookTs"></div></div>
     </div>
-    <div class="stack">
-      <div class="ba"><figure><img id="lookBefore" alt=""><figcaption>قبل</figcaption></figure><figure><img id="lookAfter" alt=""><figcaption>بعد</figcaption></figure></div>
-      <div class="btn-row"><button id="lookReset">رجّع طبيعي</button><button class="primary lg" id="lookApply">✓ طبّق على الفيديو</button><span class="muted" id="lookMsg"></span></div>
+    <div class="sticky-preview">
+      <div class="stage916 wipe" id="wipe"><img id="lookBefore" alt="قبل"><img id="lookAfter" alt="بعد"><div class="wipe-line" id="wipeLine"><span>قبل</span><span>بعد</span></div></div>
+      <div class="btn-row center"><button id="wipePlay">⏸</button><span class="muted">الخط بيتحرك لوحده بين قبل وبعد</span></div>
+      <button class="primary lg" id="lookApply">✓ طبّق على الفيديو</button>
+      <div class="btn-row center"><button id="lookReset">رجّع طبيعي</button></div><div class="muted" id="lookMsg"></div>
     </div>
   </div>
 </section>
 
+<!-- ===== الانتقالات ===== -->
+<section class="card studio-pane" id="pane-trans" hidden>
+  <div class="card-head"><h2>الانتقالات بين المشاهد</h2><span class="hint">كل قطعة في الفيديو قدامك بآخر لقطة قبلها وأول لقطة بعدها، والانتقال بيتعرض متحرك. اختار النوع والسرعة لكل واحدة.</span></div>
+  <div class="opt-group"><div class="opt-label">كل القطعات مرة واحدة</div><div class="chips" id="trAll"></div></div>
+  <div id="trList" class="tr-list"></div>
+  <div class="btn-row"><button class="primary lg" id="trApply">✓ طبّق الانتقالات</button><button id="trAuto">رجّع الاختيار التلقائي</button><span class="muted" id="trMsg"></span></div>
+</section>
+
 <!-- ===== الجرافيك ===== -->
 <section class="card studio-pane" id="pane-gfx" hidden>
-  <div class="studio-split">
-    <div class="stack">
-      <div class="card-head"><h2>إعدادات الموشن جرافيك</h2><span class="hint">دي الإعدادات الافتراضية لحد ما نزود أشكال تانية. مخرج الجرافيك بيلتزم بيها.</span></div>
-      <div class="field-label">الأنواع المسموحة</div>
-      <div class="row wrap" id="gKinds"></div>
-      <div class="field-label">الكثافة</div>
-      <div class="chips" id="gDensity"><span class="chip" data-v="few">قليل</span><span class="chip" data-v="normal">عادي</span><span class="chip" data-v="many">كتير</span></div>
-      <div class="field-label">شكل الأيقونة</div>
-      <div class="chips" id="gBadge"><span class="chip" data-v="glass">دايرة زجاج بحلقة</span><span class="chip" data-v="card">كارت مربع</span><span class="chip" data-v="none">من غير خلفية</span></div>
-      <div class="ctl-grid">
-        <label>لون التأكيد<input type="color" id="gAccent"></label>
-        <label>الحجم <b id="gSize_v"></b><input type="range" id="gSize" min="0.7" max="1.5" step="0.05"></label>
-        <label>أقصى عدد صور حقيقية <b id="gPhotos_v"></b><input type="range" id="gPhotos" min="0" max="5" step="1"></label>
-      </div>
-      <div class="btn-row"><button class="primary lg" id="gApply">✓ طبّق</button><span class="muted" id="gMsg"></span></div>
-    </div>
-    <div class="stack">
-      <div class="card-head"><h2>الجرافيك الحالي</h2><span class="hint">اللي اتعمل في آخر نسخة، ومكانه ووقته.</span></div>
-      <div id="gList" class="stack"></div>
-    </div>
-  </div>
+  <div class="card-head"><h2>اقتراحات لكل مشهد</h2><span class="hint">لكل جملة 3 أشكال متحركة على فيديوك بنفس الحركة اللي هتطلع في الفيديو. اختار واحد لكل مشهد (أو من غير).</span></div>
+  <div class="btn-row"><button id="sugMake">✨ اعمل اقتراحات جديدة</button><span class="muted" id="sugState"></span></div>
+  <div id="sugList" class="sug-list"></div>
+  <div class="card-head" style="margin-top:var(--s4)"><h2>إعدادات عامة</h2><span class="hint">بتتطبق على كل الجرافيك.</span></div>
+  <div class="opt-group"><div class="opt-label">الأنواع المسموحة (لما المخرج يختار لوحده)</div><div class="chips" id="gKinds"></div></div>
+  <div class="opt-group"><div class="opt-label">الكثافة</div><div class="chips" id="gDensity"><span class="chip" data-v="few">قليل</span><span class="chip" data-v="normal">عادي</span><span class="chip" data-v="many">كتير</span></div></div>
+  <div class="opt-group"><div class="opt-label">شكل الأيقونة</div><div class="chips" id="gBadge"><span class="chip" data-v="glass">دايرة زجاج بحلقة</span><span class="chip" data-v="card">كارت مربع</span><span class="chip" data-v="none">من غير خلفية</span></div></div>
+  <div class="opt-group"><div class="opt-label">الحجم</div><div class="chips" id="gSize"><span class="chip" data-v="0.8">صغير</span><span class="chip" data-v="1">متوسط</span><span class="chip" data-v="1.25">كبير</span></div></div>
+  <div class="opt-group"><div class="opt-label">أقصى عدد صور حقيقية</div><div class="chips" id="gPhotos"><span class="chip" data-v="0">من غير</span><span class="chip" data-v="1">1</span><span class="chip" data-v="2">2</span><span class="chip" data-v="3">3</span></div></div>
+  <div class="opt-group"><div class="opt-label">لون التأكيد</div><div class="swatches" id="gAccent"></div></div>
+  <div class="btn-row"><button class="primary lg" id="gApply">✓ طبّق الجرافيك</button><span class="muted" id="gMsg"></span></div>
 </section>
 
 <!-- ===== الصوت ===== -->
 <section class="card studio-pane" id="pane-audio" hidden>
   <div class="studio-split">
     <div class="stack">
-      <div class="card-head"><h2>المؤثرات الصوتية</h2><span class="hint">أصوات حقيقية (CC0)، كل واحد في لحظة الحركة نفسها على الشاشة.</span></div>
-      <label class="row"><input type="checkbox" id="aSfx"> المؤثرات شغّالة</label>
-      <label>علو المؤثرات <b id="aVol_v"></b><input type="range" id="aVol" min="0" max="2" step="0.1"></label>
-      <label>علو المزيكا (لو فيه) <b id="aMusic_v"></b><input type="range" id="aMusic" min="-30" max="-6" step="1"></label>
-      <label>الصوت النهائي (LUFS) <b id="aLufs_v"></b><input type="range" id="aLufs" min="-20" max="-10" step="0.5"></label>
-      <div class="btn-row"><button class="primary lg" id="aApply">✓ طبّق</button><span class="muted" id="aMsg"></span></div>
-    </div>
-    <div class="stack">
-      <div class="card-head"><h2>المؤثرات في الفيديو</h2></div>
+      <div class="card-head"><h2>المؤثرات في الفيديو</h2><span class="hint">كل مؤثر في لحظة حركة على الشاشة. دوس «اتفرج واسمع» تشوف اللحظة دي بصوتها، وغيّر الصوت أو شيله.</span></div>
       <div id="aList" class="stack"></div>
+      <div class="card-head"><h2>مكتبة الأصوات</h2><span class="hint">أصوات حقيقية مجانية (CC0). اسمع أي واحد.</span></div>
+      <div id="aLib" class="stack"></div>
+      <div class="card-head"><h2>العلو</h2></div>
+      <div class="opt-group"><div class="opt-label">المؤثرات</div><div class="chips" id="aSfx"><span class="chip" data-v="off">مقفولة</span><span class="chip" data-v="0.6">واطية</span><span class="chip" data-v="1">عادية</span><span class="chip" data-v="1.5">عالية</span></div></div>
+      <div class="opt-group"><div class="opt-label">المزيكا (لو فيه)</div><div class="chips" id="aMusic"><span class="chip" data-v="-24">واطية</span><span class="chip" data-v="-16">عادية</span><span class="chip" data-v="-10">عالية</span></div></div>
+      <div class="opt-group"><div class="opt-label">علو الفيديو كله</div><div class="chips" id="aLufs"><span class="chip" data-v="-16">هادي</span><span class="chip" data-v="-14">عادي (تيك توك)</span><span class="chip" data-v="-12">عالي</span></div></div>
+    </div>
+    <div class="sticky-preview">
+      <div class="stage916"><video id="aVid" playsinline preload="auto" style="width:100%;height:100%;object-fit:cover"></video></div>
+      <div class="muted center" id="aNow">دوس «اتفرج واسمع» جنب أي مؤثر</div>
+      <button class="primary lg" id="aApply">✓ طبّق الصوت</button><div class="muted" id="aMsg"></div>
     </div>
   </div>
 </section>
 {% endblock %}
 {% block script %}
+<script src="/static/captions.js?v={{ v }}"></script>
 <script>
   const MID = "{{ mid }}";
   let META = null, VIEW = null, DOCS = {};
@@ -157,35 +154,83 @@
   }
 
   // ---------- الترجمة ----------
-  let CAP = {}, capBg = "frame";
-  const CK = ["mode", "font", "size", "weight", "color", "accent", "dim", "y", "outline", "outline_color", "box", "accent_bg", "shadow", "glow"];
-  function capForm() {
-    for (const k of CK) { const el = $("#c_" + k); if (!el) continue;
-      if (el.type === "checkbox") el.checked = !!CAP[k]; else el.value = CAP[k];
-      const v = $(`#c_${k}_v`); if (v) v.textContent = k === "y" ? Math.round(CAP[k] * 100) + "%" : CAP[k]; }
-    $$$("#capPresets .preset").forEach((p) => p.classList.toggle("on", p.dataset.k === CAP.preset));
+  const TEXT_COLORS = ["#ffffff", "#f4ead5", "#fff3c4", "#e6f4ff", "#111111"];
+  const ACCENTS = ["#7ee2b8", "#ffd23f", "#ff7a59", "#5ee7ff", "#b98cff", "#ff5c8a", "#4ade80", "#d4af6a", "#ffffff"];
+  const BOXES = ["rgba(0,0,0,0.55)", "rgba(10,12,18,0.82)", "rgba(255,255,255,0.92)", "#ffd23f", "#7ee2b8", "#ff7a59"];
+  const OUTLINES = ["#000000", "#ffffff", "#1d1d2b"];
+  const OPTS = [
+    ["mode", "طريقة العرض", [["karaoke", "الجملة كلها"], ["words", "كلمة كلمة بتظهر"], ["chunks", "1–3 كلمات كبيرة"]]],
+    ["anim", "حركة الكلمة اللي بتتقال", [["none", "من غير"], ["fade", "بتنوّر"], ["pop", "بتنط"], ["zoom", "بتكبر"], ["slide", "طالعة لفوق"], ["bounce", "بتقفز"],
+      ["wave", "موجة"], ["typewriter", "آلة كاتبة"], ["highlight", "هايلايتر بيتمد"]]],
+    ["enter", "دخول السطر", [["none", "من غير"], ["fade", "ظهور"], ["slide", "طالع من تحت"], ["pop", "نطّة"]]],
+    ["size", "الحجم", [["s", "صغير"], ["m", "متوسط"], ["l", "كبير"], ["xl", "كبير جدًا"]]],
+    ["weight", "تُقل الخط", [[400, "عادي"], [600, "متوسط"], [800, "عريض"], [900, "تقيل جدًا"]]],
+    ["position", "المكان", [["top", "فوق"], ["middle", "في النص"], ["bottom", "تحت"]]],
+    ["upcoming", "الكلام اللي لسه هيتقال", [["show", "ظاهر كامل"], ["dim", "باهت"], ["hide", "مخفي لحد ما يتقال"]]],
+    ["color", "لون الكلام", "swatch", TEXT_COLORS], ["accent", "لون الكلمة اللي بتتقال", "swatch", ACCENTS],
+    ["border", "إطار", [["none", "من غير"], ["word", "حوالين الكلمة"], ["line", "حوالين السطر"]]], ["border_color", "لون الإطار", "swatch", ACCENTS],
+    ["box", "خلفية", [["none", "من غير"], ["word", "ورا الكلمة"], ["line", "ورا السطر"]]], ["box_color", "لون الخلفية", "swatch", BOXES],
+    ["outline", "حدود الحروف", [[0, "من غير"], [2, "رفيعة"], [5, "متوسطة"], [9, "تقيلة"]]], ["outline_color", "لون الحدود", "swatch", OUTLINES],
+    ["shadow", "ضل ناعم", [[true, "أيوه"], [false, "لأ"]]], ["glow", "لمعة نيون", [[false, "لأ"], [true, "أيوه"]]],
+  ];
+  let CAP = {}, CUES = [], ENG = null, MINI = [], capPlaying = true, capT0 = performance.now();
+  const fontUrl = (f) => "/fonts/" + META.font_files[f];
+  const sampleCues = () => { const out = []; for (const c of CUES) { out.push(c); if (c.end - CUES[0].start > 7) break; } return out; };
+  function mountEngine(root, style) {
+    const cues = sampleCues();
+    return Captions.create(root, { W: 1080, H: 1920, style: { ...style, font_url: fontUrl(style.font || "Alexandria") }, cues });
   }
-  const capPreview = debounce(async () => {
-    $("#capSpin").hidden = false;
-    try { const r = await api(`/api/montage/${MID}/studio/caption-preview`, { method: "POST", body: { style: CAP, bg: capBg } }); $("#capPrev").src = r.url; }
-    finally { $("#capSpin").hidden = true; } });
+  function capRefresh() { ENG = mountEngine($("#capRoot"), CAP); capT0 = performance.now(); renderOpts(); fitStages(); }
+  // المعاينة (كادر 1080×1920 حقيقي) متصغّرة على قد مكانها
+  const fitStages = () => $$$(".stage916, .mini916").forEach((b) => { const i = b.querySelector(".stage-inner"); if (i) i.style.transform = `scale(${b.clientWidth / 1080})`; });
+  new ResizeObserver(fitStages).observe(document.body);
+  let fontsCss = false;
+  function loadFontFaces() {   // كل خط بيتعرض باسمه في الأزرار
+    if (fontsCss) return; fontsCss = true;
+    const st = document.createElement("style");
+    st.textContent = META.fonts.map((f, i) => `@font-face{font-family:"FF${i}";src:url("/fonts/${META.font_files[f]}");font-weight:100 900}`).join("");
+    document.head.appendChild(st);
+  }
+  function renderOpts() {
+    $("#capOpts").innerHTML = OPTS.map(([k, label, kind, list]) => kind === "swatch"
+      ? `<div class="opt-group"><div class="opt-label">${label}</div><div class="swatches">${list.map((c) => `<button class="sw ${String(CAP[k]) === c ? "on" : ""}" data-k="${k}" data-v="${c}" style="background:${c}" aria-label="${c}"></button>`).join("")}
+         <label class="sw custom" title="لون تاني"><input type="color" data-k="${k}" value="${/^#/.test(CAP[k]) ? CAP[k] : "#ffffff"}">＋</label></div></div>`
+      : `<div class="opt-group"><div class="opt-label">${label}</div><div class="chips">${kind.map(([v, t]) => `<span class="chip ${String(CAP[k]) === String(v) ? "on" : ""}" data-k="${k}" data-v='${JSON.stringify(v)}'>${t}</span>`).join("")}</div></div>`).join("")
+      + `<div class="opt-group"><div class="opt-label">الخط</div><div class="font-grid">${META.fonts.map((f) => `<button class="fontb ${CAP.font === f ? "on" : ""}" data-font="${f}"><span style="font-family:'FF${META.fonts.indexOf(f)}'">أبجد هوز</span><small>${f}</small></button>`).join("")}</div></div>`;
+  }
+  $("#capOpts").addEventListener("click", (e) => {
+    const c = e.target.closest(".chip[data-k], .sw[data-v]"), f = e.target.closest(".fontb");
+    if (c) { CAP[c.dataset.k] = c.classList.contains("sw") ? c.dataset.v : JSON.parse(c.dataset.v); capRefresh(); }
+    if (f) { CAP.font = f.dataset.font; capRefresh(); }
+  });
+  $("#capOpts").addEventListener("input", (e) => { if (e.target.type === "color") { CAP[e.target.dataset.k] = e.target.value; capRefresh(); } });
+  function capLoop(now) {
+    if (CUES.length) {
+      const cs = sampleCues(), a = cs[0].start, z = cs[cs.length - 1].end + 0.8, L = z - a;
+      const t = a + (((now - capT0) / 1000) % L);
+      if (capPlaying && ENG) ENG.render(t);
+      MINI.forEach((m) => m.render(t));
+    }
+    requestAnimationFrame(capLoop);
+  }
   const INIT = {
     async subs() {
       if (INIT.subs.done) return; INIT.subs.done = true;
-      $("#c_font").innerHTML = META.fonts.map((f) => `<option>${esc(f)}</option>`).join("");
       const d = await doc("s4_subs");
-      CAP = { ...META.caption_presets.app, ...((d && d.params && d.params.caption) || {}) };
-      CAP.preset = CAP.preset || "app";
-      $("#capPresets").innerHTML = Object.entries(META.caption_presets).map(([k, p]) => `<button class="preset" data-k="${k}"><img alt="" loading="lazy"><span>${esc(p.label)}</span></button>`).join("");
-      for (const b of $$$("#capPresets .preset")) {
-        api(`/api/montage/${MID}/studio/caption-preview`, { method: "POST", body: { style: { preset: b.dataset.k }, bg: "frame" } }).then((r) => b.querySelector("img").src = r.url);
-        b.onclick = () => { CAP = { ...META.caption_presets[b.dataset.k], preset: b.dataset.k }; capForm(); capPreview(); };
-      }
-      for (const k of CK) { const el = $("#c_" + k); if (!el) continue;
-        el.oninput = () => { CAP[k] = el.type === "checkbox" ? el.checked : el.type === "range" ? +el.value : el.value; capForm(); capPreview(); }; }
-      $$$("#capBg .chip").forEach((c) => c.onclick = () => { $$$("#capBg .chip").forEach((x) => x.classList.remove("on")); c.classList.add("on"); capBg = c.dataset.v; capPreview(); });
-      $("#capApply").onclick = () => { const { label, ...st } = CAP; apply("s4_subs", { caption: st }, $("#capMsg"), `ستايل الترجمة: ${label || CAP.preset}`); };
-      capForm(); capPreview();
+      CUES = ((d && d.data && d.data.cues) || []).map((c) => ({ id: c.id, start: c.start, end: c.end, words: c.words.map((w) => ({ word: w.word, start: w.start, end: w.end })) }));
+      const saved = (d && d.params && d.params.caption && d.params.caption.engine === 2) ? d.params.caption : null;
+      CAP = { ...(saved || META.engine_presets.app) };
+      const frame = `/api/montage/${MID}/studio/frame.jpg`;
+      $("#capBgImg").src = frame;
+      $("#capPresets").innerHTML = Object.entries(META.engine_presets).map(([k, p]) => `<button class="preset live" data-k="${k}"><div class="mini916"><div class="stage-inner"><img src="${frame}" alt=""><div class="eng-root"></div></div></div><span>${esc(p.label)}</span></button>`).join("");
+      MINI = $$$("#capPresets .preset").map((b) => mountEngine(b.querySelector(".eng-root"), META.engine_presets[b.dataset.k]));
+      $$$("#capPresets .preset").forEach((b) => b.onclick = () => { CAP = { ...META.engine_presets[b.dataset.k] }; $$$("#capPresets .preset").forEach((x) => x.classList.toggle("on", x === b)); capRefresh(); });
+      $$$("#capBg .chip").forEach((c) => c.onclick = () => { $$$("#capBg .chip").forEach((x) => x.classList.remove("on")); c.classList.add("on");
+        $("#capBgImg").style.display = c.dataset.v === "frame" ? "" : "none"; $("#capInner").style.background = c.dataset.v === "paper" ? "#e9e9ec" : "#16181d"; });
+      $("#capPlay").onclick = () => { capPlaying = !capPlaying; $("#capPlay").textContent = capPlaying ? "⏸" : "▶"; };
+      $("#capRestart").onclick = () => { capT0 = performance.now(); capPlaying = true; $("#capPlay").textContent = "⏸"; };
+      $("#capApply").onclick = () => apply("s4_subs", { caption: { ...CAP, engine: 2 } }, $("#capMsg"), `ستايل الترجمة: ${CAP.label || "مخصوص"}`);
+      loadFontFaces(); capRefresh(); requestAnimationFrame(capLoop);
     },
 
     // ---------- القص ----------
@@ -193,18 +238,25 @@
       if (INIT.cut.done) return; INIT.cut.done = true;
       const d2 = await doc("s2_cut"), d3 = await doc("s3_look");
       const vid = $("#cutVid"), s3 = VIEW.stages.find((s) => s.key === "s3_look");
-      vid.src = `/montage-files/${MID}/stages/s3_look/v${s3.current}/graded.mp4`;
+      vid.src = `/montage-files/${MID}/proxy.mp4?v=${s3.current}`;   // فيها الصوت
+      const SIL = await api(`/api/montage/${MID}/studio/silences`);
+      const da = +(d2.params.dead_air ?? 0.7);
+      $$$("#autoSil .chip").forEach((c) => { c.classList.toggle("on", Math.abs(+c.dataset.v - da) < 0.01 || (da > 50 && c.dataset.v === "99"));
+        c.onclick = () => { $$$("#autoSil .chip").forEach((x) => x.classList.toggle("on", x === c)); }; });
+      $("#silApply").onclick = () => { const v = +($("#autoSil .chip.on") || {}).dataset?.v || 0.7; apply("s2_cut", { dead_air: v }, $("#silMsg"), v > 50 ? "من غير شيل سكتات" : `شيل السكتات أكتر من ${v} ث`); };
       const FPS = d2.data.fps || 30, SRC = d2.data.segments[0].source;
       let segs = d2.data.segments.map((s) => ({ source: s.source, start: s.start, end: s.end })), sel = 0;
+      const TXT = d2.data.segments.map((s) => s.text || "");
       $("#wave").src = `/montage-files/${MID}/wave/${SRC}.png`;
       const dur = () => vid.duration || 1;
       const fmt = (x) => `${Math.floor(x / 60)}:${(x % 60).toFixed(2).padStart(5, "0")}`;
       function draw() {
+        $("#tlSil").innerHTML = (SIL[SRC] || []).map((p) => `<div class="tsil" style="left:${p.start / dur() * 100}%;width:${(p.end - p.start) / dur() * 100}%" title="سكتة ${(p.end - p.start).toFixed(2)} ث"></div>`).join("");
         $("#tlSegs").innerHTML = segs.map((s, i) => `<div class="tseg ${i === sel ? "on" : ""}" data-i="${i}" style="left:${s.start / dur() * 100}%;width:${(s.end - s.start) / dur() * 100}%"><span>${i + 1}</span></div>`).join("");
         $("#segTable").innerHTML = segs.map((s, i) => `<div class="seg-row ${i === sel ? "on" : ""}" data-i="${i}"><b>${i + 1}</b>
           <label>من<input type="number" step="${(1 / FPS).toFixed(4)}" value="${s.start.toFixed(3)}" data-f="start"></label>
           <label>لـ<input type="number" step="${(1 / FPS).toFixed(4)}" value="${s.end.toFixed(3)}" data-f="end"></label>
-          <span class="muted">${(s.end - s.start).toFixed(2)} ث</span><button data-act="go">▶</button></div>`).join("");
+          <span class="muted">${(s.end - s.start).toFixed(2)} ث</span><button data-act="go">▶</button><span class="seg-text">${esc(TXT[i] || "")}</span></div>`).join("");
         const total = segs.reduce((n, s) => n + s.end - s.start, 0);
         $("#cutMsg").textContent = `${segs.length} جزء · الفيديو ${total.toFixed(2)} ث`;
       }
@@ -242,61 +294,166 @@
     async look() {
       if (INIT.look.done) return; INIT.look.done = true;
       const d = await doc("s3_look"), p = (d && d.params) || {};
-      const KEYS = [["exposure", "الإضاءة"], ["contrast", "التباين"], ["saturation", "التشبّع"], ["warmth", "الدفا"], ["vibrance", "حيوية الألوان"], ["shadows", "الضل"], ["vignette", "إطار غامق"], ["sharpen", "الحدة"]];
+      const KEYS = [["exposure", "الإضاءة"], ["contrast", "التباين"], ["saturation", "التشبّع"], ["warmth", "الدفا (بارد ← دافي)"], ["vibrance", "حيوية الألوان"],
+                    ["shadows", "الضل"], ["vignette", "إطار غامق حوالين الصورة"], ["sharpen", "الحدة"]];
+      const STEPS = [[-0.6, "−−"], [-0.3, "−"], [0, "عادي"], [0.3, "+"], [0.6, "++"]], POS = [[0, "من غير"], [0.3, "خفيف"], [0.6, "متوسط"], [1, "قوي"]];
       let LK = { filter: META.filters[p.look] ? p.look : "natural", ...Object.fromEntries(KEYS.map(([k]) => [k, +p[k] || 0])) };
-      $("#lookCtl").innerHTML = KEYS.map(([k, l]) => `<label>${l} <b id="l_${k}_v"></b><input type="range" id="l_${k}" min="${["vignette", "sharpen"].includes(k) ? 0 : -1}" max="1" step="0.05"></label>`).join("");
-      const T = () => +$("#lookT").value;
-      const form = () => { KEYS.forEach(([k]) => { $("#l_" + k).value = LK[k]; $(`#l_${k}_v`).textContent = (+LK[k]).toFixed(2); });
-        $$$("#filters .preset").forEach((b) => b.classList.toggle("on", b.dataset.k === LK.filter)); $("#lt_v").textContent = T() + " ث"; };
+      let T = 8;
+      const ctl = () => $("#lookCtl").innerHTML = KEYS.map(([k, l]) => `<div class="opt-group"><div class="opt-label">${l}</div><div class="chips">${(["vignette", "sharpen"].includes(k) ? POS : STEPS)
+        .map(([v, t]) => `<span class="chip ${Math.abs(LK[k] - v) < 0.01 ? "on" : ""}" data-k="${k}" data-v="${v}">${t}</span>`).join("")}</div></div>`).join("");
+      $("#lookCtl").addEventListener("click", (e) => { const c = e.target.closest(".chip[data-k]"); if (!c) return; LK[c.dataset.k] = +c.dataset.v; ctl(); prev(); });
+      const dur = (VIEW.stages && 30) || 30;
+      $("#lookTs").innerHTML = [2, 8, 14, 20, 26].map((t) => `<span class="chip ${t === T ? "on" : ""}" data-t="${t}">ث ${t}</span>`).join("");
+      $("#lookTs").onclick = (e) => { const c = e.target.closest(".chip"); if (!c) return; T = +c.dataset.t; $$$("#lookTs .chip").forEach((x) => x.classList.toggle("on", x === c)); prev(); thumbs(); };
       const prev = debounce(async () => {
-        const [a, b] = await Promise.all([api(`/api/montage/${MID}/studio/look-preview`, { method: "POST", body: { style: {}, t: T() } }),
-                                          api(`/api/montage/${MID}/studio/look-preview`, { method: "POST", body: { style: LK, t: T() } })]);
-        $("#lookBefore").src = a.url; $("#lookAfter").src = b.url; }, 250);
-      $("#filters").innerHTML = Object.entries(META.filters).map(([k, f]) => `<button class="preset" data-k="${k}"><img alt="" loading="lazy"><span>${esc(f.label)}</span></button>`).join("");
-      for (const b of $$$("#filters .preset")) {
-        api(`/api/montage/${MID}/studio/look-preview`, { method: "POST", body: { style: { filter: b.dataset.k }, t: T() } }).then((r) => b.querySelector("img").src = r.url);
-        b.onclick = () => { LK.filter = b.dataset.k; form(); prev(); };
-      }
-      KEYS.forEach(([k]) => $("#l_" + k).oninput = (e) => { LK[k] = +e.target.value; form(); prev(); });
-      $("#lookT").oninput = () => { form(); prev(); };
-      $("#lookReset").onclick = () => { LK = { filter: "natural", ...Object.fromEntries(KEYS.map(([k]) => [k, 0])) }; form(); prev(); };
+        const [a, b] = await Promise.all([api(`/api/montage/${MID}/studio/look-preview`, { method: "POST", body: { style: {}, t: T } }),
+                                          api(`/api/montage/${MID}/studio/look-preview`, { method: "POST", body: { style: LK, t: T } })]);
+        $("#lookBefore").src = a.url; $("#lookAfter").src = b.url; }, 200);
+      const card = (k, f) => `<button class="preset ${LK.filter === k ? "on" : ""}" data-k="${k}"><img alt="" loading="lazy"><span>${esc(f.label.replace("سينما: ", ""))}</span></button>`;
+      const ent = Object.entries(META.filters);
+      $("#filtersBasic").innerHTML = ent.filter(([, f]) => f.group !== "cinema").map(([k, f]) => card(k, f)).join("");
+      $("#filtersCinema").innerHTML = ent.filter(([, f]) => f.group === "cinema").map(([k, f]) => card(k, f)).join("");
+      const thumbs = () => $$$("#filtersBasic .preset, #filtersCinema .preset").forEach((b) => {
+        api(`/api/montage/${MID}/studio/look-preview`, { method: "POST", body: { style: { filter: b.dataset.k }, t: T } }).then((r) => b.querySelector("img").src = r.url); });
+      $$$("#filtersBasic .preset, #filtersCinema .preset").forEach((b) => b.onclick = () => { LK.filter = b.dataset.k;
+        $$$("#filtersBasic .preset, #filtersCinema .preset").forEach((x) => x.classList.toggle("on", x === b)); prev(); });
+      // قبل/بعد: الخط بيتحرك لوحده رايح جاي
+      let wp = true, w0 = performance.now();
+      $("#wipePlay").onclick = () => { wp = !wp; $("#wipePlay").textContent = wp ? "⏸" : "▶"; };
+      $("#wipe").onmousemove = (e) => { if (wp) return; const r = $("#wipe").getBoundingClientRect(); setWipe((e.clientX - r.left) / r.width); };
+      const setWipe = (x) => { $("#lookAfter").style.clipPath = `inset(0 0 0 ${x * 100}%)`; $("#wipeLine").style.left = (x * 100) + "%"; };
+      (function loop(now) { if (wp) setWipe(0.5 + 0.42 * Math.sin((now - w0) / 1100)); requestAnimationFrame(loop); })(performance.now());
+      $("#lookReset").onclick = () => { LK = { filter: "natural", ...Object.fromEntries(KEYS.map(([k]) => [k, 0])) }; ctl(); prev();
+        $$$("#filtersBasic .preset, #filtersCinema .preset").forEach((x) => x.classList.toggle("on", x.dataset.k === "natural")); };
       $("#lookApply").onclick = () => apply("s3_look", { look: LK.filter, ...Object.fromEntries(KEYS.map(([k]) => [k, LK[k]])) }, $("#lookMsg"), `فلتر ${META.filters[LK.filter].label} + إعدادات يدوية`);
-      form(); prev();
+      ctl(); thumbs(); prev();
+    },
+
+    // ---------- الانتقالات ----------
+    async trans() {
+      if (INIT.trans.done) return; INIT.trans.done = true;
+      const d = await doc("s2_cut"), TR = d.data.transitions, SEG = d.data.segments, KINDS = META.transition_kinds;
+      let OV = { ...((d.params && d.params.tr_overrides) || {}) };
+      const SPEEDS = [["fast", "سريع"], ["normal", "عادي"], ["slow", "بطيء"]];
+      const cur = (tr) => (OV[tr.index] && OV[tr.index].kind) || (tr.kind === "whip_r" ? "whip" : tr.kind);
+      const frame = (t) => `/api/montage/${MID}/studio/frame.jpg?t=${(+t).toFixed(2)}`;
+      $("#trAll").innerHTML = Object.entries(KINDS).map(([k, l]) => `<span class="chip" data-all="${k}">${l}</span>`).join("");
+      $("#trAll").onclick = (e) => { const c = e.target.closest(".chip"); if (!c) return; TR.forEach((tr) => OV[tr.index] = { kind: c.dataset.all, speed: (OV[tr.index] || {}).speed || "normal" }); draw(); };
+      function draw() {
+        $("#trList").innerHTML = TR.map((tr) => { const a = SEG[tr.index - 1], b = SEG[tr.index], k = cur(tr), sp = (OV[tr.index] || {}).speed || "normal";
+          return `<div class="tr-row" data-i="${tr.index}">
+            <div class="tr-prev" data-kind="${k}" data-speed="${sp}"><img class="ta" src="${frame(a.end - 0.05)}" alt=""><img class="tb" src="${frame(b.start + 0.05)}" alt=""><div class="tflash"></div></div>
+            <div class="stack"><div><b>قطعة ${tr.index}</b> <span class="muted">عند ${tr.t.toFixed(2)} ث · ${OV[tr.index] ? "اختيارك" : "تلقائي: " + esc(tr.reason || "")}</span></div>
+              <div class="chips">${Object.entries(KINDS).map(([kk, l]) => `<span class="chip ${kk === k ? "on" : ""}" data-k="${kk}">${l}</span>`).join("")}</div>
+              <div class="chips small">${SPEEDS.map(([v, l]) => `<span class="chip ${v === sp ? "on" : ""}" data-sp="${v}">${l}</span>`).join("")}</div></div></div>`; }).join("");
+      }
+      $("#trList").onclick = (e) => { const row = e.target.closest(".tr-row"); if (!row) return; const i = row.dataset.i, c = e.target.closest(".chip"); if (!c) return;
+        OV[i] = { kind: c.dataset.k || cur(TR.find((x) => x.index == i)), speed: c.dataset.sp || (OV[i] || {}).speed || "normal" }; draw(); };
+      // الانتقال متحرك في كل كارت (حلقة: اللقطة الأولى ← الانتقال ← التانية)
+      const anim = (el, k, sp, ph) => {
+        const A = el.querySelector(".ta"), B = el.querySelector(".tb"), F = el.querySelector(".tflash");
+        const d = { fast: 0.6, normal: 1, slow: 1.7 }[sp] * ({ hard: 0.01, jumpzoom: 0.01, dissolve: 0.5, fadeblack: 0.7, flash: 0.35 }[k] || 0.45);
+        const p = Math.min(1, Math.max(0, (ph - 1.0) / d)), e = p < .5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+        [A, B, F].forEach((x) => { x.style.opacity = ""; x.style.transform = ""; x.style.clipPath = ""; x.style.filter = ""; });
+        B.style.opacity = p > 0 ? 1 : 0; F.style.opacity = 0;
+        if (k === "hard") {}
+        else if (k === "jumpzoom") B.style.transform = "scale(1.16)";
+        else if (k === "dissolve") B.style.opacity = e;
+        else if (k === "fadeblack") { A.style.opacity = 1 - Math.min(1, e * 2); B.style.opacity = Math.max(0, e * 2 - 1); }
+        else if (k === "flash") { F.style.opacity = 1 - Math.abs(e * 2 - 1); B.style.opacity = e > .5 ? 1 : 0; }
+        else if (k === "whip") { A.style.transform = `translateX(${e * 100}%)`; B.style.transform = `translateX(${(e - 1) * 100}%)`; A.style.filter = B.style.filter = `blur(${Math.sin(e * Math.PI) * 6}px)`; }
+        else if (k === "slide") { B.style.transform = `translateX(${(1 - e) * -100}%)`; }
+        else if (k === "zoom") { A.style.transform = `scale(${1 + e * .6})`; A.style.opacity = 1 - e; B.style.opacity = e; }
+        else if (k === "circle") B.style.clipPath = `circle(${e * 75}% at 50% 50%)`;
+        else if (k === "blur") { A.style.filter = `blur(${e * 10}px)`; B.style.filter = `blur(${(1 - e) * 10}px)`; B.style.opacity = e; }
+        else if (k === "wipe") B.style.clipPath = `inset(0 0 0 ${(1 - e) * 100}%)`;
+        if (ph < 1.0) B.style.opacity = 0;
+      };
+      (function loop(now) { const ph = (now / 1000) % 3; $$$("#trList .tr-prev").forEach((el) => anim(el, el.dataset.kind, el.dataset.speed, ph)); if (!$("#pane-trans").hidden) requestAnimationFrame(loop); else INIT.trans.done = false; })(performance.now());
+      $("#trApply").onclick = () => apply("s2_cut", { tr_overrides: OV }, $("#trMsg"), "الانتقالات من الاستوديو");
+      $("#trAuto").onclick = () => { OV = {}; draw(); };
+      draw();
     },
 
     // ---------- الجرافيك ----------
     async gfx() {
       if (INIT.gfx.done) return; INIT.gfx.done = true;
       const d = await doc("s5_graphics"), p = { ...META.graphics_defaults, ...((d && d.params) || {}) };
-      const KN = { visual: "أيقونات ملوّنة", annotate: "علامات (صح/غلط/لمعة/سهم…)", photo: "صور حقيقية (لقطة قطع)", counter: "أرقام" };
-      let G = { kinds: { ...META.graphics_defaults.kinds, ...(p.kinds || {}) }, density: p.density || "normal", badge: p.badge || "glass", accent: p.accent, size: +p.size || 1, max_photos: p.max_photos ?? 2 };
-      $("#gKinds").innerHTML = Object.entries(KN).map(([k, l]) => `<label class="row"><input type="checkbox" data-k="${k}" ${G.kinds[k] ? "checked" : ""}> ${l}</label>`).join("");
-      $$$("#gKinds input").forEach((c) => c.onchange = () => G.kinds[c.dataset.k] = c.checked);
+      const KN = { visual: "أيقونات ملوّنة", annotate: "علامات", photo: "صور حقيقية", counter: "أرقام" };
+      let G = { kinds: { ...META.graphics_defaults.kinds, ...(p.kinds || {}) }, density: p.density || "normal", badge: p.badge || "glass", accent: p.accent || "#7ee2b8",
+                size: String(+p.size || 1), max_photos: String(p.max_photos ?? 2) };
+      let PICK = {}, SUG = null;   // رقم المشهد ← رقم الاختيار (أو -1 = من غير)
+      $("#gKinds").innerHTML = Object.entries(KN).map(([k, l]) => `<span class="chip ${G.kinds[k] ? "on" : ""}" data-k="${k}">${l}</span>`).join("");
+      $("#gKinds").onclick = (e) => { const c = e.target.closest(".chip"); if (!c) return; G.kinds[c.dataset.k] = !G.kinds[c.dataset.k]; c.classList.toggle("on"); };
       const chips = (id, key) => $$$(`#${id} .chip`).forEach((c) => { c.classList.toggle("on", c.dataset.v === G[key]); c.onclick = () => { G[key] = c.dataset.v; chips(id, key); }; });
-      chips("gDensity", "density"); chips("gBadge", "badge");
-      $("#gAccent").value = G.accent; $("#gAccent").oninput = (e) => G.accent = e.target.value;
-      const sl = (id, key, f = (x) => x) => { $("#" + id).value = G[key]; $(`#${id}_v`).textContent = f(G[key]); $("#" + id).oninput = (e) => { G[key] = +e.target.value; $(`#${id}_v`).textContent = f(G[key]); }; };
-      sl("gSize", "size", (x) => "×" + (+x).toFixed(2)); sl("gPhotos", "max_photos");
-      $("#gApply").onclick = () => apply("s5_graphics", G, $("#gMsg"), "إعدادات الجرافيك من الاستوديو");
-      const gfx = (d && d.data && d.data.gfx) || [];
-      const NAME = { visual: "أيقونة", annotate: "علامة", photo: "صورة", counter: "رقم" };
-      const s5 = VIEW.stages.find((s) => s.key === "s5_graphics");
-      $("#gList").innerHTML = gfx.length ? gfx.map((g, i) => `<div class="file-row"><div class="ic">${i + 1}</div><div><div class="nm">${NAME[g.kind] || g.kind}${g.annotation ? ` · ${g.annotation}` : ""}${g.visual_name ? ` · ${esc(g.visual_name)}` : ""}</div>
-        <div class="meta"><span>${g.start.toFixed(2)}–${g.end.toFixed(2)} ث</span><span>${g.mode === "cutaway" ? "لقطة قطع بملو الشاشة" : "في المساحة الفاضية"}</span></div></div></div>`).join("") : `<span class="muted">لسه مفيش جرافيك.</span>`;
+      ["gDensity:density", "gBadge:badge", "gSize:size", "gPhotos:max_photos"].forEach((x) => { const [id, k] = x.split(":"); chips(id, k); });
+      const sw = () => { $("#gAccent").innerHTML = ACCENTS.map((c) => `<button class="sw ${G.accent === c ? "on" : ""}" data-v="${c}" style="background:${c}"></button>`).join("");
+        $$$("#gAccent .sw").forEach((b) => b.onclick = () => { G.accent = b.dataset.v; sw(); }); }; sw();
+      const NAME = { visual: "أيقونة", annotate: "علامة", photo: "صورة (لقطة قطع)", counter: "رقم" };
+      const ANN = { check: "صح", cross: "غلط", question: "علامة استفهام", exclaim: "علامة تعجب", sparkles: "لمعة", heart: "قلب", lightning: "برق", arrow_to_me: "سهم عليك" };
+      function drawSug() {
+        if (!SUG || !SUG.scenes.length) { $("#sugList").innerHTML = `<span class="muted">لسه مفيش اقتراحات. دوس «اعمل اقتراحات جديدة».</span>`; return; }
+        $("#sugList").innerHTML = SUG.scenes.map((sc, i) => `<div class="sug-row"><div class="sug-text"><b>مشهد ${i + 1}</b><span>«${esc(sc.text)}»</span></div><div class="sug-opts">
+          ${sc.options.map((o, j) => `<button class="sug-opt ${PICK[i] === j ? "on" : ""}" data-i="${i}" data-j="${j}"><iframe loading="lazy" src="/api/montage/${MID}/studio/gfx-preview/${i}/${j}" title="اقتراح"></iframe>
+            <span>${NAME[o.kind] || o.kind}${o.annotation ? ": " + (ANN[o.annotation] || o.annotation) : ""}${o.visual_name ? ": " + esc(String(o.visual_name).slice(0, 28)) : ""}</span></button>`).join("")}
+          <button class="sug-opt none ${PICK[i] === -1 ? "on" : ""}" data-i="${i}" data-j="-1"><div class="none-box">من غير جرافيك</div><span>من غير</span></button></div></div>`).join("");
+      }
+      $("#sugList").onclick = (e) => { const b = e.target.closest(".sug-opt"); if (!b) return; PICK[+b.dataset.i] = +b.dataset.j;
+        $$$(`.sug-opt[data-i="${b.dataset.i}"]`).forEach((x) => x.classList.toggle("on", x === b)); };
+      async function loadSug() {
+        const r = await api(`/api/montage/${MID}/studio/gfx-suggest`);
+        if (r.job.status === "running") { $("#sugState").textContent = "⏳ " + (r.job.step || "بيشتغل…"); setTimeout(loadSug, 2500); }
+        else $("#sugState").textContent = r.job.status === "failed" ? "فشل: " + r.job.error : r.data ? `${r.data.scenes.length} مشهد` : "";
+        if (r.data && r.job.status !== "running") { SUG = r.data; SUG.scenes.forEach((sc, i) => { if (PICK[i] === undefined) PICK[i] = 0; }); drawSug(); }
+      }
+      $("#sugMake").onclick = async () => { await api(`/api/montage/${MID}/studio/gfx-suggest`, { method: "POST" }); loadSug(); };
+      $("#gApply").onclick = () => {
+        const params = { ...G, size: +G.size, max_photos: +G.max_photos };
+        if (SUG && SUG.scenes.length) params.picks = SUG.scenes.map((sc, i) => PICK[i] >= 0 ? sc.options[PICK[i]].item : null).filter(Boolean), params.picks_outline = SUG.outline;
+        apply("s5_graphics", params, $("#gMsg"), SUG ? "اختياراتك لكل مشهد من الاستوديو" : "إعدادات الجرافيك من الاستوديو");
+      };
+      drawSug(); loadSug();
     },
 
     // ---------- الصوت ----------
     async audio() {
       if (INIT.audio.done) return; INIT.audio.done = true;
-      const d = await doc("s6_audio"), p = (d && d.params) || {};
-      let A = { sfx: p.sfx || "on", sfx_volume: p.sfx_volume ?? 1, music_gain_db: p.music_gain_db ?? -16, target_lufs: p.target_lufs ?? -14 };
-      $("#aSfx").checked = A.sfx === "on"; $("#aSfx").onchange = (e) => A.sfx = e.target.checked ? "on" : "off";
-      const sl = (id, key, f) => { $("#" + id).value = A[key]; $(`#${id}_v`).textContent = f(A[key]); $("#" + id).oninput = (e) => { A[key] = +e.target.value; $(`#${id}_v`).textContent = f(A[key]); }; };
-      sl("aVol", "sfx_volume", (x) => "×" + (+x).toFixed(1)); sl("aMusic", "music_gain_db", (x) => x + " dB"); sl("aLufs", "target_lufs", (x) => x + " LUFS");
-      $("#aApply").onclick = () => apply("s6_audio", A, $("#aMsg"), "إعدادات الصوت من الاستوديو");
+      const d = await doc("s6_audio"), p = (d && d.params) || {}, LIB = await api("/api/montage-studio/sfx");
+      const s7 = VIEW.stages.find((x) => x.key === "s7_preview");
+      $("#aVid").src = `/montage-files/${MID}/stages/s7_preview/v${s7.current}/preview.mp4`;
+      const SN = { whoosh: "سحبة (whoosh)", swoosh: "swoosh", swipe: "swipe", pop: "pop", ding: "ding", click: "click", sparkle: "لمعة", impact: "خبطة", riser: "صعود" };
+      const KIND_OF = { swoosh: "swipe" };
+      let A = { sfx: p.sfx === "off" ? "off" : String(p.sfx_volume ?? 1), music_gain_db: String(p.music_gain_db ?? -16), target_lufs: String(p.target_lufs ?? -14) };
+      let OV = { ...((p.sfx_overrides) || {}) };
       const ev = (d && d.data && d.data.audio && d.data.audio.sfx) || [];
-      const SN = { whoosh: "سحبة (whoosh)", swoosh: "swoosh", pop: "pop", ding: "ding", click: "click", sparkle: "لمعة", impact: "خبطة" };
-      $("#aList").innerHTML = ev.length ? ev.map((e) => `<div class="file-row"><div class="ic">♪</div><div><div class="nm">${SN[e.sfx] || e.sfx}</div><div class="meta"><span>${(+e.t).toFixed(2)} ث</span><span>${esc(e.why || "")}</span></div></div></div>`).join("") : `<span class="muted">من غير مؤثرات.</span>`;
+      const WHY = { "annotate:check": "علامة صح بتخلص رسم", "annotate:cross": "علامة غلط", "annotate:sparkles": "لمعة", "annotate:heart": "قلب", "annotate:lightning": "برق",
+        "annotate:exclaim": "علامة تعجب", "annotate:question": "علامة استفهام", "annotate:arrow_to_me": "سهم بيشاور عليك", "visual": "أيقونة بتظهر", "photo": "صورة داخلة",
+        "counter": "الرقم وصل", "زووم تأكيد": "زووم على الوش", "سحبة": "انتقال سحبة" };
+      ev.forEach((e) => { const key = String(e.why || "").split(" (")[0]; e.why = WHY[key] || key.replace(/^انتقال /, "انتقال: "); });
+      const play = (url) => { const a = new Audio(url); a.volume = 0.8; a.play(); };
+      const libOpts = (kind, sel) => (LIB[KIND_OF[kind] || kind] || []).map((x, i) => `<option value="${x.file}" ${sel === x.file ? "selected" : ""}>${esc(SN[kind] || kind)} ${i + 1}: ${esc((x.title || "").slice(0, 28))}</option>`).join("");
+      function draw() {
+        $("#aList").innerHTML = ev.length ? ev.map((e, i) => { const o = OV[i] || {}, kind = o.sfx || e.sfx, off = !!o.off || !!e.off;
+          return `<div class="sfx-row ${off ? "off" : ""}" data-i="${i}"><div><b>${(+e.t).toFixed(2)} ث</b> <span class="muted">${esc(e.why || "")}</span></div>
+            <div class="chips small">${Object.keys(SN).filter((k) => k !== "swipe").map((k) => `<span class="chip ${!off && k === kind ? "on" : ""}" data-sfx="${k}">${SN[k]}</span>`).join("")}<span class="chip ${off ? "on" : ""}" data-off="1">من غير</span></div>
+            <div class="row"><select data-file>${`<option value="">بالدور (تلقائي)</option>` + libOpts(kind, o.file)}</select><button data-listen>🔊 اسمع</button><button data-watch>▶ اتفرج واسمع</button></div></div>`; }).join("")
+          : `<span class="muted">مفيش مؤثرات (أو مقفولة).</span>`;
+        $("#aLib").innerHTML = Object.entries(LIB).map(([k, xs]) => `<div class="row wrap"><b style="min-width:110px">${SN[k] || k}</b>${xs.map((x, i) => `<button class="chip" data-play="${x.url}">▶ ${i + 1}</button>`).join("")}</div>`).join("");
+      }
+      $("#aList").onclick = (e) => { const row = e.target.closest(".sfx-row"); if (!row) return; const i = +row.dataset.i, c = e.target.closest(".chip");
+        if (c && c.dataset.sfx) { OV[i] = { sfx: c.dataset.sfx }; draw(); }
+        else if (c && c.dataset.off) { OV[i] = { off: true }; draw(); }
+        else if (e.target.dataset.listen !== undefined) { const f = row.querySelector("select").value || ((LIB[KIND_OF[(OV[i] || {}).sfx || ev[i].sfx] || (OV[i] || {}).sfx || ev[i].sfx] || [])[0] || {}).file; if (f) play("/assets/" + f); }
+        else if (e.target.dataset.watch !== undefined) { const v = $("#aVid"), t = +ev[i].t; v.currentTime = Math.max(0, t - 0.8); v.play(); $("#aNow").textContent = `بتتفرج على ${t.toFixed(2)} ث`;
+          clearTimeout(v._st); v._st = setTimeout(() => v.pause(), 2000); } };
+      $("#aList").onchange = (e) => { if (e.target.dataset.file === undefined) return; const row = e.target.closest(".sfx-row"), i = +row.dataset.i;
+        OV[i] = { ...(OV[i] || {}), sfx: (OV[i] || {}).sfx || ev[i].sfx, file: e.target.value || undefined }; };
+      $("#aLib").onclick = (e) => { const b = e.target.closest("[data-play]"); if (b) play(b.dataset.play); };
+      const chips = (id, key) => $$$(`#${id} .chip`).forEach((c) => { c.classList.toggle("on", c.dataset.v === A[key]); c.onclick = () => { A[key] = c.dataset.v; chips(id, key); }; });
+      chips("aSfx", "sfx"); chips("aMusic", "music_gain_db"); chips("aLufs", "target_lufs");
+      $("#aApply").onclick = () => apply("s6_audio", { sfx: A.sfx === "off" ? "off" : "on", sfx_volume: A.sfx === "off" ? 1 : +A.sfx, music_gain_db: +A.music_gain_db,
+        target_lufs: +A.target_lufs, sfx_overrides: OV }, $("#aMsg"), "الصوت والمؤثرات من الاستوديو");
+      draw();
     },
   };
 

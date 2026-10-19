@@ -675,6 +675,7 @@ def finalize_s2(ctx, data: dict):
         for t in data["transitions"]:
             if t["kind"] == "hard" and "لقطة" not in t["reason"]:
                 t["reason"] = "طلبك: قطع صريح (jump cut)"
+    n_over = cuts.apply_overrides(data["transitions"], prm.get("tr_overrides") or {}, data["fps"])   # اختيارك من الاستوديو
     tr, cr = data["transitions"], data["cut_report"]
     levels = [c["level_db"] for c in cr["list"] if c["level_db"] is not None]
     df = next((t["frames"] for t in tr if t["frames"]), int(prm.get("dissolve_frames") or 0) or (12 if data["fps"] >= 50 else 10))
@@ -744,7 +745,7 @@ def run_s2(ctx):
 
 
 # ---------- S3: الصورة ----------
-TR_NAMES = {"jumpzoom": "jump zoom", "whip": "سحبة", "whip_r": "سحبة (عكس)", "zoom": "زووم", "flash": "فلاش", "dissolve": "مزج", "hard": "قطع صريح", "match": "قطع على الحركة"}
+TR_NAMES = {**cuts.TRANSITION_KINDS, "whip_r": "سحبة (عكس)", "match": "قطع على الحركة"}
 
 
 def _sample_times(segments: list[dict], n: int = 8) -> list[float]:
@@ -919,7 +920,10 @@ def _finish_s4(ctx, data):
                     c["pos_bottom"] = round(bot, 3)
                     moved.append(c["id"])
                 break
-    if prm.get("caption"):   # ستايل من «استوديو المونتاج» (جاهز + تعديلات صاحب الفيديو)
+    if (prm.get("caption") or {}).get("engine") == 2:   # المحرّك الموحّد (نفس المعاينة الحية في الاستوديو)
+        r = graphics.render_engine(data["cues"], data["aspect"], W, H, ctx["vd"] / "subs", prm["caption"], data["total"])
+        r["style"]["label"] = prm["caption"].get("label")
+    elif prm.get("caption"):   # ستايل من «استوديو المونتاج» (جاهز + تعديلات صاحب الفيديو)
         r = graphics.render_styled(data["cues"], data["aspect"], W, H, ctx["vd"] / "subs", prm["caption"])
     elif prm.get("style", "player") == "player":   # زي فيديوهات التطبيق (الافتراضي): الجملة تحت بخط متوسط، واللي اتقال منوّر
         r = graphics.render_karaoke(data["cues"], data["aspect"], W, H, ctx["vd"] / "subs", style)
@@ -942,7 +946,8 @@ def _finish_s4(ctx, data):
     data.update(subs=subs, subs_track=str(track.relative_to(ctx["d"])), sub_style=style, subs_check=sc)
     report = [f"{sc['cues']} سطر · {sc['word_states']} كلمة بتظهر كلمة كلمة مع صوتها · جوه المنطقة الآمنة تحت: {sc['inside_bottom_zone']}/{sc['cues']}",
               f"مدة السطر على الشاشة: من {sc['min_dur']} لـ {sc['max_dur']} ث · أقل من {prm['min_dur']}: {sc['under_min']} · أكتر من {prm['max_dur']}: {sc['over_max']}",
-              (f"ستايل الترجمة: «{r['style'].get('label') or r['style']['preset']}» · خط {r['style']['font']} {r['style']['size']}px · لون {r['style']['color']} والكلمة الحالية {r['style']['accent']}"
+              (f"ستايل الترجمة: «{r['style'].get('label') or r['style'].get('preset') or 'مخصوص'}» · خط {r['style']['font']} · حجم {r['style']['size']} · لون {r['style']['color']} والكلمة الحالية {r['style']['accent']}"
+               + (f" · حركة {r['style'].get('anim')} · اترسم {r['frames_drawn']} من {r['frames_total']} فريم" if r.get("frames_drawn") is not None else "")
                if prm.get("caption") else
                f"زي فيديوهات التطبيق: الجملة تحت · الخط {sc['font_px']}px = {sc['font_pct_height']}% من ارتفاع الفريم · اللي اتقال منوّر والكلمة الحالية بلون التأكيد"
                if prm.get("style", "player") == "player" else
@@ -1073,8 +1078,13 @@ def run_s5(ctx):
     hint = {"few": "جرافيك قليل: واحد كل 6–8 ثواني بالكتير.", "many": "جرافيك أكتر: واحد كل 2–4 ثواني.", "normal": ""}.get(prm.get("density", "normal"), "")
     hint += f" الأنواع المسموحة بس: {', '.join(allowed)}." if allowed and len(allowed) < 4 else ""
     hint += f" الصور الحقيقية {int(prm.get('max_photos', 2))} بالكتير." if int(prm.get("max_photos", 2)) != 2 else ""
-    dplan = director.plan(inp["cues"], ((ctx["m"].get("brief") or {}).get("text", "") + " " + hint).strip()) \
-        if prm["graphics"] != "off" and prm.get("director", "on") == "on" and inp.get("cues") else {"items": []}
+    if prm.get("picks") is not None and prm["graphics"] != "off":   # اختيارك لكل مشهد من الاستوديو (بيتراجع بنفس قواعد المخرج)
+        ok, bad = director.validate([{k: v for k, v in x.items() if k not in ("cue_i", "at", "cue_end")} for x in prm["picks"]], inp["cues"])
+        ok.sort(key=lambda x: x["at"])
+        dplan = {"items": ok, "rejected": bad, "topic_en": prm.get("picks_topic", ""), "outline": prm.get("picks_outline")}
+    else:
+        dplan = director.plan(inp["cues"], ((ctx["m"].get("brief") or {}).get("text", "") + " " + hint).strip()) \
+            if prm["graphics"] != "off" and prm.get("director", "on") == "on" and inp.get("cues") else {"items": []}
     if dplan.get("items"):   # إعداداتك من الاستوديو هي الحَكَم: الأنواع المقفولة بتتشال، والصور على قد العدد اللي اخترته
         kinds_on = prm.get("kinds") or {}
         dplan["items"] = [x for x in dplan["items"] if kinds_on.get(x["template"], True)]
@@ -1304,6 +1314,17 @@ def run_s6(ctx):
                           duck=bool(prm["duck"]), music_stem=stem, pre_gain_db=pre, duck_release=int(prm.get("duck_release", 350)))
     # مؤثرات الصوت (whoosh مع السحبة والزووم، flash مع الفلاش، pop خفيف مع دخول الجرافيك): بيعملها التطبيق، وبتتقفل بـ «من غير مؤثرات»
     events = exporter.sfx_events(inp["transitions"], inp.get("gfx", [])) if prm.get("sfx", "on") == "on" else []
+    ov = prm.get("sfx_overrides") or {}   # اختيارك لكل مؤثر من الاستوديو: صوت تاني من المكتبة، أو شيله
+    for k, e in enumerate(events):
+        o = ov.get(str(k)) or {}
+        if o.get("off"):
+            e["off"] = True
+        if o.get("sfx"):
+            e["sfx"] = o["sfx"]
+        if o.get("file"):
+            e["pick"] = o["file"]
+    all_events = events   # كلهم (حتى اللي اتشال) علشان الاستوديو يعرضهم بنفس الترتيب
+    events = [e for e in events if not e.get("off")]
     for e in events:   # علو المؤثرات من الاستوديو (1 = الافتراضي)
         e["gain"] = e.get("gain", 0.1) * float(prm.get("sfx_volume", 1.0))
     if events:
@@ -1329,7 +1350,7 @@ def run_s6(ctx):
     audio = {"file": "audio.wav", "target_lufs": float(prm["target_lufs"]), "true_peak": float(prm["true_peak"]), "before": norm["before"], "after": norm["after"],
              "source_lufs": L0, "pre_gain_db": pre, "cleanup": clean, "noise_floor_source_db": nf_kept, "noise_floor_if_only_gain_db": round(nf_kept + float(prm["target_lufs"]) - L0, 1), "noise_floor_after_db": after_nf,
              "music": music_sid, "duck": bool(prm["duck"]) if music else None, "crossfades": len(inp["transitions"]),
-             "crossfade_ms": [t["audio_ms"] for t in inp["transitions"]], "cut_jumps": jumps, "sfx": events}
+             "crossfade_ms": [t["audio_ms"] for t in inp["transitions"]], "cut_jumps": jumps, "sfx": all_events}
     report = [f"علو الصوت: المصدر {L0} LUFS ← بعد {norm['after']['integrated_lufs']} LUFS (الهدف {prm['target_lufs']}) · Peak {norm['after']['true_peak_dbtp']} dBTP",
               f"crossfade {', '.join(sorted({str(x) for x in audio['crossfade_ms']})) or '—'} مللي في كل قصّة ({audio['crossfades']} قصّة) · أكبر نطّة علو حوالين قصّة: "
               f"{max([j['jump_db'] for j in jumps] or [0]):.1f} dB",

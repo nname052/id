@@ -5,6 +5,7 @@
 """
 
 import json
+from pathlib import Path
 import secrets
 import shutil
 import threading
@@ -19,7 +20,7 @@ from ..config import APP
 from ..store import write_json
 from .. import trash
 from . import export as exporter
-from . import media, nl, stages, state
+from . import cuts, media, nl, stages, state
 
 router = APIRouter()
 pages = Jinja2Templates(directory=APP / "web" / "templates")
@@ -512,6 +513,7 @@ def page_studio(request: Request, mid: str):
 @router.get("/api/montage-studio/meta")
 def studio_meta():
     return {"caption_presets": {k: v for k, v in _graphics.CAPTION_PRESETS.items()}, "fonts": list(_graphics.FONT_CHOICES),
+            "font_files": _graphics.FONT_CHOICES, "engine_presets": _graphics.ENGINE_PRESETS, "transition_kinds": cuts.TRANSITION_KINDS,
             "caption_default": _graphics.CAPTION_DEFAULT, "filters": _look.FILTER_PRESETS, "graphics_defaults": stages.GRAPHICS_DEFAULTS}
 
 
@@ -572,3 +574,148 @@ def wave_png(mid: str, sid: str):
         exporter._run(["ffmpeg", "-v", "error", "-y", "-i", str(state.mdir(mid) / src["work"]), "-filter_complex",
                        "aformat=channel_layouts=mono,compand=gain=6,showwavespic=s=3000x160:colors=#7ee2b8", "-frames:v", "1", str(out)], "موجة الصوت")
     return FileResponse(out)
+
+
+@router.get("/api/montage/{mid}/studio/frame.jpg")
+def studio_frame(mid: str, t: float | None = None):
+    """فريم من فيديوك (خلفية للمعاينات الحية)."""
+    _need(mid)
+    fr = _sample_frame(mid, t)
+    if not fr:
+        raise HTTPException(404)
+    return FileResponse(fr)
+
+
+@router.get("/montage-files/{mid}/proxy.mp4")
+def studio_proxy(mid: str):
+    """نسخة للقصّ فيها الصوت: الصورة المتلوّنة (من مرحلة الصورة) + صوتك الأصلي. (المتلوّنة لوحدها من غير صوت، فالقصّ كان صامت.)"""
+    m = _need(mid)
+    view = stages.view(m)
+    s3 = next(s for s in view["stages"] if s["key"] == "s3_look")
+    src = next((s for s in m["sources"] if s.get("kind") == "video"), None)
+    if s3["current"] is None or not src:
+        raise HTTPException(404)
+    out = _prev_dir(mid) / f"proxy_v{s3['current']}.mp4"
+    if not out.exists():
+        graded = stages.vdir(mid, "s3_look", s3["current"]) / "graded.mp4"
+        exporter._run(["ffmpeg", "-v", "error", "-y", "-i", str(graded), "-i", str(state.mdir(mid) / src["work"]), "-map", "0:v", "-map", "1:a?",
+                       "-c:v", "copy", "-c:a", "aac", "-b:a", "160k", "-shortest", "-movflags", "+faststart", str(out)], "نسخة القصّ بالصوت")
+    return FileResponse(out, media_type="video/mp4")
+
+
+@router.get("/api/montage/{mid}/studio/silences")
+def studio_silences(mid: str):
+    """السكتات في كل ملف (من مرحلة التحليل) علشان تبان على التايملاين."""
+    m = _need(mid)
+    view = stages.view(m)
+    s1 = next(s for s in view["stages"] if s["key"] == "s1_analyze")
+    if s1["current"] is None:
+        return {}
+    d = stages.read_stage(mid, "s1_analyze", s1["current"])["data"]
+    return {sid: [{"start": p["start"], "end": p["end"]} for p in (x.get("pauses") or [])] for sid, x in (d.get("sources") or {}).items()}
+
+
+# ---------- اقتراحات الجرافيك لكل مشهد (بتتعمل في الخلفية) ----------
+_suggest_jobs: dict = {}
+
+
+def _suggest_file(mid: str):
+    return _prev_dir(mid) / "gfx_suggest.json"
+
+
+def _run_suggest(mid: str):
+    from . import director as _director
+    from . import vision as _vision
+    try:
+        m = state.load(mid)
+        view = stages.view(m)
+        s4 = next(s for s in view["stages"] if s["key"] == "s4_subs")
+        s5 = next(s for s in view["stages"] if s["key"] == "s5_graphics")
+        d4 = stages.read_stage(mid, "s4_subs", s4["current"])["data"]
+        old = stages.read_stage(mid, "s5_graphics", s5["current"]) if s5["current"] else None
+        content = ((old or {}).get("data") or {}).get("director", {}).get("outline") or None
+        _suggest_jobs[mid] = {"status": "running", "step": "المخرج بيقترح لكل مشهد…"}
+        res = _director.suggest(d4["cues"], content)
+        used, scenes = set(), []
+        samples = []
+        try:
+            if d4.get("look", {}).get("vision"):
+                samples = _vision.load_samples(state.mdir(mid) / d4["look"]["vision"])
+        except Exception:
+            samples = []
+        for n, sc in enumerate(res.get("scenes") or []):
+            _suggest_jobs[mid] = {"status": "running", "step": f"بجهّز الأشكال: مشهد {n + 1} من {len(res['scenes'])}"}
+            opts = []
+            for o in sc["options"]:
+                sp = _director.to_spec(o, used, (res.get("outline") or {}).get("topic_en", "").split(), allow_draw=False)
+                if not sp:
+                    continue
+                start = round(o["at"], 3)
+                sp.update(start=start, end=round(start + min(_director.duration(o), 3.0), 3), item=o, mode="cutaway" if sp["kind"] == "photo" else "overlay",
+                          side="right", style="marker", enter="pop")
+                if sp["mode"] == "overlay":   # مكان افتراضي للمعاينة: جنب الراس في المساحة الفاضية
+                    fb = stages._speaker_box(samples, d4["segments"], start, sp["end"]) if samples else None
+                    w, h = _graphics_sizes(sp["kind"])
+                    left = (fb[2] + 0.03) if fb and fb[2] + 0.03 + w <= 0.97 else 0.62
+                    top = max(0.05, min(0.55, ((fb[1] + fb[3]) / 2 - h / 2) if fb else 0.15))
+                    sp["rect"] = {"left": round(left, 3), "top": round(top, 3), "right": round(left + w, 3), "bottom": round(top + h, 3)}
+                opts.append({k: v for k, v in sp.items() if k not in ("lottie",)})
+            if opts:
+                scenes.append({"cue": sc["cue"], "cue_i": sc["cue_i"], "text": sc["text"], "t_src": stages.out_to_src(d4["segments"], opts[0]["start"] + 0.3)[1], "options": opts})
+        write_json(_suggest_file(mid), {"scenes": scenes, "outline": res.get("outline"), "created": time.time(), "s4": s4["current"]})
+        _suggest_jobs[mid] = {"status": "done"}
+    except Exception as e:  # noqa: BLE001
+        _suggest_jobs[mid] = {"status": "failed", "error": str(e)[:300]}
+
+
+def _graphics_sizes(kind: str):
+    from . import motion as _motion
+    return _motion.SIZES.get(kind, _motion.SIZES["visual"])
+
+
+@router.post("/api/montage/{mid}/studio/gfx-suggest")
+def gfx_suggest_start(mid: str):
+    _need(mid)
+    if (_suggest_jobs.get(mid) or {}).get("status") == "running":
+        return _suggest_jobs[mid]
+    _suggest_jobs[mid] = {"status": "running", "step": "بيبدأ…"}
+    threading.Thread(target=_run_suggest, args=(mid,), daemon=True).start()
+    return _suggest_jobs[mid]
+
+
+@router.get("/api/montage/{mid}/studio/gfx-suggest")
+def gfx_suggest_get(mid: str):
+    _need(mid)
+    job = _suggest_jobs.get(mid) or {}
+    data = json.loads(_suggest_file(mid).read_text(encoding="utf-8")) if _suggest_file(mid).exists() else None
+    if data:
+        for sc in data["scenes"]:
+            for o in sc["options"]:
+                o.pop("svg", None)
+                o.pop("photo_data", None)
+    return {"job": job, "data": data}
+
+
+@router.get("/api/montage/{mid}/studio/gfx-preview/{scene}/{opt}")
+def gfx_preview(mid: str, scene: int, opt: int):
+    from fastapi.responses import HTMLResponse
+    from . import motion as _motion
+    _need(mid)
+    data = json.loads(_suggest_file(mid).read_text(encoding="utf-8"))
+    sc = data["scenes"][scene]
+    sp = sc["options"][opt]
+    return HTMLResponse(_motion.preview_html(sp, 1080, 1920, f"/api/montage/{mid}/studio/frame.jpg?t={sc['t_src']:.2f}"))
+
+
+
+@router.get("/api/montage-studio/sfx")
+def studio_sfx():
+    """مكتبة المؤثرات (CC0) مقسّمة بالنوع، وكل صوت ليه لينك يتسمع."""
+    from . import library as _library
+    from ..store import read_json as _rj
+    out: dict = {}
+    for it in _rj(_library.SFX / "catalog.json", []):
+        if it.get("excluded"):
+            continue
+        out.setdefault(it["kind"], []).append({"file": it["file"], "name": Path(it["file"]).name, "title": it.get("title"), "url": "/assets/" + it["file"]})
+    return out
