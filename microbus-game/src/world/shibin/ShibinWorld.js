@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import { REGION_BASE, loadJSON, dropCache, buildGraph, edgePoint, edgesNear } from './ShibinData.js';
 import { StreetKit } from './ShibinStreetKit.js';
 import { ShibinRail } from './ShibinRail.js';
+import { styledRealBuilding, buildWorship } from './ShibinCivic.js';
 import { buildingMaterial, buildTileBuildings, buildRealBuilding, tileKitItems, kitGeometries } from './ShibinBuildings.js';
 import { canvas, tex } from '../../render/textures.js';
 import { ShibinLamps } from './ShibinLamps.js';
@@ -81,6 +82,8 @@ export class ShibinWorld {
     // السكة الشغالة (قطر + مزلقانات + محطة) — قبل تحميل المربعات عشان مكان المحطة يتشال من العمارات المولّدة
     try { this.rail = new ShibinRail(this, this.group, { low: this.low }); } catch (e) { console.warn('[rail]', e); this.rail = null; }
     this._breakables(); // (بعد الشجر وأعمدة الكهربا)
+    // المسجد والكنيسة اللي في OSM (قبل المربعات عشان العمارات المولّدة تتشال من مكانهم)
+    try { this.worship = buildWorship(this, features, this.group); } catch (e) { console.warn('[worship]', e); this.worship = []; }
     this.group.add(this.lamps.group);
     this.stats.loadMs = Math.round(performance.now() - t0);
     return this;
@@ -878,8 +881,10 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
       this.stats.buildings += T.nB;
     }
     for (const rb of Bd.real || []) {
-      const { mesh } = buildRealBuilding(rb, this.mats.plain);
-      T.group.add(mesh);
+      // مبنى OSM حقيقي: واجهة حسب نوعه + يافطة باسمه (المحطة/المدارس/المولات…)
+      const { group } = styledRealBuilding(rb, this);
+      T.group.add(group);
+      if (rb.kind === 'train_station') this.rail?.realStationLoaded?.(rb);
       // التصادم: صناديق صغيرة على حيطان المضلع
       for (const ring of rb.rings) for (let i = 0; i + 3 < ring.length; i += 2) {
         const ax = ring[i], az = ring[i + 1], bx = ring[i + 2], bz = ring[i + 3], L = Math.hypot(bx - ax, bz - az);

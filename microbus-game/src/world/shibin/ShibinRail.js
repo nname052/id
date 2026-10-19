@@ -261,7 +261,10 @@ export class ShibinRail {
     bm.castShadow = true; bm.receiveShadow = true; G.add(bm);
     const roof = new THREE.Mesh(new THREE.BoxGeometry(BL + 0.6, 0.5, BW + 0.6), new THREE.MeshStandardMaterial({ color: 0xc9b78b, roughness: 0.9 }));
     roof.position.set(bx, BH + 0.25, bz); roof.rotation.y = yaw - Math.PI / 2; G.add(roof);
-    W._addCollider({ cx: bx, cz: bz, hx: BW / 2, hz: BL / 2, angle: yaw, restitution: 0.1, kind: 'building' }, null);
+    const bcol = { cx: bx, cz: bz, hx: BW / 2, hz: BL / 2, angle: yaw, restitution: 0.1, kind: 'building' };
+    W._addCollider(bcol, null);
+    // مبنى المحطة الحقيقي (footprint من OSM) لو اتحمل: بيحل محل الصندوق ده (realStationLoaded)
+    this._stBox = { meshes: [bm, roof], col: bcol, x: q.x, z: q.z };
     // العمارات المولّدة اللي في مكان المحطة بتتشال (W.exclude بيتطبق على المربعات اللي لسه هتتحمل)
     (W.exclude ||= []).push({ cx: (bx + q.x) / 2, cz: (bz + q.z) / 2, hx: Math.abs(bOff) / 2 + BW / 2 + 2, hz: PL / 2 + 4, angle: yaw });
     // إشارات أول وآخر الرصيف (أحمر/أخضر)
@@ -278,6 +281,16 @@ export class ShibinRail {
     }
     this.group.add(G);
     this.stationGroup = G;
+  }
+
+  /** المربع اللي فيه مبنى المحطة الحقيقي اتحمل → نشيل المبنى التقريبي (المنصة والمظلة والإشارات بيفضلوا) */
+  realStationLoaded(rb) {
+    const B = this._stBox; if (!B || B.replaced) return;
+    let cx = 0, cz = 0, n = 0; for (let i = 0; i < rb.v.length; i += 2) { cx += rb.v[i]; cz += rb.v[i + 1]; n++; }
+    cx /= n; cz /= n;
+    if (Math.hypot(cx - B.x, cz - B.z) > 90) return;
+    for (const m of B.meshes) m.removeFromParent();
+    B.col.dead = true; B.replaced = true;
   }
 
   // ---------- المزلقانات ----------
