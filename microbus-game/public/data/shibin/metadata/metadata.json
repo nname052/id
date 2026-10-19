@@ -10,7 +10,7 @@
   "sha1": "59550603bc2a7b97a862ed25dc306029792b5c75",
   "osm_header_bbox": null
  },
- "extracted_at": "2026-10-16T02:45:18Z",
+ "extracted_at": "2026-10-19T03:31:05Z",
  "license": {
   "data": "Open Database License (ODbL) 1.0",
   "attribution": "© OpenStreetMap contributors",
@@ -601,7 +601,7 @@
   "graph_edges": 5756,
   "named_streets": 1006,
   "gates": 99,
-  "buildings_generated": 35743,
+  "buildings_generated": 35731,
   "buildings_real": 13,
   "bridges": 18,
   "canals": 9,
@@ -763,5 +763,5 @@
   "widths": "road width/lanes from OSM tags when present, otherwise class defaults (see tools/osm/build_region.py WIDTH/LANES)",
   "sidewalks": "sidewalk widths by road class (not in OSM)"
  },
- "build_seconds": 44.9
+ "build_seconds": 44.7
 }

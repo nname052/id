@@ -379,11 +379,14 @@ def main():
         ends = [n for n in cn if any(not roads[f['way']]['bridge'] for f in adj[n]) or cn[n] == 1]
         # ramps: لو الكوبري فوق طريق، والطريق اللي بعد الطرف بنفس الاسم (مطلع) → الطلعة عليه
         ramp_edges = []
+        # أسماء السلسلة كلها (مش أول حافة بس): السلسلة ممكن تبدأ بوصلة من غير اسم (primary_link) —
+        # ساعتها مطلع الاتجاه التاني كان بيتنسي والكوبري ينزل للأرض في نصه (كوبرى شبين الكوم العلوي)
+        chain_names = {roads[c['way']]['name'] for c in chain if roads[c['way']]['name']}
         if crosses:
             for n in ends:
                 for f in adj[n]:
                     if roads[f['way']]['bridge'] or f in chain: continue
-                    if name and roads[f['way']]['name'] == name:
+                    if roads[f['way']]['name'] in chain_names:
                         ramp_edges.append((n, f))
         for e in chain:
             e['pts'] = densify(e['pts'], 4 if crosses else 2)  # نقط كفاية عشان الحدبة تبقى ناعمة (مش خيمة بـ 3 نقط)

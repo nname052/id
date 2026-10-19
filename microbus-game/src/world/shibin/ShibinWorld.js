@@ -194,6 +194,7 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
         if (cr > 0) idx.push(k, k + 2, k + 1, k, k + 3, k + 2); else idx.push(k, k + 1, k + 2, k, k + 2, k + 3);
       }
     }
+    this._blockRampCrossings();
     if (!idx.length) return;
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
@@ -202,6 +203,34 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
     g.setIndex(idx); g.computeVertexNormals();
     const m = new THREE.Mesh(g, this.mats.asphalt); m.receiveShadow = true; m.name = 'ramps';
     this.group.add(m);
+  }
+
+  /**
+   * شارع أرضي بيقطع مطلع كوبري في حتة واطية (السطح تحت 3.4م → مفيش عربية تعدّي من تحت): الشارع ده في الحقيقة
+   * بيقفل عند حيطة المطلع. بنقفل الوصلة دي في الشبكة (GPS والمرور مايعدّوش منها) والمطلع بيتردم عادي.
+   */
+  _blockRampCrossings() {
+    this.rampBlocked = [];
+    for (const r of this.graph.edges) {
+      if (!r.elevated) continue;
+      for (let i = 0; i < r.pts.length - 1; i++) {
+        const a = r.pts[i], b = r.pts[i + 1], ym = ((a.y || 0) + (b.y || 0)) / 2;
+        if (ym < 0.6 || ym > 3.4) continue;
+        for (const e of this.groundCrossings(a, b, r)) { e.closed = true; e.rampBlocked = true; this.rampBlocked.push(e.id); }
+      }
+    }
+  }
+
+  /** الشوارع الأرضية اللي خطها بيقطع القطعة a→b فعلًا (مش بس بتنتهي عندها) — من غير الشوارع المتوصلة بالوصلة r */
+  groundCrossings(a, b, r) {
+    const cross = (a, b, c, d) => { const d1 = (b.x - a.x) * (c.z - a.z) - (b.z - a.z) * (c.x - a.x), d2 = (b.x - a.x) * (d.z - a.z) - (b.z - a.z) * (d.x - a.x), d3 = (d.x - c.x) * (a.z - c.z) - (d.z - c.z) * (a.x - c.x), d4 = (d.x - c.x) * (b.z - c.z) - (d.z - c.z) * (b.x - c.x); return d1 * d2 < 0 && d3 * d4 < 0; };
+    const out = [];
+    for (const e of edgesNear(this.graph, (a.x + b.x) / 2, (a.z + b.z) / 2, 30)) {
+      if (e.elevated || e.closed || out.includes(e)) continue;
+      if (r && (e.from === r.from || e.from === r.to || e.to === r.from || e.to === r.to)) continue;
+      for (let j = 0; j < e.pts.length - 1; j++) if (cross(a, b, e.pts[j], e.pts[j + 1])) { out.push(e); break; }
+    }
+    return out;
   }
 
   /** شارع أرضي معدّي تحت النقطة دي (جوه عرضه + هامش)؟ */
@@ -653,7 +682,8 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
           const inR = this._insideOtherDeck((r0[0] + r1[0]) / 2, (r0[2] + r1[2]) / 2, ym, D.edge);
           // المطلع الواطي (لحد 4.2م): ردم بحيطان ساندة لحد الأرض (مش سطح طاير) — العالي: بلاطة 0.9م على عواميد
           // (مايتردمش لو فيه شارع أرضي معدّي تحته)
-          const fill = Math.max(l0[1], l1[1]) < RAMP_FILL_H && !(ym > 1.6 && this._groundRoadUnder((l0[0] + r1[0]) / 2, (l0[2] + r1[2]) / 2, 0));
+          // (الشوارع اللي بتقطع المطلع تحت 3.4م اتقفلت في الشبكة — _blockRampCrossings — فالردم بيكمّل عادي فوقها)
+          const fill = Math.max(l0[1], l1[1]) < RAMP_FILL_H && !(ym > 3.4 && this._groundRoadUnder((l0[0] + r1[0]) / 2, (l0[2] + r1[2]) / 2, 0));
           const lowY = (v) => (fill ? [v[0], -0.1, v[2]] : dn(v, -0.9));
           if (!inL) pushQuad(cpos, cnor, cidx, lowY(l1), lowY(l0), dn(l0, 0.12), dn(l1, 0.12), nl);
           if (!inR) pushQuad(cpos, cnor, cidx, lowY(r0), lowY(r1), dn(r1, 0.12), dn(r0, 0.12), nr);
