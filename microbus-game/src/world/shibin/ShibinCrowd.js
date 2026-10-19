@@ -190,10 +190,13 @@ export class ShibinCrowd {
         continue;
       }
       const d2 = (p.x - cx) ** 2 + (p.z - cz) ** 2;
-      if (d2 > RECYCLE * RECYCLE && !p.hit) { p.on = false; p.cross = null; p.group = null; p.ret = null; continue; }
+      if (d2 > RECYCLE * RECYCLE && !p.hit) { if (p.shop) { p.shop.it.busy = false; p.shop = null; } p.on = false; p.cross = null; p.group = null; p.ret = null; continue; }
       if (p.hitCool) p.hitCool = Math.max(0, p.hitCool - dt);
       if (p.hit) { this._hitStep(p, dt); continue; }
       if (p.ret) { this._returnStep(p, dt); continue; }
+      if (p.shop) { this._shopStep(p, dt); continue; }
+      // بيدخل محل/بيتفرج على فاترينة (مرة كل شوية، من الرصيف بس)
+      if (!p.cross && !p.group && !p.scared && !p.standing && d2 < 90 * 90 && this.R() < dt * 0.05) this._tryShop(p);
       if (ph && Math.abs(p.x - ph.x) < 4.5 && Math.abs(p.z - ph.z) < 4.5 && this._hitTest(p, ph)) continue;
       if (ph && !p.cross && d2 < 400 && Math.abs(p.x - ph.x) < 9 && Math.abs(p.z - ph.z) < 9) this._dodge(p, dt, ph);
       p.scared = Math.max(0, p.scared - dt);
@@ -225,6 +228,8 @@ export class ShibinCrowd {
       if (!p.on || (p.x - cx) ** 2 + (p.z - cz) ** 2 > VIEW * VIEW) continue;
       const talk = p.standing && !p.scared && (p.variant + i) % 4 === 0 ? 0.18 + Math.sin(p.phase * 0.7) * 0.08 : 0;
       const amp = p.standing && !p.scared ? 0 : p.scared ? 1.5 : Math.min(1.2, p.speed * 0.8);
+      if (p.shop?.phase === 'in') continue; // جوه المحل
+      if (p.shop) { this.batch.add(p.variant, p.x, 0.15, p.z, p.heading, 1, p.phase, p.shop.phase === 'look' ? 0 : 0.8, p.shop.phase === 'look' ? 0.15 : 0, 0); continue; }
       if (p.hit || p.ret) {
         const H = p.hit;
         this.batch.add(p.variant, p.x, H ? H.y : this.world.height(p.x, p.z, 0), p.z, p.heading, 1, p.phase, H ? 0 : 0.6, 0, 0, H ? H.fall : 0);
@@ -236,6 +241,50 @@ export class ShibinCrowd {
     // ناس من برا الزحمة (المسعفين، المصاب على النقالة)
     for (const q of this.extras) this.batch.add(q.variant, q.x, q.y, q.z, q.yaw, 1, q.phase || 0, q.amp || 0, q.armR || 0, q.armL || 0, q.fall || 0);
     this.batch.flush();
+  }
+
+  // ===================== المحلات =====================
+  _tryShop(p) {
+    const kit = this.world.streetKit?.shop; if (!kit) return;
+    const near = kit.near(p.x, p.z, 7, this._shopNear || (this._shopNear = []));
+    const it = near.find((q) => q.ok !== false && !q.busy);
+    if (!it) return;
+    // باب المحل: على الواجهة نفسها (العنصر متحطوط على الواجهة، وشه لبره = yaw)
+    const ox = Math.sin(it.yaw), oz = Math.cos(it.yaw);
+    // (الواجهة ممكن تبقى لازقة في الرصيف أو بعده بشوية: أول نقطة رصيف قدامها)
+    let door = null;
+    for (const d of [0.4, 0.8, 1.3, 1.9]) { const x = it.x + ox * d, z = it.z + oz * d; if (this._ok(x, z)) { door = { x, z }; break; } }
+    if (!door) return;
+    const look = this.R() < 0.4 && this._ok(door.x + ox * 0.9, door.z + oz * 0.9);
+    p.shop = { phase: 'go', it, door, look, back: { x: p.x, z: p.z }, t: look ? 4 + this.R() * 8 : 8 + this.R() * 25, faceYaw: it.yaw + Math.PI };
+    it.busy = true;
+  }
+
+  _shopStep(p, dt) {
+    const S = p.shop;
+    const walk = (tx, tz) => { const dx = tx - p.x, dz = tz - p.z, d = Math.hypot(dx, dz); if (d < 0.15) return true; const st = Math.min(d, (p.speed || 1.1) * dt); p.x += dx / d * st; p.z += dz / d * st; p.heading = Math.atan2(dx, dz); p.phase += dt * 4.5; return false; };
+    if (S.phase === 'go') {
+      // الفرجة: بيقف قدام الفاترينة بمتر؛ الدخول: لحد الباب
+      const tgt = S.look ? { x: S.door.x + Math.sin(S.it.yaw) * 0.9, z: S.door.z + Math.cos(S.it.yaw) * 0.9 } : S.door;
+      if (walk(tgt.x, tgt.z)) S.phase = S.look ? 'look' : 'in';
+    } else if (S.phase === 'look' || S.phase === 'in') {
+      S.t -= dt;
+      if (S.phase === 'look') { p.heading += Math.atan2(Math.sin(S.faceYaw - p.heading), Math.cos(S.faceYaw - p.heading)) * Math.min(1, dt * 4); p.phase += dt; }
+      if (S.t <= 0) S.phase = 'out';
+    } else if (S.phase === 'out') {
+      if (walk(S.back.x, S.back.z)) { S.it.busy = false; p.shop = null; this._pos(p); }
+    }
+  }
+
+  /** كلاكس: اللي بيعدّي قدام العربية بيستعجل (وماحدش بيبدأ يعدّي دلوقتي) */
+  honked(ph) {
+    const [fx, fz] = ph.forward;
+    for (const p of this.people) {
+      if (!p.on || !p.cross) continue;
+      const dx = p.x - ph.x, dz = p.z - ph.z, lon = dx * fx + dz * fz;
+      if (lon < 0 || lon > 30 || Math.abs(dx * -fz + dz * fx) > 8) continue;
+      if (p.cross.wait > 0) p.cross.wait = Math.max(p.cross.wait, 2.5); else { p.scared = 2; p.speed = Math.max(p.speed, 1.8); }
+    }
   }
 
   // ===================== الحوادث =====================

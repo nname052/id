@@ -72,6 +72,16 @@ export class NearInstancer {
     let a = this.grid.get(k); if (!a) this.grid.set(k, (a = [])); a.push(it);
     return it;
   }
+  /** العناصر اللي جوه r من نقطة (من غير ترتيب) */
+  near(x, z, r, out = []) {
+    out.length = 0;
+    const c0 = Math.floor((x - r) / CELL), c1 = Math.floor((x + r) / CELL), d0 = Math.floor((z - r) / CELL), d1 = Math.floor((z + r) / CELL);
+    for (let i = c0; i <= c1; i++) for (let j = d0; j <= d1; j++) {
+      const a = this.grid.get(i * 100003 + j); if (!a) continue;
+      for (const it of a) if ((it.x - x) ** 2 + (it.z - z) ** 2 < r * r) out.push(it);
+    }
+    return out;
+  }
   update(cam, force = false) {
     const R = this.R, R2 = R * R, pick = this._pick || (this._pick = []);
     pick.length = 0;

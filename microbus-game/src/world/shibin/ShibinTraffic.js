@@ -603,6 +603,8 @@ export class ShibinTraffic {
     const e = c.e, L = e.length;
     if (!c.pull && c.laneHome !== undefined && c.laneHome !== c.lane && !c.turn) { const d = c.laneHome - c.lane; c.lane += Math.sign(d) * Math.min(Math.abs(d), dt * 0.9); }
     let vMax = Math.max(4, (e.speed / 3.6) * c.vMul * (e.cls === 'residential' ? 0.8 : 1));
+    // اتكلكس له: بيسرّع شوية (لحد 15% فوق سرعته) لو قدامه فاضي
+    if (c.hornT > 0) { c.hornT -= dt; vMax *= 1.15; }
     // مناطق تهدية (كمين شغال…): السرعة القصوى بتقل جواها
     for (const z of this._slows) if ((z.x - c.x) ** 2 + (z.z - c.z) ** 2 < z.r * z.r) vMax = Math.min(vMax, z.v);
     // ===== اللي قدامي (عربية أو اللاعب) في نفس اتجاهي =====
@@ -775,6 +777,23 @@ export class ShibinTraffic {
     c.lane = P.lane0 + (P.curb - P.lane0) * k;
     if (rem < 1.0) { c.dwell = c.type === 'microbus' ? 5 + this.R() * 7 : 3 + this.R() * 3; return 0; }
     return Math.min(target, Math.sqrt(2 * 1.8 * Math.max(0, rem)) + 0.3);
+  }
+
+  /** اللاعب ضرب كلاكس: العربيات اللي قدامه في نفس الاتجاه (لحد 30م) بتستجيب لو تقدر بأمان */
+  honked(ph) {
+    const [fx, fz] = ph.forward;
+    let n = 0;
+    for (const c of this.cars) {
+      if (!c.on || c.off || c.virtual) continue;
+      const dx = c.x - ph.x, dz = c.z - ph.z; if (Math.abs(dx) > 32 || Math.abs(dz) > 32) continue;
+      const lon = dx * fx + dz * fz, lat = dx * -fz + dz * fx;
+      if (lon < 2 || lon > 30 || Math.abs(lat) > 2.6) continue;
+      if (c.lastDx * fx + c.lastDz * fz < 0.6) continue; // مش في نفس اتجاهي
+      c.hornT = 4; n++;
+      if (c.dwell > 1) c.dwell = 1;          // الميكروباص بيخلّص تحميل
+      c.lcCd = 0; this._tryLaneChange(c, 0, 0); // لو فيه حارة فاضية جنبه: يفسح
+    }
+    return n;
   }
 
   setDensity(k) {

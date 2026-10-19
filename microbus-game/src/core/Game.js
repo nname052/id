@@ -619,7 +619,16 @@ export class Game {
     this.mirrorInsets?.resize(window.innerWidth, window.innerHeight);
   }
 
+  /** كثافة المرور = اختيار الإعدادات × وقت اليوم (نهار/عصاري = ساعة ذروة وزحمة، بالليل أخف) */
+  _applyTrafficDensity() {
+    const base = { off: 0, low: 0.35, normal: 0.7, high: 1 }[this.settings?.get('traffic') ?? 'normal'] ?? 0.7;
+    const p = this.env?.preset || {};
+    const tk = p.night ? 0.55 : p.elevation < 12 ? 1.35 : 1.2;
+    this.traffic?.setDensity?.(Math.min(1, base * tk));
+  }
+
   _onTimeChange(p) {
+    this._applyTrafficDensity();
     const night = !!p.night;
     this._night = night || p.elevation < 8;
     this.player.setNight(night || p.elevation < 8);
@@ -750,7 +759,7 @@ export class Game {
         this.touch?.setLights(this.player.headOn);
         break;
       case 'masterVol': case 'engineVol': this.audio.setVolumes(this.settings.get('masterVol') / 100, this.settings.get('engineVol') / 100); break;
-      case 'traffic': this.traffic.setDensity({ off: 0, low: 0.35, normal: 0.7, high: 1 }[v] ?? 0.7); break;
+      case 'traffic': this._applyTrafficDensity(); break;
       case 'crowd': this.crowd?.setCount(this.crowdBase * ({ low: 0.45, normal: 1, high: 1.6 }[v] ?? 1) * (this._qCrowd ?? 1)); break;
       default: break;
     }
@@ -906,6 +915,8 @@ export class Game {
 
     this._adaptQuality(dt);
     const inside = this.cams.modeId === 'cockpit';
+    // الكلاكس: اللي قدامك بيستجيب (يسرّع/يفسحلك حارة/الميكروباص يخلّص تحميل)، واللي بيعدّي الشارع بيستعجل
+    if (input.horn) { this._hornT = (this._hornT || 0) - dt; if (this._hornT <= 0) { this._hornT = 0.6; this.traffic.honked?.(this.player.physics); this.crowd?.honked?.(this.player.physics); } } else this._hornT = 0;
     this.audio.update(dt, { player: this.player, camera: this.camera, traffic: this.traffic, inside, horn: input.horn, passengers: this.passengers?.count, crowd: this.crowd });
     this.hud.update(dt, ph, this.lights);
     if (this.touch) this.touch.update(ph.steeringWheelAngle);
