@@ -54,8 +54,8 @@ const r = await page.evaluate(async () => {
       }
       for (const c of tr.cars) { if (c.dwell > 0 && !c._dw) { dwells++; pullers.add(c.type); } c._dw = c.dwell > 0; }
       if (steps % 15 === 0) {
-        const st = tr.debugStats(); overlapsMax = Math.max(overlapsMax, st.overlaps); parkedHit += st.parkedHit; parkedMax = Math.max(parkedMax, st.parked);
-        activeSum += st.active; n++; const pr = cr.debugOnRoad(); pedSum += pr.people; pedOnRoad += pr.onRoad; crossSeen += pr.crossing; groupsSeen = Math.max(groupsSeen, pr.groups);
+        const st = tr.debugStats(); if (st.overlaps) globalThis.__ov = tr.lastOverlap; overlapsMax = Math.max(overlapsMax, st.overlaps); parkedHit += st.parkedHit; parkedMax = Math.max(parkedMax, st.parked);
+        activeSum += st.active; n++; const pr = cr.debugOnRoad(); pedSum += pr.people; pedOnRoad += pr.onRoad; (globalThis.__acc = (globalThis.__acc || 0) + pr.accident); (globalThis.__shopOff = (globalThis.__shopOff || 0) + pr.shopOff); crossSeen += pr.crossing; groupsSeen = Math.max(groupsSeen, pr.groups);
         for (const q of cr.crossers || []) for (const c of tr.cars) if (c.on && !c.off && Math.hypot(c.x - q.x, c.z - q.z) < 1.4) carThroughPed++;
         for (const q of tr.parked) if (q.on && Math.abs(W.height(q.x, q.z, 0)) > 0.05) parkedBad++;
       }
@@ -63,7 +63,7 @@ const r = await page.evaluate(async () => {
       if (steps % 60 === 0) await new Promise((r) => setTimeout(r, 0));
     }
   }
-  return { pedOnRoad, crossSeen, groupsSeen, carThroughPed, aiStopsServed: dwells, aiStopTypes: [...pullers], pedPopIn: pedPop, simSeconds: Math.round(steps * dt), popIn, vanish, pop, overlapsMax, parkedHit, parkedOffAsphalt: parkedBad, parkedMax, avgTraffic: +(activeSum / n).toFixed(1), avgPeds: Math.round(pedSum / n) };
+  return { lastOverlap: globalThis.__ov || null, accidentSamples: globalThis.__acc || 0, shopOffSamples: globalThis.__shopOff || 0, pedOnRoad, crossSeen, groupsSeen, carThroughPed, aiStopsServed: dwells, aiStopTypes: [...pullers], pedPopIn: pedPop, simSeconds: Math.round(steps * dt), popIn, vanish, pop, overlapsMax, parkedHit, parkedOffAsphalt: parkedBad, parkedMax, avgTraffic: +(activeSum / n).toFixed(1), avgPeds: Math.round(pedSum / n) };
 });
 const pass = r.pedOnRoad === 0 && r.carThroughPed === 0 && r.crossSeen > 0 && r.groupsSeen > 0 && r.aiStopsServed > 0 && r.pedPopIn === 0 && r.popIn === 0 && r.vanish === 0 && r.overlapsMax === 0 && r.parkedHit === 0 && r.parkedOffAsphalt === 0 && !errors.length;
 console.log(JSON.stringify({ ...r, errors }, null, 1));

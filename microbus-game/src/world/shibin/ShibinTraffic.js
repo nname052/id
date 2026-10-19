@@ -831,7 +831,11 @@ export class ShibinTraffic {
     let overlaps = 0;
     for (let i = 0; i < on.length; i++) for (let j = i + 1; j < on.length; j++) {
       const a = on[i], b = on[j];
-      if (Math.hypot(a.x - b.x, a.z - b.z) < 1.6 && Math.abs(a.y - b.y) < 1) overlaps++;
+      if (Math.hypot(a.x - b.x, a.z - b.z) < 1.6 && Math.abs(a.y - b.y) < 1) {
+        overlaps++;
+        const info = (c) => ({ t: c.type, v: +c.v.toFixed(1), dir: c.dir, eL: Math.round(c.e?.length || 0), x: +c.x.toFixed(1), z: +c.z.toFixed(1), y: +c.y.toFixed(2), next: c.next?.e?.id, virt: !!c.virtual, e: c.e?.id, cls: c.e?.cls, s: Math.round(c.s), lane: +(c.lane || 0).toFixed(1), turn: !!c.turn, line: !!c.line, dwell: +(c.dwell || 0).toFixed(1), pull: !!c.pull, lc: c.laneChanges || 0, hornT: c.hornT > 0, bumped: c.bumped > 0 });
+        this.lastOverlap = { a: info(a), b: info(b), at: [Math.round(a.x), Math.round(a.z)] };
+      }
     }
     let parkedHit = 0;
     const pk = this.parked.filter((q) => q.on);

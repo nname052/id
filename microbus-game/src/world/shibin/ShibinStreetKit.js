@@ -311,6 +311,10 @@ export class StreetKit {
       return Math.abs(W.height(x, z, 0) - 0.15) < 0.01;
     };
     this.pole.check = (it) => onWalk(it.x, it.z);
+    // البلكونة/التندة اللي طرفها فوق حارة عربيات (عمارة لازقة في شارع من غير رصيف) مابتتحطش
+    const overLane = (reach) => (it) => { const fx = it.x + Math.sin(it.yaw) * reach, fz = it.z + Math.cos(it.yaw) * reach; const r = W.nearestRoad(fx, fz, 20); return !(r && !r.e.elevated && r.d < r.e.half - 0.3); };
+    this.balcony.check = overLane(0.9);
+    this.shop.check = overLane(1.1);
     // الرصيف ضيق → مفيش قعدة (الكراسي بتطلع 0.75م: لازم تفضل بعيد عن حرف الأسفلت)
     this.cafe.check = (it) => { const o = onWalk(it.x, it.z); if (!o) return o; const q = W.nearestRoad(it.x, it.z, 30); return !(q && !q.e.elevated && q.d < q.e.half + 1.1); };
     // السلك بيظهر لو العمودين الاتنين اتحطوا
