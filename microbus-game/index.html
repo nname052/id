@@ -7,6 +7,12 @@
   <title>ميكروباص مصر</title>
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
+  <!-- آيفون: "إضافة للشاشة الرئيسية" → اللعبة بتفتح ملء الشاشة بالعرض من غير شريط سفاري -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="ميكروباص" />
+  <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
   <link rel="stylesheet" href="./src/ui/style.css" />
 </head>
 <body>
@@ -19,7 +25,8 @@
       <p class="sub">نسخة تجريبية · شبين الكوم الحقيقية (خريطة OpenStreetMap)</p>
       <div id="progress"><div id="bar"></div></div>
       <p id="status">بيتحمّل...</p>
-      <p id="ver" style="opacity:.55;font-size:12px;margin:2px 0 0">نسخة 9</p>
+      <p id="ver" style="opacity:.55;font-size:12px;margin:2px 0 0">نسخة 10</p>
+      <p id="ioshint" style="display:none;opacity:.75;font-size:12px;margin:4px 0 0">للعب ملء الشاشة بالعرض على الآيفون: زرار المشاركة ⬆️ ← «إضافة إلى الشاشة الرئيسية» وافتحها من هناك</p>
       <div class="lobby" id="lobby">
         <div class="lobby-row"><label for="pname">اسمك</label><input id="pname" maxlength="16" enterkeyhint="done" placeholder="مثلًا: أسطى محمد" autocomplete="off" /></div>
         <div class="seats" id="seats"></div>

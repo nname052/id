@@ -21,7 +21,7 @@ export const SCHEMA = [
   { key: 'mirrorInsets', type: 'seg', label: 'المرايات الجانبية على حرف الشاشة', options: [['auto', 'تلقائي'], ['on', 'دايمًا'], ['off', 'مقفولة']], def: 'auto' },
   { group: 'الجرافيكس' },
   { key: 'graphics', type: 'seg', label: 'الجودة', options: [['auto', 'تلقائي'], ['saver', 'موفّر البطارية'], ['low', 'واطية'], ['med', 'متوسطة'], ['high', 'عالية'], ['ultra', 'ألترا']], def: 'auto' },
-  { key: 'fpsCap', type: 'seg', label: 'سقف الفريمات (أقل = الموبايل يسخن أقل)', options: [['auto', 'تلقائي'], ['30', '30'], ['45', '45'], ['60', '60'], ['max', 'أقصى']], def: 'auto' },
+  { key: 'fpsCap', type: 'seg', label: 'سقف الفريمات (أقل = الموبايل يسخن أقل)', options: [['auto', 'تلقائي'], ['30', '30'], ['60', '60'], ['max', 'أقصى']], def: 'auto' },
   { key: 'shadows', type: 'seg', label: 'الضل', options: [['on', 'شغال'], ['off', 'مقفول']], def: 'on' },
   { key: 'mirrorQuality', type: 'seg', label: 'جودة المرايات', options: [['low', 'واطية'], ['med', 'متوسطة'], ['high', 'عالية']], def: 'auto-device' },
   { group: 'الوقت والإضاءة' },

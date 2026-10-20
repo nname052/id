@@ -2,6 +2,12 @@ import { Game } from './core/Game.js';
 import { seatColor } from './net/Multiplayer.js';
 
 // نقطة البداية
+// آيفون من سفاري (مش من الشاشة الرئيسية): نوضّح إزاي تبقى ملء الشاشة (سفاري مابيسمحش بملء الشاشة للصفحات)
+{
+  const ios = /iPhone|iPod/.test(navigator.userAgent);
+  const standalone = navigator.standalone || matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches;
+  if (ios && !standalone) document.getElementById('ioshint')?.style.setProperty('display', 'block');
+}
 const statusEl = document.getElementById('status');
 const bar = document.getElementById('bar');
 const go = document.getElementById('go');

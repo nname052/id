@@ -87,6 +87,8 @@ export class Game {
     // ===== الرندر =====
     // مستوى الجودة بيتحدد قبل إنشاء الرندر (الـ MSAA ونوع الضل مينفعش يتغيروا بعد كده)
     this.mobile = isTouchDevice();
+    // آيفون/آيباد: كارت شاشة قوي → دقة أعلى (حواف ناعمة) من غير ما الفريمات تقع
+    this.ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     const saved = (() => { try { return JSON.parse(localStorage.getItem('egy-microbus-settings-v1') || '{}'); } catch { return {}; } })();
     this.tier = resolveTier(saved.graphics, this.mobile);
     this.saverBoot = saved.graphics === 'saver';
@@ -590,16 +592,17 @@ export class Game {
     showLinePicker(P.lineOptions(), (i) => { if (P.selectLine(i)) this.startLineShift(); });
   }
 
-  /** سقف الفريمات: على الموبايل 60/120 فريم = كارت شاشة شغال على الآخر = سخونية. الافتراضي 45 (أو 30 في الواطية) */
+  /** سقف الفريمات: على الموبايل 60/120 فريم = كارت شاشة شغال على الآخر = سخونية. الافتراضي 60 (أو 30 لو الجهاز مش ملاحق) */
   get fpsCap() {
     const v = this.settings?.get('fpsCap') ?? 'auto';
     if (v === 'max') return 0;
-    if (v !== 'auto') return +v;
+    if (v !== 'auto' && v !== '45') return +v; // (45 اتشالت: مش سلسة على شاشات 60/120)
     // موفّر البطارية: 30 دايمًا. الكمبيوتر: 60 (شاشات 120 هرتز كانت بترسم 120 فريم = سخونة من غير فايدة)
     if (this.settings?.get('graphics') === 'saver') return 30;
     if (!this.mobile) return 60;
+    // 60 أو 30 بس (بيقسموا تردد الشاشة): 45 على شاشة 60 = بيرسم 3 من كل 4 فريمات → حركة متقطعة مش سلسة
     const L = this._q?.level ?? 2;
-    return L >= 3 ? 30 : L >= 1 ? 45 : 60;
+    return L >= 3 ? 30 : 60;
   }
 
   _tick(t) {
@@ -619,7 +622,7 @@ export class Game {
   _adaptQuality(dt) {
     if (!this.started) return;
     if (this.settings && this.settings.get('graphics') !== 'auto') { this.fps = this._fpsMeasure(dt) ?? this.fps; return; }
-    const q = (this._q ||= { t: 0, frames: 0, level: this.mobile ? 2 : 0, good: 0, cooldown: 3 });
+    const q = (this._q ||= { t: 0, frames: 0, level: this.mobile ? (this.ios ? 1 : 2) : 0, good: 0, cooldown: 3 });
     q.t += dt; q.frames++; q.cooldown -= dt;
     if (q.t < 1.5) return;
     const fps = q.frames / q.t;
@@ -652,7 +655,7 @@ export class Game {
     // الموبايل: الدقة بسقف ثابت لكل مستوى (شاشات 3x بترسم 9 أضعاف البكسلات من غير فرق واضح)
     // (كانت 1.5/1.35/1.2/1.0/0.85 — على شاشة 3x المتوسطة كانت بتتمط 2.5 مرة = مبكسلة/مغبشة)
     // (الأوطى كانت 1.15/1.0 = مبكسلة جدًا على شاشات الموبايل الحادة: أقل حاجة دلوقتي 1.3 — بنوفّر من الضل ومسافة الرؤية بدلها)
-    const MPR = [1.8, 1.65, 1.55, 1.45, 1.4];
+    const MPR = this.ios ? [2.1, 2.0, 1.8, 1.6, 1.45] : [1.8, 1.65, 1.55, 1.45, 1.4];
     const pr = this.mobile
       ? Math.min(window.devicePixelRatio, level < 0 ? 1.75 : MPR[level])
       : level < 0 ? Math.min(window.devicePixelRatio, 2) : Math.max(floor, [base, base, base * 0.9, base * 0.8, base * 0.72][level]);
@@ -843,9 +846,9 @@ export class Game {
         this.saver = v === 'saver';
         this.player.setMirrorQuality(this.saver ? 'saver' : this.settings.get('mirrorQuality'));
         if (this.saver && this.settings.get('crowd') !== 'low') this._applySetting('crowd', this.settings.get('crowd'));
-        const q = (this._q ||= { t: 0, frames: 0, level: this.mobile ? 2 : 0, good: 0, cooldown: 3 });
+        const q = (this._q ||= { t: 0, frames: 0, level: this.mobile ? (this.ios ? 1 : 2) : 0, good: 0, cooldown: 3 });
         if (fixed !== undefined) { q.level = fixed; this._applyQuality(fixed, this.fps || 0); }
-        else { q.level = this.mobile ? 2 : 0; q.cooldown = 2; this._applyQuality(q.level, this.fps || 0); }
+        else { q.level = this.mobile ? (this.ios ? 1 : 2) : 0; q.cooldown = 2; this._applyQuality(q.level, this.fps || 0); }
         break;
       }
       case 'shadows': this._applyQuality(this._q?.level || 0, this.fps || 0); break;

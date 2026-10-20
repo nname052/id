@@ -41,6 +41,10 @@
       visible distance (low tier keeps the old distances); traffic paint matte (no clearcoat, env 0.25); version
       label "نسخة 9" on the start screen (to rule out cached old builds). Draw calls mobile-med 193 → 223,
       desktop-med 385 → 473. city-life PASS.
+- [x] v10: frame cap 60 or 30 only (45 on a 60 Hz screen draws 3 of 4 frames = judder; saved "45" → auto);
+      iPhone detected → start quality level 1, pixel ratio up to 2.0–2.1 (sharper edges); iOS home-screen web app
+      (apple-mobile-web-app-capable, touch icon, no fixed start_url so ?room= is kept) + hint on the start screen.
+      iPhone 13 emulation: ios=true, level 1, pixelRatio 2, cap 60, antialias on, no errors.
 - [!] Real-phone FPS with the denser city still needs checking by the user.
 
 # PROGRESS — Audit, real-city default, performance overhaul, HiAce front fix, cockpit (V34 pass)
