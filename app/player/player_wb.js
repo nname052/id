@@ -47,6 +47,8 @@ export function placeHand(st) {
 // فوق الترجمة بمسافة واضحة: الترجمة في فيديو السبورة بتبدأ عند 1340 (player.css)، والرسومات بتخلص عند 1180.
 // ليه: كانت المسافة 40 بكسل بس، والكلام كان لازق في الأشكال اللي فوقه
 export const REGION = { x: 64, y: 170, w: 952, h: 1010 };
+// من غير ترجمة: الرسومات بتتوزّع على الشاشة كلها (تحت ما يفضلش فاضي)، لحد ~1590 (فوق واجهة تيك توك)
+export const REGION_FULL = { x: 64, y: 190, w: 952, h: 1400 };
 const GAP = { x: 44, y: 56 }, ARROW_GAP = 150;   // لو فيه سهم بين العناصر: مسافة كفاية إن السهم يبان سهم
 function partitions(n) { // كل تقسيمات n عنصر (بالترتيب) لصفوف، كل صف 1–3
   if (!n) return [[]];
@@ -226,7 +228,7 @@ export async function createBoard(sc, el, ctx) {
     }
   };
   const relayout = (live) => { const content = live.filter((e) => !e.mark), arrows = live.some((e) => e.kind === "arrow");
-    const zs = layoutBoard(content.map((e) => ({ opts: e.opts, art: !!e.art, minH: e.minH })), REGION, arrows);
+    const zs = layoutBoard(content.map((e) => ({ opts: e.opts, art: !!e.art, minH: e.minH })), ctx.subs === false ? REGION_FULL : REGION, arrows);
     content.forEach((e, k) => place(e, zs[k])); };
 
   // العلامات (سهم / خط تحت / دايرة) واللمسات: بتتبني بعد ما مكان العناصر اتعرف (وبتتعاد لو التوزيع اتغيّر)

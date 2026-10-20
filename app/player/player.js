@@ -261,7 +261,7 @@
       const wb = (WB = await import("/player/player_wb.js?v=2"));
       await wb.handLayer($("#stage"));
       const sw = sceneWords(sc);
-      return await wb.createBoard(sc, el, { duration: sc.end - sc.start, palette: ID.palette, font: ID.font_heading, pace: PACE,
+      return await wb.createBoard(sc, el, { duration: sc.end - sc.start, palette: ID.palette, font: ID.font_heading, pace: PACE, subs: !!D.settings.subtitles,
         cue: (word) => { const w = sw.find((x) => norm(x.word) === norm(word)); return w ? Math.max(0, w.start - sc.start) : 0; } });
     },
     // مشهد 3D: شخصية بتمثّل في مكان، بكاميرا سينمائية (player3d.js)
@@ -299,6 +299,131 @@
     },
   };
 
+  // ---------- لحظات بصرية جوه المشهد (beats) ----------
+  // ليه: فيديو طويل كان كل مشهد فيه صورة واحدة ثابتة وعنوان من السكريبت («الكلام بيتكتب بس»، «الأشكال زي صورة ثابتة»).
+  // كل لحظة: صورة في دايرة بتظهر مع كلمتها بحركة على قد معناها، في المساحة الفاضية من المشهد (بتتقاس من العناصر نفسها)،
+  // وخط بيترسم منها للشكل الأساسي، والشكل الأساسي بيتفاعل معاها (نطّة صغيرة). مفيش كلام: الكلام في الترجمة.
+  // الصورة الأساسية بتتقاس من الرسمة نفسها (مش الصندوق اللي حواليها: الأيقونة بتاخد 62% منه بس، فكان باقي الشاشة بيتحسب «مليان»)
+  const CONTENT = ".zone .vis > svg, .zone .vis > img, .split-vis .vis > svg, .split-txt .w, .split-txt .bar, .ring, .num, .nlabel, .sbar, .row, .side, .vs, .qcard, .qtext .w, .grid .cell, .pcard, .hd .w, .kin .w, .chr, .bubble";
+  const SAFE_BOTTOM = () => (D.settings.subtitles ? 1330 : 1690);
+  function freeSlots(el, n) {
+    const er = el.getBoundingClientRect(), k = er.width / 1080 || 1;
+    const boxes = [...el.querySelectorAll(CONTENT)].map((x) => x.getBoundingClientRect()).filter((r) => r.width > 2 && r.height > 2)
+      .map((r) => ({ l: (r.left - er.left) / k, t: (r.top - er.top) / k, r: (r.right - er.left) / k, b: (r.bottom - er.top) / k }));
+    const R = { l: 30, t: 100, r: 1050, b: SAFE_BOTTOM() };
+    for (const S of [300, 250, 200, 170]) {
+      const pad = S > 200 ? 26 : 16, out = [];
+      const ok = (cx, cy) => cx - S / 2 >= R.l && cx + S / 2 <= R.r && cy - S / 2 >= R.t && cy + S / 2 <= R.b &&
+        !boxes.some((b) => cx + S / 2 + pad > b.l && cx - S / 2 - pad < b.r && cy + S / 2 + pad > b.t && cy - S / 2 - pad < b.b) &&
+        !out.some((o) => Math.hypot(o.x - cx, o.y - cy) < S + 30);
+      for (let j = 0; j < n; j++) {
+        let best = null, bs = -1;
+        for (let cy = R.t + S / 2; cy <= R.b - S / 2; cy += 24) for (let cx = R.l + S / 2; cx <= R.r - S / 2; cx += 24) {
+          if (!ok(cx, cy)) continue;
+          // بعيد عن اللحظات اللي قبلها (توزيع على الشاشة كلها)، والناحية بتتبادل
+          const d = out.length ? Math.min(...out.map((o) => Math.hypot(o.x - cx, o.y - cy))) : 400;
+          const side = out.length ? (Math.sign(cx - 540) !== Math.sign(out[out.length - 1].x - 540) ? 120 : 0) : (cx > 540 ? 60 : 0);
+          const sc = Math.min(d, 520) + side - Math.abs(cy - 760) * 0.05;
+          if (sc > bs) { bs = sc; best = { x: cx, y: cy, S }; }
+        }
+        if (!best) break;
+        out.push(best);
+      }
+      if (out.length >= Math.min(n, 3) || S === 170) {
+        const all = boxes.length ? boxes.reduce((a, b) => ({ l: Math.min(a.l, b.l), t: Math.min(a.t, b.t), r: Math.max(a.r, b.r), b: Math.max(a.b, b.b) })) : { l: 340, t: 600, r: 740, b: 900 };
+        return { slots: out, boxes, center: { x: (all.l + all.r) / 2, y: (all.t + all.b) / 2 } };
+      }
+    }
+    return { slots: [], boxes, center: { x: 540, y: 760 } };
+  }
+  const bounceOut = (x) => { x = clamp(x); const n = 7.5625, d = 2.75;
+    return x < 1 / d ? n * x * x : x < 2 / d ? n * (x -= 1.5 / d) * x + 0.75 : x < 2.5 / d ? n * (x -= 2.25 / d) * x + 0.9375 : n * (x -= 2.625 / d) * x + 0.984375; };
+  function beatMotion(kind, tm, S) {
+    switch (kind) {
+      case "bounce": return `translateY(${-Math.abs(Math.sin(tm * 3.1 / PACE)) * S * 0.07}px)`;
+      case "spin": return `rotate(${Math.sin(tm * 1.5 / PACE) * 14}deg)`;
+      case "pulse": { const ph = (tm / PACE) % 1.1; return `scale(${1 + 0.09 * Math.max(0, Math.sin(ph * Math.PI / 0.22)) * (ph < 0.44 ? 1 : 0)})`; }
+      case "shake": return `translateX(${Math.sin(tm * 38) * S * 0.035 * Math.exp(-tm * 2.2) + Math.sin(tm * 2.3) * 3}px) rotate(${Math.sin(tm * 31) * 6 * Math.exp(-tm * 2.2)}deg)`;
+      case "orbit": return `translate(${Math.cos(tm * 1.7 / PACE) * S * 0.06}px, ${Math.sin(tm * 1.7 / PACE) * S * 0.06}px)`;
+      case "grow": return `scale(${0.82 + 0.24 * easeOut(tm / 1.4) + 0.025 * Math.sin(tm * 2)})`;
+      case "drop": return `translateY(${-(1 - bounceOut(tm / 0.9)) * S * 0.9}px)`;
+      default: return `translateY(${Math.sin(tm * 1.7 / PACE) * S * 0.045}px)`;
+    }
+  }
+  async function buildBeats(sc, el) {
+    const list = (sc.beats || []).filter((b) => b.visual);
+    if (!list.length) return null;
+    const { slots, center } = freeSlots(el, list.length);
+    if (!slots.length) return null;
+    // التوقيت: مع كلمتها (بالترتيب)، وإلا بالتساوي على طول المشهد. أقل فرق 1.1 ث، وأول لحظة بعد الشكل الأساسي
+    const sw = sceneWords(sc), dur = sc.end - sc.start;
+    let last = (sc.cueL || 0) + 0.9 * PACE;
+    const times = list.map((b, i) => {
+      const even = last + Math.max(1.1, (dur - 0.8 - last) / (list.length - i + 0.3));
+      const w = b.word && sw.find((x) => norm(x.word) === norm(b.word) && x.start - sc.start >= last - 0.2);
+      const tt = Math.min(dur - 0.9, Math.max(last + (i ? 1.1 : 0), w ? w.start - sc.start - 0.08 : even));
+      last = tt; return tt;
+    });
+    const layer = document.createElement("div"); layer.className = "beats";
+    const svgNS = "http://www.w3.org/2000/svg";
+    const links = document.createElementNS(svgNS, "svg"); links.setAttribute("viewBox", "0 0 1080 1920"); links.setAttribute("class", "beat-links");
+    layer.appendChild(links); el.appendChild(layer);
+    const items = [];
+    for (const [i, b] of list.entries()) {
+      const sl = slots[i % slots.length], S = sl.S;
+      const box = document.createElement("div"); box.className = "beat";
+      box.style.cssText = `left:${sl.x - S / 2}px;top:${sl.y - S / 2}px;width:${S}px;height:${S}px`;
+      const col = i % 2 ? "var(--accent2)" : "var(--accent)";
+      box.innerHTML = `<div class="b-disc"></div><svg class="b-ring" viewBox="0 0 100 100"><circle cx="50" cy="50" r="46" style="stroke:${col}"/></svg>
+        <svg class="b-orbit" viewBox="0 0 100 100"><circle cx="50" cy="50" r="49" style="stroke:${col}"/></svg>
+        <svg class="b-burst" viewBox="-60 -60 120 120">${[...Array(8)].map((_, j) => { const a = j * Math.PI / 4; return `<line x1="${Math.cos(a) * 34}" y1="${Math.sin(a) * 34}" x2="${Math.cos(a) * 44}" y2="${Math.sin(a) * 44}" style="stroke:${col}"/>`; }).join("")}</svg>
+        <div class="b-mot"></div>`;
+      const v = await visual(b.visual, "small beat-vis");
+      box.querySelector(".b-mot").appendChild(v);
+      layer.appendChild(box);
+      // خط من اللحظة للشكل الأساسي (التفاعل مع الموضوع)
+      let path = null;
+      const dx = center.x - sl.x, dy = center.y - sl.y, dist = Math.hypot(dx, dy);
+      if (dist > S * 0.9) {
+        const sx = sl.x + dx / dist * S * 0.56, sy = sl.y + dy / dist * S * 0.56, ex = sl.x + dx * 0.62, ey = sl.y + dy * 0.62;
+        const mx = (sx + ex) / 2 - dy * 0.18, my = (sy + ey) / 2 + dx * 0.18;
+        path = document.createElementNS(svgNS, "path"); path.setAttribute("d", `M${sx},${sy} Q${mx},${my} ${ex},${ey}`); path.style.stroke = col;
+        links.appendChild(path);
+      }
+      items.push({ b, box, v, S, t0: times[i], t1: Infinity, slot: i % slots.length, path, ring: box.querySelector(".b-ring circle"), orbit: box.querySelector(".b-orbit"),
+                   burst: box.querySelector(".b-burst"), mot: box.querySelector(".b-mot"), disc: box.querySelector(".b-disc") });
+    }
+    // مكان متكرر: اللحظة القديمة بتخرج قبل الجديدة بشوية
+    items.forEach((it, i) => { const nx = items.slice(i + 1).find((x) => x.slot === it.slot); if (nx) it.t1 = nx.t0 - 0.05; });
+    const main = el.querySelector(".zone, .pcard, .split-vis, .chr, .rows, .grid, .qcard, .kin, .qtext, .side");
+    const RL = 2 * Math.PI * 46;
+    return (t) => {
+      let bump = 0;
+      for (const it of items) {
+        const tm = t - it.t0, out = clamp((t - (it.t1 - 0.3)) / 0.3);
+        const on = tm >= -0.01 && out < 1;
+        it.box.style.display = on ? "" : "none";
+        if (it.path) it.path.style.display = on ? "" : "none";
+        if (!on) continue;
+        const p = clamp(tm / (0.55 * PACE)), e = back(p);
+        it.box.style.opacity = clamp(p * 3) * (1 - out);
+        it.box.style.transform = `scale(${(0.3 + 0.7 * e) * (1 - 0.4 * out)})`;
+        it.ring.style.strokeDasharray = RL; it.ring.style.strokeDashoffset = RL * (1 - easeInOut(clamp((tm - 0.05) / (0.7 * PACE))));
+        it.orbit.style.transform = `rotate(${tm * 26 / PACE}deg)`; it.orbit.style.opacity = 0.55 * clamp((tm - 0.4) / 0.4);
+        const bp = clamp(tm / 0.6);
+        it.burst.style.opacity = bp > 0 && bp < 1 ? 1 - bp : 0; it.burst.style.transform = `scale(${0.9 + 0.7 * easeOut(bp)})`;
+        animate(it.v, tm - 0.08, it.v._paths ? "draw" : "pop", "none");
+        it.mot.style.transform = beatMotion(it.b.motion, Math.max(0, tm - 0.4), it.S);
+        if (it.path) {   // الخط بيترسم من اللحظة للشكل الأساسي، وبعدين بيهدى
+          const pp = easeInOut(clamp((tm - 0.15) / (0.5 * PACE)));
+          it.path.setAttribute("pathLength", 100); it.path.style.strokeDasharray = `${pp * 100} 100`;
+          it.path.style.opacity = (pp > 0 ? 0.25 + 0.45 * (1 - clamp((tm - 1.2) / 0.8)) : 0) * (1 - out); }
+        bump = Math.max(bump, 1 - Math.abs(tm - 0.18) / 0.24);
+      }
+      if (main) main.style.scale = String(1 + 0.035 * clamp(bump));
+    };
+  }
+
   // ---------- الخلفيات ----------
   function buildBackground(kind) {
     const bg = $("#bg");
@@ -306,13 +431,17 @@
     // السبورة مش لازم أبيض سادة: ورقة نقط أو مربعات أو ورق دافي، ثابتة لنفس الفيديو (من رقمه) وبتتغيّر من فيديو للتاني
     if (kind === "board") { const st = ID.board_style || ["dots", "grid", "paper", "dots"][[...String(PID)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % 4];
       bg.dataset.style = st; }
-    bg.innerHTML = `<div class="l1"></div><div class="l2"></div><canvas id="grain" width="270" height="480"></canvas>`;
+    bg.innerHTML = `<div class="l1"></div><div class="l2"></div><canvas id="grain" width="270" height="480"></canvas>` +
+      (kind === "board" ? "" : `<div class="motes">${[...Array(22)].map((_, i) => `<i class="m${i % 3}"></i>`).join("")}</div>`);   // ذرات بتطفو ببطء: الشاشة ما تبانش ثابتة أبدًا
     const g = $("#grain").getContext("2d"), img = g.createImageData(270, 480), r = rand(7);
     for (let i = 0; i < img.data.length; i += 4) { const v = 110 + r() * 145; img.data[i] = img.data[i + 1] = img.data[i + 2] = v; img.data[i + 3] = 255; }
     g.putImageData(img, 0, 0);
   }
   function renderBackground(t) {
     const l1 = $("#bg .l1"), l2 = $("#bg .l2"), k = ID.background;
+    [...document.querySelectorAll("#bg .motes i")].forEach((m, i) => { const r = rand(i * 977 + 13), x0 = r() * 1080, y0 = r() * 1920, sp = 18 + r() * 34, ph = r() * 6.28;
+      const y = ((y0 - t * sp) % 2000 + 2000) % 2000 - 40, x = x0 + Math.sin(t * 0.4 + ph) * 40;
+      m.style.transform = `translate(${x}px, ${y}px) scale(${0.6 + 0.6 * r()})`; m.style.opacity = 0.18 + 0.22 * (0.5 + 0.5 * Math.sin(t * 0.9 + ph)); });
     if (k === "blobs") { l1.style.transform = `translate(${-200 + 90 * Math.sin(t * 0.23)}px, ${-160 + 70 * Math.cos(t * 0.19)}px)`;
       l2.style.transform = `translate(${560 + 80 * Math.cos(t * 0.27)}px, ${1350 + 60 * Math.sin(t * 0.21)}px)`; }
     else if (k === "grid") l1.style.backgroundPosition = `${t * 12}px ${t * 18}px`;
@@ -370,6 +499,16 @@
       sc.cueL = w ? clamp(w.start - 0.1 - sc.start, 0, 0.8) : 0.15;
     });
 
+    // الكلام موجود في الترجمة: لما الترجمة شغالة، العنوان تحت الصورة (نفس كلام السكريبت ولازق في الترجمة) بيتشال من hero/card،
+    // ومشهد الكلام الكبير اللي ليه صورة بيبقى صورة. والشكل الأساسي دايمًا فيه حركة هادية (كان كتير منه «none» فيبان صورة ثابتة)
+    const IDLE = ["float", "pulse", "wobble"];
+    P.scenes.forEach((sc, i) => {
+      if (!sc.idle || sc.idle === "none") sc.idle = IDLE[i % 3];
+      if (D.settings.subtitles && P.type !== "whiteboard") {
+        if (["hero", "card"].includes(sc.layout)) sc.headline = "";
+        if (sc.layout === "kinetic" && (sc.visuals || []).length) { sc.layout = "hero"; sc.headline = ""; }
+      }
+    });
     const root = $("#scenes");
     for (const sc of P.scenes) {
       const el = document.createElement("div");
@@ -382,6 +521,10 @@
         console.warn("scene fallback", sc.id, e);
         el.className = "scene L-kinetic"; el.innerHTML = "";
         update = await LAYOUT.kinetic(sc, el);
+      }
+      if ((sc.beats || []).length && !["board", "scene3d", "custom", "character"].includes(sc.layout)) {
+        try { const bu = await buildBeats(sc, el); if (bu) { const u0 = update; update = (t) => { const r = u0(t); bu(t); return r; }; } }
+        catch (e) { console.warn("beats", sc.id, e); }
       }
       el.style.display = "none";
       scenes.push({ sc, el, update });

@@ -128,14 +128,14 @@ body.render #stage { transform: none !important; }
 .fx-flash { background: var(--surface); }
 
 /* الترجمة (كاريوكي): تحت المشهد وجوه المنطقة الآمنة (لحد y=1459) */
-#subs { position: absolute; left: 70px; right: 70px; top: 1270px; text-align: center; font: 600 52px/1.5 var(--font-b); color: var(--ink); z-index: 6; }
+#subs { position: absolute; left: 70px; right: 70px; top: 1400px; text-align: center; font: 600 52px/1.5 var(--font-b); color: var(--ink); z-index: 6; }
 #subs span { opacity: .35; }
 #subs span.said { opacity: 1; }
 #subs span.now { color: var(--accent); }
 
 /* حجم كلام كبير (من الخطة حسب ذوقك) */
 .large-text .hd { font-size: 132px; }
-.large-text #subs { font-size: 62px; top: 1250px; }
+.large-text #subs { font-size: 62px; top: 1385px; }
 .large-text .lb { font-size: 64px; }
 
 #controls { position: fixed; left: 0; right: 0; bottom: 0; display: flex; gap: 10px; align-items: center; padding: 10px 14px;
@@ -174,3 +174,28 @@ body.render #stage { transform: none !important; }
 .L-board .wb-text.number { font-weight: 800; }
 .L-board .wb-marks { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
 #hand svg { display: block; filter: drop-shadow(10px 18px 14px rgba(0,0,0,.18)); }
+
+/* لحظات بصرية جوه المشهد: صورة في دايرة + حلقة بتترسم + حلقة منقطة بتلف + شرارة دخول + خط للشكل الأساسي */
+.beats { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
+.beat-links { position: absolute; inset: 0; width: 1080px; height: 1920px; overflow: visible; }
+.beat-links path { fill: none; stroke-width: 6; stroke-linecap: round; }
+.beat { position: absolute; will-change: transform, opacity; }
+.beat .b-disc { position: absolute; inset: 7%; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--accent) 30%, var(--surface)), color-mix(in srgb, var(--accent) 10%, var(--surface)) 70%);
+  box-shadow: 0 0 70px color-mix(in srgb, var(--accent) 35%, transparent), 0 22px 44px rgba(0,0,0,.28), inset 0 -10px 0 color-mix(in srgb, var(--ink) 8%, transparent); }
+.beat svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.beat .b-ring circle { fill: none; stroke-width: 5; stroke-linecap: round; transform: rotate(-90deg); transform-origin: 50% 50%; }
+.beat .b-orbit circle { fill: none; stroke-width: 1.6; stroke-dasharray: 2 7; stroke-linecap: round; }
+.beat .b-orbit { transform-origin: 50% 50%; }
+.beat .b-burst line { stroke-width: 5; stroke-linecap: round; }
+.beat .b-mot { position: absolute; inset: 16%; will-change: transform; color: var(--ink); }
+.beat .vis { color: var(--ink); }
+.beat .vis.small.icon svg * { stroke-width: 2px; }
+.beat .vis.small.icon svg, .beat .vis.small.emoji svg { width: 86%; height: 86%; }
+.beat .vis.illustration svg { width: 100%; height: 100%; }
+
+/* ذرات بتطفو في الخلفية */
+#bg .motes { position: absolute; inset: 0; pointer-events: none; }
+#bg .motes i { position: absolute; left: 0; top: 0; width: 14px; height: 14px; border-radius: 50%; background: var(--accent); filter: blur(1px); will-change: transform, opacity; }
+#bg .motes i.m1 { width: 8px; height: 8px; background: var(--accent2); }
+#bg .motes i.m2 { width: 22px; height: 22px; background: transparent; border: 3px solid color-mix(in srgb, var(--accent) 70%, transparent); filter: none; }

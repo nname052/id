@@ -311,7 +311,8 @@ def _run_job(mid, key, params, origin, note, data_override, base_input) -> bool:
             inp = read_stage(mid, p, inp_ref["version"]) if inp_ref else None
             base = read_stage(mid, key, r["current"]) if r.get("current") else None
             b = brief_of(m)
-            user = {**((base or {}).get("user_params") or {}), **(params or {})}   # اللي إنت غيّرته بنفسك (بالكلام) بيكسب على الطلب
+            pend = (m.get("pending") or {}).get(key) or {}   # تعديلات الاستوديو المستنية دورها (اتحفظت مع تعديل في مرحلة قبلها)
+            user = {**((base or {}).get("user_params") or {}), **pend, **(params or {})}   # اللي إنت غيّرته بنفسك (بالكلام) بيكسب على الطلب
             prm = {**DEFAULTS[key], **brief_params(key, b), **user}
             ctx = {"m": m, "mid": mid, "d": state.mdir(mid), "key": key, "params": prm, "inp": inp, "vd": vd, "brief": b}
             if data_override is not None:
@@ -336,6 +337,7 @@ def _run_job(mid, key, params, origin, note, data_override, base_input) -> bool:
                     meta.update(sources=doc["sources"], schema=S1_SCHEMA)
                 rr["versions"].append(meta)
                 rr.update(current=n, approved=None, job="idle", error=None)
+                (mm.get("pending") or {}).pop(key, None)
             state.update(mid, upd)
             return True
         except Exception as e:  # noqa: BLE001
@@ -373,6 +375,31 @@ def studio_apply(mid: str, key: str, params: dict, note: str = "", sync: bool = 
         finally:
             _active.discard((mid, key))
     run() if sync else threading.Thread(target=run, daemon=True).start()
+
+
+def studio_save(mid: str, params: dict, segments_data: dict | None = None, note: str = "") -> str:
+    """حفظ الاستوديو (v3) مرة واحدة: كل المراحل اللي اتغيّرت. أول مرحلة بتتعاد دلوقتي، والباقي بيستنى دوره (pending)
+    ويتطبق وهي بتتعاد في نفس السلسلة، فالمونتاج بيتعمل مرة واحدة بس. بيرجّع أول مرحلة."""
+    m = fix_orphans(state.load(mid))
+    if _busy(m):
+        raise Blocked("فيه شغل شغال دلوقتي، استنى لما يخلص")
+    keys = [k for k in PIPE if k in params or (k == "s2_cut" and segments_data is not None)]
+    if not keys:
+        raise Blocked("مفيش تعديلات")
+    first = keys[0]
+
+    def put(mm):
+        pd = mm.setdefault("pending", {})
+        for k in keys[1:]:
+            pd[k] = {**(pd.get(k) or {}), **params[k]}
+    state.update(mid, put)
+    if first == "s2_cut" and segments_data is not None:
+        r = record(m, first)
+        base = read_stage(mid, first, r["current"])
+        start(mid, first, params.get(first), origin="manual", note=note or "تعديل من الاستوديو", data_override=segments_data, base_input=base["input"], cascade=True)
+    else:
+        studio_apply(mid, first, params[first], note)
+    return first
 
 
 # إعدادات الجرافيك الافتراضية (بتتعدّل من الاستوديو): أنواع مسموحة، والكثافة، ولون التأكيد، والحجم، والصور، والمؤثرات
@@ -648,7 +675,8 @@ def finalize_s2(ctx, data: dict):
     envs = {sid: env_of(ctx["d"] / next(x for x in ctx["m"]["sources"] if x["id"] == sid)["work"])
             for sid in {s["source"] for s in data["segments"]} if s1["sources"][sid]["probe"]["has_audio"]}
     thr = min([v.get("silence_db", -35) for v in s1["sources"].values() if v.get("silence_db") is not None] or [-35])
-    _pull_to_silence(data["segments"], s1)
+    if not data.pop("_exact", False):   # قصّك من الاستوديو بالمؤشر بالظبط: ما بيتحركش لأقرب سكتة
+        _pull_to_silence(data["segments"], s1)
     _quantize(data["segments"], data["fps"])
     for g in data["segments"]:
         g["cut_in"]["t"], g["cut_out"]["t"] = g["start"], g["end"]

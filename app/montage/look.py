@@ -54,6 +54,26 @@ FILTER_PRESETS = {
     "pastel": {"label": "باستيل", "vf": "eq=saturation=0.7:brightness=0.04,curves=all='0/0.08 1/1'"},
     "cyber": {"label": "سايبر (بنفسجي وسماوي)", "group": "cinema", "vf": "colorbalance=rs=0.06:bs=0.1:gm=-0.06:rh=-0.04:bh=0.06,eq=contrast=1.1:saturation=1.2"},
     "high_key": {"label": "منوّر ناعم", "vf": "eq=brightness=0.06:contrast=0.92,curves=all='0/0.06 1/1'"},
+    # مكتبة الاستوديو v3 (أكتر سينمائي)
+    "blockbuster": {"label": "سينما: أكشن", "group": "cinema", "vf": "colorbalance=rs=-0.12:gs=-0.03:bs=0.14:rh=0.1:gh=0.03:bh=-0.1,eq=contrast=1.15:saturation=1.05,vignette=angle=0.45"},
+    "desert": {"label": "سينما: صحرا", "group": "cinema", "vf": "colortemperature=temperature=4200:mix=0.6,eq=contrast=1.08:saturation=1.12,curves=b='0/0 1/0.88'"},
+    "arctic": {"label": "سينما: تلج", "group": "cinema", "vf": "colortemperature=temperature=9500:mix=0.55,eq=saturation=0.7:contrast=1.05,curves=master='0/0.03 1/1'"},
+    "vintage70": {"label": "سبعينات", "group": "cinema", "vf": "curves=r='0/0.08 1/0.98':g='0/0.06 1/0.94':b='0/0.12 1/0.82',eq=saturation=0.85"},
+    "polaroid": {"label": "بولارويد", "vf": "curves=all='0/0.1 0.5/0.55 1/0.95',colortemperature=temperature=5600:mix=0.5,eq=saturation=0.9"},
+    "chrome": {"label": "كروم", "vf": "eq=contrast=1.12:saturation=1.3,curves=preset=increase_contrast"},
+    "nordic": {"label": "سينما: شمالي", "group": "cinema", "vf": "eq=saturation=0.6,colorbalance=bs=0.05:bm=0.02,curves=all='0/0.08 1/0.95'"},
+    "tokyo": {"label": "سينما: ليل طوكيو", "group": "cinema", "vf": "colorbalance=rs=0.08:bs=0.14:gs=-0.06:rh=-0.05:bh=0.08,eq=contrast=1.12:saturation=1.15:brightness=-0.02"},
+    "emerald": {"label": "زمردي", "group": "cinema", "vf": "colorbalance=gs=0.07:bs=0.04:rs=-0.04:rh=0.02,eq=saturation=1.05"},
+    "rose": {"label": "وردي ناعم", "vf": "colorbalance=rs=0.05:bs=0.03:rh=0.04,curves=all='0/0.05 1/1',eq=saturation=0.95"},
+    "amber": {"label": "كهرماني", "group": "cinema", "vf": "colorbalance=rs=0.08:gs=0.03:bs=-0.08:rm=0.04:bm=-0.04,eq=contrast=1.05"},
+    "silver": {"label": "سينما: فضي", "group": "cinema", "vf": "eq=saturation=0.35:contrast=1.2,curves=master='0/0.02 0.5/0.5 1/0.98'"},
+    "dramatic": {"label": "سينما: درامي", "group": "cinema", "vf": "eq=contrast=1.28:saturation=0.9:brightness=-0.03,vignette=angle=0.55"},
+    "dreamy": {"label": "حالم", "vf": "curves=all='0/0.1 0.6/0.68 1/1',eq=saturation=0.85:brightness=0.03,colortemperature=temperature=6000:mix=0.4"},
+    "indie": {"label": "سينما: إندي", "group": "cinema", "vf": "curves=b='0/0.1 1/0.95':r='0/0.04 1/1',eq=saturation=0.82:contrast=1.04"},
+    "sunset": {"label": "غروب", "group": "cinema", "vf": "colorbalance=rs=0.1:gs=-0.02:bs=0.04:rh=0.08:bh=-0.06,eq=saturation=1.12"},
+    "forest": {"label": "غابة", "vf": "colorbalance=gs=0.06:gm=0.03:rs=-0.02,eq=saturation=1.08:contrast=1.04"},
+    "documentary": {"label": "وثائقي", "group": "cinema", "vf": "eq=contrast=1.06:saturation=0.85,curves=master='0/0.02 1/0.98'"},
+    "lomo": {"label": "لومو", "vf": "eq=saturation=1.3:contrast=1.15,vignette=angle=0.7"},
 }
 MANUAL_KEYS = ("exposure", "contrast", "saturation", "warmth", "vibrance", "shadows", "vignette", "sharpen")
 

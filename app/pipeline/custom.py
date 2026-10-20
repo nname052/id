@@ -31,7 +31,7 @@ kit.palette = {bg, ink, accent, accent2, surface}, kit.fonts = {heading, body}, 
 قواعد إجبارية:
 - ممنوع: Math.random، Date، performance.now، requestAnimationFrame، setTimeout، setInterval، fetch، أي رابط http، CSS transition أو animation.
 - الحركة كلها محسوبة من t. لو محتاج عشوائي استخدم kit.rand(رقم ثابت).
-- الكلام المهم جوه المنطقة الآمنة: y من 200 لـ 1200 (تحت 1250 فيه الترجمة، ومتسيبش حاجة مهمة هناك)، و x من 60 لـ 1000.
+- الكلام المهم جوه المنطقة الآمنة: y من 200 لـ 1300 (تحت 1330 فيه الترجمة، ومتسيبش حاجة مهمة هناك)، و x من 60 لـ 1000.
 - أصغر خط 56px، والعناوين بخط kit.fonts.heading وبوزن 700 أو 800. الكلام عربي من الجملة نفسها.
 - خلفية المشهد شفافة (الخلفية العامة موجودة). ممكن تضيف أشكال جوه المشهد.
 - استخدم ألوان kit.palette بس.

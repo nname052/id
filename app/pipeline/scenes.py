@@ -3,6 +3,7 @@
 المشاهد اللي نوعها custom بيصممها Claude بالكود في custom.py."""
 
 import hashlib
+import math
 import re
 import time
 
@@ -79,7 +80,7 @@ SCHEMA = {"type": "object", "properties": {
         "required": ["palette", "font_heading", "font_body", "background", "transition", "look3d"], "additionalProperties": False},
     "pace": {"type": "string", "enum": ["calm", "normal", "energetic"]},
     "text_size": {"type": "string", "enum": ["normal", "large"]},
-    "scenes": {"type": "array", "minItems": 1, "maxItems": 20, "items": SCENE}},
+    "scenes": {"type": "array", "minItems": 1, "maxItems": 40, "items": SCENE}},
     "required": ["identity", "pace", "text_size", "scenes"], "additionalProperties": False}
 
 # ---------- السبورة البيضاء ----------
@@ -199,7 +200,7 @@ def relevant(hit: dict, terms: list[str], kind: str = "icon") -> bool:
 
 
 def resolve_visual(v: dict | None, pid: str, used: set, recent: set, toon: str, salt: str, idea: list | None = None,
-                   icon_only: bool = False) -> dict | None:
+                   icon_only: bool = False, allow_draw: bool = True) -> dict | None:
     """بيلاقي الملف للصورة: من النوع المطلوب، ولو مفيش بينزل للنوع اللي بعده.
     الترتيب: المكتبات المحلية (لازم على قد المعنى) ← أيقونة أونلاين للكلمة الأساسية ← رسمة جديدة بيرسمها التطبيق للفكرة."""
     if not v:
@@ -235,7 +236,7 @@ def resolve_visual(v: dict | None, pid: str, used: set, recent: set, toon: str, 
         if hit and relevant(hit, terms, "icon"):
             return take("icon", hit)
     # مفيش حاجة على قد المعنى: التطبيق بيرسمها
-    got = drawn.reuse(terms, blocked) or drawn.draw(pid, terms, idea, blocked)
+    got = drawn.reuse(terms, blocked) or (drawn.draw(pid, terms, idea, blocked) if allow_draw else None)
     if got:
         used.add(got["asset"])
     return got
@@ -397,7 +398,7 @@ JUDGE_SYSTEM = """إنت مراجع صور لفيديو شرح. لكل عنصر 
 زي ["ambulance phone call"] أو ["donut box"] أو ["tired man in bed"]. مش كلمة عامة زي hand أو man لوحدها."""
 
 
-def replacement(want: list[str], pid: str, used: set, recent: set, idea: list | None) -> dict | None:
+def replacement(want: list[str], pid: str, used: set, recent: set, idea: list | None, allow_draw: bool = True) -> dict | None:
     """بديل لرسمة اترفضت: أيقونة اسمها فيه **كل** كلمات الحاجة المطلوبة (donut box ← لازم donut و box)، وإلا التطبيق بيرسمها.
     ليه: البديل بالكلمة الواحدة كان بيكرر نفس الغلطة («stroke FAST signs» ← mail-fast، «drooping mouth face» ← وش عادي)."""
     need = {_stem(w) for w in assets._words(want[0]) if w not in GENERIC and len(w) > 2} if want else set()
@@ -407,6 +408,8 @@ def replacement(want: list[str], pid: str, used: set, recent: set, idea: list | 
             hit = assets.ensure_local(hit)
             used.add(hit["file"])
             return {"kind": "icon", "asset": hit["file"], "asset_name": hit["name"], "license": hit.get("license"), "fetched": hit.get("fetched", False)}
+    if not allow_draw:
+        return None
     got = drawn.draw(pid, want, idea, blocked)
     if got:
         used.add(got["asset"])
@@ -439,6 +442,42 @@ def judge_board_visuals(scenes: list, pid: str, used: set, recent: set, toon: st
             it["visual"], it["kind"] = new, new["kind"]
             sc["visuals"] = [new if v is old or v.get("asset") == old["asset"] else v for v in sc.get("visuals") or []]
             report["replaced"].append({"scene": sc["id"], "from": old["asset"], "to": new["asset"]})
+    return report
+
+
+def judge_beats(scenes: list, pid: str, used: set, recent: set, ask_fn=None, max_draw: int = 14) -> dict:
+    """نفس مراجعة المعنى للحظات البصرية: «برج إيفل» لـ «هيهات» و«كوبري» لـ «السلطة» كانوا بيعدّوا بكلمة مشتركة.
+    اللي مش على قد المعنى بيتبدّل بأيقونة على قد الحاجة نفسها، أو التطبيق بيرسمها (لحد max_draw)، وإلا اللحظة بتتشال."""
+    slots = [(sc, b) for sc in scenes for b in sc.get("beats") or []]
+    report = {"checked": len(slots), "rejected": [], "replaced": [], "dropped": []}
+    if not slots:
+        return report
+    lines = [f"{n}. فكرة المشهد: {sc.get('idea') or ''} · الكلمة اللي بتتقال: «{b.get('word')}» · المطلوب يترسم: {', '.join(b.get('search') or [])}"
+             f" · الرسمة المختارة: «{b['visual'].get('asset_name')}» ({b['visual']['kind']})" for n, (sc, b) in enumerate(slots)]
+    try:
+        res = (ask_fn or (lambda sy, us, sc: ask(pid, "scenes", sy, us, sc)))(JUDGE_SYSTEM, "\n".join(lines), JUDGE_SCHEMA)
+    except Exception as e:  # noqa: BLE001
+        report["error"] = str(e)[:200]
+        return report
+    drew = 0
+    for vd in res.get("verdicts") or []:
+        if vd.get("fits") is not False or not (0 <= vd.get("n", -1) < len(slots)):
+            continue
+        sc, b = slots[vd["n"]]
+        old = b["visual"]
+        want = [w for w in vd.get("draw_instead") or [] if w.strip()][:3] or b.get("search") or []
+        new = replacement(want, pid, used | {old["asset"]}, recent, sc.get("idea_en"), allow_draw=drew < max_draw)
+        drew += bool(new and new.get("drawn"))
+        report["rejected"].append({"scene": sc["id"], "word": b.get("word"), "asset": old["asset"], "why": vd.get("why"), "instead": want})
+        if new:
+            b.update(visual=new, search=want)
+            report["replaced"].append({"scene": sc["id"], "from": old["asset"], "to": new["asset"]})
+        else:
+            b["drop"] = True
+            report["dropped"].append({"scene": sc["id"], "word": b.get("word")})
+    for sc in scenes:
+        if sc.get("beats"):
+            sc["beats"] = [b for b in sc["beats"] if not b.get("drop")]
     return report
 
 
@@ -526,6 +565,96 @@ def fill_empty_boards(scenes: list, script: dict, pid: str, used: set, recent: s
     return rep
 
 
+# ---------- لحظات بصرية جوه كل مشهد (beats) ----------
+# ليه: فيديو 88 ث طلع 13 مشهد، كل واحد فيه رسمة واحدة وعنوان من السكريبت ← «الكلام بيتكتب بس» و«الأشكال ثابتة زي صورة» و«الجرافيك قليل».
+# دلوقتي كل مشهد ليه صور إضافية بتظهر مع كلامها (واحدة كل ~2 ث على قد طوله)، كل واحدة بحركة على قد معناها، والمشغّل بيوزّعها في المساحة الفاضية.
+BEAT_MOTIONS = ["bounce", "spin", "pulse", "shake", "orbit", "grow", "drop", "float"]
+BEATS_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["scenes"], "properties": {"scenes": {"type": "array", "items": {
+    "type": "object", "additionalProperties": False, "required": ["id", "beats"], "properties": {
+        "id": {"type": "string"},
+        "beats": {"type": "array", "maxItems": 6, "items": {"type": "object", "additionalProperties": False, "required": ["word", "search", "kind", "motion"],
+                  "properties": {"word": {"type": "string"}, "search": {"type": "array", "items": {"type": "string"}, "minItems": 1, "maxItems": 4},
+                                 "kind": {"type": "string", "enum": ["icon", "illustration", "emoji"]}, "motion": {"type": "string", "enum": BEAT_MOTIONS}}}}}}}}}
+NO_BEATS = ("scene3d", "custom", "board", "character")
+
+
+def beats_needed(dur: float) -> int:
+    """عدد اللحظات على قد طول المشهد: واحدة كل ~2 ث بعد أول 1.6 ث (الشكل الأساسي)، ولحد 5."""
+    return max(0, min(5, round((dur - 1.6) / 2.0)))
+
+
+def scene_durations(scenes: list, timing: dict) -> list[float]:
+    first, total = timing["first"], timing["total"]
+    st = [0.0 if k == 0 else max(0.0, min(first.get(i, 1e9) for i in sc["sentence_ids"]) - 0.2) for k, sc in enumerate(scenes)]
+    return [round((st[k + 1] if k + 1 < len(st) else total) - st[k], 2) for k in range(len(st))]
+
+
+def plan_beats(pid: str, scenes: list, script: dict, used: set, recent: set, toon: str, ask_fn=None) -> dict:
+    """طلب واحد للفيديو كله: لكل مشهد صور إضافية مربوطة بكلمة، والكود بيدوّر على ملفاتها (من غير رسم جديد علشان السرعة)."""
+    durs = scene_durations(scenes, scene_timing(pid))
+    text = {s["id"]: s["text"] for s in script["sentences"]}
+    want = {sc["id"]: (0 if sc["layout"] in NO_BEATS else beats_needed(d)) for sc, d in zip(scenes, durs)}
+    lines = [f"{sc['id']} · {d:.1f} ث · عدد {want[sc['id']]} · {sc['layout']} · {sc.get('idea', '')} · " + " ".join(text.get(i, "") for i in sc["sentence_ids"])
+             for sc, d in zip(scenes, durs) if want[sc["id"]]]
+    stat = {"wanted": sum(want.values()), "placed": 0, "missing": 0, "llm_error": None}
+    if not lines:
+        return stat
+    try:
+        data = (ask_fn or (lambda s, u, sch: ask(pid, "scenes", s, u, sch)))(prompt("scene_beats", scenes="\n".join(lines)), "اعمل اللحظات البصرية لكل مشهد.", BEATS_SCHEMA)
+        got = {x["id"]: x["beats"] for x in data.get("scenes") or []}
+    except Exception as e:  # noqa: BLE001
+        got, stat["llm_error"] = {}, str(e)[:200]
+    for k, sc in enumerate(scenes):
+        n = want.get(sc["id"], 0)
+        if not n:
+            sc["beats"] = []
+            continue
+        cand = list(got.get(sc["id"]) or [])
+        # تأمين: لو الطلب فشل أو جاب أقل من المطلوب، نكمّل من كلمات فكرة المشهد (كل كلمة صورة)
+        for term in sc.get("idea_en") or []:
+            if len(cand) >= n + 2:
+                break
+            cand.append({"word": "", "search": [term], "kind": "icon", "motion": BEAT_MOTIONS[(k + len(cand)) % len(BEAT_MOTIONS)]})
+        out = []
+        # نفس أيقونة المشهد من مكتبة تانية (hand-stop و tabler-hand-stop) = تكرار، فبنقارن بالاسم من غير البادئة
+        stem = lambda a: re.sub(r"^(tabler|mdi|lucide|ph|fluent|material-symbols|carbon|icon-park-outline|streamline)-", "", a.rsplit("/", 1)[-1].rsplit(".", 1)[0])  # noqa: E731
+        mine = {stem(v["asset"]) for v in sc.get("visuals") or []} | {stem(it["visual"]["asset"]) for it in sc.get("items") or [] if it.get("visual")}
+        for j, b in enumerate(cand):
+            if len(out) >= n:
+                break
+            # جوه دايرة صغيرة: الأيقونة بتتقري، والرسمة الكاملة (موقف فيه ناس) بتبقى شخبطة صغيرة، فالأيقونة الأول
+            kind = "icon" if b["kind"] == "illustration" else b["kind"]
+            v = resolve_visual({"kind": kind, "search": b["search"]}, pid, used, recent, toon, f"{k}beat{j}", sc.get("idea_en"), allow_draw=False)
+            if v and v.get("kind") == "illustration" and not v.get("drawn"):
+                v = None
+            if v and stem(v["asset"]) in mine:
+                v = None
+            if v and v.get("kind") != "character":
+                mine.add(stem(v["asset"]))
+                out.append({"word": b.get("word") or "", "visual": v, "motion": b["motion"] if b["motion"] in BEAT_MOTIONS else "float", "search": b["search"]})
+        sc["beats"] = out
+    stat["judge"] = judge_beats(scenes, pid, used, recent, ask_fn)
+    for sc in scenes:
+        stat["placed"] += len(sc.get("beats") or [])
+    stat["missing"] = stat["wanted"] - stat["placed"]
+    return stat
+
+
+def add_beats(pid: str) -> dict:
+    """لحظات بصرية لخطة موجودة (من غير ما المشاهد تتعاد): نفس الهوية والمشاهد، والصور الإضافية بس."""
+    d = store.project_dir(pid)
+    plan = store.read_json(d / "scenes" / "plan.json")
+    script = store.read_json(d / "script.json")
+    used = {v["asset"] for s in plan["scenes"] for v in s.get("visuals") or []} | {it["visual"]["asset"] for s in plan["scenes"] for it in s.get("items") or [] if it.get("visual")}
+    stat = plan_beats(pid, plan["scenes"], script, used, history.recent_assets(skip_pid=pid), plan.get("character") or "", None)
+    plan["beats"] = stat
+    files = [b["visual"]["asset"] for s in plan["scenes"] for b in s.get("beats") or []]
+    plan["credits"] = sorted(set(plan.get("credits") or []) | set(assets.credits_for(files) or []))
+    store.write_json(d / "scenes" / "plan.json", plan)
+    store.log(pid, f"✨ لحظات بصرية جوه المشاهد: {stat['placed']} من {stat['wanted']}" + (f" (الطلب فشل: {stat['llm_error']})" if stat["llm_error"] else ""))
+    return stat
+
+
 def _system(pid: str, proj: dict, vtype: str) -> tuple[str, dict]:
     d = store.project_dir(pid)
     script = store.read_json(d / "script.json")
@@ -534,7 +663,9 @@ def _system(pid: str, proj: dict, vtype: str) -> tuple[str, dict]:
     # مدة كل جملة بالثواني جنبها: علشان المشهد ياخد وقت كفاية، وعدد عناصر السبورة يناسب الوقت
     sentences = "\n".join(f"{s['id']} ({secs.get(s['id'], 0):.1f} ث): {s['text']}" for s in script["sentences"])
     b = store.read_json(d / "brief.json")
-    common = dict(sentences=sentences, min_scenes=max(3, (n + 1) // 2), max_scenes=n, recent=history.summary(skip_pid=pid) or "(مفيش)",
+    # فيديو طويل = مشاهد أكتر (مشهد كل ~5.5 ث على الأقل): 88 ث كانت 13 مشهد بس، كل واحد فيه صورة واحدة ← فيديو بيكرر نفسه
+    total = sum(secs.values())
+    common = dict(sentences=sentences, min_scenes=min(n, max(3, (n + 1) // 2, math.ceil(total / 5.5))), max_scenes=n, recent=history.summary(skip_pid=pid) or "(مفيش)",
                   brief=brief_stage.as_text(b) if b else "(مفيش رؤية: اختار إنت)", writer=writer_block(script, vtype))
     vg = proj["settings"].get("voice_gender", "")
     voice = {"male": "راجل", "female": "ست"}.get(vg, "غير محدد")
@@ -640,7 +771,11 @@ def run(pid: str, instruction: str | None = None) -> None:
             "palette": ident["palette"], "pace": data["pace"], "text_size": data["text_size"], "character": toon, "scenes": scenes,
             "min_scene": MIN_SCENE_SECONDS, "merged_short_scenes": n_merged, "rejected_visuals": rejected, "writer_check": writer_check, "visual_judge": judged,
             "raw": [{k: v for k, v in sc.items() if k in ("sentence_ids", "layout", "headline", "board")} for sc in data["scenes"]]}
+    if vtype != "whiteboard":
+        plan["beats"] = plan_beats(pid, scenes, script, used, recent, toon)
+        store.log(pid, f"✨ لحظات بصرية جوه المشاهد: {plan['beats']['placed']} من {plan['beats']['wanted']}")
     files = [v["asset"] for s in scenes for v in s["visuals"]] + [it["visual"]["asset"] for s in scenes for it in s["items"] if it.get("visual")]
+    files += [b["visual"]["asset"] for s in scenes for b in s.get("beats") or []]
     plan["credits"] = assets.credits_for(files)
     store.write_json(d / "scenes" / "plan.json", plan)
 

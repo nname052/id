@@ -275,17 +275,30 @@ ENUM = {norm(w) for w in ("اولا", "أولا", "تانيا", "ثانيا", "�
 REVEAL = {norm(w) for w in ("الحقيقه", "الحقيقة", "المفاجأه", "المفاجأة", "المفاجاه", "تخيل", "تخيّل", "السر", "الصدمه", "الصدمة", "فجأة", "فجأه", "surprise", "imagine")}
 # xfade لكل نوع انتقال (والمدة بالثواني). whip بيتبادل اتجاهه علشان ما يبانش متكرر
 XFADE = {"dissolve": ("fade", None), "whip": ("smoothleft", 0.22), "whip_r": ("smoothright", 0.22), "zoom": ("zoomin", 0.32), "flash": ("fadewhite", 0.2),
-         "fadeblack": ("fadeblack", 0.4), "slide": ("slideleft", 0.3), "circle": ("circleopen", 0.4), "blur": ("hblur", 0.35), "wipe": ("wipeleft", 0.3)}
+         "fadeblack": ("fadeblack", 0.4), "slide": ("slideleft", 0.3), "circle": ("circleopen", 0.4), "blur": ("hblur", 0.35), "wipe": ("wipeleft", 0.3),
+         # مكتبة الاستوديو (v3): كل اسم = transition في ffmpeg xfade بالظبط، والمعاينة في المتصفح بتقلّده
+         "slide_r": ("slideright", 0.3), "slide_up": ("slideup", 0.3), "slide_down": ("slidedown", 0.3), "cover": ("coverleft", 0.32),
+         "reveal": ("revealleft", 0.32), "wipe_r": ("wiperight", 0.3), "wipe_up": ("wipeup", 0.3), "wipe_diag": ("wipetl", 0.35),
+         "circle_close": ("circleclose", 0.4), "radial": ("radial", 0.4), "rect": ("rectcrop", 0.4), "vert_open": ("vertopen", 0.35),
+         "horz_open": ("horzopen", 0.35), "slices": ("hlslice", 0.4), "vslices": ("vuslice", 0.4), "squeeze": ("squeezeh", 0.32),
+         "pixelize": ("pixelize", 0.45), "grays": ("fadegrays", 0.45), "smooth_up": ("smoothup", 0.3), "diag": ("diagtl", 0.4),
+         "wind": ("hlwind", 0.4), "distance": ("distance", 0.4), "dissolve_px": ("dissolve", 0.4), "fadefast": ("fadefast", 0.3)}
 # أسماء الانتقالات للاستوديو (اختيار يدوي لكل قطعة)
 TRANSITION_KINDS = {"hard": "قطع عادي", "jumpzoom": "زووم على الوش", "dissolve": "مزج ناعم", "fadeblack": "إظلام", "flash": "فلاش أبيض",
-                    "whip": "سحبة سريعة", "slide": "انزلاق", "zoom": "زووم دخول", "circle": "دايرة بتتفتح", "blur": "ضباب", "wipe": "مسح"}
+                    "whip": "سحبة سريعة", "slide": "انزلاق", "zoom": "زووم دخول", "circle": "دايرة بتتفتح", "blur": "ضباب", "wipe": "مسح",
+                    "slide_r": "انزلاق يمين", "slide_up": "انزلاق لفوق", "slide_down": "انزلاق لتحت", "cover": "غطا", "reveal": "كشف",
+                    "wipe_r": "مسح يمين", "wipe_up": "مسح لفوق", "wipe_diag": "مسح مايل", "circle_close": "دايرة بتتقفل", "radial": "عقارب",
+                    "rect": "مربع", "vert_open": "ستارة", "horz_open": "ستارة أفقي", "slices": "شرايح", "vslices": "شرايح رأسي",
+                    "squeeze": "عصر", "pixelize": "بكسلات", "grays": "رمادي ومزج", "smooth_up": "سحبة لفوق", "diag": "زاوية",
+                    "wind": "ريح", "distance": "مسافة", "dissolve_px": "تنقيط", "fadefast": "مزج سريع"}
 
 
 def apply_overrides(transitions: list[dict], overrides: dict, fps: int) -> int:
     """اختيارك لكل قطعة من الاستوديو بيكسب على الخطة الأوتوماتيك: {رقم القطعة: {kind, speed}}. speed: fast/normal/slow."""
     n = 0
     for tr in transitions:
-        o = (overrides or {}).get(str(tr["index"]))
+        # بالجزء اللي بعد القصّة («@g3») علشان ما يتلخبطش لو الأجزاء اتقصت/اتمسحت، والقديم برقم القطعة
+        o = (overrides or {}).get("@" + str(tr.get("before"))) or (overrides or {}).get(str(tr["index"]))
         if not o or o.get("kind") not in TRANSITION_KINDS:
             continue
         k = o["kind"]

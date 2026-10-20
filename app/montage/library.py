@@ -32,6 +32,22 @@ SFX_KINDS = {
     "riser": (["whoosh riser short", "swell rise"], 3.0, 2),
     "sparkle": (["sparkle", "magic twinkle", "shimmer"], 2.5, 3),
     "swipe": (["swipe", "page swipe", "slide whoosh"], 1.2, 3),
+    # مكتبة الاستوديو v3: أنواع أكتر تتحط على أي مشهد
+    "typing": (["typing keyboard", "keyboard typing short", "typewriter"], 2.5, 3),
+    "camera": (["camera shutter", "camera click", "photo shutter"], 1.2, 3),
+    "notify": (["notification", "message notification", "ui notification"], 1.5, 4),
+    "bell": (["bell", "small bell", "service bell"], 2.5, 3),
+    "cartoon": (["cartoon boing", "boing", "cartoon spring"], 1.5, 3),
+    "glitch": (["glitch", "digital glitch", "static glitch"], 1.2, 3),
+    "success": (["success", "positive chime", "level up"], 2.0, 3),
+    "error": (["error buzz", "wrong answer", "buzzer short"], 1.2, 3),
+    "coin": (["coin", "coins", "cash register"], 1.5, 3),
+    "tick": (["clock tick", "ticking", "tick tock"], 2.0, 3),
+    "paper": (["paper rustle", "page turn", "paper flip"], 1.5, 3),
+    "laugh": (["audience laugh short", "crowd laugh"], 3.0, 2),
+    "applause": (["applause short", "clapping"], 3.0, 2),
+    "heartbeat": (["heartbeat", "heart beat"], 2.5, 2),
+    "drum": (["drum roll short", "rimshot", "ba dum tss"], 3.0, 3),
 }
 
 
