@@ -328,6 +328,24 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
     return false;
   }
 
+  /** مكان مايتمشيش فيه على الرجل: جوه عمارة، أو جوه/تحت مطلع كوبري واطي (ردم مقفول مش كوبري مفتوح) */
+  walkBlocked(x, z) {
+    const segs = this.deckGrid.get(Math.floor(x / 20) * 100003 + Math.floor(z / 20));
+    if (segs) for (const s of segs) {
+      const ex = s.bx - s.ax, ez = s.bz - s.az, l2 = ex * ex + ez * ez || 1e-9;
+      const t = Math.max(0, Math.min(1, ((x - s.ax) * ex + (z - s.az) * ez) / l2));
+      const h = s.ay + (s.by - s.ay) * t;
+      if (h > 0.35 && h < 4.3 && Math.hypot(x - (s.ax + ex * t), z - (s.az + ez * t)) < s.hw + 0.6) return true;
+    }
+    const a = this.colGrid.get(Math.floor(x / 16) * 100003 + Math.floor(z / 16));
+    if (a) for (const c of a) {
+      if (c.kind !== 'building' || c.dead) continue;
+      const dx = x - c.cx, dz = z - c.cz, ca = Math.cos(c.angle), sa = Math.sin(c.angle);
+      if (Math.abs(dx * ca - dz * sa) < c.hx + 0.1 && Math.abs(dx * sa + dz * ca) < c.hz + 0.1) return true;
+    }
+    return false;
+  }
+
   /** النقطة دي تحت (أو على) سطح أي كوبري؟ */
   _underDeck(x, z) {
     const segs = this.deckGrid.get(Math.floor(x / 20) * 100003 + Math.floor(z / 20));
@@ -564,7 +582,7 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
     if (segs) {
       // أقرب سطح كوبري (بالمسافة من خطه) من اللي العربية ممكن تكون عليهم — مش "الأعلى":
       // الأعلى كان بيلقط الكوبري اللي جنبك أو طرف قطعة ممدود قبل بدايتها = قفزة/انقلاب
-      let bestD = Infinity, bh = null, bestE = null;
+      let bestD = Infinity, bh = null, bestE = null, bestHw = 0;
       const cand = this._cand || (this._cand = []); cand.length = 0;
       for (const s of segs) {
         const ex = s.bx - s.ax, ez = s.bz - s.az, l2 = ex * ex + ez * ez || 1e-9;
@@ -579,7 +597,7 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
         // أعلى/أوطى منه مايشقلبش العربية — ومن بينهم الأقرب لخطه (عشان التفريعة تمشي مع اللي ماشي عليها)
         if (Math.abs(h - ref) > 0.8 || h < g - 0.05) continue;
         cand.push(d, h);
-        if (d < bestD) { bestD = d; bh = h; bestE = s.e; }
+        if (d < bestD) { bestD = d; bh = h; bestE = s.e; bestHw = s.hw; }
       }
       // تنعيم عند انحناءات الخط: متوسط موزون للقطع القريبة (وزن بينزل لصفر خطيًا) — مفيش عتبات عند الكوع
       if (cand.length > 2) {
@@ -588,7 +606,9 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
         if (sw > 0) bh = sh / sw;
       }
       // أول/آخر المطلع (واطي) جنب شارع على الأرض موازي ليه: لو العربية أقرب لخط الشارع، فهي على الشارع
-      if (bh !== null && bh < 1.2 && (ref < bh - 0.12 ? this._groundRoadNearer(x, z, Infinity, null) : bh < 0.8 && this._groundRoadNearer(x, z, bestD, bestE))) bh = null;
+      // (بس لو العربية مش في قلب حارة المطلع: عند التفريعة الشارع الأرضي بيلمس المطلع، وكانت العربية اللي ماشية
+      //  على المطلع بتتحسب على الشارع → المطلع يعلى فوقها وهي تفضل تحته = "دخلت الكوبري ولقيت نفسي تحت")
+      if (bh !== null && bh < 1.2 && bestD > bestHw * 0.55 && (ref < bh - 0.12 ? this._groundRoadNearer(x, z, Infinity, null) : bh < 0.8 && this._groundRoadNearer(x, z, bestD, bestE))) bh = null;
       if (bh !== null) g = bh;
     }
     return g;

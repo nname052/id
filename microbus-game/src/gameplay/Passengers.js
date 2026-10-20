@@ -640,6 +640,7 @@ export class Passengers {
       let best = null, bd = 22 * 22;
       for (const c of a) {
         if (c.ax * q.dx + c.az * q.dz < 0.6) continue; // نفس اتجاه السير (الرصيف اللي على إيدك اليمين)
+        if (this.world?.walkBlocked?.(c.x, c.z)) continue; // مش جوه عمارة/مطلع كوبري
         const d2 = (c.x - q.x) ** 2 + (c.z - q.z) ** 2;
         if (d2 < bd) { bd = d2; best = c; }
       }

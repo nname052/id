@@ -49,7 +49,8 @@ export class ShibinCrowd {
     p.dx = _p.dx; p.dz = _p.dz; p.nx = nx; p.nz = nz;
   }
 
-  _ok(x, z) { return Math.abs(this.world.height(x, z, 0) - 0.15) < 0.01; }
+  // رصيف + مش جوه عمارة ولا جوه/تحت مطلع كوبري واطي (كانوا بيمشوا جوه الكوبري ويطلعوا من الحيطان)
+  _ok(x, z) { return Math.abs(this.world.height(x, z, 0) - 0.15) < 0.01 && !this.world.walkBlocked?.(x, z); }
 
   _spawn(p, cx, cz, fx, fz, rMin, rMax) {
     for (let tries = 0; tries < 8; tries++) {
