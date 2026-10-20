@@ -20,6 +20,13 @@
       traffic LOD keeps sedan windows (multi-material); building material swap with hysteresis (no "refreshing");
       mobile pixel ratio floor 1.3, slower step-up; mobile traffic radius 195 m. Same-machine A/B (mobile emu):
       13.2/11.9 → 13.7/12.2 avg FPS (old/new runs alternated). Tests: boarding, city-life, microbus-lines PASS.
+- [x] Third round: traffic LOD colour matched to the full car (measured mean colour, same spot/light: all types
+      within ~8%; glossy LOD material, sedan paint correction, glass simplified separately with its own dark
+      material); far buildings use the facade texture mip (mean colour 154/151/144 vs 153/150/144); urban ground
+      darker (was snow-white around the stadium); stadium outer wall rebuilt (ground floor + windows, openings,
+      coping); camera never below ground in close/chase; antialias on all tiers except saver; mobile pixel ratio
+      1.4–1.8; more cars (mobile 34 + 28 parked, desktop 68 + 48). A/B mobile emu: 12.3/12.6 → 11.8/11.8 FPS.
+      Overpass: driving checked (car height within 12 cm of the deck along the whole ramp) — visual issue unclear.
 - [!] Real-phone FPS with the denser city still needs checking by the user.
 
 # PROGRESS — Audit, real-city default, performance overhaul, HiAce front fix, cockpit (V34 pass)
