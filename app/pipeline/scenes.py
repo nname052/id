@@ -614,12 +614,14 @@ TEXT_LAYOUTS = ("kinetic", "quote", "question")   # مشاهد كلام: بتب�
 
 
 def beats_needed(dur: float, layout: str = "hero") -> int:
-    """عدد الصور الإضافية: كل صورة (حتى الأساسية) بتفضل ~2.8 ث على الشاشة («ملحقتش أشوفها» لما كانت كل ثانيتين).
-    مشهد صورته واحدة: الصور بعد الأساسية. مشهد كلام: الصور كلها. القوايم والمقارنة والرقم: عندهم عناصرهم."""
+    """عدد العناصر الإضافية في التكوين (بتتجمّع وتفضل لحد آخر المشهد): عنصر كل ~2 ث بعد الأساسي، لحد 3.
+    مشهد كلام: الأول بيبقى الأساسي، فعنصر زيادة. القوايم والمقارنة والرقم: عندهم عناصرهم.
+    ليه: صورة مكان صورة (كل 2.8 ث) طلّعت «قللت الموشن جرافيك ومش متوازن» (taste.md 7/7ب)."""
+    n = int((dur - 1.5) / 2.0 + 0.5)
     if layout in SEQ_LAYOUTS:
-        return max(0, min(3, int((dur - 0.6) // 2.8) - 1))
+        return max(1, min(3, n))
     if layout in TEXT_LAYOUTS:
-        return max(1, min(3, int(dur // 2.8)))
+        return max(2, min(4, n + 1))
     return 0
 
 
@@ -627,6 +629,32 @@ def scene_durations(scenes: list, timing: dict) -> list[float]:
     first, total = timing["first"], timing["total"]
     st = [0.0 if k == 0 else max(0.0, min(first.get(i, 1e9) for i in sc["sentence_ids"]) - 0.2) for k, sc in enumerate(scenes)]
     return [round((st[k + 1] if k + 1 < len(st) else total) - st[k], 2) for k in range(len(st))]
+
+
+def shape_key(asset: str) -> frozenset:
+    """كلمات اسم الشكل (من غير بادئة المكتبة ولا رقم رسمة التطبيق): hourglass-low و hourglass، falling-crown و fallen-crown = نفس الشكل."""
+    a = re.sub(r"^(tabler|mdi|lucide|ph|fluent|material-symbols|carbon|icon-park-outline|streamline|flat-color-icons)-", "", asset.rsplit("/", 1)[-1].rsplit(".", 1)[0])
+    ws = {_stem(w) for w in re.split(r"[-_ ]+", a.lower()) if len(w) >= 4 and not re.fullmatch(r"[0-9a-f]{6,}", w)} - {_stem(w) for w in GENERIC}
+    return frozenset(ws or {a.lower()})
+
+
+def dedupe_beats(scenes: list) -> int:
+    """آخر خطوة: أي عنصر شكله زي الصورة الأساسية أو عنصر قبله في نفس المشهد (كلمة مشتركة في الاسم) بيتشال.
+    ليه: البديل من مراجعة المعنى كان بيعدّي من غير الفحص ده، فطلع تاج بيغرق وتاج واقع في نفس المشهد."""
+    n = 0
+    for sc in scenes:
+        seen = [shape_key(v["asset"]) for v in sc.get("visuals") or []] + [shape_key(it["visual"]["asset"]) for it in sc.get("items") or [] if it.get("visual")]
+        keep = []
+        for b in sc.get("beats") or []:
+            k = shape_key(b["visual"]["asset"])
+            if any(k & x for x in seen):
+                n += 1
+                continue
+            seen.append(k)
+            keep.append(b)
+        if sc.get("beats"):
+            sc["beats"] = keep
+    return n
 
 
 def plan_beats(pid: str, scenes: list, script: dict, used: set, recent: set, toon: str, ask_fn=None) -> dict:
@@ -657,19 +685,20 @@ def plan_beats(pid: str, scenes: list, script: dict, used: set, recent: set, too
             cand.append({"word": "", "search": [term], "kind": "icon", "motion": BEAT_MOTIONS[(k + len(cand)) % len(BEAT_MOTIONS)]})
         out = []
         # نفس أيقونة المشهد من مكتبة تانية (hand-stop و tabler-hand-stop) = تكرار، فبنقارن بالاسم من غير البادئة
-        stem = lambda a: re.sub(r"^(tabler|mdi|lucide|ph|fluent|material-symbols|carbon|icon-park-outline|streamline)-", "", a.rsplit("/", 1)[-1].rsplit(".", 1)[0])  # noqa: E731
-        mine = {stem(v["asset"]) for v in sc.get("visuals") or []} | {stem(it["visual"]["asset"]) for it in sc.get("items") or [] if it.get("visual")}
+        # والشكل نفسه بأسماء مختلفة (hourglass-low و hourglass، crown و crown-off) = تكرار: بنقارن بأول كلمة في الاسم
+        mine = [shape_key(v["asset"]) for v in sc.get("visuals") or []] + [shape_key(it["visual"]["asset"]) for it in sc.get("items") or [] if it.get("visual")]
         for j, b in enumerate(cand):
             if len(out) >= n:
                 break
             v = resolve_visual({"kind": b["kind"], "search": b["search"]}, pid, used, recent, toon, f"{k}beat{j}", sc.get("idea_en"), allow_draw=False)
-            if v and stem(v["asset"]) in mine:
+            if v and any(shape_key(v["asset"]) & x for x in mine):
                 v = None
             if v and v.get("kind") != "character":
-                mine.add(stem(v["asset"]))
+                mine.append(shape_key(v["asset"]))
                 out.append({"word": b.get("word") or "", "clause": b.get("clause") or "", "visual": v, "motion": b["motion"] if b["motion"] in BEAT_MOTIONS else "float", "search": b["search"]})
         sc["beats"] = out
     stat["judge"] = judge_beats(scenes, pid, used, recent, ask_fn)
+    stat["duplicates_removed"] = dedupe_beats(scenes)
     for sc in scenes:
         stat["placed"] += len(sc.get("beats") or [])
     stat["missing"] = stat["wanted"] - stat["placed"]

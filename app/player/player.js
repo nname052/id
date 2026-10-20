@@ -333,42 +333,75 @@
       default: return `translateY(${Math.sin(tm * 1.5) * 14}px)`;
     }
   }
-  async function buildBeats(sc, el) {
+  // تكوين متوازن: الصورة الأساسية كبيرة في النص، ومع كل جزء من الكلام عنصر جديد بيدخل ويفضل لحد آخر المشهد،
+  // والأساسية بتتحرك لمكانها في التكوين النهائي (فوق) والعناصر تحتها بنفس الوزن. ليه: صورة مكان صورة طلّعت «قللت الموشن جرافيك ومش متوازن»،
+  // ودواير صغيرة سريعة طلّعت «ملحقتش أشوفها». الأماكن نسبة من منطقة المحتوى: [x المركز، y المركز، المقاس كنسبة من الارتفاع]
+  const COMPOSE = {
+    0: { main: [0.5, 0.45, 0.78], sup: [] },
+    1: { main: [0.5, 0.29, 0.56], sup: [[0.5, 0.79, 0.40]] },
+    2: { main: [0.5, 0.28, 0.55], sup: [[0.26, 0.78, 0.43], [0.74, 0.78, 0.43]] },
+    // 3: الأوسط الأول وبعدين الجنبين (علشان الشاشة تفضل متوازنة وهي بتتملى)
+    3: { main: [0.5, 0.27, 0.53], sup: [[0.5, 0.80, 0.32], [0.17, 0.74, 0.32], [0.83, 0.74, 0.32]] },
+  };
+  LAYOUT.compose = async function (sc, el) {
+    const A = { x: 60, y: 190, w: 960, h: D.settings.subtitles ? 1140 : 1480 };
     const list = (sc.beats || []).filter((b) => b.visual);
-    const box = el.querySelector(".zone, .pcard, .split-vis");
-    if (!list.length || !box) return null;
-    const main = box.querySelector(".vis");
+    let mainSrc = (sc.visuals || [])[0], mainMotion = sc.idle === "pulse" ? "pulse" : "float";
+    if (!mainSrc && list.length) { const f = list.shift(); mainSrc = f.visual; mainMotion = f.motion; }
     const sw = sceneWords(sc), dur = sc.end - sc.start;
-    // التوقيت: مع أول كلمة في الجزء بتاعها، بس كل صورة (حتى الأساسية) بتاخد MIN_HOLD على الأقل؛ واللي ما لهاش وقت بتتشال
-    let last = main ? (sc.cueL || 0) : -MIN_HOLD;
-    const items = [];
-    for (const b of list) {
-      const w = b.word && sw.find((x) => norm(x.word) === norm(b.word) && x.start - sc.start > last + 0.5);
-      let t0 = Math.max(last + MIN_HOLD, w ? w.start - sc.start - 0.1 : last + MIN_HOLD);
-      if (!main && !items.length) t0 = Math.max(0.15, w ? Math.min(w.start - sc.start - 0.1, 0.6) : 0.3);
-      if (t0 > dur - MIN_HOLD + 0.3) break;
-      const v = await visual(b.visual, "seq");
-      box.appendChild(v);
-      items.push({ b, v, t0 }); last = t0;
+    // التوقيت: مع أول كلمة في الجزء بتاعه، بس مش متأخر عن مكانه لو اتوزعوا بالتساوي (علشان كله يلحق)، وبفرق 0.9 ث على الأقل،
+    // وآخر عنصر بيدخل قبل آخر المشهد بـ 2.6 ث (يتشاف). اللي ما يلحقش بيتشال (كان بيتشال كتير لما الكلمة متأخرة ← «قللت الجرافيك»)
+    const start0 = (sc.cueL || 0) + 0.9 * PACE, endMax = dur - 2.6, GAP = 0.9 * PACE;
+    const n = Math.max(0, Math.min(3, list.length, Math.floor((endMax - start0) / GAP) + 1));
+    const step = n > 1 ? (endMax - start0) / (n - 1) : 0;
+    let last = -1;
+    const sup = [];
+    for (const [i, b] of list.slice(0, n).entries()) {
+      const slot = start0 + i * step;
+      const w = b.word && sw.find((x) => norm(x.word) === norm(b.word) && x.start - sc.start > last + 0.3);
+      const t0 = Math.max(last < 0 ? start0 : last + GAP, Math.min(w ? w.start - sc.start - 0.1 : slot, slot));
+      if (t0 > endMax + 1e-3) break;
+      sup.push({ b, t0 }); last = t0;
     }
-    if (!items.length) return null;
-    items.forEach((it, i) => (it.t1 = i + 1 < items.length ? items[i + 1].t0 : Infinity));
-    const EXIT = 0.45 * PACE;
+    const L = COMPOSE[sup.length];
+    // المقاس من الارتفاع، ومحدود بالعرض: العناصر المساعدة التلاتة جنب بعض ← تلت العرض؛ الأساسية ← العرض كله (كان التلت بيتطبق عليها فتصغر لـ 300)
+    const rect = ([cx, cy, k], isSup) => { const S = Math.min(k * A.h, A.w * (isSup && sup.length >= 3 ? 0.31 : isSup && sup.length === 2 ? 0.47 : 0.96));
+      return { x: A.x + cx * A.w - S / 2, y: A.y + cy * A.h - S / 2, s: S }; };
+    const mk = async (src, cls) => { const w = document.createElement("div"); w.className = `cmp ${cls}`; const m = document.createElement("div"); m.className = "cmp-mot";
+      const v = await visual(src, cls === "sup" ? "small" : ""); m.appendChild(v); w.appendChild(m); el.appendChild(w);
+      // الرسمة على قد حدودها (رسومات التطبيق فيها فراغ كبير جوه ملفها، فكانت بتبان صغيرة وباهتة)
+      const svg = v.querySelector(":scope > svg");
+      if (svg && src.kind !== "character") { w.style.width = w.style.height = "600px";
+        try { const bb = svg.getBBox(); if (bb.width > 1 && bb.height > 1) { const pd = Math.max(bb.width, bb.height) * 0.06;
+          svg.setAttribute("viewBox", `${bb.x - pd} ${bb.y - pd} ${bb.width + 2 * pd} ${bb.height + 2 * pd}`);
+          // سُمك الخط بوحدات الملف علشان يطلع ~7 بكسل على الشاشة (رسم الخط بالـ dash محتاج وحدات الملف نفسها)
+          const px = cls === "main" ? 8 : 6, shown = svg.clientWidth || 500;
+          svg.style.setProperty("--sw", ((bb.width + 2 * pd) / shown * px * (cls === "main" ? 600 / 560 : 1)).toFixed(3)); } } catch {} }
+      return { w, m, v }; };
+    const main = mainSrc ? await mk(mainSrc, "main") : null;
+    const big = rect(COMPOSE[0].main), fin = rect(L.main);
+    for (const [i, it] of sup.entries()) {
+      Object.assign(it, await mk(it.b.visual, "sup" + (it.b.visual.kind === "illustration" ? " ill" : "")), { r: rect(L.sup[i], true) });
+      const r = it.r; it.w.style.cssText = `left:${r.x}px;top:${r.y}px;width:${r.s}px;height:${r.s}px`;
+    }
+    const place = (w, r) => { w.style.left = r.x + "px"; w.style.top = r.y + "px"; w.style.width = r.s + "px"; w.style.height = r.s + "px"; };
     return (t) => {
-      // الصورة الأساسية بتخرج لما أول صورة تدخل
-      if (main) { const q = clamp((t - items[0].t0) / EXIT), o = parseFloat(main.style.opacity);   // "0" قبل دخولها لازم يفضل 0 (كان «|| 1» بيظهرها)
-        main.style.opacity = String(Math.min(Number.isNaN(o) ? 1 : o, 1 - q));
-        if (q > 0) main.style.transform = `scale(${1 - 0.18 * easeInOut(q)}) translateY(${-60 * easeInOut(q)}px)`; }
-      for (const it of items) {
-        const tm = t - it.t0, out = clamp((t - it.t1) / EXIT);
-        if (tm < 0 || out >= 1) { it.v.style.opacity = 0; continue; }
-        const p = clamp(tm / (0.8 * PACE));
-        animate(it.v, tm, it.v._paths ? "draw" : "fade", "none");   // الأيقونة بتترسم خط بخط
-        it.v.style.opacity = clamp(p * 2.5) * (1 - out);
-        it.v.style.transform = `${seqEnter(it.b.motion, p)} ${p >= 1 ? seqIdle(it.b.motion, tm - 0.8 * PACE) : ""} ${out > 0 ? `scale(${1 - 0.18 * easeInOut(out)}) translateY(${-60 * easeInOut(out)}px)` : ""}`;
+      if (main) {   // الأساسية: كبيرة في النص، وبتتحرك لمكانها لما أول عنصر يدخل
+        const q = sup.length ? easeInOut(clamp((t - sup[0].t0 + 0.15) / (0.7 * PACE))) : 0;
+        place(main.w, { x: lerp(big.x, fin.x, q), y: lerp(big.y, fin.y, q), s: lerp(big.s, fin.s, q) });
+        animate(main.v, t - (sc.cueL || 0), main.v._paths ? "draw" : (sc.enter || "rise"), "none");
+        main.m.style.transform = t > (sc.cueL || 0) + 1 ? seqIdle(mainMotion, t - (sc.cueL || 0) - 1) : "";
+      }
+      for (const it of sup) {
+        const tm = t - it.t0, p = clamp(tm / (0.8 * PACE));
+        it.w.style.opacity = tm < 0 ? 0 : clamp(p * 2.5);
+        if (tm < 0) continue;
+        it.w.style.transform = seqEnter(it.b.motion, p);
+        animate(it.v, tm, it.v._paths ? "draw" : "fade", "none");
+        it.m.style.transform = p >= 1 ? seqIdle(it.b.motion, tm - 0.8 * PACE) : "";
       }
     };
-  }
+  };
 
   // ---------- الخلفيات ----------
   function buildBackground(kind) {
@@ -450,6 +483,9 @@
     const IDLE = ["float", "pulse", "wobble"];
     P.scenes.forEach((sc, i) => {
       if (!sc.idle || sc.idle === "none") sc.idle = IDLE[i % 3];
+      // مشهد صورة/كلام وليه عناصر إضافية: تكوين متوازن بيتجمّع (العنوان والكلام في الترجمة)
+      if ((sc.beats || []).some((b) => b.visual) && ["hero", "card", "split", "kinetic", "quote", "question"].includes(sc.layout) && (D.settings.subtitles || !sc.headline)) {
+        sc.layout = "compose"; sc.headline = ""; }
       if (D.settings.subtitles && P.type !== "whiteboard") {
         if (["hero", "card"].includes(sc.layout)) sc.headline = "";
         // مشهد كلام (اللي هو نفسه في الترجمة) وليه صور: بيبقى صور
@@ -470,10 +506,6 @@
         update = await LAYOUT.kinetic(sc, el);
       }
       if (sc.layout === "hero" && !sc.headline) el.classList.add("nohd");
-      if ((sc.beats || []).length && ["hero", "card", "split"].includes(sc.layout)) {
-        try { const bu = await buildBeats(sc, el); if (bu) { const u0 = update; update = (t) => { const r = u0(t); bu(t); return r; }; } }
-        catch (e) { console.warn("beats", sc.id, e); }
-      }
       el.style.display = "none";
       scenes.push({ sc, el, update });
     }
