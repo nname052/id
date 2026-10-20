@@ -18,7 +18,8 @@ function skipHidden(root) {
 import { findRoute } from '../../nav/RoadGraph.js';
 import { canvas, tex } from '../../render/textures.js';
 
-const TYPES = ['sedan', 'boxy', 'taxi', 'microbus', 'sedan', 'taxi', 'tuktuk', 'microbus', 'boxy', 'moto', 'sedan', 'taxi', 'tuktuk', 'microbus'];
+// (العربيات الإجرائية المربعة والموتوسيكل اتشالوا: كانوا شكلهم غريب — موديلات حقيقية بس)
+const TYPES = ['sedan', 'taxi', 'microbus', 'sedan', 'taxi', 'tuktuk', 'microbus', 'sedan', 'taxi', 'microbus', 'sedan', 'tuktuk'];
 const SMALL = { tuktuk: { vMul: 0.62, mass: 420 }, moto: { vMul: 0.9, mass: 220 } };
 const ACTIVE_R = 230, SPAWN_MIN = 70, DESPAWN_R = 280;
 const CLASS_W = { motorway: 3, trunk: 3, primary: 3, secondary: 2.6, tertiary: 2.2, unclassified: 1.4, residential: 1, living_street: 0.4, service: 0.25, road: 1, track: 0.15 };
@@ -34,6 +35,7 @@ export class ShibinTraffic {
     this._stops = []; this._slows = [];
     this.parked = [];
     this.viewDist = 170;
+    this._remotes = [];
     this.night = false;
     this.max = count;
     this.lodNear = 38;
@@ -53,7 +55,7 @@ export class ShibinTraffic {
       });
     }
     // عربيات مركونة على جنب الشارع (نسخة مخبوزة خفيفة، ثابتة) — بس في الشوارع اللي فيها مكان جنب حارة المرور
-    const PT = ['sedan', 'boxy', 'taxi', 'boxy', 'microbus', 'sedan'];
+    const PT = ['sedan', 'taxi', 'sedan', 'microbus', 'sedan', 'taxi'];
     for (let i = 0; i < parked; i++) {
       const type = PT[i % PT.length];
       const rig = makeCar(type, CAR_COLORS[Math.floor(this.R() * CAR_COLORS.length)], { parked: true });
@@ -559,6 +561,7 @@ export class ShibinTraffic {
   }
 
   update(dt, player, camPos) {
+    this._remotes = this.remotePlayers?.() || [];
     const pl = player.physics;
     this._py = pl.heave - pl.spec.cgHeight;
     const [fx, fz] = pl.forward;
@@ -647,6 +650,15 @@ export class ShibinTraffic {
       if (Math.abs(o.y - c.y) > 2.5) continue;
       const g = lon - (o.len + c.len) / 2;
       if (g < gap) { gap = g; vLead = (o.lastDx * hx + o.lastDz * hz) * o.v; }
+    }
+    // اللاعبين التانيين (أونلاين): زيهم زي عربيتك — المرور بيقف وراهم مش بيعدّي من جواهم
+    for (const o of this._remotes) {
+      const dx = o.x - c.x, dz = o.z - c.z;
+      if (Math.abs(dx) > 50 || Math.abs(dz) > 50 || Math.abs((o.y || 0) - c.y) > 2.5) continue;
+      const lon = dx * hx + dz * hz, lat = Math.abs(dx * -hz + dz * hx);
+      if (lon <= 0 || lon > 50 || lat > 1.4 + o.hw) continue;
+      const g = lon - c.len / 2 - o.hl;
+      if (g < gap) { gap = g; vLead = Math.max(0, (-Math.sin(o.yaw) * hx - Math.cos(o.yaw) * hz) * o.v); }
     }
     // ناس بتعدّي الشارع قدامي: أقف
     for (const q of this.crowd?.crossers || []) {

@@ -1,9 +1,7 @@
 import * as THREE from 'three';
-import { buildCar } from '../vehicles/CarModels.js';
-import { buildTrafficHiace } from '../vehicles/TrafficHiace.js';
-import { buildTuktukRig } from '../vehicles/PlayerRigs.js';
-import { addDriver } from '../world/Pedestrians.js';
-import { MICROBUS_SPEC, TUKTUK_SPEC_BASE, TAXI_SPEC_BASE } from '../physics/VehiclePhysics.js';
+import { PlayerVehicle } from '../vehicles/PlayerVehicle.js';
+import { makeLodMesh } from '../vehicles/TrafficLod.js';
+import { groundHeight } from '../world/ground.js';
 
 // اللعب الجماعي: كل اللي فاتحين اللعبة في نفس اللحظة بيشوفوا بعض.
 // بنستخدم "presence" بتاع الـ room (كل لاعب بينشر حالته: رقمه، اسمه، عربيته، مكانه) — مفيش سيرفر.
@@ -13,19 +11,25 @@ export const SEATS = 7;
 const SIZES = { microbus: [0.85, 2.35], taxi: [0.88, 2.22], tuktuk: [0.68, 1.35] };
 const LABEL_Y = { microbus: 2.75, taxi: 2.05, tuktuk: 2.3 };
 const SEND_HZ = 12;
+const DELAY = 0.15; // بنرسم العربيات التانية متأخرة 150 مللي: بين موقعين حقيقيين وصلوا (مفيش رعشة بين الرسايل)
+// لون لكل رقم (فوق العربية وعلى الخريطة)
+export const SEAT_COLORS = ['#f2b330', '#e8463c', '#2f9bff', '#22c55e', '#a855f7', '#f97316', '#14b8a6', '#ec4899'];
+export const seatColor = (seat) => SEAT_COLORS[(+seat || 0) % SEAT_COLORS.length];
 
 function labelSprite(seat, name) {
   const c = document.createElement('canvas'); c.width = 512; c.height = 128;
   const x = c.getContext('2d');
   x.fillStyle = 'rgba(14,14,16,0.72)';
   x.beginPath(); x.roundRect(8, 16, 496, 96, 40); x.fill();
-  x.fillStyle = '#f2b330'; x.beginPath(); x.arc(64, 64, 34, 0, Math.PI * 2); x.fill();
+  x.fillStyle = seatColor(seat); x.beginPath(); x.arc(64, 64, 34, 0, Math.PI * 2); x.fill();
+  x.strokeStyle = seatColor(seat); x.lineWidth = 6; x.beginPath(); x.roundRect(8, 16, 496, 96, 40); x.stroke();
   x.fillStyle = '#1a1408'; x.font = 'bold 48px Cairo, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
   x.fillText(String(seat), 64, 68);
   x.fillStyle = '#ffffff'; x.font = 'bold 50px Cairo, sans-serif'; x.direction = 'rtl';
   x.fillText((name || `لاعب ${seat}`).slice(0, 16), 300, 68);
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
-  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: true, transparent: true, opacity: 0.85 }));
+  // depthTest مقفول: الاسم بيبان حتى لو عربية تانية/عمود واقف قدامه (كان بيستخبى لما عربيتين جنب بعض)
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false, transparent: true, opacity: 0.9 }));
   // صغير (مايغطيش الطريق) وبيبان من بعيد بس — قريب منك بيختفي
   s.scale.set(1.5, 0.375, 1);
   s.renderOrder = 5;
@@ -118,6 +122,7 @@ export class Multiplayer {
     if (this._mine) this._mine.visible = !['cockpit', 'chase', 'hood', 'close'].includes(g.cams?.modeId);
     // عربيات اللاعبين التانيين
     const seen = new Set();
+    const now = performance.now() / 1000;
     for (const p of this.others()) {
       const pr = p.presence;
       if (!Array.isArray(pr.p) || pr.p.length < 8) continue;
@@ -125,20 +130,44 @@ export class Multiplayer {
       seen.add(p.peer);
       let R = this.remotes.get(p.peer);
       const kind = SIZES[pr.kind] ? pr.kind : 'microbus';
-      if (!R || R.kind !== kind || R.seat !== pr.seat || R.name !== pr.name) { if (R) this._drop(R); R = this._make(p.peer, kind, pr.seat, pr.name); this.remotes.set(p.peer, R); }
-      // الحالة الجاية + توقع بسيط بالسرعة عشان الحركة تبقى ناعمة بين الرسايل
-      if (p.updatedAt !== R.at) { R.at = p.updatedAt; R.tgt = pr.p.slice(); R.age = 0; if (!R.cur) R.cur = pr.p.slice(); }
-      R.age += dt;
-      const [x, z, yaw, y, pitch, roll, steer, v] = R.tgt;
-      const ex = x - Math.sin(yaw) * v * Math.min(R.age, 0.4), ez = z - Math.cos(yaw) * v * Math.min(R.age, 0.4);
-      const k = Math.min(1, dt * 10), c = R.cur;
-      c[0] += (ex - c[0]) * k; c[1] += (ez - c[1]) * k; c[3] += (y - c[3]) * k;
-      let dy = yaw - c[2]; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); c[2] += dy * k;
-      c[4] += (pitch - c[4]) * k; c[5] += (roll - c[5]) * k; c[6] += (steer - c[6]) * k; c[7] = v;
-      if (Math.hypot(ex - c[0], ez - c[1]) > 25) { c[0] = ex; c[1] = ez; c[2] = yaw; } // اتنقل (reset)
+      if (!R || R.kind !== kind) { if (R) this._drop(R); R = this._make(p.peer, kind, pr.seat, pr.name); this.remotes.set(p.peer, R); }
+      if (R.seat !== pr.seat || R.name !== pr.name) this._relabel(R, pr.seat, pr.name);
+      // كل رسالة جديدة = لقطة بوقتها؛ بنرسم عند (دلوقتي − 150 مللي) بين اللقطتين اللي حواليه
+      if (p.updatedAt !== R.at) {
+        R.at = p.updatedAt;
+        const snap = { t: now, p: pr.p.slice() };
+        const last = R.snaps[R.snaps.length - 1];
+        if (last && Math.hypot(snap.p[0] - last.p[0], snap.p[1] - last.p[1]) > 40) R.snaps.length = 0; // اتنقل (reset): من غير ما يتسحب على الطريق
+        R.snaps.push(snap); if (R.snaps.length > 12) R.snaps.shift();
+      }
+      const c = this._sample(R, now - DELAY);
+      if (!c) continue;
+      R.cur = c;
       this._pose(R, c, dt, pr);
     }
     for (const [peer, R] of this.remotes) if (!seen.has(peer)) { this._drop(R); this.remotes.delete(peer); }
+  }
+
+  /** الحالة عند وقت t: بين لقطتين (خطي، والاتجاه بأقصر لفة)، أو توقع بالسرعة لحد نص ثانية بعد آخر لقطة */
+  _sample(R, t) {
+    const S = R.snaps;
+    if (!S.length) return null;
+    let i = S.length - 1;
+    while (i > 0 && S[i - 1].t > t) i--;
+    const b = S[i], a = S[i - 1];
+    const out = (R._out ||= new Array(8));
+    if (a && a.t <= t && b.t >= t && b.t > a.t) {
+      const u = (t - a.t) / (b.t - a.t);
+      for (let k = 0; k < 8; k++) out[k] = a.p[k] + (b.p[k] - a.p[k]) * u;
+      let dy = b.p[2] - a.p[2]; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); out[2] = a.p[2] + dy * u;
+      out[6] = a.p[6] + (b.p[6] - a.p[6]) * u;
+    } else {
+      // أحدث من آخر لقطة (الرسايل اتأخرت): نكمل بنفس السرعة شوية
+      const L = S[S.length - 1], e = Math.max(0, Math.min(0.5, t - L.t));
+      for (let k = 0; k < 8; k++) out[k] = L.p[k];
+      out[0] = L.p[0] - Math.sin(L.p[2]) * L.p[7] * e; out[1] = L.p[1] - Math.cos(L.p[2]) * L.p[7] * e;
+    }
+    return out;
   }
 
   /** اسمك ورقمك فوق عربيتك إنت كمان (بيبان في كاميرا بره وفي اللعب لوحدك) */
@@ -156,48 +185,62 @@ export class Multiplayer {
     this._mine = l;
   }
 
+  /** عربية لاعب تاني = نفس عربية اللاعب بالظبط (نفس الموديل والعجل اللي بيلف والمساعدين)، من غير أنوار حقيقية
+   * ولا مرايات (نور زيادة في المشهد = كل الشيدرز بتتجهز من الأول = تهنيجة)، وبنسخة LOD لما تبعد */
   _make(peer, kind, seat, name) {
     const g = this.game;
-    let rig;
-    if (kind === 'microbus' && g.assets.get('microbus_traffic')) rig = buildTrafficHiace(g.assets.get('microbus_traffic'));
-    else if (kind === 'tuktuk') {
-      const spec = { ...MICROBUS_SPEC, ...TUKTUK_SPEC_BASE };
-      rig = buildTuktukRig(spec, g.assets);
-      rig.body.position.y = spec.cgHeight; // الـ shell متظبط على مركز الثقل
-      rig.baseBodyY = spec.cgHeight;
-      rig.brake = rig.lights.tail;
-    } else rig = g._makeCar(g.assets.get('car_taxi') ? 'seal' : 'taxi', 0xf2f2ee); // نفس التاكسي الأبيض بتاع اللاعب
-    rig.baseBodyY ??= 0;
-    // سواق: التوكتوك عنده مكان عين السواق؛ الباقي في _makeCar أو مكان ثابت
-    if (kind === 'tuktuk' && rig.eye) addDriver(rig.eye.parent, rig.eye.position.x, rig.driverSeat?.y ?? rig.eye.position.y - 0.78, rig.eye.position.z + 0.12, seat, rig.driverSeat?.knee);
-    else if (kind === 'microbus') addDriver(rig.body, 0.45, 0.92, -1.28, seat);
+    const P = new PlayerVehicle(g.scene, g.assets, { lowPower: true, kind });
+    const rig = P.rig;
+    const lights = []; rig.root.traverse((o) => { if (o.isLight) lights.push(o); });
+    for (const l of lights) { l.target?.removeFromParent(); l.removeFromParent(); }
+    for (const mc of P.mirrorCams || []) mc.rt.dispose();
+    P.mirrorCams = [];
+    g._applyLivery?.(P, g.settings?.get('livery'));
+    if (rig.interiorGroup) rig.interiorGroup.visible = false;
+    if (P.driver) P.driver.visible = true;
     const label = labelSprite(seat, name);
     label.position.y = LABEL_Y[kind];
     rig.root.add(label);
-    g.scene.add(rig.root);
-    return { peer, kind, seat, name, rig, label, cur: null, tgt: null, at: 0, age: 0, spin: 0 };
+    rig.root.updateMatrixWorld(true);
+    const lod = makeLodMesh(rig.root);
+    if (lod) g.scene.add(lod);
+    return { peer, kind, seat, name, P, rig, label, lod, cur: null, snaps: [], at: 0 };
+  }
+
+  _relabel(R, seat, name) {
+    R.seat = seat; R.name = name;
+    R.label.removeFromParent(); R.label.material.map.dispose(); R.label.material.dispose();
+    R.label = labelSprite(seat, name); R.label.position.y = LABEL_Y[R.kind]; R.rig.root.add(R.label);
   }
 
   _pose(R, c, dt, pr) {
-    const rig = R.rig;
-    rig.root.position.set(c[0], c[3], c[1]);
-    rig.root.rotation.y = c[2];
-    const flipped = pr.fl ? c[5] : 0;
-    rig.body.rotation.set(c[4], 0, flipped || c[5] * 0.6, 'YXZ');
-    rig.body.position.y = rig.baseBodyY;
-    R.spin += (c[7] / (rig.wheelRadius || 0.3)) * dt;
-    (rig.wheels || []).forEach((w, i) => {
-      if (w.spin) w.spin.rotation.x = -R.spin;
-      if (w.front && w.group) w.group.rotation.y = c[6];
-    });
-    if (rig.brake) rig.brake.emissiveIntensity = pr.br ? 3.5 : 0.2;
-    // الاسم يبان من بعيد بس لحد 160م
+    const P = R.P, ph = P.physics;
+    const [x, z, yaw, y, pitch, roll, steer, v] = c;
+    ph.x = x; ph.z = z; ph.yaw = yaw; ph.heave = y + ph.spec.cgHeight;
+    ph.pitch = pitch; ph.roll = pr.fl ? roll : roll * 0.8; ph.steerAngle = steer; ph.forwardSpeed = v;
+    const gy = groundHeight(x, z);
+    for (const w of ph.wheels) { w.spin = (w.spin || 0) + (v / ph.spec.wheelRadius) * dt; w.ground = gy; }
+    ph.brake = pr.br ? 1 : 0;
+    P._savePrev();
+    // قريب: العربية كاملة (والصالون من 12م بس) — بعيد: نسخة LOD واحدة
     const cam = this.game.camera.position;
-    const d2 = (c[0] - cam.x) ** 2 + (c[1] - cam.z) ** 2;
-    R.label.visible = d2 < 160 * 160 && d2 > 14 * 14;
+    const d2 = (x - cam.x) ** 2 + (z - cam.z) ** 2;
+    const far = R.lod && d2 > 45 * 45;
+    R.rig.root.visible = !far;
+    if (R.lod) { R.lod.visible = far; if (far) { R.lod.position.set(x, gy, z); R.lod.rotation.set(0, yaw, 0); } }
+    if (!far) {
+      P.syncVisuals(dt, 1);
+      if (R.rig.interiorGroup) R.rig.interiorGroup.visible = d2 < 12 * 12;
+      if (P.rig.lights?.tail) P.rig.lights.tail.emissiveIntensity = pr.br ? 3.5 : 0.4;
+    }
+    // الاسم يبان من 2م لحد 200م (كان بيستخبى تحت 14م: أول اللعبة وعربيتين جنب بعض)
+    R.label.visible = !far && d2 > 2 * 2 && d2 < 200 * 200;
   }
 
-  _drop(R) { R.rig.root.removeFromParent(); }
+  _drop(R) {
+    R.rig.root.removeFromParent();
+    if (R.lod) R.lod.removeFromParent();
+  }
 
   /** صناديق تصادم عربيات اللاعبين التانيين (للفيزياء) */
   colliders(box, out) {
@@ -216,9 +259,8 @@ export class Multiplayer {
   /** للخريطة */
   positions() {
     const out = [];
-    for (const R of this.remotes.values()) if (R.cur) out.push({ x: R.cur[0], z: R.cur[1], yaw: R.cur[2], seat: R.seat, name: R.name, kind: R.kind });
+    for (const R of this.remotes.values()) if (R.cur) { const [hw, hl] = SIZES[R.kind]; out.push({ x: R.cur[0], z: R.cur[1], y: R.cur[3], yaw: R.cur[2], v: R.cur[7], seat: R.seat, name: R.name, kind: R.kind, hw, hl, color: seatColor(R.seat) }); }
     return out;
   }
 }
 
-void TAXI_SPEC_BASE;

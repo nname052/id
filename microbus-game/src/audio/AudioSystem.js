@@ -250,7 +250,7 @@ export class AudioSystem {
     n4.connect(this._filter('bandpass', 420, 1.4)).connect(t.rubG).connect(this.master);
     const n5 = this._loop(this.noiseBuf);
     t.hissG = this._gain(0);
-    n5.connect(this._filter('bandpass', 2600, 2.5)).connect(t.hissG).connect(this.master);
+    n5.connect(this._filter('bandpass', 1100, 0.8)).connect(t.hissG).connect(this.master);
     // صفارة فرامل
     t.brake = this._osc('sine', 2700);
     t.brakeG = this._gain(0);
@@ -516,7 +516,7 @@ export class AudioSystem {
       const vs = Math.abs(ph.forwardSpeed);
       // زنة واطية بس (كانت بتوصل 1كيلوهرتز وتبان صفير): تردد أوطى وصوت أخف بكتير
       set(e.whineGear.frequency, 110 + Math.min(vs, 22) * 18, 0.08);
-      set(e.whineGearG.gain, this.engineKind === 'tuktuk' ? 0 : Math.min(1, vs / 18) * (0.025 + thr * 0.02), 0.12);
+      set(e.whineGearG.gain, 0, 0.12); // (الزنة اتشالت: كانت بتتسمع صفير خصوصاً في الريوس)
     } else {
       const fire = (rpm / 60) * 2;
       set(e.saw.frequency, fire); set(e.pulse.frequency, fire);
@@ -548,7 +548,7 @@ export class AudioSystem {
     // الفرامل: احتكاك + صفارة خفيفة قبل الوقوف + "طقة" العربية لما تقف ودايس فرامل
     const bk = ph.brake * Math.min(1, ph.speed / 8);
     set(tr.rubG.gain, bk * 0.22 * distAtt, 0.06);
-    set(tr.hissG.gain, bk * Math.min(1, ph.speed / 15) * 0.03 * distAtt, 0.06);
+    set(tr.hissG.gain, bk * Math.min(1, ph.speed / 15) * 0.015 * distAtt, 0.06);
     // صفارة الفرامل: مش في كل وقفة — احتمال لكل وقفة (أعلى في الميكروباص القديم)، وقصيرة
     if (ph.speed > 4.2) { this._sqArm = true; this._sqStrong = false; }
     if (ph.brake > 0.45 && ph.speed > 3) this._sqStrong = true; // الصفارة بس بعد فرملة حقيقية (مش لمسة)
@@ -557,7 +557,7 @@ export class AudioSystem {
       this._sqT = this._sqStrong && Math.random() < (this.engineKind === 'microbus' ? 0.22 : 0.08) ? 0.25 + Math.random() * 0.3 : 0;
     }
     this._sqT = Math.max(0, (this._sqT || 0) - dt);
-    const squeal = this._sqT > 0 && ph.brake > 0.2 && ph.speed > 0.2 ? 0.014 + ph.brake * 0.014 : 0;
+    const squeal = 0; // (صفارة الفرامل اتشالت خالص: الاحتكاك والطقة بس)
     set(tr.brakeG.gain, squeal * distAtt, 0.08);
     set(tr.brake.frequency, 2500 + Math.sin(t * 7) * 120 + ph.speed * 60, 0.05);
     if (ph.speed > 2) this._armStop = true;
@@ -569,8 +569,7 @@ export class AudioSystem {
       const pax = passengers || 0;
       set(x.chatter.gain, Math.min(0.09, pax * 0.008) * (inside ? 1 : 0.25), 0.4);
       set(x.chatLfo.frequency, 1.6 + Math.sin(t * 0.37) * 0.8 + Math.sin(t * 1.3) * 0.4, 0.3);
-      const rv = ph.gearMode === 'R' ? Math.min(1, Math.abs(ph.forwardSpeed) / 4) : 0;
-      set(x.revG.gain, rv * 0.03 * distAtt, 0.08);
+      set(x.revG.gain, 0, 0.08); // (صفير الريوس اتشال — كان بيبان صفارة)
       set(x.rev.frequency, 380 + Math.abs(ph.forwardSpeed) * 260, 0.05);
       const scrape = ph.flip?.mode && Math.abs(Math.atan2(Math.sin(ph.flip.theta), Math.cos(ph.flip.theta))) > 0.9 ? Math.min(1, ph.speed / 6) : 0;
       set(x.scrapeG.gain, scrape * 0.22 * distAtt, 0.05);

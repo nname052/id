@@ -1,4 +1,5 @@
 import { Game } from './core/Game.js';
+import { seatColor } from './net/Multiplayer.js';
 
 // نقطة البداية
 const statusEl = document.getElementById('status');
@@ -90,6 +91,7 @@ const renderSeats = () => {
     b.dataset.seat = i;
     b.className = (owner ? 'taken' : '') + (me.seat === i && !owner ? ' on' : '');
     b.innerHTML = `${i}<small></small>`;
+    b.style.borderColor = seatColor(i); b.style.boxShadow = `inset 0 -4px 0 ${seatColor(i)}`; // لون اللاعب (فوق عربيته وعلى الخريطة)
     b.querySelector('small').textContent = owner ? (owner.presence.name || 'محجوز') : me.seat === i ? (me.name || 'إنت') : 'فاضي';
     seatsEl.appendChild(b);
   }

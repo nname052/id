@@ -250,20 +250,59 @@ export function tuktukColors(model) {
  * نسخة خفيفة لعربيات المرور: كل القطع المصمتة في Mesh واحدة (كل قطعة بلونها)، والزجاج في واحدة تانية
  * → 2 draw calls للعربية بدل ~20. بتتعمل مرة واحدة وكل العربيات بتشاركها.
  */
-export function bakeTrafficVersion(asset) {
+// لون الصورة عند كل نقطة (للتوكتوك المخبوز: من غير كده بيطلع رمادي)
+function texSampler(map) {
+  const img = map?.image;
+  if (!img || !img.width || typeof document === 'undefined') return null;
+  const W = Math.min(256, img.width), H = Math.min(256, img.height);
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const cx = cv.getContext('2d', { willReadFrequently: true });
+  try { cx.drawImage(img, 0, 0, W, H); } catch { return null; }
+  const d = cx.getImageData(0, 0, W, H).data, lin = (v) => Math.pow(v / 255, 2.2);
+  return (u, v, out) => {
+    u -= Math.floor(u); v -= Math.floor(v);
+    const i = ((Math.min(H - 1, Math.floor((map.flipY ? 1 - v : v) * H)) * W) + Math.min(W - 1, Math.floor(u * W))) * 4;
+    return out.setRGB(lin(d[i]), lin(d[i + 1]), lin(d[i + 2]));
+  };
+}
+
+// نفس قاعدة ألوان tuktukColors (أسود + أصفر نضيف فوق قدام) بس على الـ CPU لكل نقطة
+function tuktukTint(c, tk) {
+  const yellow = THREE.MathUtils.smoothstep((c.r + c.g) * 0.5 - c.b, 0.08, 0.2) * THREE.MathUtils.smoothstep(c.r, 0.15, 0.35);
+  const keep = THREE.MathUtils.smoothstep(tk.z, 0.8, 0.83) * THREE.MathUtils.smoothstep(tk.y, 0.5, 0.53);
+  const lum = c.r * 0.299 + c.g * 0.587 + c.b * 0.114, bl = 0.012 + lum * 0.025;
+  const k = 0.82 + 0.22 * THREE.MathUtils.smoothstep(lum, 0.08, 0.5);
+  const warm = Math.max(yellow, THREE.MathUtils.smoothstep(c.r - c.b, 0.02, 0.09));
+  const a = warm * keep, b = warm * (1 - keep);
+  c.setRGB(c.r + (0.875 * k - c.r) * a, c.g + (0.46 * k - c.g) * a, c.b + (0.002 * k - c.b) * a);
+  c.setRGB(c.r + (bl - c.r) * b, c.g + (bl - c.g) * b, c.b + (bl - c.b) * b);
+}
+
+export function bakeTrafficVersion(asset, { tuktuk = false } = {}) {
   if (asset._traffic) return asset._traffic;
   const h = asset.holder; h.updateMatrixWorld(true);
   const solid = [], glass = [];
   h.traverse((o) => {
     if (!o.isMesh || !o.visible) return;
-    const g = toFloat(o.geometry).applyMatrix4(o.matrixWorld);
+    const loc = toFloat(o.geometry), g = loc.clone().applyMatrix4(o.matrixWorld);
     if (!g.attributes.normal) g.computeVertexNormals();
     const isGlass = o.material.transparent || /glass|gls/i.test(o.material.name || '');
     const c = o.material.color || new THREE.Color(1, 1, 1);
     // الخامات اللي ليها صورة: لونها الأساسي غالبًا أبيض، فناخدها أغمق شوية (عجل/بلاستيك)
     const col = o.material.map && !/paint/i.test(o.material.name || '') ? c.clone().multiplyScalar(0.25) : c;
     const n = g.attributes.position.count, arr = new Float32Array(n * 3);
-    for (let i = 0; i < n; i++) { arr[i * 3] = col.r; arr[i * 3 + 1] = col.g; arr[i * 3 + 2] = col.b; }
+    const smp = tuktuk && g.attributes.uv ? texSampler(o.material.map) : null;
+    if (smp) {
+      const uv = g.attributes.uv, lp = loc.attributes.position, tmp = new THREE.Color(), tk = new THREE.Vector3();
+      loc.computeBoundingBox();
+      const bb = loc.boundingBox, sz = bb.getSize(new THREE.Vector3()).max(new THREE.Vector3(1e-6, 1e-6, 1e-6));
+      const body = /body/i.test(o.material.name || '');
+      for (let i = 0; i < n; i++) {
+        smp(uv.getX(i), uv.getY(i), tmp).multiply(c);
+        if (body) tuktukTint(tmp, tk.fromBufferAttribute(lp, i).sub(bb.min).divide(sz));
+        arr[i * 3] = tmp.r; arr[i * 3 + 1] = tmp.g; arr[i * 3 + 2] = tmp.b;
+      }
+    } else for (let i = 0; i < n; i++) { arr[i * 3] = col.r; arr[i * 3 + 1] = col.g; arr[i * 3 + 2] = col.b; }
     g.setAttribute('color', new THREE.BufferAttribute(arr, 3));
     for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'color'].includes(k)) g.deleteAttribute(k);
     (isGlass ? glass : solid).push(g);

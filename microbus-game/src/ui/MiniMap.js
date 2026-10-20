@@ -326,7 +326,8 @@ export class MiniMap {
     }
     if (nav?.target) pin(nav.target.x, nav.target.z, this.game.userTarget ? '#7c3aed' : P?.trip ? '#16a34a' : P?.mode === 'line' ? '#e8711a' : '#f59e0b');
     // اللاعبين التانيين
-    for (const o of this.game.mp?.positions() || []) { dot(o.x, o.z, 7, '#3b82f6', '#fff'); if (!dash) text(`${o.seat} ${o.name || ''}`, o.x, o.z, '#1e3a8a'); }
+    // كل لاعب بلون رقمه (نفس لون الاسم فوق عربيته) واسمه جنبه
+    for (const o of this.game.mp?.positions() || []) { dot(o.x, o.z, 7, o.color || '#3b82f6', '#fff'); text(`${o.seat} ${o.name || ''}`, o.x, o.z, o.color || '#1e3a8a'); }
     // إنت: سهم
     {
       const [a, b] = toBase(ph.x, ph.z);

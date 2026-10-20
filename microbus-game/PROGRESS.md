@@ -1,3 +1,21 @@
+# PROGRESS — Public link + online play with friends (after V34)
+
+- [x] Public link: `gh-pages` branch of `nname052/id`, opened through raw.githack.com (the Artifact public share kept failing).
+- [x] Online play outside Claude: Trystero (WebRTC, Nostr signalling) in `src/net/P2PRoom.js`; room from `?room=`.
+      Off on localhost unless `?p2p=1`. **Not testable here** (relays blocked) — verified by the user with a friend.
+- [x] Friend feedback round:
+  - name label shows from 2 m to 200 m and through objects; each seat has its own colour (label, lobby, minimap + name);
+  - players spawn 9 m apart on the road by seat number (were on top of each other);
+  - remote car = the same PlayerVehicle (wheels spin, steering, body motion), LOD beyond 45 m; 150 ms snapshot
+    interpolation (less jitter); AI traffic now brakes for remote players (was driving through them);
+  - brake squeal, reverse whine and gear whine removed (they read as whistles); brake hiss lower/darker;
+  - acceleration ×1.3 torque on all vehicles (microbus 0–60 km/h 7.8 s → 5.8 s), microbus shift 0.42 → 0.32 s;
+  - traffic: procedural box car, box tuk-tuk and motorbike removed; tuk-tuks use the real tuk-tuk model (baked,
+    texture colours sampled per vertex), parked cars use the real sedan;
+  - more traffic (desktop 38 → 56, mobile 22 → 32, parked 16/8 → 26/14) and people (desktop 130 → 240, mobile 70 → 120);
+    "normal" traffic setting 0.7 → 0.85.
+- [!] Real-phone FPS with the denser city still needs checking by the user.
+
 # PROGRESS — Audit, real-city default, performance overhaul, HiAce front fix, cockpit (V34 pass)
 
 Checkpoint before this pass: commit `e70e504` on `claude/festive-bohr-xry4vg` (= published Artifact V33).

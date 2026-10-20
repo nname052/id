@@ -177,9 +177,9 @@ export class Game {
     S('المرور والمشاة...', 0.82);
     await nextFrame();
     if (this.world) {
-      this.traffic = new ShibinTraffic(this.scene, (type, color, o) => this._makeCar(type, color, o), this.audio, this.world, { count: this.saverBoot ? 12 : this.tier === 'low' ? 14 : this.mobile ? 22 : 38, parked: this.tier === 'low' ? 6 : this.mobile ? 8 : 16 });
+      this.traffic = new ShibinTraffic(this.scene, (type, color, o) => this._makeCar(type, color, o), this.audio, this.world, { count: this.saverBoot ? 14 : this.tier === 'low' ? 18 : this.mobile ? 32 : 56, parked: this.tier === 'low' ? 8 : this.mobile ? 14 : 26 });
       this.traffic.viewDist = this.mobile ? 150 : 190;
-      this.crowdBase = this.mobile ? 70 : 130;
+      this.crowdBase = this.tier === 'low' ? 80 : this.mobile ? 120 : 240; // (المدينة كانت فاضية: ناس أكتر بكتير)
       this.crowd = new ShibinCrowd(this.scene, this.world, { count: this.crowdBase });
       this.crowd.traffic = this.traffic; this.traffic.crowd = this.crowd;
       // المرايات مش بترسم هالات/بقع نور الأعمدة (ديكور)
@@ -262,6 +262,7 @@ export class Game {
     this.race = this.raceTrack ? new Race(this) : null;
     this.docs = new Docs(this, this.touch ? this.touch.root.querySelector('.t-top') : null);
     this.mp = new Multiplayer(this);
+    if (this.traffic) this.traffic.remotePlayers = () => this.mp.positions();
     this.minimap = new MiniMap(this);
     // ميكروباصات راكنة في موقف شبين الكوم
     {
@@ -477,7 +478,7 @@ export class Game {
 
   _makeCar(type, color, opts = {}) {
     // المركونة: نسخة "مخبوزة" خفيفة (من غير سواق)
-    if (opts.parked) return this._makeCarBody(type === 'taxi' || type === 'sedan' ? 'boxy' : type, color, opts);
+    if (opts.parked) return this._makeCarBody(type, color, opts);
     const rig = this._makeCarBody(type, color, opts);
     // كل عربية فيها سواق (قاعد على الشمال زي مصر)
     this._driverSeed = (this._driverSeed || 0) + 1;
@@ -488,7 +489,23 @@ export class Game {
   }
 
   _makeCarBody(type, color, opts = {}) {
-    if (type === 'tuktuk' || type === 'moto') return buildSmallTraffic(type);
+    if (type === 'tuktuk' || type === 'moto') {
+      // التوكتوك: نفس موديل التوكتوك الحقيقي (مخبوز خفيف) بدل الشكل الإجرائي المربع
+      const a = this.assets.get('tuktuk_model');
+      if (!a) return buildSmallTraffic(type);
+      const T = bakeTrafficVersion(a, { tuktuk: true });
+      const body = new THREE.Group(), wrap = new THREE.Group();
+      wrap.add(body);
+      const s = new THREE.Mesh(T.solid, T.solidMat); s.castShadow = true; body.add(s);
+      if (T.glass) { const gl = new THREE.Mesh(T.glass, T.glassMat); gl.userData.role = 'glass'; gl.renderOrder = 2; body.add(gl); }
+      return { root: wrap, body, wheels: [], length: 2.65, width: 1.35, brake: null, driverSeat: [0, 0.55, -0.45] };
+    }
+    if ((type === 'taxi' || type === 'sedan') && opts.parked) {
+      // المركونة: نفس السيدان بخامة مشتركة (مفيش فوانيس شغالة)
+      const car = buildSedan({ livery: type === 'taxi' ? 'taxi' : color, lod: 1, seeThrough: false });
+      car.brake = null; car.lights = null;
+      return car;
+    }
     // التاكسي والملاكي: نفس شكل السيدان (BYD F3) — التاكسي بألوان شبين، والملاكي بألوان مختلفة.
     // geometry وشيدر مشتركين؛ كل عربية ليها خامة (نفس البرنامج) عشان فوانيس الفرامل بتاعتها لوحدها
     if ((type === 'taxi' || type === 'sedan') && !opts.parked) {
@@ -515,8 +532,20 @@ export class Game {
     return buildCar(type, color);
   }
 
+  /** أونلاين: كل رقم بيبدأ في مكان (9م ورا اللي قبله على نفس الطريق) — كانوا كلهم بيبدأوا فوق بعض */
+  _spawnForSeat(seat) {
+    const W = this.world;
+    if (!W || !(seat > 1)) return;
+    const sp = W.spawnPose(), fx = -Math.sin(sp.yaw), fz = -Math.cos(sp.yaw), back = (seat - 1) * 9;
+    const p = W.roadPose(sp.x - fx * back, sp.z - fz * back, fx, fz);
+    if (!p) return;
+    this.player.physics.reset(p.x, p.z, p.yaw); this.player._savePrev();
+    this.cams.snap = true;
+  }
+
   async start() {
     await this.audio.start();
+    if (this.mp?.available) this._spawnForSeat(this.mp.me.seat);
     this.started = true;
     this.cams.mode = 0;
     this.cams.snap = true;
@@ -679,7 +708,7 @@ export class Game {
 
   /** كثافة المرور = اختيار الإعدادات × وقت اليوم (نهار/عصاري = ساعة ذروة وزحمة، بالليل أخف) */
   _applyTrafficDensity() {
-    const base = { off: 0, low: 0.35, normal: 0.7, high: 1 }[this.settings?.get('traffic') ?? 'normal'] ?? 0.7;
+    const base = { off: 0, low: 0.4, normal: 0.85, high: 1 }[this.settings?.get('traffic') ?? 'normal'] ?? 0.7;
     const p = this.env?.preset || {};
     const tk = p.night ? 0.55 : p.elevation < 12 ? 1.35 : 1.2;
     this.traffic?.setDensity?.(Math.min(1, base * tk));

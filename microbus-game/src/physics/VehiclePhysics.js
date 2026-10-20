@@ -71,7 +71,7 @@ export const MICROBUS_SPEC = {
   drivetrainEff: 0.85,
   idleRpm: 780,
   maxRpm: 4300,
-  shiftTime: 0.42,
+  shiftTime: 0.32,
   shift: [2100, 3700, 1200],
   // 2.5 ديزل تيربو (D-4D): عزم عالي بدري → تقيل بس بيشد كويس من تحت
   torqueCurve: [[600, 140], [1000, 200], [1600, 262], [2400, 268], [3200, 245], [3900, 200], [4400, 140]],
@@ -82,6 +82,8 @@ export const MICROBUS_SPEC = {
 };
 
 const G = 9.81;
+// شدّة أكتر من الأرقام الحقيقية (اللعبة كانت بتحس العربية بطيئة/رخمة): ×1.3 على عزم كل العربيات
+const PUNCH = 1.3;
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const lerp = (a, b, t) => a + (b - a) * t;
 
@@ -277,7 +279,7 @@ export class VehiclePhysics {
     let engineTorque = 0;
     if (this.shiftTimer <= 0 && !this.engineOff) {
       if (throttleIn > 0.01) {
-        engineTorque = torqueAt(s.torqueCurve, this.rpm) * throttleIn;
+        engineTorque = torqueAt(s.torqueCurve, this.rpm) * throttleIn * PUNCH;
         const limit = this.gear < 0 ? 1900 : s.maxRpm;
         if (this.rpm > limit) engineTorque *= clamp(1 - (this.rpm - limit) / 250, 0, 1);
       } else if (wheelRpm * total > s.idleRpm * 1.15) {
