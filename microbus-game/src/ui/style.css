@@ -48,7 +48,7 @@ kbd { display: inline-block; min-width: 26px; padding: 1px 7px; margin-left: 4px
 
 /* ===== تحكم اللمس (موبايل) ===== */
 html, body { overscroll-behavior: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
-body.touch, body.touch #app canvas { touch-action: none; }
+body.touch #app canvas { touch-action: none; } /* (مش على الـ body كله: كان بيمنع السكرول في قايمة الخطوط) */
 #touch { position: fixed; inset: 0; z-index: 4; pointer-events: none; direction: ltr; --ui: rgba(18, 18, 22, 0.38); --ui-line: rgba(255, 255, 255, 0.22); }
 #touch button, .t-pedal, .t-wheel-zone { pointer-events: auto; touch-action: none; }
 #touch button { border: 1.5px solid var(--ui-line); color: #fff; background: var(--ui); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); display: grid; place-items: center; padding: 0; font: 700 13px/1 'Cairo', sans-serif; }
