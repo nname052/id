@@ -7,7 +7,8 @@ import { replacePlates, rearHalfWidth } from './EgyptPlates.js';
 // العجل بتلف، وفيه فوانيس فرامل ونور بالليل. الخامات مشتركة بين كل النسخ (أداء).
 
 // ميكروباصات شبين: أغلبها تركواز (زي الصورة الحقيقية) وشوية بيض
-const PAINTS = [0x0d9d92, 0x109f95, 0x0b968b, 0xf4f2ee];
+// ألوان ميكروباصات مصر: أبيض كتير، بيج/كريمي، لبني، كحلي، فضي، نبيتي، تركواز، زيتوني
+const PAINTS = [0xf4f2ee, 0xeeeae0, 0x109f95, 0x0b968b, 0xe3d6b8, 0x8fb7d6, 0x2c4a7a, 0xb9bec4, 0x7a2430, 0xd9c79b, 0x5f6b4a, 0xf4f2ee];
 let shared = null;
 
 function prepare(asset) {

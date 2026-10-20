@@ -278,12 +278,21 @@ function tuktukTint(c, tk) {
   c.setRGB(c.r + (bl - c.r) * b, c.g + (bl - c.g) * b, c.b + (bl - c.b) * b);
 }
 
-export function bakeTrafficVersion(asset, { tuktuk = false } = {}) {
+export function bakeTrafficVersion(asset, { tuktuk = false, wheelRe = null } = {}) {
   if (asset._traffic) return asset._traffic;
   const h = asset.holder; h.updateMatrixWorld(true);
-  const solid = [], glass = [];
+  const solid = [], glass = [], wheels = new Map();
   h.traverse((o) => {
     if (!o.isMesh || !o.visible) return;
+    // العجل لوحده (بيلف): كل اسم قطعة (من غير لاحقة الخامة) = عجلة/محور واحد، في مكانها بالظبط
+    if (wheelRe && wheelRe.test(o.name)) {
+      const key = o.name.replace(/_.*$/, '');
+      const g = toFloat(o.geometry).applyMatrix4(o.matrixWorld);
+      if (!g.attributes.normal) g.computeVertexNormals();
+      if (!wheels.has(key)) wheels.set(key, []);
+      wheels.get(key).push({ g, mat: o.material });
+      return;
+    }
     const loc = toFloat(o.geometry), g = loc.clone().applyMatrix4(o.matrixWorld);
     if (!g.attributes.normal) g.computeVertexNormals();
     const isGlass = o.material.transparent || /glass|gls/i.test(o.material.name || '');
@@ -319,8 +328,15 @@ export function bakeTrafficVersion(asset, { tuktuk = false } = {}) {
     out.computeBoundingSphere();
     return out;
   };
+  // كل عجلة: pivot في مركزها + القطع بتاعتها متحركة للمركز (عشان اللفة حوالين المحور)
+  const wheelParts = [...wheels.values()].map((parts) => {
+    const bb = new THREE.Box3(); for (const { g } of parts) { g.computeBoundingBox(); bb.union(g.boundingBox); }
+    const c = bb.getCenter(new THREE.Vector3());
+    for (const { g } of parts) g.translate(-c.x, -c.y, -c.z);
+    return { center: c, parts };
+  });
   asset._traffic = {
-    solid: merge(solid), glass: merge(glass),
+    solid: merge(solid), glass: merge(glass), wheels: wheelParts,
     solidMat: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.4, metalness: 0.1 }),
     glassMat: new THREE.MeshStandardMaterial({ color: 0x1d262b, transparent: true, opacity: 0.6, roughness: 0.05, depthWrite: false }),
   };

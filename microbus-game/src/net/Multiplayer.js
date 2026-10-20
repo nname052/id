@@ -31,7 +31,7 @@ function labelSprite(seat, name) {
   // depthTest مقفول: الاسم بيبان حتى لو عربية تانية/عمود واقف قدامه (كان بيستخبى لما عربيتين جنب بعض)
   // حجم ثابت على الشاشة (مقروء من بعيد ومايكبرش أوي من قريب)
   const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false, transparent: true, opacity: 0.92, sizeAttenuation: false }));
-  s.scale.set(0.2, 0.05, 1);
+  s.scale.set(0.12, 0.03, 1); // (كان كبير وبيحجب الرؤية)
   s.renderOrder = 5;
   return s;
 }
@@ -119,7 +119,8 @@ export class Multiplayer {
     }
     this._myLabel();
     // اسمك فوق عربيتك: مايبانش وإنت سايق (كان بيحجب الطريق) — بيبان في الكاميرا اللي من فوق/السينمائية بس
-    if (this._mine) this._mine.visible = !['cockpit', 'hood'].includes(g.cams?.modeId); // بيبان في كل الكاميرات اللي برا
+    // اسمك فوق عربيتك: بس في الكاميرا السينمائية/اللي من فوق (وانت سايق بيحجب الطريق)
+    if (this._mine) this._mine.visible = !['cockpit', 'hood', 'chase', 'close'].includes(g.cams?.modeId);
     // عربيات اللاعبين التانيين
     const seen = new Set();
     const now = performance.now() / 1000;
@@ -234,7 +235,8 @@ export class Multiplayer {
     }
     // الاسم يبان من 2م لحد 600م (كان بيستخبى لما العربية تبعد وتتحول لنسخة LOD)
     R.label.position.set(x, y + LABEL_Y[R.kind], z);
-    R.label.visible = d2 > 2 * 2 && d2 < 600 * 600;
+    // قريب أوي (أقل من 8م) بيختفي عشان مايغطيش على العربية والطريق
+    R.label.visible = d2 > 8 * 8 && d2 < 600 * 600;
   }
 
   _drop(R) {

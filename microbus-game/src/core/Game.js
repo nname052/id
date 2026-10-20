@@ -496,12 +496,18 @@ export class Game {
       // التوكتوك: نفس موديل التوكتوك الحقيقي (مخبوز خفيف) بدل الشكل الإجرائي المربع
       const a = this.assets.get('tuktuk_model');
       if (!a) return buildSmallTraffic(type);
-      const T = bakeTrafficVersion(a, { tuktuk: true });
+      const T = bakeTrafficVersion(a, { tuktuk: true, wheelRe: /^Rin/i });
       const body = new THREE.Group(), wrap = new THREE.Group();
       wrap.add(body);
       const s = new THREE.Mesh(T.solid, T.solidMat); s.castShadow = true; body.add(s);
       if (T.glass) { const gl = new THREE.Mesh(T.glass, T.glassMat); gl.userData.role = 'glass'; gl.renderOrder = 2; body.add(gl); }
-      return { root: wrap, body, wheels: [], length: 2.65, width: 1.35, brake: null, driverSeat: [0, 0.55, -0.45] };
+      // العجل بيلف (كان مخبوز في الجسم = التوكتوك ماشي كتلة واحدة)
+      const wheels = (T.wheels || []).map((W) => {
+        const pivot = new THREE.Group(); pivot.position.copy(W.center); body.add(pivot);
+        for (const { g, mat } of W.parts) { const m = new THREE.Mesh(g, mat); m.castShadow = true; pivot.add(m); }
+        return { group: pivot, spin: pivot, front: W.center.z < 0 };
+      });
+      return { root: wrap, body, wheels, wheelRadius: 0.225, length: 2.65, width: 1.35, brake: null, driverSeat: [0, 0.55, -0.45] };
     }
     if ((type === 'taxi' || type === 'sedan') && opts.parked) {
       // المركونة: نفس السيدان بخامة مشتركة (مفيش فوانيس شغالة)

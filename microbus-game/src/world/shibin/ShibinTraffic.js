@@ -19,7 +19,7 @@ import { findRoute } from '../../nav/RoadGraph.js';
 import { canvas, tex } from '../../render/textures.js';
 
 // (العربيات الإجرائية المربعة والموتوسيكل اتشالوا: كانوا شكلهم غريب — موديلات حقيقية بس)
-const TYPES = ['sedan', 'taxi', 'microbus', 'sedan', 'taxi', 'tuktuk', 'microbus', 'sedan', 'taxi', 'microbus', 'sedan', 'tuktuk'];
+const TYPES = ['microbus', 'sedan', 'taxi', 'microbus', 'tuktuk', 'microbus', 'sedan', 'microbus', 'taxi', 'microbus', 'sedan', 'tuktuk']; // (ميكروباصات أكتر: ~40% زي شوارع المدن عندنا)
 const SMALL = { tuktuk: { vMul: 0.62, mass: 420 }, moto: { vMul: 0.9, mass: 220 } };
 const SPAWN_MIN = 60; // (نطاق المرور: this.activeR / this.despawnR — أصغر على الموبايل = نفس العدد في مساحة أقل = زحمة أكتر حواليك)
 const CLASS_W = { motorway: 3, trunk: 3, primary: 3, secondary: 2.6, tertiary: 2.2, unclassified: 1.4, residential: 1, living_street: 0.4, service: 0.25, road: 1, track: 0.15 };
@@ -56,7 +56,7 @@ export class ShibinTraffic {
       });
     }
     // عربيات مركونة على جنب الشارع (نسخة مخبوزة خفيفة، ثابتة) — بس في الشوارع اللي فيها مكان جنب حارة المرور
-    const PT = ['sedan', 'taxi', 'sedan', 'microbus', 'sedan', 'taxi'];
+    const PT = ['sedan', 'microbus', 'taxi', 'sedan', 'microbus', 'sedan'];
     for (let i = 0; i < parked; i++) {
       const type = PT[i % PT.length];
       const rig = makeCar(type, CAR_COLORS[Math.floor(this.R() * CAR_COLORS.length)], { parked: true });
@@ -605,14 +605,22 @@ export class ShibinTraffic {
       c.visible = vis;
       const d2 = (c.x - cx) ** 2 + (c.z - cz) ** 2;
       if (this._show(c, vis, d2) || !vis) continue;
-      const near = d2 < 70 * 70, shadow = d2 < 45 * 45;
-      if (near !== c._near) { c._near = near; for (const w of r.wheels || []) w.group.visible = near; }
+      const shadow = d2 < 45 * 45; // (العجل كان بيستخبى بعد 70م = العربية ماشية من غير عجل "كتلة واحدة")
       if (shadow !== c._shadow) { c._shadow = shadow; r.root.traverse((o) => { if (o.isMesh && o.userData.role !== 'glass' && o.userData.role !== 'shadow') o.castShadow = shadow; }); }
       r.root.position.set(c.x, c.y, c.z);
       r.root.rotation.set(0, c.yaw, 0);
       c.spin += (c.v / (r.wheelRadius || 0.3)) * dt;
-      for (const w of r.wheels || []) if (w.spin) w.spin.rotation.x = -c.spin;
-      if (r.body) r.body.rotation.x = c.acc * 0.006;
+      // سرعة اللف (من تغيّر الاتجاه) → العجل اللي قدام بيلف مع الدركسيون، والجسم بيميل في اللفة (مش كتلة واحدة)
+      const dyaw = c._pyaw === undefined ? 0 : Math.atan2(Math.sin(c.yaw - c._pyaw), Math.cos(c.yaw - c._pyaw));
+      c._pyaw = c.yaw;
+      const yr = dt > 0 ? dyaw / dt : 0;
+      c._yr = (c._yr || 0) + (yr - (c._yr || 0)) * Math.min(1, dt * 6);
+      if (c.v > 0.6) c._steer = Math.max(-0.55, Math.min(0.55, Math.atan(c._yr * 2.6 / c.v)));
+      for (const w of r.wheels || []) {
+        if (w.spin) w.spin.rotation.x = -c.spin;
+        if (w.group.position.z < 0) { w.group.rotation.order = 'YXZ'; w.group.rotation.y = c._steer || 0; }
+      }
+      if (r.body) { r.body.rotation.x = c.acc * 0.006; r.body.rotation.z = Math.max(-0.05, Math.min(0.05, (c._yr || 0) * c.v * 0.012)); }
       if (r.brake) r.brake.emissiveIntensity = c.acc < -0.6 || c.v < 0.3 ? 3.5 : this.night ? 1.0 : 0.15;
     }
   }
