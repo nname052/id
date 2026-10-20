@@ -185,7 +185,7 @@ export class Game {
       this.crowd.traffic = this.traffic; this.traffic.crowd = this.crowd;
       // المرايات مش بترسم هالات/بقع نور الأعمدة (ديكور)
       PlayerVehicle.mirrorHide = [this.world.lamps?.glow, this.world.lamps?.pools].filter(Boolean);
-      this.traffic.lodNear = this.tier === 'low' ? 30 : this.mobile ? 36 : 50;
+      this.traffic.lodNear = this.tier === 'low' ? 38 : this.mobile ? 48 : 65; // (أبعد: التبديل للنسخة الخفيفة بيحصل والعربية صغيرة)
       this.statics = [];
     } else {
       this.traffic = new TrafficSystem(this.scene, this.lights, (type, color, o) => this._makeCar(type, color, o), this.audio, { perLane: this.mobile ? 11 : 16, sideMul: this.mobile ? 1.5 : 1 });
@@ -672,7 +672,7 @@ export class Game {
     this._qCrowd = [1, 0.9, 0.75, 0.6, 0.5][L] * (this.saver ? 0.8 : 1);
     this._applySetting('crowd', this.settings?.get('crowd') ?? 'normal');
     this.traffic.viewDist = (this.mobile ? 190 : 260) * far;
-    this.viewDist = (this.mobile ? 380 : 560) * far;
+    this.viewDist = (this.mobile ? 470 : 650) * far; // (العمارات بتبان لمسافة أبعد)
     this.scene.fog.far = Math.min(this.env.preset.fogFar, this.viewDist + 60);
     console.info('[Quality] مستوى', level, `pixelRatio ${pr.toFixed(2)}`, `(${fps.toFixed(0)} FPS)`);
   }

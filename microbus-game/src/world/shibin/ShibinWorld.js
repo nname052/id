@@ -14,7 +14,7 @@ import { canvas, tex } from '../../render/textures.js';
 import { ShibinLamps } from './ShibinLamps.js';
 import { buildLandmarks, NearInstancer } from './ShibinLandmarks.js';
 
-const LOAD_R = 650, UNLOAD_R = 900, DETAIL_R = 380, LOWMAT_R = 520;
+const LOAD_R = 780, UNLOAD_R = 1000, DETAIL_R = 380, LOWMAT_R = 520;
 const SIDE_Y = 0.15, WATER_Y = -0.55, WATER_FLOOR = -0.9;
 const RAMP_FILL_H = 4.2; // تحت الارتفاع ده المطلع ردم بحيطان ساندة، وفوقه بلاطة على عواميد
 // عرض الرصيف حسب نوع الطريق (نفس جدول build_region.py)

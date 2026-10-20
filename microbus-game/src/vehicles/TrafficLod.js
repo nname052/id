@@ -83,8 +83,8 @@ function partColor(mat, glass, out) {
   const a = averageColor(mat.map);
   if (a) out.multiply(a);
   if (mat.emissive && mat.emissiveIntensity > 0.5 && !mat.map) out.lerp(mat.emissive, 0.3);
-  // دهان السيدان (شيدر بشرايط وتغميق تحت): متوسطه أغمق وأقل تشبّع من لونه الأساسي (مقاس بالكاميرا: نفس المكان والإضاءة)
-  if (mat.userData?.U?.uStripes) { const l = out.r * 0.3 + out.g * 0.59 + out.b * 0.11; out.lerp(_lum.setRGB(l, l, l), 0.35).multiplyScalar(0.66); }
+  // دهان السيدان (شيدر بشرايط وتغميق تحت): متوسطه أغمق وأقل تشبّع من لونه الأساسي (مقاس بالكاميرا: نفس المكان والإضاءة، جسم العربية بس من غير الضل اللي تحتها)
+  if (mat.userData?.U?.uStripes) { const l = out.r * 0.3 + out.g * 0.59 + out.b * 0.11; out.lerp(_lum.setRGB(l, l, l), 0.25).multiplyScalar(0.85); }
   return out;
 }
 
@@ -210,6 +210,9 @@ export function makeLodMesh(root) {
   const mesh = new THREE.Mesh(geo, geo.groups.length ? lodMaterials() : lodMaterial());
   mesh.name = 'traffic-lod';
   mesh.matrixAutoUpdate = true;
+  // نفس الضل والإضاءة زي العربية الحقيقية: الضل اللي تحتها + ضل العمارات عليها (من غيرهم كانت بتبان أفتح ولونها "بيتغير" لما تقرب)
+  mesh.receiveShadow = true;
+  root.traverse((o) => { if (o.isMesh && o.userData.role === 'shadow' && !mesh.userData.blob) { const b = new THREE.Mesh(o.geometry, o.material); _inv.copy(root.matrixWorld).invert(); b.applyMatrix4(_m.multiplyMatrices(_inv, o.matrixWorld)); b.renderOrder = o.renderOrder; mesh.add(b); mesh.userData.blob = b; } });
   mesh.visible = false;
   return mesh;
 }

@@ -9,12 +9,12 @@ export const TIME_PRESETS = {
   day: {
     // شمس الدلتا: سما فيها شبورة/تراب خفيف (مش أزرق صافي)، ضباب بيج دافي، والإضاءة المحيطة أقل شوية عشان الضل يبان
     label: 'نهار', elevation: 52, azimuth: 135, sunColor: 0xffecd2, sunIntensity: 3.5, hemi: 0.3,
-    turbidity: 6.5, rayleigh: 1.5, mie: 0.006, mieG: 0.82, fog: 0xcfc7b6, fogNear: 70, fogFar: 540, exposure: 0.55,
+    turbidity: 6.5, rayleigh: 1.5, mie: 0.006, mieG: 0.82, fog: 0xcfc7b6, fogNear: 110, fogFar: 700, exposure: 0.55,
     lampsOn: false, windows: 0, envIntensity: 0.7,
   },
   sunset: {
     label: 'غروب', elevation: 6, azimuth: 250, sunColor: 0xffa860, sunIntensity: 2.4, hemi: 0.25,
-    turbidity: 10, rayleigh: 2.6, mie: 0.01, mieG: 0.88, fog: 0xc89878, fogNear: 50, fogFar: 420, exposure: 0.75,
+    turbidity: 10, rayleigh: 2.6, mie: 0.01, mieG: 0.88, fog: 0xc89878, fogNear: 80, fogFar: 560, exposure: 0.75,
     lampsOn: true, windows: 0.35, envIntensity: 0.8,
   },
   night: {
