@@ -12,7 +12,7 @@
   - acceleration ×1.3 torque on all vehicles (microbus 0–60 km/h 7.8 s → 5.8 s), microbus shift 0.42 → 0.32 s;
   - traffic: procedural box car, box tuk-tuk and motorbike removed; tuk-tuks use the real tuk-tuk model (baked,
     texture colours sampled per vertex), parked cars use the real sedan;
-  - more traffic (desktop 38 → 56, mobile 22 → 32, parked 16/8 → 26/14) and people (desktop 130 → 240, mobile 70 → 120);
+  - more traffic (desktop 38 → 56, mobile 22 → 28, parked 16/8 → 26/12) and people (desktop 130 → 240, mobile 70 → 105); same-machine A/B mobile emu: CPU p50 40 → 48 ms (avg FPS 14.9 → 13.5 on a slow run day);
     "normal" traffic setting 0.7 → 0.85.
 - [!] Real-phone FPS with the denser city still needs checking by the user.
 

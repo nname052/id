@@ -177,9 +177,9 @@ export class Game {
     S('المرور والمشاة...', 0.82);
     await nextFrame();
     if (this.world) {
-      this.traffic = new ShibinTraffic(this.scene, (type, color, o) => this._makeCar(type, color, o), this.audio, this.world, { count: this.saverBoot ? 14 : this.tier === 'low' ? 18 : this.mobile ? 32 : 56, parked: this.tier === 'low' ? 8 : this.mobile ? 14 : 26 });
+      this.traffic = new ShibinTraffic(this.scene, (type, color, o) => this._makeCar(type, color, o), this.audio, this.world, { count: this.saverBoot ? 14 : this.tier === 'low' ? 18 : this.mobile ? 28 : 56, parked: this.tier === 'low' ? 8 : this.mobile ? 12 : 26 });
       this.traffic.viewDist = this.mobile ? 150 : 190;
-      this.crowdBase = this.tier === 'low' ? 80 : this.mobile ? 120 : 240; // (المدينة كانت فاضية: ناس أكتر بكتير)
+      this.crowdBase = this.tier === 'low' ? 80 : this.mobile ? 105 : 240; // (المدينة كانت فاضية: ناس أكتر بكتير)
       this.crowd = new ShibinCrowd(this.scene, this.world, { count: this.crowdBase });
       this.crowd.traffic = this.traffic; this.traffic.crowd = this.crowd;
       // المرايات مش بترسم هالات/بقع نور الأعمدة (ديكور)
