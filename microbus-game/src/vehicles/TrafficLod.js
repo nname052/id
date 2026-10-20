@@ -43,13 +43,32 @@ function lodParts(root, fn) {
     if (!o.isMesh || o.userData.role === 'shadow' || o.isInstancedMesh || o.isSkinnedMesh && !o.geometry) return;
     // مخفي عن قصد (قطع اتشالت/اتبدلت) — بس العجل بتتحسب حتى لو مخفية عشان المسافة
     for (let p = o; p && p !== root; p = p.parent) if (!p.visible && !p.userData?.lodKeep) return;
-    const mat = Array.isArray(o.material) ? o.material[0] : o.material;
-    if (!mat || mat.visible === false) return;
-    const role = o.userData.role;
-    const glass = role === 'glass' || /glass|gls/i.test(mat.name || '') || (mat.transparent && mat.opacity < 0.7 && !mat.map);
-    if (mat.transparent && !glass && (mat.opacity ?? 1) < 0.3) return; // ملصقات شبه شفافة
-    fn(o, mat, glass);
+    // جسم بأكتر من خامة (زي السيدان: دهان + إزاز): كل جزء بلون خامته (كان بياخد أول خامة بس → عربية من غير شبابيك)
+    const multi = Array.isArray(o.material) && o.geometry.groups.length;
+    const list = multi ? o.geometry.groups.map((gr) => [o.material[gr.materialIndex], gr]) : [[Array.isArray(o.material) ? o.material[0] : o.material, null]];
+    for (const [mat, grp] of list) {
+      if (!mat || mat.visible === false) continue;
+      const role = o.userData.role;
+      const glass = role === 'glass' || /glass|gls/i.test(mat.name || '') || (mat.transparent && mat.opacity < 0.7 && !mat.map) || (multi && mat.metalness >= 0.5 && mat.roughness < 0.2 && !mat.map);
+      if (mat.transparent && !glass && (mat.opacity ?? 1) < 0.3) continue; // ملصقات شبه شفافة
+      fn(o, mat, glass, grp);
+    }
   });
+}
+
+/** جزء واحد (group) من الهندسة كـ geometry لوحده (non-indexed) */
+function groupGeometry(src, grp) {
+  const out = new THREE.BufferGeometry();
+  const idx = src.index, n = grp.count;
+  for (const [name, a] of Object.entries(src.attributes)) {
+    const arr = new Float32Array(n * a.itemSize);
+    for (let i = 0; i < n; i++) {
+      const v = idx ? idx.getX(grp.start + i) : grp.start + i;
+      for (let d = 0; d < a.itemSize; d++) arr[i * a.itemSize + d] = a.getComponent(v, d);
+    }
+    out.setAttribute(name, new THREE.BufferAttribute(arr, a.itemSize));
+  }
+  return out;
 }
 
 function partColor(mat, glass, out) {
@@ -78,8 +97,8 @@ export function bakeLod(root, key, shapeKey = key) {
     const parts = [];
     const m = new THREE.Matrix4();
     let pid = 0;
-    lodParts(root, (o, mat, glass) => {
-      let g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
+    lodParts(root, (o, mat, glass, grp) => {
+      let g = grp ? groupGeometry(o.geometry, grp) : o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
       for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal' && k !== 'color') g.deleteAttribute(k);
       if (!g.attributes.normal) g.computeVertexNormals();
       m.multiplyMatrices(inv, o.matrixWorld);

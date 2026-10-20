@@ -250,10 +250,10 @@ body.touch #racebar { font-size: 12px; padding: 2px 12px; top: calc(76px + env(s
 @media (max-width: 760px) { body.touch #racebar { top: calc(118px + env(safe-area-inset-top, 0px)); } }
 
 /* ===== اختيار خط الميكروباص ===== */
-#linepick { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; background: rgba(0, 0, 0, 0.45); padding: 16px; direction: rtl; }
+#linepick { position: fixed; inset: 0; z-index: 30; touch-action: pan-y; display: grid; place-items: center; background: rgba(0, 0, 0, 0.45); padding: 16px; direction: rtl; }
 #linepick .lp-box { width: min(440px, 100%); max-height: min(86vh, 640px); display: grid; grid-template-rows: auto 1fr auto; gap: 8px; background: rgba(16, 16, 20, 0.95); border: 1px solid rgba(242, 179, 48, 0.55); border-radius: 14px; padding: 12px; color: #f2f2f2; font-family: 'Cairo', sans-serif; }
 #linepick .lp-h { font-weight: 800; color: var(--accent, #f2b330); text-align: center; }
-#linepick .lp-list { overflow-y: auto; display: grid; gap: 8px; }
+#linepick .lp-list { overflow-y: auto; min-height: 0; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y; display: grid; gap: 8px; }
 #linepick .lp-item { all: unset; cursor: pointer; display: grid; gap: 3px; padding: 9px 10px; border-radius: 10px; background: rgba(255, 255, 255, 0.06); border: 1px solid transparent; }
 #linepick .lp-item.cur { border-color: rgba(242, 179, 48, 0.7); }
 #linepick .lp-item:hover, #linepick .lp-item:focus-visible { background: rgba(255, 255, 255, 0.12); }

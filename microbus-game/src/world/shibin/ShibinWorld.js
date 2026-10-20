@@ -641,8 +641,10 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
       if (!T.ready) continue;
       // LOD: التفاصيل (علامات/حرف الرصيف/قضبان) قريب بس، والعمارات البعيدة بخامة من غير صور
       // الموبايل: التفاصيل والواجهات الكاملة لمسافة أقصر (الشيدر الكامل أغلى حاجة في البكسل)
-      T.detail.visible = d < (this.low ? 260 : DETAIL_R);
-      if (T.bld) T.bld.material = d < (this.low ? 170 : LOWMAT_R) ? this.mats.bld : this.mats.bldLow;
+      // (هامش 25م: من غير كده المربع اللي على الحد بيقلب رايح جاي = العمارات "بتتجدد" قدامك)
+      const hy = (on, R) => d < R - (on ? -25 : 25);
+      T.detail.visible = hy(T.detail.visible, this.low ? 300 : DETAIL_R);
+      if (T.bld) { T._hi = hy(T._hi, this.low ? 320 : LOWMAT_R); T.bld.material = T._hi ? this.mats.bld : this.mats.bldLow; }
       T.group.visible = d < viewDist + 200;
     }
     this.stats.tilesLoaded = [...this.tiles.values()].filter((t) => t.ready).length;

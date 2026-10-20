@@ -29,9 +29,9 @@ function labelSprite(seat, name) {
   x.fillText((name || `لاعب ${seat}`).slice(0, 16), 300, 68);
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
   // depthTest مقفول: الاسم بيبان حتى لو عربية تانية/عمود واقف قدامه (كان بيستخبى لما عربيتين جنب بعض)
-  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false, transparent: true, opacity: 0.9 }));
-  // صغير (مايغطيش الطريق) وبيبان من بعيد بس — قريب منك بيختفي
-  s.scale.set(1.5, 0.375, 1);
+  // حجم ثابت على الشاشة (مقروء من بعيد ومايكبرش أوي من قريب)
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false, transparent: true, opacity: 0.92, sizeAttenuation: false }));
+  s.scale.set(0.2, 0.05, 1);
   s.renderOrder = 5;
   return s;
 }
@@ -119,7 +119,7 @@ export class Multiplayer {
     }
     this._myLabel();
     // اسمك فوق عربيتك: مايبانش وإنت سايق (كان بيحجب الطريق) — بيبان في الكاميرا اللي من فوق/السينمائية بس
-    if (this._mine) this._mine.visible = !['cockpit', 'chase', 'hood', 'close'].includes(g.cams?.modeId);
+    if (this._mine) this._mine.visible = !['cockpit', 'hood'].includes(g.cams?.modeId); // بيبان في كل الكاميرات اللي برا
     // عربيات اللاعبين التانيين
     const seen = new Set();
     const now = performance.now() / 1000;
@@ -199,8 +199,7 @@ export class Multiplayer {
     if (rig.interiorGroup) rig.interiorGroup.visible = false;
     if (P.driver) P.driver.visible = true;
     const label = labelSprite(seat, name);
-    label.position.y = LABEL_Y[kind];
-    rig.root.add(label);
+    g.scene.add(label); // في المشهد مش تحت العربية: العربية بتستخبى لما تبعد (LOD) والاسم لازم يفضل باين
     rig.root.updateMatrixWorld(true);
     const lod = makeLodMesh(rig.root);
     if (lod) g.scene.add(lod);
@@ -210,7 +209,7 @@ export class Multiplayer {
   _relabel(R, seat, name) {
     R.seat = seat; R.name = name;
     R.label.removeFromParent(); R.label.material.map.dispose(); R.label.material.dispose();
-    R.label = labelSprite(seat, name); R.label.position.y = LABEL_Y[R.kind]; R.rig.root.add(R.label);
+    R.label = labelSprite(seat, name); this.game.scene.add(R.label);
   }
 
   _pose(R, c, dt, pr) {
@@ -233,12 +232,14 @@ export class Multiplayer {
       if (R.rig.interiorGroup) R.rig.interiorGroup.visible = d2 < 12 * 12;
       if (P.rig.lights?.tail) P.rig.lights.tail.emissiveIntensity = pr.br ? 3.5 : 0.4;
     }
-    // الاسم يبان من 2م لحد 200م (كان بيستخبى تحت 14م: أول اللعبة وعربيتين جنب بعض)
-    R.label.visible = !far && d2 > 2 * 2 && d2 < 200 * 200;
+    // الاسم يبان من 2م لحد 600م (كان بيستخبى لما العربية تبعد وتتحول لنسخة LOD)
+    R.label.position.set(x, y + LABEL_Y[R.kind], z);
+    R.label.visible = d2 > 2 * 2 && d2 < 600 * 600;
   }
 
   _drop(R) {
     R.rig.root.removeFromParent();
+    R.label.removeFromParent();
     if (R.lod) R.lod.removeFromParent();
   }
 

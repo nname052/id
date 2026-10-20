@@ -54,7 +54,7 @@ const SIDE_STOPS = [
 ];
 const URBAN = new Set(['city', 'market', 'residential']);
 // على الموبايل عدد أقل (كل واحد ماشي = كذا قطعة بتترسم)
-const MAX_WALKERS = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches ? 30 : 44;
+const MAX_WALKERS = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches ? 44 : 60; // (أكتر: ناس بتشاور على طول الخط)
 const WALK = 1.45, _v = new THREE.Vector3(), _w = new THREE.Vector3(), _in = new THREE.Vector3();
 
 function stopSign() {
@@ -134,6 +134,7 @@ export class Passengers {
       st.cooldown = 0;
     }
     this.stops = this.stops.filter((st) => st.terminalStop);
+    this.hailStops = [];
     this.trip = null;
     this.line = null; this.linePath = null; this.lineStops = [];
     if (this.mode === 'line') this._setupLine();
@@ -148,6 +149,11 @@ export class Passengers {
       for (const w of [...st.waiting]) if (w.state === 'wait') this._release(w);
       const i = this.stops.indexOf(st); if (i >= 0) this.stops.splice(i, 1);
     }
+    for (const st of this.hailStops || []) {
+      for (const w of [...st.waiting]) if (w.state === 'wait') this._release(w);
+      const i = this.stops.indexOf(st); if (i >= 0) this.stops.splice(i, 1);
+    }
+    this.hailStops = [];
     const L = this.LINES[this.lineIdx % this.LINES.length];
     const wps = this.lineDir ? [...L.stops].reverse() : L.stops;
     const path = { pts: [], cum: [], steps: [], length: 0 };
@@ -428,6 +434,7 @@ export class Passengers {
   _inMarker(st, ph) {
     const dx = ph.x - st.mx, dz = ph.z - st.mz;
     const along = dx * st.ax + dz * st.az, lat = dx * st.nx + dz * st.nz;
+    if (st.hail) return Math.abs(along) < 9 && Math.abs(lat) < 3.2; // اللي بيشاور: أي وقفة جنبه تكفي
     return Math.abs(along) < 3.6 && Math.abs(lat) < 1.7;
   }
 
@@ -436,7 +443,7 @@ export class Passengers {
     const dests = new Set(this.onboard.map((o) => o.dest));
     const nextLine = this.nextStop;
     for (const st of this.stops) {
-      const has = st.waiting.some((w) => w.state === 'wait' || w.state === 'toDoor' || w.state === 'enter') && (this.mode === 'line' ? this.lineStops.includes(st) : st.kind !== 'terminal');
+      const has = st.waiting.some((w) => w.state === 'wait' || w.state === 'toDoor' || w.state === 'enter') && (this.mode === 'line' ? this.lineStops.includes(st) || st.hail : st.kind !== 'terminal');
       const dest = dests.has(st) || st === nextLine;
       if (!has && !dest) continue;
       const d2 = (st.mx - ph.x) ** 2 + (st.mz - ph.z) ** 2;
@@ -559,10 +566,11 @@ export class Passengers {
     if (this.mode === 'line') {
       // الميكروباص: الموقف مليان ناس، والمحطات اللي على الخط فيها كام واحد، وآخر الخط محدش بيركب منه
       const k = this.lineStops.indexOf(stop);
-      if (k < 0) { stop.cooldown = 12; if (!terminal) return; n = 4 + Math.floor(this.R() * 4); }
+      if (stop.hail) n = 1 + Math.floor(this.R() * (1.6 + density)); // ناس بتشاور على جنب الطريق (مش محطة)
+      else if (k < 0) { stop.cooldown = 12; if (!terminal) return; n = 4 + Math.floor(this.R() * 4); }
       else if (k === this.lineStops.length - 1) { stop.cooldown = 20; return; }
-      else if (k === 0) n = 7 + Math.floor(this.R() * 5 * density);
-      else { if (this.R() > 0.55 + 0.35 * density) { stop.cooldown = 25; return; } n = 1 + Math.floor(this.R() * (1.5 + 2 * density)); }
+      else if (k === 0) n = 8 + Math.floor(this.R() * 5 * density);
+      else { if (this.R() > 0.7 + 0.3 * density) { stop.cooldown = 25; return; } n = 2 + Math.floor(this.R() * (2 + 2 * density)); }
     } else if (terminal) {
       n = 6 + Math.floor(this.R() * 6); // ناس الموقف مستنيين ميكروباص (مش هيركبوا تاكسي)
     } else {
@@ -587,8 +595,57 @@ export class Passengers {
       p.phase = this.R() * 6;
       p.delay = 0;
       p.group = group;
-      p.dest = this.mode === 'line' ? (this.lineStops.indexOf(stop) >= 0 ? this._lineDest(this.lineStops.indexOf(stop)) : null) : dest;
+      p.dest = this.mode === 'line' ? (stop.hail ? this._hailDest(stop) : this.lineStops.indexOf(stop) >= 0 ? this._lineDest(this.lineStops.indexOf(stop)) : null) : dest;
       stop.waiting.push(p);
+    }
+  }
+
+  /** اللي بيشاور على جنب: نازل في محطة جاية بعد مكانه على الخط (كتير منهم لآخر الخط) */
+  _hailDest(stop) {
+    const ahead = this.lineStops.filter((st) => st.lineS > stop.lineS + 30);
+    if (!ahead.length) return null;
+    return this.R() < 0.45 ? ahead[ahead.length - 1] : ahead[Math.floor(this.R() * ahead.length)];
+  }
+
+  /** نقطة واتجاه على مسار الخط عند مسافة s */
+  _pathAt(s) {
+    const P = this.linePath, n = P.pts.length;
+    let i = 0; while (i < n - 2 && P.cum[i + 1] < s) i++;
+    const a = P.pts[i], b = P.pts[Math.min(n - 1, i + 1)], seg = Math.max(1e-3, P.cum[Math.min(n - 1, i + 1)] - P.cum[i]);
+    const u = Math.min(1, Math.max(0, (s - P.cum[i]) / seg)), l = Math.hypot(b.x - a.x, b.z - a.z) || 1;
+    return { x: a.x + (b.x - a.x) * u, z: a.z + (b.z - a.z) * u, dx: (b.x - a.x) / l, dz: (b.z - a.z) / l };
+  }
+
+  /** الميكروباص: ناس بتشاور على جنب الطريق قدامك على الخط (تقدر توقف لهم في أي حتة جنبهم، مش لازم محطة) */
+  _manageHail() {
+    const hs = (this.hailStops ||= []);
+    // اللي عدّيناهم/بعدوا: يمشوا
+    for (const st of [...hs]) {
+      const busy = st.waiting.some((w) => w.state === 'toDoor' || w.state === 'enter');
+      if (busy) continue;
+      if (st.lineS < this.lineS - 25 || (!st.waiting.length && st.used)) {
+        for (const w of [...st.waiting]) if (w.state === 'wait') this._release(w);
+        hs.splice(hs.indexOf(st), 1);
+        const i = this.stops.indexOf(st); if (i >= 0 && !this.onboard.some((o) => o.dest === st)) this.stops.splice(i, 1);
+      }
+    }
+    const density = this.settings ? +(this.settings.get('paxDensity') ?? 1) : 1;
+    const want = Math.round(3 + 2 * density);
+    for (let tries = 0; hs.length < want && tries < 12; tries++) {
+      const s = this.lineS + 50 + this.R() * 260;
+      if (s > this.linePath.length - 60) break;
+      const q = this._pathAt(s);
+      const a = this.candGrid.get(`${Math.floor(q.x / 60)},${Math.floor(q.z / 60)}`);
+      if (!a) continue;
+      let best = null, bd = 22 * 22;
+      for (const c of a) {
+        if (c.ax * q.dx + c.az * q.dz < 0.6) continue; // نفس اتجاه السير (الرصيف اللي على إيدك اليمين)
+        const d2 = (c.x - q.x) ** 2 + (c.z - q.z) ** 2;
+        if (d2 < bd) { bd = d2; best = c; }
+      }
+      if (!best || this.stops.some((st) => (st.x - best.x) ** 2 + (st.z - best.z) ** 2 < 45 * 45)) continue;
+      const st = { ...best, cand: best, waiting: [], cooldown: 0, fixed: true, hail: true, lineS: s, name: 'على جنب' };
+      this.stops.push(st); hs.push(st);
     }
   }
 
@@ -643,6 +700,7 @@ export class Passengers {
         const tr = trackRoute(this.linePath, vx, vz, this._lineTrack);
         // بنعتبر مكانك على الخط بس لما تكون ماشي عليه فعلًا (في الموقف/خارج الخط: المحطة الجاية بتفضل زي ما هي)
         if (tr && tr.off < 12) this.lineS = Math.max(this.lineS - 30, tr.s);
+        this._manageHail();
         this.hud?.setJob?.(this.jobInfo());
       }
     }
@@ -668,7 +726,7 @@ export class Passengers {
         const free = this.capacity - this.onboard.length - toDoor;
         if (!st.waiting.length) continue;
         // الميكروباص بيحمّل من محطات خطه بس، والتاكسي زبون واحد (أو مجموعة) في المرة ومش من موقف الميكروباص
-        if (this.mode === 'line' && !this.lineStops.includes(st)) continue;
+        if (this.mode === 'line' && !this.lineStops.includes(st) && !st.hail) continue;
         if (this.mode === 'trip' && (st.kind === 'terminal' || this.trip || this.onboard.length || this.walkers.some((p) => (p.state === 'toDoor' || p.state === 'enter') && p.stop !== st))) continue;
         const sideOk = (st.x - vx) * rx + (st.z - vz) * rz > 0.5;
         if (!sideOk || !this._inMarker(st, ph)) {
@@ -891,7 +949,7 @@ export class Passengers {
     seat.pax = pax;
     this.onboard.push(pax);
     p.stop.waiting.splice(p.stop.waiting.indexOf(p), 1);
-    if (!p.stop.waiting.length) p.stop.cooldown = p.stop.kind === 'terminal' ? 6 : 20;
+    if (!p.stop.waiting.length) { p.stop.cooldown = p.stop.kind === 'terminal' ? 6 : 20; p.stop.used = true; }
     if (this.mode === 'trip' && !this.trip && p.group) {
       // أول واحد من المجموعة ركب: المشوار بدأ (الأجرة بالعداد على مسافة الطريق)
       const fare = tripFare(this.player.kind, p.group.meters);

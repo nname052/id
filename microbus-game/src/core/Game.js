@@ -179,6 +179,7 @@ export class Game {
     if (this.world) {
       this.traffic = new ShibinTraffic(this.scene, (type, color, o) => this._makeCar(type, color, o), this.audio, this.world, { count: this.saverBoot ? 14 : this.tier === 'low' ? 18 : this.mobile ? 28 : 56, parked: this.tier === 'low' ? 8 : this.mobile ? 12 : 26 });
       this.traffic.viewDist = this.mobile ? 150 : 190;
+      if (this.mobile) { this.traffic.activeR = 195; this.traffic.despawnR = 240; }
       this.crowdBase = this.tier === 'low' ? 80 : this.mobile ? 105 : 240; // (المدينة كانت فاضية: ناس أكتر بكتير)
       this.crowd = new ShibinCrowd(this.scene, this.world, { count: this.crowdBase });
       this.crowd.traffic = this.traffic; this.traffic.crowd = this.crowd;
@@ -631,7 +632,8 @@ export class Game {
     } else if (fps > target * 0.95) {
       q.good += 1.5;
       // مستقر على الهدف فترة طويلة → نطلع درجة (الموبايل مش أعلى من "عالية")
-      if (q.good > (this.mobile ? 20 : 8) && q.level > min) { q.level--; q.good = 0; q.cooldown = 4; this._applyQuality(q.level, fps); }
+      // (الموبايل بيستنى أطول قبل ما يعلّي: كان بيطلع وينزل كل شوية → الصورة والعمارات البعيدة بتتغير قدامك)
+      if (q.good > (this.mobile ? 45 : 8) && q.level > min) { q.level--; q.good = 0; q.cooldown = 4; this._applyQuality(q.level, fps); }
     } else q.good = 0;
   }
 
@@ -649,7 +651,8 @@ export class Game {
     const floor = Math.min(1, window.devicePixelRatio || 1);
     // الموبايل: الدقة بسقف ثابت لكل مستوى (شاشات 3x بترسم 9 أضعاف البكسلات من غير فرق واضح)
     // (كانت 1.5/1.35/1.2/1.0/0.85 — على شاشة 3x المتوسطة كانت بتتمط 2.5 مرة = مبكسلة/مغبشة)
-    const MPR = [1.65, 1.5, 1.4, 1.15, 1.0];
+    // (الأوطى كانت 1.15/1.0 = مبكسلة جدًا على شاشات الموبايل الحادة: أقل حاجة دلوقتي 1.3 — بنوفّر من الضل ومسافة الرؤية بدلها)
+    const MPR = [1.7, 1.55, 1.45, 1.35, 1.3];
     const pr = this.mobile
       ? Math.min(window.devicePixelRatio, level < 0 ? 1.75 : MPR[level])
       : level < 0 ? Math.min(window.devicePixelRatio, 2) : Math.max(floor, [base, base, base * 0.9, base * 0.8, base * 0.72][level]);

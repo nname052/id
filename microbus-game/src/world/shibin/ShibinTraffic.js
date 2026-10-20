@@ -21,7 +21,7 @@ import { canvas, tex } from '../../render/textures.js';
 // (العربيات الإجرائية المربعة والموتوسيكل اتشالوا: كانوا شكلهم غريب — موديلات حقيقية بس)
 const TYPES = ['sedan', 'taxi', 'microbus', 'sedan', 'taxi', 'tuktuk', 'microbus', 'sedan', 'taxi', 'microbus', 'sedan', 'tuktuk'];
 const SMALL = { tuktuk: { vMul: 0.62, mass: 420 }, moto: { vMul: 0.9, mass: 220 } };
-const ACTIVE_R = 230, SPAWN_MIN = 70, DESPAWN_R = 280;
+const SPAWN_MIN = 60; // (نطاق المرور: this.activeR / this.despawnR — أصغر على الموبايل = نفس العدد في مساحة أقل = زحمة أكتر حواليك)
 const CLASS_W = { motorway: 3, trunk: 3, primary: 3, secondary: 2.6, tertiary: 2.2, unclassified: 1.4, residential: 1, living_street: 0.4, service: 0.25, road: 1, track: 0.15 };
 const _a = {}, _b = {};
 
@@ -34,6 +34,7 @@ export class ShibinTraffic {
     this.cars = [];
     this._stops = []; this._slows = [];
     this.parked = [];
+    this.activeR = 230; this.despawnR = 280;
     this.viewDist = 170;
     this._remotes = [];
     this.night = false;
@@ -156,7 +157,7 @@ export class ShibinTraffic {
       const sT = el.a + this.R() * (el.b - el.a);
       this._at(el.e, el.dir, sT, 0, _b);
       const d = Math.hypot(_b.x - px, _b.z - pz);
-      if (d < (this._first ? 25 : SPAWN_MIN) || d > ACTIVE_R) continue;
+      if (d < (this._first ? 25 : SPAWN_MIN) || d > this.activeR) continue;
       if (!this._first && this._inView(_b.x, _b.z)) continue;
       if (this.cars.some((o) => o.on && (o.x - _b.x) ** 2 + (o.z - _b.z) ** 2 < 14 * 14)) continue;
       if (!this._pedClear(_b.x, _b.z)) continue;
@@ -242,7 +243,7 @@ export class ShibinTraffic {
     c.x = _b.x; c.z = _b.z; c.y = _b.y;
     // يرجع عربية حقيقية: جوه نطاق المرور، برا عين الكاميرا، ومفيش حد مكانه
     const d2 = (c.x - px) ** 2 + (c.z - pz) ** 2;
-    if (d2 < ACTIVE_R * ACTIVE_R && !c.off && !this._inView(c.x, c.z) && !this.cars.some((o) => o !== c && o.on && (o.x - c.x) ** 2 + (o.z - c.z) ** 2 < 12 * 12) && this._pedClear(c.x, c.z)) {
+    if (d2 < this.activeR * this.activeR && !c.off && !this._inView(c.x, c.z) && !this.cars.some((o) => o !== c && o.on && (o.x - c.x) ** 2 + (o.z - c.z) ** 2 < 12 * 12) && this._pedClear(c.x, c.z)) {
       c.virtual = false; c.on = true;
       c.lane = c.laneHome = this._laneOff(el.e); c.turn = null; c.next = null; c.hold = null; c.deadEnd = false; c.pull = null;
       c.dwell = Math.max(0, c.vdwell || 0); c.vdwell = 0; c.v = c.dwell > 0 ? 0 : 5; c.bumped = 0; c.kox = c.koz = 0; c.stuck = 0;
@@ -451,7 +452,7 @@ export class ShibinTraffic {
       }
     }
     for (let t = 0; t < 12; t++) {
-      const ang = this.R() * Math.PI * 2, d = SPAWN_MIN + this.R() * (ACTIVE_R - SPAWN_MIN);
+      const ang = this.R() * Math.PI * 2, d = SPAWN_MIN + this.R() * (this.activeR - SPAWN_MIN);
       const ux = Math.cos(ang), uz = Math.sin(ang);
       // مفيش ظهور جوه مدى الرؤية قدامك: يا برا مدى الرؤية خالص، يا وراك (أول ملي للدنيا بس مسموح في أي حتة)
       if (!this._first && d < this.viewDist + 15 && ux * fx + uz * fz > -0.35) continue;
@@ -583,7 +584,7 @@ export class ShibinTraffic {
       if (c.virtual) { this._virtualStep(c, dt, fr + i, px, pz); continue; }
       if (!c.on) { if (n++ < (this._first ? 99 : 2)) this._spawn(c, px, pz, fx, fz); continue; }
       const d2 = (c.x - px) ** 2 + (c.z - pz) ** 2;
-      if (d2 > DESPAWN_R * DESPAWN_R) {
+      if (d2 > this.despawnR * this.despawnR) {
         this._release(c); c.on = false; c.rig.root.visible = false;
         // ميكروباص الخط بيكمل شغله "على الورق" وهو بعيد (حساب رخيص من غير رسم) — مش بيختفي من الخط
         if (c.line && !c.turn) { c.virtual = true; c.vdwell = 0; c.pull = null; c.dwell = 0; c._vAcc = 0; }

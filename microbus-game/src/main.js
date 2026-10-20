@@ -141,8 +141,8 @@ try {
 } catch { /* مش متاح */ }
 
 // منع سكرول/زووم/تحديد النص أثناء القيادة (موبايل)
-// (شاشة البداية والإعدادات مستثنيين: لازم يتعمل فيهم سكرول على الموبايل وهو مقلوب بالعرض)
-const stop = (e) => { if (e.cancelable && !e.target.closest?.('#settings, #start')) e.preventDefault(); };
+// (شاشة البداية والإعدادات واختيار الخط مستثنيين: لازم يتعمل فيهم سكرول على الموبايل وهو مقلوب بالعرض)
+const stop = (e) => { if (e.cancelable && !e.target.closest?.('#settings, #start, #linepick')) e.preventDefault(); };
 document.addEventListener('touchmove', stop, { passive: false });
 document.addEventListener('gesturestart', stop, { passive: false });
 document.addEventListener('gesturechange', stop, { passive: false });
