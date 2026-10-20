@@ -12,7 +12,7 @@ let shared = null;
 
 function prepare(asset) {
   if (shared) return shared;
-  const paint = PAINTS.map((c) => new THREE.MeshPhysicalMaterial({ color: c, roughness: 0.4, clearcoat: 1, clearcoatRoughness: 0.1, envMapIntensity: 1.2, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }));
+  const paint = PAINTS.map((c) => new THREE.MeshPhysicalMaterial({ color: c, roughness: 0.45, clearcoat: 0.15, clearcoatRoughness: 0.25, envMapIntensity: 0.3, /* (كانت لامعة على الآخر: من بعيد بتعكس السما وتبان بيضا، ولونها الحقيقي يظهر لما تقرب) */ side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }));
   let lights = null;
   const glass = new THREE.MeshPhysicalMaterial({ color: 0x1c2a2e, transparent: true, opacity: 0.55, roughness: 0.02, envMapIntensity: 2, depthWrite: false, side: THREE.DoubleSide });
   const swap = new Map();

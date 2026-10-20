@@ -38,7 +38,7 @@ export function lodMaterials() {
   return (lodMats ||= [lodMaterial(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.12, metalness: 0.3, envMapIntensity: 0.35, side: THREE.DoubleSide })]);
 }
 export function lodMaterial() {
-  return (lodMat ||= new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.36, metalness: 0.05, envMapIntensity: 0.8 })); // لامع زي دهان العربيات الحقيقية (كانت مطفية = لون مختلف لما تقرب)
+  return (lodMat ||= new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.45, metalness: 0.0, envMapIntensity: 0.3 })); // لامع زي دهان العربيات الحقيقية (كانت مطفية = لون مختلف لما تقرب)
 }
 
 // القطع اللي بتدخل في الـ LOD (بنفس الترتيب دايمًا) + لون كل قطعة
@@ -83,8 +83,11 @@ function partColor(mat, glass, out) {
   const a = averageColor(mat.map);
   if (a) out.multiply(a);
   if (mat.emissive && mat.emissiveIntensity > 0.5 && !mat.map) out.lerp(mat.emissive, 0.3);
-  // دهان السيدان (شيدر بشرايط وتغميق تحت): متوسطه أغمق وأقل تشبّع من لونه الأساسي (مقاس بالكاميرا: نفس المكان والإضاءة، جسم العربية بس من غير الضل اللي تحتها)
+  // (مقاس بالكاميرا: نفس المكان والإضاءة، جسم العربية بس من غير الضل اللي تحتها)
+  // دهان السيدان (شيدر بشرايط وتغميق تحت): متوسطه أغمق وأقل تشبّع من لونه الأساسي
   if (mat.userData?.U?.uStripes) { const l = out.r * 0.3 + out.g * 0.59 + out.b * 0.11; out.lerp(_lum.setRGB(l, l, l), 0.25).multiplyScalar(0.85); }
+  // خامات الهاي إس (Physical): بتطلع أغمق من لونها الأساسي
+  else if (mat.isMeshPhysicalMaterial) out.multiplyScalar(0.8);
   return out;
 }
 

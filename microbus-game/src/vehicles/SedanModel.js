@@ -218,7 +218,7 @@ export function sedanPaintMaterial(livery = 'taxi', { unique = false } = {}) {
   const key = String(livery);
   if (!unique && _matCache.has(key)) return _matCache.get(key);
   const L = typeof livery === 'number' ? { paint: livery } : SEDAN_LIVERIES[livery] || SEDAN_LIVERIES.taxi;
-  const mat = new THREE.MeshPhysicalMaterial({ color: L.paint, roughness: 0.36, metalness: 0.0, clearcoat: 0.55, clearcoatRoughness: 0.14, envMapIntensity: 0.75 });
+  const mat = new THREE.MeshPhysicalMaterial({ color: L.paint, roughness: 0.42, metalness: 0.0, clearcoat: 0.15, clearcoatRoughness: 0.25, envMapIntensity: 0.3 }); // (لمعة وانعكاس سما أقل: من بعيد كانت بتبان فضي/أبيض — خصوصًا على الآيفون)
   const U = {
     uStripe: { value: new THREE.Color(L.stripe ?? 0xf3d20f) }, uStripes: { value: L.stripes ? 1 : 0 },
     uEmblem: { value: L.emblem ? 1 : 0 }, uLower: { value: new THREE.Color(L.lower ?? 0x000000) }, uPolice: { value: L.police ? 1 : 0 },
