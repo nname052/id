@@ -1,0 +1,767 @@
+{
+ "region": "shibin",
+ "name": "شبين الكوم",
+ "name_en": "Shebin El Kom",
+ "governorate": "المنوفية",
+ "generator_version": 2,
+ "source": {
+  "file": "minufiyya-2026-10-14.osm.pbf",
+  "note": "BBBike extract of OpenStreetMap (Minufiyya area), downloaded 2026-10-14",
+  "sha1": "59550603bc2a7b97a862ed25dc306029792b5c75",
+  "osm_header_bbox": null
+ },
+ "extracted_at": "2026-10-19T03:31:05Z",
+ "license": {
+  "data": "Open Database License (ODbL) 1.0",
+  "attribution": "© OpenStreetMap contributors",
+  "url": "https://www.openstreetmap.org/copyright"
+ },
+ "origin": {
+  "lat": 30.5545106,
+  "lon": 31.0097923,
+  "osm": "node/299527803",
+  "note": "OSM place node 'شبين الكوم' (city centre)"
+ },
+ "projection": {
+  "method": "Transverse Mercator centred on the origin (pyproj)",
+  "proj": "+proj=tmerc +lat_0=30.5545106 +lon_0=31.0097923 +k=1 +ellps=WGS84 +units=m",
+  "axes": "x = east (m), z = south (m) so north = -z, y = up (m)"
+ },
+ "bbox_latlon": {
+  "south": 30.540138,
+  "west": 30.986843,
+  "north": 30.58146,
+  "east": 31.029612
+ },
+ "bbox_local": [
+  -2202.2,
+  -2987.9,
+  1901.9,
+  1593.2
+ ],
+ "tile_size": 400,
+ "tiles": {
+  "t_-6_-8": [
+   "roads"
+  ],
+  "t_-6_-7": [
+   "roads"
+  ],
+  "t_-6_-6": [
+   "roads"
+  ],
+  "t_-6_-5": [
+   "roads"
+  ],
+  "t_-6_-4": [
+   "roads"
+  ],
+  "t_-6_-3": [
+   "roads",
+   "water"
+  ],
+  "t_-6_-2": [
+   "roads",
+   "water",
+   "buildings"
+  ],
+  "t_-6_-1": [
+   "roads",
+   "buildings"
+  ],
+  "t_-6_1": [
+   "roads"
+  ],
+  "t_-6_2": [
+   "roads",
+   "buildings"
+  ],
+  "t_-6_3": [
+   "roads",
+   "buildings"
+  ],
+  "t_-5_-8": [
+   "roads",
+   "buildings"
+  ],
+  "t_-5_-7": [
+   "roads",
+   "buildings",
+   "railways"
+  ],
+  "t_-5_-6": [
+   "roads",
+   "buildings"
+  ],
+  "t_-5_-5": [
+   "roads"
+  ],
+  "t_-5_-4": [
+   "roads",
+   "buildings"
+  ],
+  "t_-5_-3": [
+   "roads",
+   "buildings"
+  ],
+  "t_-5_-2": [
+   "roads",
+   "water",
+   "buildings"
+  ],
+  "t_-5_-1": [
+   "roads",
+   "buildings"
+  ],
+  "t_-5_0": [
+   "roads"
+  ],
+  "t_-5_1": [
+   "roads"
+  ],
+  "t_-5_2": [
+   "roads",
+   "buildings"
+  ],
+  "t_-5_3": [
+   "roads",
+   "buildings"
+  ],
+  "t_-5_4": [
+   "roads"
+  ],
+  "t_-4_-8": [
+   "roads",
+   "buildings"
+  ],
+  "t_-4_-7": [
+   "roads"
+  ],
+  "t_-4_-6": [
+   "roads",
+   "buildings",
+   "railways"
+  ],
+  "t_-4_-5": [
+   "roads",
+   "buildings",
+   "railways"
+  ],
+  "t_-4_-4": [
+   "roads",
+   "buildings"
+  ],
+  "t_-4_-3": [
+   "roads",
+   "buildings"
+  ],
+  "t_-4_-2": [
+   "roads",
+   "buildings"
+  ],
+  "t_-4_-1": [
+   "roads",
+   "buildings"
+  ],
+  "t_-4_0": [
+   "roads",
+   "buildings"
+  ],
+  "t_-4_1": [
+   "roads"
+  ],
+  "t_-4_2": [
+   "roads"
+  ],
+  "t_-3_-8": [
+   "roads"
+  ],
+  "t_-3_-7": [
+   "roads",
+   "buildings"
+  ],
+  "t_-3_-6": [
+   "roads",
+   "buildings"
+  ],
+  "t_-3_-5": [
+   "roads",
+   "buildings"
+  ],
+  "t_-3_-4": [
+   "roads",
+   "buildings",
+   "railways"
+  ],
+  "t_-3_-3": [
+   "roads",
+   "buildings",
+   "railways"
+  ],
+  "t_-3_-2": [
+   "roads",
+   "buildings"
+  ],
+  "t_-3_-1": [
+   "roads",
+   "buildings"
+  ],
+  "t_-3_0": [
+   "roads",
+   "buildings"
+  ],
+  "t_-3_1": [
+   "roads",
+   "buildings"
+  ],
+  "t_-3_2": [
+   "roads",
+   "buildings"
+  ],
+  "t_-3_3": [
+   "roads",
+   "buildings"
+  ],
+  "t_-3_4": [
+   "roads"
+  ],
+  "t_-2_-8": [
+   "roads"
+  ],
+  "t_-2_-7": [
+   "roads",
+   "buildings"
+  ],
+  "t_-2_-6": [
+   "roads",
+   "buildings"
+  ],
+  "t_-2_-5": [
+   "roads",
+   "buildings"
+  ],
+  "t_-2_-4": [
+   "roads",
+   "buildings"
+  ],
+  "t_-2_-3": [
+   "roads",
+   "buildings"
+  ],
+  "t_-2_-2": [
+   "roads",
+   "buildings",
+   "railways"
+  ],
+  "t_-2_-1": [
+   "roads",
+   "buildings",
+   "railways"
+  ],
+  "t_-2_0": [
+   "roads",
+   "buildings",
+   "railways"
+  ],
+  "t_-2_1": [
+   "roads",
+   "buildings"
+  ],
+  "t_-2_2": [
+   "roads",
+   "buildings"
+  ],
+  "t_-2_3": [
+   "roads"
+  ],
+  "t_-2_4": [
+   "roads"
+  ],
+  "t_-1_-8": [
+   "roads",
+   "water",
+   "buildings"
+  ],
+  "t_-1_-7": [
+   "roads",
+   "water",
+   "buildings"
+  ],
+  "t_-1_-6": [
+   "roads",
+   "water",
+   "buildings"
+  ],
+  "t_-1_-5": [
+   "roads",
+   "buildings"
+  ],
+  "t_-1_-4": [
+   "roads",
+   "buildings"
+  ],
+  "t_-1_-3": [
+   "roads",
+   "buildings"
+  ],
+  "t_-1_-2": [
+   "roads",
+   "buildings"
+  ],
+  "t_-1_-1": [
+   "roads",
+   "buildings"
+  ],
+  "t_-1_0": [
+   "roads",
+   "buildings"
+  ],
+  "t_-1_1": [
+   "roads",
+   "buildings",
+   "railways"
+  ],
+  "t_-1_2": [
+   "roads",
+   "buildings",
+   "railways"
+  ],
+  "t_-1_3": [
+   "roads",
+   "buildings",
+   "railways"
+  ],
+  "t_-1_4": [
+   "roads"
+  ],
+  "t_0_-8": [
+   "roads",
+   "buildings"
+  ],
+  "t_0_-7": [
+   "roads",
+   "buildings"
+  ],
+  "t_0_-6": [
+   "roads",
+   "water",
+   "buildings"
+  ],
+  "t_0_-5": [
+   "roads",
+   "water",
+   "buildings"
+  ],
+  "t_0_-4": [
+   "roads",
+   "water",
+   "buildings"
+  ],
+  "t_0_-3": [
+   "roads",
+   "water",
+   "buildings"
+  ],
+  "t_0_-2": [
+   "roads",
+   "water",
+   "buildings"
+  ],
+  "t_0_-1": [
+   "roads",
+   "water",
+   "buildings"
+  ],
+  "t_0_0": [
+   "roads",
+   "water",
+   "buildings"
+  ],
+  "t_0_1": [
+   "roads",
+   "water",
+   "buildings"
+  ],
+  "t_0_2": [
+   "roads",
+   "water",
+   "buildings"
+  ],
+  "t_0_3": [
+   "roads",
+   "water",
+   "buildings"
+  ],
+  "t_0_4": [
+   "roads",
+   "water"
+  ],
+  "t_1_-8": [
+   "roads",
+   "water",
+   "buildings"
+  ],
+  "t_1_-7": [
+   "roads",
+   "water",
+   "buildings"
+  ],
+  "t_1_-6": [
+   "roads",
+   "water",
+   "buildings"
+  ],
+  "t_1_-5": [
+   "roads",
+   "buildings"
+  ],
+  "t_1_-4": [
+   "roads",
+   "buildings"
+  ],
+  "t_1_-3": [
+   "roads",
+   "buildings"
+  ],
+  "t_1_-2": [
+   "roads",
+   "buildings"
+  ],
+  "t_1_-1": [
+   "roads",
+   "buildings"
+  ],
+  "t_1_0": [
+   "roads",
+   "buildings"
+  ],
+  "t_1_1": [
+   "roads",
+   "buildings"
+  ],
+  "t_1_2": [
+   "roads",
+   "buildings"
+  ],
+  "t_1_3": [
+   "roads",
+   "buildings"
+  ],
+  "t_1_4": [
+   "roads"
+  ],
+  "t_2_-8": [
+   "roads",
+   "water",
+   "buildings"
+  ],
+  "t_2_-7": [
+   "roads",
+   "buildings"
+  ],
+  "t_2_-6": [
+   "roads",
+   "buildings"
+  ],
+  "t_2_-5": [
+   "roads",
+   "buildings"
+  ],
+  "t_2_-4": [
+   "roads",
+   "buildings"
+  ],
+  "t_2_-3": [
+   "roads",
+   "buildings"
+  ],
+  "t_2_-2": [
+   "roads",
+   "buildings"
+  ],
+  "t_2_-1": [
+   "roads",
+   "buildings"
+  ],
+  "t_2_0": [
+   "roads",
+   "buildings"
+  ],
+  "t_2_1": [
+   "roads",
+   "buildings"
+  ],
+  "t_2_2": [
+   "roads",
+   "buildings"
+  ],
+  "t_2_3": [
+   "roads",
+   "buildings"
+  ],
+  "t_2_4": [
+   "roads"
+  ],
+  "t_3_-8": [
+   "roads"
+  ],
+  "t_3_-7": [
+   "roads"
+  ],
+  "t_3_-6": [
+   "roads",
+   "buildings"
+  ],
+  "t_3_-5": [
+   "roads",
+   "buildings"
+  ],
+  "t_3_-4": [
+   "roads",
+   "buildings"
+  ],
+  "t_3_-3": [
+   "roads",
+   "buildings"
+  ],
+  "t_3_-2": [
+   "roads",
+   "buildings"
+  ],
+  "t_3_-1": [
+   "roads",
+   "buildings"
+  ],
+  "t_3_0": [
+   "roads",
+   "buildings"
+  ],
+  "t_3_1": [
+   "roads",
+   "buildings"
+  ],
+  "t_3_2": [
+   "roads"
+  ],
+  "t_3_3": [
+   "roads",
+   "buildings"
+  ],
+  "t_3_4": [
+   "roads"
+  ],
+  "t_4_-8": [
+   "roads"
+  ],
+  "t_4_-7": [
+   "roads"
+  ],
+  "t_4_-6": [
+   "roads",
+   "buildings"
+  ],
+  "t_4_-5": [
+   "roads",
+   "buildings"
+  ],
+  "t_4_-4": [
+   "roads",
+   "buildings"
+  ],
+  "t_4_-3": [
+   "roads",
+   "buildings"
+  ],
+  "t_4_-2": [
+   "roads",
+   "buildings"
+  ],
+  "t_4_-1": [
+   "roads"
+  ],
+  "t_4_0": [
+   "roads",
+   "buildings"
+  ],
+  "t_4_1": [
+   "roads"
+  ],
+  "t_4_2": [
+   "roads"
+  ],
+  "t_4_3": [
+   "roads",
+   "buildings"
+  ]
+ },
+ "counts": {
+  "roads_ways": 2095,
+  "foot_ways": 19,
+  "graph_nodes": 4324,
+  "graph_edges": 5756,
+  "named_streets": 1006,
+  "gates": 99,
+  "buildings_generated": 35731,
+  "buildings_real": 13,
+  "bridges": 18,
+  "canals": 9,
+  "rails": 11,
+  "road_km": 340.0
+ },
+ "bridges": [
+  {
+   "name": "كوبرى مبارك",
+   "H": 1.0,
+   "overpass": false,
+   "edges": [
+    17
+   ]
+  },
+  {
+   "name": "كوبرى مبارك",
+   "H": 1.0,
+   "overpass": false,
+   "edges": [
+    136
+   ]
+  },
+  {
+   "name": "كوبرى عمر افندى",
+   "H": 1.0,
+   "overpass": false,
+   "edges": [
+    187
+   ]
+  },
+  {
+   "name": "شارع جمال عبد الناصر",
+   "H": 0.9222813259050074,
+   "overpass": false,
+   "edges": [
+    407
+   ]
+  },
+  {
+   "name": "شارع جمال عبد الناصر",
+   "H": 1.0,
+   "overpass": false,
+   "edges": [
+    408
+   ]
+  },
+  {
+   "name": null,
+   "H": 6.0,
+   "overpass": true,
+   "edges": [
+    641,
+    3989,
+    3988
+   ]
+  },
+  {
+   "name": null,
+   "H": 1.0,
+   "overpass": false,
+   "edges": [
+    3464
+   ]
+  },
+  {
+   "name": null,
+   "H": 1.0,
+   "overpass": false,
+   "edges": [
+    3682,
+    3683
+   ]
+  },
+  {
+   "name": "شارع مساكن موظفي غزل شبين الكوم",
+   "H": 0.703902142044389,
+   "overpass": false,
+   "edges": [
+    3695
+   ]
+  },
+  {
+   "name": null,
+   "H": 0.5027948407856142,
+   "overpass": false,
+   "edges": [
+    3719
+   ]
+  },
+  {
+   "name": null,
+   "H": 0.3047418838205376,
+   "overpass": false,
+   "edges": [
+    3826
+   ]
+  },
+  {
+   "name": "كوبرى شبين الكوم العلوي",
+   "H": 6.0,
+   "overpass": true,
+   "edges": [
+    3990
+   ]
+  },
+  {
+   "name": null,
+   "H": 0.3222263864315922,
+   "overpass": false,
+   "edges": [
+    4143
+   ]
+  },
+  {
+   "name": null,
+   "H": 0.3173185736917687,
+   "overpass": false,
+   "edges": [
+    4144
+   ]
+  },
+  {
+   "name": null,
+   "H": 0.37042820666666526,
+   "overpass": false,
+   "edges": [
+    4145
+   ]
+  },
+  {
+   "name": null,
+   "H": 0.3183798425557406,
+   "overpass": false,
+   "edges": [
+    4146
+   ]
+  },
+  {
+   "name": null,
+   "H": 0.4502036832766879,
+   "overpass": false,
+   "edges": [
+    4356
+   ]
+  },
+  {
+   "name": null,
+   "H": 0.2737088466978424,
+   "overpass": false,
+   "edges": [
+    4542
+   ]
+  }
+ ],
+ "generated": {
+  "buildings": "OSM has almost no building footprints in this city, so buildings are GENERATED along real streets (no building on any road/sidewalk/water/rail/park). Real OSM footprints are used where they exist.",
+  "elevation": "OSM has no elevations: the ground is flat (y=0); bridge decks get an estimated profile (overpass 6 m with 140 m ramps, canal bridges 1 m hump).",
+  "widths": "road width/lanes from OSM tags when present, otherwise class defaults (see tools/osm/build_region.py WIDTH/LANES)",
+  "sidewalks": "sidewalk widths by road class (not in OSM)"
+ },
+ "build_seconds": 44.7
+}

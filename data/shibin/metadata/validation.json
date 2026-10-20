@@ -1,0 +1,57 @@
+{
+ "conversion": {
+  "edges": 5756,
+  "max_point_error_m": 0.07,
+  "osm_ways_missing": 0
+ },
+ "names": {
+  "named_edges": 4158,
+  "mismatched": 0,
+  "examples": [],
+  "unnamed_edges_kept_unnamed": 1598
+ },
+ "landmarks": {
+  "confirmed": 17,
+  "invalid": 0,
+  "invalid_list": [],
+  "needs_verification": [
+   "شارع باريس",
+   "ديوان عام محافظة المنوفية",
+   "استراحة المحافظ",
+   "مواقف الميكروباص الرئيسية",
+   "الميادين الرئيسية",
+   "المستشفيات الرئيسية (التعليمي/الجامعي/العام)",
+   "اسم الاستاد الرسمي"
+  ]
+ },
+ "buildings": {
+  "generated": 35743,
+  "on_road": 0,
+  "worst_overlap_m2": 0.0,
+  "on_water": 0,
+  "on_rail": 0
+ },
+ "network": {
+  "drive_edges": 5638,
+  "components": 5,
+  "main_component_nodes": 4186,
+  "small_components": [
+   2,
+   2,
+   2,
+   2
+  ],
+  "duplicate_edges": 1,
+  "routing_samples": 400,
+  "routing_ok": 399,
+  "routing_failed": 1,
+  "note": "small components / routing failures come from the OSM source data (oneway dead-ends, isolated ways); nothing is invented to \"fix\" them",
+  "node_height_mismatches": 0
+ },
+ "gates": {
+  "count": 99,
+  "invalid": 0,
+  "invalid_list": []
+ },
+ "PASS": true
+}

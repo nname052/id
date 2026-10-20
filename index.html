@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#141414" />
+  <title>ميكروباص مصر</title>
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
+  <script type="module" crossorigin src="./assets/index-BTPx0Ali.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-DoJF_SKQ.css">
+</head>
+<body>
+  <div id="app"></div>
+
+  <!-- شاشة التحميل / البداية -->
+  <div id="start">
+    <div class="card">
+      <h1>ميكروباص مصر</h1>
+      <p class="sub">نسخة تجريبية · شبين الكوم الحقيقية (خريطة OpenStreetMap)</p>
+      <div id="progress"><div id="bar"></div></div>
+      <p id="status">بيتحمّل...</p>
+      <div class="lobby" id="lobby">
+        <div class="lobby-row"><label for="pname">اسمك</label><input id="pname" maxlength="16" enterkeyhint="done" placeholder="مثلًا: أسطى محمد" autocomplete="off" /></div>
+        <div class="seats" id="seats"></div>
+        <p class="lobby-status" id="lobby-status">بندوّر على اللاعبين...</p>
+      </div>
+      <div class="pick" id="pick">
+        <button data-v="microbus"><b>🚐</b><span>ميكروباص</span><small>14 راكب · هاي إس</small></button>
+        <button data-v="taxi"><b>🚕</b><span>تاكسي</span><small>4 ركاب · سريع</small></button>
+        <button data-v="tuktuk"><b>🛺</b><span>توكتوك</span><small>3 ركاب · بيدخل في أي حتة</small></button>
+      </div>
+      <div class="pick maps" id="maps">
+        <button data-m="shibin" class="on"><b>🏙️</b><span>شبين الكوم الحقيقية</span><small>المدينة كاملة من خريطة حقيقية (OSM)</small></button>
+        <button data-m="current"><b>🗺️</b><span>الخريطة القديمة</span><small>وسط البلد · الطريق الدائري (تخيلية)</small></button>
+      </div>
+      <p class="osm-attr" id="osm-attr">بيانات الخريطة © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a> (ODbL)</p>
+      <button id="go" disabled>يلا بينا ▶</button>
+      <div class="keys">
+        <div><kbd>W</kbd> بنزين</div>
+        <div><kbd>S</kbd> فرامل / ريوس</div>
+        <div><kbd>A</kbd> <kbd>D</kbd> دركسيون</div>
+        <div><kbd>Space</kbd> فرامل يد</div>
+        <div><kbd>C</kbd> تغيير الكاميرا</div>
+        <div><kbd>R</kbd> رجوع للطريق</div>
+        <div><kbd>H</kbd> كلاكس</div>
+        <div><kbd>T</kbd> نهار / غروب / ليل</div>
+        <div><kbd>L</kbd> الكشافات</div>
+      </div>
+      <p class="hint mobile-hint">على الموبايل: لف التليفون بالعرض، امسك الدركسيون ولفّه بصباعك زي العربية الحقيقية، ودوس البنزين والفرامل باليمين.</p>
+      <p class="hint credit">موديل الميكروباص: 2005 Toyota HiAce — ActsOfDoge (Sketchfab، رخصة Sketchfab Standard — مدمج في اللعبة ومش متاح كملف منفصل) · الخطوط: SIL OFL · بيانات الخريطة: OpenStreetMap (ODbL)</p>
+      <p class="hint">اسحب بالماوس عشان تبص حواليك وتشوف المرايات · يدعم يد التحكم (Gamepad)</p>
+    </div>
+  </div>
+
+  <div id="hud" class="hidden">
+    <div id="street" class="hidden" aria-live="polite"><span id="street-name"></span></div>
+    <div class="dash">
+      <div class="speed"><span id="hud-speed">0</span><small>كم/س</small></div>
+      <div class="gear-box"><span id="hud-gear">D</span><small id="hud-gear-n">سرعة 1</small></div>
+      <div class="rpm-wrap"><div id="hud-rpm"></div></div>
+      <div class="steer-icon"><svg id="hud-steer" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="currentColor" stroke-width="3"/><circle cx="20" cy="20" r="4" fill="currentColor"/><path d="M20 4v12M6 26l10-4M34 26l-10-4" stroke="currentColor" stroke-width="3"/></svg></div>
+      <div id="hud-signal" class="sig"><i></i></div>
+      <div class="pax" title="الركاب"><svg viewBox="0 0 24 24"><circle cx="12" cy="7" r="3.2" fill="currentColor"/><path d="M5.5 20c.6-4.2 3.1-6.6 6.5-6.6s5.9 2.4 6.5 6.6z" fill="currentColor"/></svg><span id="hud-pax">0/0</span></div>
+      <div class="fuel" title="البنزين"><b>⛽</b><div class="fuel-bar"><i id="hud-fuel"></i></div></div>
+      <div class="money" title="الفلوس"><b>ج</b><span id="hud-money">0</span></div>
+    </div>
+  </div>
+  <div id="toast"></div>
+  <div id="rotate"><div>📱↻<br />لف التليفون بالعرض عشان تسوق</div></div>
+  <div id="fps" class="hidden"></div>
+  <div id="help" class="hidden">
+    <b>التحكم</b>
+    W بنزين · S فرامل/ريوس · A/D دركسيون · Space فرامل يد · C كاميرا · R رجوع للطريق<br />
+    H كلاكس · Q/E بص يمين وشمال · B بص ورا · T وقت اليوم · M صوت · F عداد FPS · I إخفاء/إظهار المساعدة
+  </div>
+
+</body>
+</html>
