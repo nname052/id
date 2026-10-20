@@ -358,6 +358,19 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
     return false;
   }
 
+  /** النقطة دي على سطح أي كوبري/مطلع تاني (غير edge) بأي ارتفاع؟ (سور المطلع الواطي مايتقفلش جوه حارة مطلع جنبه) */
+  _onOtherDeck(x, z, edgeId) {
+    const segs = this.deckGrid.get(Math.floor(x / 20) * 100003 + Math.floor(z / 20));
+    if (!segs) return false;
+    for (const s of segs) {
+      if (s.edge === edgeId) continue;
+      const ex = s.bx - s.ax, ez = s.bz - s.az, l2 = ex * ex + ez * ez || 1e-9;
+      const t = Math.max(0, Math.min(1, ((x - s.ax) * ex + (z - s.az) * ez) / l2));
+      if (Math.hypot(x - (s.ax + ex * t), z - (s.az + ez * t)) < s.hw + 0.3) return true;
+    }
+    return false;
+  }
+
   /** النقطة دي على سطح كوبري تاني (غير edge) في نفس الارتفاع تقريبًا؟ */
   _insideOtherDeck(x, z, y, edgeId) {
     const segs = this.deckGrid.get(Math.floor(x / 20) * 100003 + Math.floor(z / 20));
@@ -610,7 +623,7 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
       // أول/آخر المطلع (واطي) جنب شارع على الأرض موازي ليه: لو العربية أقرب لخط الشارع، فهي على الشارع
       // (بس لو العربية مش في قلب حارة المطلع: عند التفريعة الشارع الأرضي بيلمس المطلع، وكانت العربية اللي ماشية
       //  على المطلع بتتحسب على الشارع → المطلع يعلى فوقها وهي تفضل تحته = "دخلت الكوبري ولقيت نفسي تحت")
-      if (bh !== null && bh < 1.2 && bestD > bestHw * 0.55 && (ref < bh - 0.12 ? this._groundRoadNearer(x, z, Infinity, null) : bh < 0.8 && this._groundRoadNearer(x, z, bestD, bestE))) bh = null;
+      if (bh !== null && bh < 1.2 && bestD > bestHw * 0.55 && (ref < bh - 0.12 ? this._groundRoadNearer(x, z, Infinity, null) : bh < 0.8 && Math.abs(ref - bh) > 0.08 && this._groundRoadNearer(x, z, bestD, bestE))) bh = null; // (اللي ماشي على المطلع فعلًا — ارتفاعه = ارتفاعه — بيفضل عليه حتى عند حرفه)
       if (bh !== null) g = bh;
     }
     return g;
@@ -771,7 +784,7 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
             if (this._insideOtherDeck(px, pz, ym, D.edge)) continue;
             // المطلع الواطي (ردم مقفول، تحت 4.3م): السور بيقفل كمان على العربيات اللي على الأرض جنبه
             // (كانت بتعدّي جوه جنب المطلع) — إلا لو مكان السور على أسفلت شارع أرضي (التفريعة: مانقفلش حارته)
-            const solid = ym < 4.3 && !this._groundRoadNearer(px, pz, Infinity, null);
+            const solid = ym < 4.3 && !this._groundRoadNearer(px, pz, Infinity, null) && !this._onOtherDeck(px, pz, D.edge);
             this._addCollider({ cx: px, cz: pz, hx: 0.15, hz: segL / 2 + 0.2, angle: ang, restitution: 0.2, kind: 'edge', yMin: solid ? -2 : ym - 0.9, yMax: Math.max(s.ay, s.by) + 1.2 }, T);
           }
         }
