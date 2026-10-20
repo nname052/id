@@ -37,6 +37,10 @@
       user: near cars always full quality — LOD switch at 120 m (mobile) / 180 m (desktop); building full facade
       and street detail out to 480–500 m (mobile) / 600–700 m (desktop), past the haze. Draw calls (tier-perf,
       same machine): mobile-med 182 → 193, desktop-med 255 → 385. CPU A/B mobile emu: 11.3/12.8 → 11.4/12.3 FPS.
+- [x] Sixth round (v9): no LOD for visible traffic (LOD only on the low tier); buildings full facade/detail at every
+      visible distance (low tier keeps the old distances); traffic paint matte (no clearcoat, env 0.25); version
+      label "نسخة 9" on the start screen (to rule out cached old builds). Draw calls mobile-med 193 → 223,
+      desktop-med 385 → 473. city-life PASS.
 - [!] Real-phone FPS with the denser city still needs checking by the user.
 
 # PROGRESS — Audit, real-city default, performance overhaul, HiAce front fix, cockpit (V34 pass)
