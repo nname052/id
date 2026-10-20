@@ -233,6 +233,7 @@ export class CameraSystem {
       const camYaw = this.chaseYaw + this.look.yaw;
       const baseY = ph.heave - ph.spec.cgHeight;
       const target = _v.set(root.position.x + Math.sin(camYaw) * dist, baseY + height + this.look.pitch * 3, root.position.z + Math.cos(camYaw) * dist);
+      target.y = Math.max(target.y, baseY + 0.9); // مايبقاش تحت مستوى العربية
       this._avoidWalls(root.position.x, root.position.z, target);
       if (this.snap) this.chasePos.copy(target); else this.chasePos.lerp(target, Math.min(1, dt * 9));
       cam.position.copy(this.chasePos);
@@ -244,7 +245,8 @@ export class CameraSystem {
       const z = this.zoom.close, sz = ph.spec.halfLength / 2.64;
       const off = _v.set(2.5 * z * (0.6 + 0.4 * sz), (1.15 + this.look.pitch * 2) * (0.7 + 0.3 * z), -3.7 * z * (0.55 + 0.45 * sz)).applyMatrix4(_m);
       const baseY = ph.heave - ph.spec.cgHeight;
-      cam.position.set(root.position.x + off.x, baseY + off.y, root.position.z + off.z);
+      // (لما تنزّل الكاميرا لتحت كانت بتنزل تحت الأرض = منظر تحت العربية/جوه الأسفلت) → أقل حاجة 60سم فوق الأرض
+      cam.position.set(root.position.x + off.x, Math.max(baseY + off.y, Math.max(baseY, groundHeight(root.position.x + off.x, root.position.z + off.z)) + 0.6), root.position.z + off.z);
       cam.lookAt(root.position.x, baseY + 0.75, root.position.z);
     } else {
       // سينمائية: كاميرات ثابتة على الرصيف بتتابع الميكروباص

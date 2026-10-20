@@ -370,7 +370,7 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
       const N = 512, c = canvas(N, N), x = c.getContext('2d');
       x.fillStyle = '#000'; x.fillRect(0, 0, N, N);
       const sx = N / w, sz = N / d, ox = (x0 - pad), oz = (z0 - pad);
-      x.strokeStyle = 'rgba(255,255,255,0.35)'; x.lineCap = 'round'; x.lineJoin = 'round'; x.lineWidth = 70 * sx;
+      x.strokeStyle = 'rgba(255,255,255,0.55)'; x.lineCap = 'round'; x.lineJoin = 'round'; x.lineWidth = 90 * sx; // (أقوى: جنب كوبري/شارع لوحده كانت بتطلع غيط بخضرة)
       for (const e of this.graph.edges) {
         if (e.cls === 'track' || e.cls === 'service' && e.length > 300) continue;
         x.beginPath(); e.pts.forEach((q, i) => { const X = (q.x - ox) * sx, Z = (q.z - oz) * sz; if (i) x.lineTo(X, Z); else x.moveTo(X, Z); }); x.stroke();
@@ -386,11 +386,12 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
 {
   float urb = smoothstep(0.25, 0.75, texture2D(uMask, (vGW - uMB.xy) / uMB.zw).r);
   float lum = dot(diffuseColor.rgb, vec3(0.3, 0.55, 0.15));
-  vec3 dust = vec3(0.62, 0.57, 0.5) * (0.75 + 0.5 * lum);
-  diffuseColor.rgb = mix(diffuseColor.rgb, dust, urb * 0.85);
+  // (كانت فاتحة أوي = بتبان زي التلج في الشمس حوالين الاستاد والأراضي الفاضية) — تراب أغمق وبتفاصيل الصورة
+  vec3 dust = vec3(0.5, 0.45, 0.38) * (0.55 + 0.9 * lum);
+  diffuseColor.rgb = mix(diffuseColor.rgb, dust, urb * 0.75);
 }`);
       };
-      mat.customProgramCacheKey = () => 'shibin-ground-urban';
+      mat.customProgramCacheKey = () => 'shibin-ground-urban-2';
     }
     mat.polygonOffset = true; mat.polygonOffsetFactor = 2; mat.polygonOffsetUnits = 2; // دايمًا ورا الأسفلت والأرصفة
     const m = new THREE.Mesh(g, mat);

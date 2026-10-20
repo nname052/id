@@ -92,8 +92,8 @@ export class Game {
     this.saverBoot = saved.graphics === 'saver';
     // الموبايل: MSAA في المتوسطة والعالية (كروت الموبايل tile-based: الـ 4x MSAA تقريبًا ببلاش على الشاشة نفسها
     // وبيشيل التسنين اللي كان باين) — الواطية وموفّر البطارية من غيره
-    const renderer = (this.renderer = new THREE.WebGLRenderer({ antialias: !this.mobile || (this.tier !== 'low' && !this.saverBoot), powerPreference: this.mobile ? 'default' : 'high-performance' }));
-    this.basePR = Math.min(window.devicePixelRatio, this.mobile ? 1.4 : 1.5);
+    const renderer = (this.renderer = new THREE.WebGLRenderer({ antialias: !this.saverBoot, /* (كان مقفول في الجودة الواطية = حواف مسننة/مبكسلة؛ كروت الموبايل بتنعّم الحواف برخص) */ powerPreference: this.mobile ? 'default' : 'high-performance' }));
+    this.basePR = Math.min(window.devicePixelRatio, this.mobile ? 1.55 : 1.5);
     renderer.setPixelRatio(this.basePR);
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -177,7 +177,7 @@ export class Game {
     S('المرور والمشاة...', 0.82);
     await nextFrame();
     if (this.world) {
-      this.traffic = new ShibinTraffic(this.scene, (type, color, o) => this._makeCar(type, color, o), this.audio, this.world, { count: this.saverBoot ? 14 : this.tier === 'low' ? 18 : this.mobile ? 28 : 56, parked: this.tier === 'low' ? 8 : this.mobile ? 12 : 26 });
+      this.traffic = new ShibinTraffic(this.scene, (type, color, o) => this._makeCar(type, color, o), this.audio, this.world, { count: this.saverBoot ? 14 : this.tier === 'low' ? 20 : this.mobile ? 34 : 68, parked: this.tier === 'low' ? 14 : this.mobile ? 28 : 48 });
       this.traffic.viewDist = this.mobile ? 150 : 190;
       if (this.mobile) { this.traffic.activeR = 195; this.traffic.despawnR = 240; }
       this.crowdBase = this.tier === 'low' ? 80 : this.mobile ? 105 : 240; // (المدينة كانت فاضية: ناس أكتر بكتير)
@@ -185,7 +185,7 @@ export class Game {
       this.crowd.traffic = this.traffic; this.traffic.crowd = this.crowd;
       // المرايات مش بترسم هالات/بقع نور الأعمدة (ديكور)
       PlayerVehicle.mirrorHide = [this.world.lamps?.glow, this.world.lamps?.pools].filter(Boolean);
-      this.traffic.lodNear = this.mobile || this.tier === 'low' ? 30 : 38;
+      this.traffic.lodNear = this.tier === 'low' ? 30 : this.mobile ? 36 : 50;
       this.statics = [];
     } else {
       this.traffic = new TrafficSystem(this.scene, this.lights, (type, color, o) => this._makeCar(type, color, o), this.audio, { perLane: this.mobile ? 11 : 16, sideMul: this.mobile ? 1.5 : 1 });
@@ -652,7 +652,7 @@ export class Game {
     // الموبايل: الدقة بسقف ثابت لكل مستوى (شاشات 3x بترسم 9 أضعاف البكسلات من غير فرق واضح)
     // (كانت 1.5/1.35/1.2/1.0/0.85 — على شاشة 3x المتوسطة كانت بتتمط 2.5 مرة = مبكسلة/مغبشة)
     // (الأوطى كانت 1.15/1.0 = مبكسلة جدًا على شاشات الموبايل الحادة: أقل حاجة دلوقتي 1.3 — بنوفّر من الضل ومسافة الرؤية بدلها)
-    const MPR = [1.7, 1.55, 1.45, 1.35, 1.3];
+    const MPR = [1.8, 1.65, 1.55, 1.45, 1.4];
     const pr = this.mobile
       ? Math.min(window.devicePixelRatio, level < 0 ? 1.75 : MPR[level])
       : level < 0 ? Math.min(window.devicePixelRatio, 2) : Math.max(floor, [base, base, base * 0.9, base * 0.8, base * 0.72][level]);

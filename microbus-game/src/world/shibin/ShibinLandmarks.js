@@ -267,16 +267,36 @@ function buildStadium(W, pitch, group) {
     for (let s = 0; s < nSeg; s++) {
       const f0 = s / nSeg, f1 = (s + 1) / nSeg, pa = [u0 + (u1 - u0) * f0, v0 + (v1 - v0) * f0], pb = [u0 + (u1 - u0) * f1, v0 + (v1 - v0) * f1];
       const gate = s === Math.floor(nSeg / 2) || (nSeg > 8 && (s === 2 || s === nSeg - 3));
-      // الحيطة (من برا)
-      G.setColor([0.86, 0.84, 0.78]); Q(WP(...pb, 0), WP(...pa, 0), WP(...pa, wallTop), WP(...pb, wallTop));
-      G.setColor([0.12, 0.32, 0.6]); Q(WP(...pb, top - 1.2), WP(...pa, top - 1.2), WP(...pa, top - 0.5), WP(...pb, top - 0.5));
+      // الحيطة (من برا) — مبنى خرساني بأدوار مش لوح أبيض واحد (كان شكله غريب من الشارع):
+      // دور أرضي محارة بشبابيك/أبواب غرف، فوقيه خرسانة بفتحات بتبان منها المدرجات، حزام لون النادي، ودروة فوق
+      const [ou, ov] = [[0, 1], [-1, 0], [0, -1], [1, 0]][i];
+      const out = (p, d) => [p[0] + ou * d, p[1] + ov * d];
+      const lerpP = (f) => [pa[0] + (pb[0] - pa[0]) * f, pa[1] + (pb[1] - pa[1]) * f];
+      const GF = 3.6;
+      G.setColor([0.74, 0.67, 0.56]); Q(WP(...pb, 0), WP(...pa, 0), WP(...pa, GF), WP(...pb, GF));
+      G.setColor([0.66, 0.66, 0.63]); Q(WP(...pb, GF), WP(...pa, GF), WP(...pa, wallTop), WP(...pb, wallTop));
+      G.setColor([0.52, 0.5, 0.46]); Q(WP(...out(pb, 0.02), GF - 0.25), WP(...out(pa, 0.02), GF - 0.25), WP(...out(pa, 0.02), GF + 0.15), WP(...out(pb, 0.02), GF + 0.15));
+      if (!gate) {
+        // شباكين في الدور الأرضي (غامقين بحلق)
+        for (const [f0, f1] of [[0.14, 0.4], [0.6, 0.86]]) {
+          const w0 = out(lerpP(f0), 0.03), w1 = out(lerpP(f1), 0.03);
+          G.setColor([0.12, 0.14, 0.16]); Q(WP(...w1, 1.3), WP(...w0, 1.3), WP(...w0, 2.7), WP(...w1, 2.7));
+          G.setColor([0.84, 0.82, 0.76]); Q(WP(...w1, 1.18), WP(...w0, 1.18), WP(...w0, 1.3), WP(...w1, 1.3));
+        }
+      }
+      // فتحات طويلة فوق (ضل المدرجات من جوه)
+      { const w0 = out(lerpP(0.1), 0.03), w1 = out(lerpP(0.9), 0.03), y0 = GF + 1.1, y1 = Math.max(y0 + 0.8, top - 1.8);
+        G.setColor([0.16, 0.16, 0.17]); Q(WP(...w1, y0), WP(...w0, y0), WP(...w0, y1), WP(...w1, y1)); }
+      G.setColor([0.12, 0.32, 0.6]); Q(WP(...out(pb, 0.03), top - 1.2), WP(...out(pa, 0.03), top - 1.2), WP(...out(pa, 0.03), top - 0.5), WP(...out(pb, 0.03), top - 0.5));
+      G.setColor([0.86, 0.85, 0.82]); Q(WP(...out(pb, 0.05), wallTop - 0.35), WP(...out(pa, 0.05), wallTop - 0.35), WP(...out(pa, 0.05), wallTop), WP(...out(pb, 0.05), wallTop));
       if (gate) {
         const pm = [(pa[0] + pb[0]) / 2, (pa[1] + pb[1]) / 2], du = (pb[0] - pa[0]) / 2 * 0.55, dv = (pb[1] - pa[1]) / 2 * 0.55;
         const g0 = [pm[0] - du, pm[1] - dv], g1 = [pm[0] + du, pm[1] + dv];
         // البوابة: فتحة غامقة + برواز + بوابة حديد
         const o = 0.03, nU = ring(N + 0.05)[i], ou = (nU[0] - u0) * 0, ov = 0; void ou; void ov; void o;
-        G.setColor([0.08, 0.08, 0.09]); Q(WP(...g1, 0.01), WP(...g0, 0.01), WP(...g0, 3.6), WP(...g1, 3.6));
-        G.setColor([0.3, 0.3, 0.32]); Q(WP(...g1, 3.6), WP(...g0, 3.6), WP(...g0, 4.1), WP(...g1, 4.1));
+        const h0 = out(g0, 0.04), h1 = out(g1, 0.04);
+        G.setColor([0.08, 0.08, 0.09]); Q(WP(...h1, 0.01), WP(...h0, 0.01), WP(...h0, 3.3), WP(...h1, 3.3));
+        G.setColor([0.3, 0.3, 0.32]); Q(WP(...h1, 3.3), WP(...h0, 3.3), WP(...h0, 3.8), WP(...h1, 3.8));
         gates.push({ m: pm, i });
       }
       // عمود

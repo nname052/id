@@ -168,9 +168,11 @@ diffuseColor.rgb *= fcol;`)
       .replace('#include <emissivemap_fragment>', 'totalEmissiveRadiance = fem;')
       .replaceAll('GF_', GF.toFixed(2)).replaceAll('FH_', FH.toFixed(2));
     // البعيد: شبابيك بسيطة من غير صور (أخف)
-    if (low) sh.fragmentShader = sh.fragmentShader.replace('fcol = brick ? tB : tP * vec3(0.86, 0.84, 0.8);', 'vec2 ff = fract(wc); fcol = wall * (ff.x > 0.22 && ff.x < 0.78 && ff.y > 0.28 && ff.y < 0.8 ? 0.32 : 1.0);');
+    // (كانت شبابيك مرسومة بلون الحيطة × 0.32 = لون مختلف عن القريب → العمارة "بتتغير" لما تقرب)
+    // دلوقتي: نفس صورة الواجهة بس من نسخة صغيرة (mip) — نفس اللون المتوسط وأرخص
+    if (low) sh.fragmentShader = sh.fragmentShader.replace('fcol = brick ? tB : tP * vec3(0.86, 0.84, 0.8);', 'fcol = brick ? textureLod(uFacB, uvW, 3.0).rgb : textureLod(uFacP, uvW, 3.0).rgb * vec3(0.86, 0.84, 0.8);');
   };
-  mat.customProgramCacheKey = () => (low ? 'shibin-bld-low-4' : 'shibin-bld-4');
+  mat.customProgramCacheKey = () => (low ? 'shibin-bld-low-5' : 'shibin-bld-4');
   return mat;
 }
 

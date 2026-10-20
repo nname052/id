@@ -33,8 +33,12 @@ function averageColor(tex) {
 }
 
 /** المادة المشتركة لكل نسخ الـ LOD */
+let lodMats = null;
+export function lodMaterials() {
+  return (lodMats ||= [lodMaterial(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.12, metalness: 0.3, envMapIntensity: 0.35, side: THREE.DoubleSide })]);
+}
 export function lodMaterial() {
-  return (lodMat ||= new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.1 }));
+  return (lodMat ||= new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.36, metalness: 0.05, envMapIntensity: 0.8 })); // لامع زي دهان العربيات الحقيقية (كانت مطفية = لون مختلف لما تقرب)
 }
 
 // القطع اللي بتدخل في الـ LOD (بنفس الترتيب دايمًا) + لون كل قطعة
@@ -71,6 +75,7 @@ function groupGeometry(src, grp) {
   return out;
 }
 
+const _lum = new THREE.Color();
 function partColor(mat, glass, out) {
   // اللون: لون الخامة × متوسط الصورة
   if (glass) return out.setRGB(0.06, 0.08, 0.09);
@@ -78,6 +83,8 @@ function partColor(mat, glass, out) {
   const a = averageColor(mat.map);
   if (a) out.multiply(a);
   if (mat.emissive && mat.emissiveIntensity > 0.5 && !mat.map) out.lerp(mat.emissive, 0.3);
+  // دهان السيدان (شيدر بشرايط وتغميق تحت): متوسطه أغمق وأقل تشبّع من لونه الأساسي (مقاس بالكاميرا: نفس المكان والإضاءة)
+  if (mat.userData?.U?.uStripes) { const l = out.r * 0.3 + out.g * 0.59 + out.b * 0.11; out.lerp(_lum.setRGB(l, l, l), 0.35).multiplyScalar(0.66); }
   return out;
 }
 
@@ -94,7 +101,7 @@ export function bakeLod(root, key, shapeKey = key) {
     lodStats.shapes++;
     root.updateMatrixWorld(true);
     const inv = new THREE.Matrix4().copy(root.matrixWorld).invert();
-    const parts = [];
+    const parts = [], glassParts = [];
     const m = new THREE.Matrix4();
     let pid = 0;
     lodParts(root, (o, mat, glass, grp) => {
@@ -103,6 +110,8 @@ export function bakeLod(root, key, shapeKey = key) {
       if (!g.attributes.normal) g.computeVertexNormals();
       m.multiplyMatrices(inv, o.matrixWorld);
       g.applyMatrix4(m);
+      // الإزاز لازق في الجسم: بعد التبسيط كان بيتبلع جوه الدهان (عربية من غير شبابيك من بعيد) → نطلّعه 3 سم لبرا
+      if (glass) { const P = g.attributes.position, N = g.attributes.normal; for (let i = 0; i < P.count; i++) P.setXYZ(i, P.getX(i) + N.getX(i) * 0.03, P.getY(i) + N.getY(i) * 0.03, P.getZ(i) + N.getZ(i) * 0.03); }
       const n = g.attributes.position.count;
       // base = لون الرؤوس الأصلي (لو موجود) — بيتضرب في لون القطعة بعدين؛ pid = رقم القطعة
       const base = new Float32Array(n * 3).fill(1);
@@ -110,15 +119,24 @@ export function bakeLod(root, key, shapeKey = key) {
       g.deleteAttribute('color');
       g.setAttribute('color', new THREE.BufferAttribute(base, 3));
       g.setAttribute('pid', new THREE.BufferAttribute(new Float32Array(n).fill(pid++), 1));
-      parts.push(g);
+      (glass ? glassParts : parts).push(g);
     });
-    let geo = parts.length ? mergeGeometries(parts, false) : null;
-    for (const g of parts) g.dispose();
-    // نفس الرؤوس المكررة (من التحويل لـ non-indexed) بتتدمج → ذاكرة أقل بحوالي 3 مرات
-    if (geo) { const ix = mergeVertices(geo, 1e-4); geo.dispose(); geo = ix; }
-    // تبسيط سريع (vertex clustering): الرؤوس اللي في نفس خانة 11سم بتبقى رأس واحد، والمثلثات اللي اتقفلت بتتشال.
-    // الـ LOD بيتشاف من 30م وأبعد → التفاصيل الأصغر من 11سم مش باينة أصلًا (المثلثات بتقل للنص أو أكتر)
-    if (geo) { const sg = clusterSimplify(geo, 0.11); geo.dispose(); geo = sg; geo.computeBoundingSphere(); }
+    // الإزاز والجسم كل واحد بيتبسط لوحده: لو مع بعض، رؤوس الإزاز اللي لازقة في الجسم بتتدمج معاه = عربية من غير شبابيك
+    const simplify = (list) => {
+      if (!list.length) return null;
+      let geo = mergeGeometries(list, false);
+      for (const g of list) g.dispose();
+      // نفس الرؤوس المكررة (من التحويل لـ non-indexed) بتتدمج → ذاكرة أقل بحوالي 3 مرات
+      const ix = mergeVertices(geo, 1e-4); geo.dispose(); geo = ix;
+      // تبسيط سريع (vertex clustering): الرؤوس اللي في نفس خانة 11سم بتبقى رأس واحد، والمثلثات اللي اتقفلت بتتشال.
+      // الـ LOD بيتشاف من 30م وأبعد → التفاصيل الأصغر من 11سم مش باينة أصلًا (المثلثات بتقل للنص أو أكتر)
+      const sg = clusterSimplify(geo, 0.11); geo.dispose(); return sg;
+    };
+    const body = simplify(parts), gls = simplify(glassParts);
+    // groups: 0 = الجسم، 1 = الإزاز (خامة غامقة لوحدها — مع الدهان اللامع كان بيبان رمادي فاتح)
+    let geo = body && gls ? mergeGeometries([body, gls], true) : body || gls;
+    if (body && gls) { body.dispose(); gls.dispose(); }
+    if (geo) geo.computeBoundingSphere();
     shape = geo ? { geo, nParts: pid } : null;
     cache.set('shape:' + shapeKey, shape);
   }
@@ -134,6 +152,7 @@ export function bakeLod(root, key, shapeKey = key) {
   geo.setIndex(S.index);
   geo.setAttribute('color', new THREE.BufferAttribute(carr, 3));
   geo.boundingSphere = S.boundingSphere; geo.boundingBox = S.boundingBox;
+  for (const gr of S.groups) geo.addGroup(gr.start, gr.count, gr.materialIndex);
   cache.set(key, geo);
   lodStats.variants++; lodStats.ms += performance.now() - t0;
   return geo;
@@ -188,7 +207,7 @@ export function makeLodMesh(root) {
   });
   const geo = bakeLod(root, sig.join('|'), shp.join('|'));
   if (!geo) return null;
-  const mesh = new THREE.Mesh(geo, lodMaterial());
+  const mesh = new THREE.Mesh(geo, geo.groups.length ? lodMaterials() : lodMaterial());
   mesh.name = 'traffic-lod';
   mesh.matrixAutoUpdate = true;
   mesh.visible = false;
