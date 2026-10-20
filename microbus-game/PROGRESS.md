@@ -45,6 +45,13 @@
       iPhone detected → start quality level 1, pixel ratio up to 2.0–2.1 (sharper edges); iOS home-screen web app
       (apple-mobile-web-app-capable, touch icon, no fixed start_url so ?room= is kept) + hint on the start screen.
       iPhone 13 emulation: ios=true, level 1, pixelRatio 2, cap 60, antialias on, no errors.
+- [x] v11: name labels smaller (own hidden while driving, remote hidden under 8 m); traffic wheels always visible
+      (were hidden beyond 70 m), front wheels steer from yaw rate, body roll in turns; traffic tuk-tuk wheels split
+      out of the baked body and spin; microbus share ~40%, 11 liveries; overpass fork fix (ramp #4013 kept the car
+      under the deck when entered off-centre: car inside 55% of the ramp lane now stays on the ramp; 5 ramps ×
+      3 lateral offsets driven, no fall); pedestrians and roadside hail stops never inside buildings or low ramps
+      (0/240 people inside). Tests: boarding, city-life, living-city, microbus-lines PASS. Draw calls
+      mobile-med 223 → 253. Not reproduced: "passengers board upside down" (boarding frames look normal).
 - [!] Real-phone FPS with the denser city still needs checking by the user.
 
 # PROGRESS — Audit, real-city default, performance overhaul, HiAce front fix, cockpit (V34 pass)
