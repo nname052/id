@@ -14,7 +14,7 @@ import { canvas, tex } from '../../render/textures.js';
 import { ShibinLamps } from './ShibinLamps.js';
 import { buildLandmarks, NearInstancer } from './ShibinLandmarks.js';
 
-const LOAD_R = 780, UNLOAD_R = 1000, DETAIL_R = 380, LOWMAT_R = 520;
+const LOAD_R = 780, UNLOAD_R = 1000, DETAIL_R = 600, LOWMAT_R = 700; // (التفاصيل والواجهات الكاملة لحد ورا الشبورة: التبديل مايتشافش)
 const SIDE_Y = 0.15, WATER_Y = -0.55, WATER_FLOOR = -0.9;
 const RAMP_FILL_H = 4.2; // تحت الارتفاع ده المطلع ردم بحيطان ساندة، وفوقه بلاطة على عواميد
 // عرض الرصيف حسب نوع الطريق (نفس جدول build_region.py)
@@ -644,8 +644,8 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
       // الموبايل: التفاصيل والواجهات الكاملة لمسافة أقصر (الشيدر الكامل أغلى حاجة في البكسل)
       // (هامش 25م: من غير كده المربع اللي على الحد بيقلب رايح جاي = العمارات "بتتجدد" قدامك)
       const hy = (on, R) => d < R - (on ? -25 : 25);
-      T.detail.visible = hy(T.detail.visible, this.low ? 300 : DETAIL_R);
-      if (T.bld) { T._hi = hy(T._hi, this.low ? 320 : LOWMAT_R); T.bld.material = T._hi ? this.mats.bld : this.mats.bldLow; }
+      T.detail.visible = hy(T.detail.visible, this.low ? 480 : DETAIL_R);
+      if (T.bld) { T._hi = hy(T._hi, this.low ? 500 : LOWMAT_R); T.bld.material = T._hi ? this.mats.bld : this.mats.bldLow; }
       T.group.visible = d < viewDist + 200;
     }
     this.stats.tilesLoaded = [...this.tiles.values()].filter((t) => t.ready).length;

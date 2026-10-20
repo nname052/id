@@ -185,7 +185,7 @@ export class Game {
       this.crowd.traffic = this.traffic; this.traffic.crowd = this.crowd;
       // المرايات مش بترسم هالات/بقع نور الأعمدة (ديكور)
       PlayerVehicle.mirrorHide = [this.world.lamps?.glow, this.world.lamps?.pools].filter(Boolean);
-      this.traffic.lodNear = this.tier === 'low' ? 38 : this.mobile ? 48 : 65; // (أبعد: التبديل للنسخة الخفيفة بيحصل والعربية صغيرة)
+      this.traffic.lodNear = this.tier === 'low' ? 70 : this.mobile ? 120 : 180; // القريب بكامل جودته: النسخة الخفيفة بس في آخر مدى الرؤية (العربية صغيرة جدًا)
       this.statics = [];
     } else {
       this.traffic = new TrafficSystem(this.scene, this.lights, (type, color, o) => this._makeCar(type, color, o), this.audio, { perLane: this.mobile ? 11 : 16, sideMul: this.mobile ? 1.5 : 1 });
