@@ -27,6 +27,10 @@
       coping); camera never below ground in close/chase; antialias on all tiers except saver; mobile pixel ratio
       1.4–1.8; more cars (mobile 34 + 28 parked, desktop 68 + 48). A/B mobile emu: 12.3/12.6 → 11.8/11.8 FPS.
       Overpass: driving checked (car height within 12 cm of the deck along the whole ramp) — visual issue unclear.
+- [x] Fourth round: traffic LOD colour re-calibrated on the car body only (the contact shadow under the full car had
+      been counted → LOD tuned ~10–15% too dark); LOD now has the same contact shadow and receives shadows; LOD
+      switch farther (mobile 36 → 48 m, desktop 50 → 65 m); view distance mobile 380 → 470, desktop 560 → 650,
+      tile load radius 650 → 780, day haze 540 → 700 m. A/B mobile emu: 13.4/14.0 → 14.0/12.6 FPS (within noise).
 - [!] Real-phone FPS with the denser city still needs checking by the user.
 
 # PROGRESS — Audit, real-city default, performance overhaul, HiAce front fix, cockpit (V34 pass)
