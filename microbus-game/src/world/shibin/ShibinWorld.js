@@ -769,7 +769,10 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
             // السور ده جوه سطح كوبري تاني (اتجاهين قريبين من بعض في OSM)؟ → مايتحطش (كان بيقفل الحارة)
             const px = (s.ax + s.bx) / 2 + rx * (hw + 0.15) * sd, pz = (s.az + s.bz) / 2 + rz * (hw + 0.15) * sd;
             if (this._insideOtherDeck(px, pz, ym, D.edge)) continue;
-            this._addCollider({ cx: (s.ax + s.bx) / 2 + rx * (hw + 0.15) * sd, cz: (s.az + s.bz) / 2 + rz * (hw + 0.15) * sd, hx: 0.15, hz: segL / 2 + 0.2, angle: ang, restitution: 0.2, kind: 'edge', yMin: ym - 0.9, yMax: Math.max(s.ay, s.by) + 1.2 }, T);
+            // المطلع الواطي (ردم مقفول، تحت 4.3م): السور بيقفل كمان على العربيات اللي على الأرض جنبه
+            // (كانت بتعدّي جوه جنب المطلع) — إلا لو مكان السور على أسفلت شارع أرضي (التفريعة: مانقفلش حارته)
+            const solid = ym < 4.3 && !this._groundRoadNearer(px, pz, Infinity, null);
+            this._addCollider({ cx: px, cz: pz, hx: 0.15, hz: segL / 2 + 0.2, angle: ang, restitution: 0.2, kind: 'edge', yMin: solid ? -2 : ym - 0.9, yMax: Math.max(s.ay, s.by) + 1.2 }, T);
           }
         }
       }
