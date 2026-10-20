@@ -16,8 +16,8 @@ def prompt(name: str, **kw) -> str:
     return text
 
 
-def ask(pid: str, stage: str, system: str, user: str, schema: dict, model: str | None = None) -> dict:
-    res = claude_code.ask(system, user, schema, model=model or LLM_MODEL)
+def ask(pid: str, stage: str, system: str, user: str, schema: dict, model: str | None = None, images: list | None = None) -> dict:
+    res = claude_code.ask(system, user, schema, model=model or LLM_MODEL, images=images)
 
     def count(p):
         u = p["usage"]

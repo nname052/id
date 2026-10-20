@@ -25,13 +25,22 @@ def save_style(text: str) -> None:
     STYLE.write_text(text.strip() + "\n", encoding="utf-8")
 
 
+TASTE = ROOT / "app" / "pipeline" / "taste.md"   # قواعد ثابتة من كل ملاحظات صاحب التطبيق (في git، بتكبر بالسجل)
+
+
+def taste() -> str:
+    return TASTE.read_text(encoding="utf-8").strip() if TASTE.exists() else ""
+
+
 def context_block(prompt: str = "") -> str:
-    """بيتحط في برومبت كل مرحلة: طلبك في الفيديو ده + ذوقك الثابت."""
+    """بيتحط في برومبت كل مرحلة: طلبك في الفيديو ده + ذوقك الثابت + قواعد صاحب التطبيق (taste.md)."""
     out = []
     if prompt:
         out.append(f"طلب صاحب الفيديو بالنص (اتبع أي تفاصيل فيه تخص مرحلتك):\n{prompt}")
     if style():
         out.append(f"ذوق صاحب الفيديو الثابت (طبّقه دايمًا إلا لو الطلب قال غير كده):\n{style()}")
+    if taste():
+        out.append(f"قواعد صاحب التطبيق اللي اتقالت قبل كده (إجبارية، علشان ما يكررهاش تاني):\n{taste()}")
     return "\n\n".join(out)
 
 

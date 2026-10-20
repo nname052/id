@@ -99,13 +99,15 @@ def run(pid: str, instruction: str | None = None) -> None:
     user = f"فكرة الفيديو: {proj['prompt']}"
     if prefs.style():
         user += f"\n\nذوق صاحب القناة الثابت (طبّقه):\n{prefs.style()}"
+    if prefs.taste():
+        user += f"\n\nقواعد صاحب التطبيق (إجبارية):\n{prefs.taste()}"
     old = store.read_json(store.project_dir(pid) / "script.json")
     if instruction and old:
         user += "\n\nالسكريبت الحالي:\n" + "\n".join(s["text"] for s in old["sentences"]) + f"\n\nالمطلوب تعديله: {instruction}"
     if proj.get("user_script") and not (instruction and old):
         # السكريبت مكتوب بإيد صاحبه: بنظبطه وننسّقه بس
         system = prompt("script_polish", dialect_rule=dialect)
-        user = f"موضوع الفيديو: {proj['prompt']}\n\nالسكريبت اللي كتبه:\n{proj['user_script']}"
+        user = f"موضوع الفيديو: {proj['prompt']}\n\nالسكريبت اللي كتبه:\n{proj['user_script']}" + (f"\n\nقواعد صاحب التطبيق (إجبارية):\n{prefs.taste()}" if prefs.taste() else "")
         data = ask(pid, "script", system, user, POLISH)
         store.log(pid, "✎ ظبطنا سكريبتك: " + ("، ".join(data.get("notes") or []) or "من غير تغييرات"))
         script = {"title": data["title"].strip(), "sentences": [{"id": i, "text": t.strip()} for i, t in enumerate(data["sentences"]) if t.strip()],
