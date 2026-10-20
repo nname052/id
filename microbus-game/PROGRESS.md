@@ -52,6 +52,14 @@
       3 lateral offsets driven, no fall); pedestrians and roadside hail stops never inside buildings or low ramps
       (0/240 people inside). Tests: boarding, city-life, living-city, microbus-lines PASS. Draw calls
       mobile-med 223 → 253. Not reproduced: "passengers board upside down" (boarding frames look normal).
+- [x] v12 bridges: all bridge components analysed (2 flyovers 6 m + 16 small canal bridges ≤1 m). Found and fixed:
+      (1) car on the ground road that joins a ramp at 1.4 m (OSM quirk) grabbed the deck → 94 cm step → launched
+      18 m and flipped: decks are only taken when ≤40 cm above the car + physics caps upward heave speed/pitch rate;
+      (2) at a ramp's lane edge the "nearer ground road" rule dropped a car that was already on the ramp → it stays
+      on the ramp when its height matches; (3) low-ramp side walls now also block ground-level cars (not where the
+      wall sits on a ground road at a fork or inside another ramp's lane). 5 ramps × 3 lateral offsets: no fall,
+      no flip. Small bridges: profile slope ≤5%, pitch on the deck ~4°. Tests: city-life, bridge-audit,
+      road-surface (0 flips) PASS.
 - [!] Real-phone FPS with the denser city still needs checking by the user.
 
 # PROGRESS — Audit, real-city default, performance overhaul, HiAce front fix, cockpit (V34 pass)
