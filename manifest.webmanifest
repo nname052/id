@@ -3,10 +3,16 @@
   "short_name": "ميكروباص",
   "lang": "ar",
   "dir": "rtl",
-  "start_url": "./",
   "display": "fullscreen",
   "orientation": "landscape",
   "background_color": "#141414",
   "theme_color": "#141414",
-  "icons": [{ "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+  "icons": [
+    {
+      "src": "icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
 }
