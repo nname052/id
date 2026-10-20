@@ -14,6 +14,12 @@
     texture colours sampled per vertex), parked cars use the real sedan;
   - more traffic (desktop 38 → 56, mobile 22 → 28, parked 16/8 → 26/12) and people (desktop 130 → 240, mobile 70 → 105); same-machine A/B mobile emu: CPU p50 40 → 48 ms (avg FPS 14.9 → 13.5 on a slow run day);
     "normal" traffic setting 0.7 → 0.85.
+- [x] Second friend round: line picker scrolls on phones (body had touch-action:none + touchmove guard); roadside
+      hailing on microbus lines (people wave ahead on the route, stop anywhere beside them); more riders per stop;
+      name labels fixed screen size, stay visible when the remote car switches to LOD, own label in outside cams;
+      traffic LOD keeps sedan windows (multi-material); building material swap with hysteresis (no "refreshing");
+      mobile pixel ratio floor 1.3, slower step-up; mobile traffic radius 195 m. Same-machine A/B (mobile emu):
+      13.2/11.9 → 13.7/12.2 avg FPS (old/new runs alternated). Tests: boarding, city-life, microbus-lines PASS.
 - [!] Real-phone FPS with the denser city still needs checking by the user.
 
 # PROGRESS — Audit, real-city default, performance overhaul, HiAce front fix, cockpit (V34 pass)
