@@ -442,8 +442,9 @@ export class VehiclePhysics {
     // عمود التوازن (anti-roll bar): بيقلل الميلان والمرجحة في اللفات
     const arb = -(s.antiRollK ?? 52000) * this.roll - (s.antiRollC ?? 5200) * this.rollVel;
     const rollAcc = (rollT + s.cgHeight * fLat * 0.85 + arb) / s.inertiaRoll;
-    this.heaveVel += heaveAcc * dt; this.heave += this.heaveVel * dt;
-    this.pitchVel += pitchAcc * dt; this.pitch += this.pitchVel * dt;
+    // سقف أمان: مفيش مطب/حرف (ولا غلطة في ارتفاع الأرض) يقذف العربية لفوق زي الصاروخ (كانت بتطير 18م وتتقلب)
+    this.heaveVel = Math.min(this.heaveVel + heaveAcc * dt, 3.5); this.heave += this.heaveVel * dt;
+    this.pitchVel = Math.max(-2.2, Math.min(2.2, this.pitchVel + pitchAcc * dt)); this.pitch += this.pitchVel * dt;
     this.rollVel += rollAcc * dt; this.roll += this.rollVel * dt;
     // تخميد بسيط للدوران الزائد
     this.pitchVel *= 1 - 0.6 * dt; this.rollVel *= 1 - 0.6 * dt;
