@@ -64,12 +64,13 @@ export function buildTrafficHiace(asset, R = Math.random) {
   }
   // فوانيس فرامل (مستطيلات حمرا فوق فوانيس الموديل)
   const bb = new THREE.Box3().setFromObject(model);
-  const brake = new THREE.MeshStandardMaterial({ color: 0x5a0000, emissive: 0xff1a0a, emissiveIntensity: 0.15, transparent: true, opacity: 0.85, depthWrite: false });
-  // (كان من الصندوق اللي فيه المرايات → الفوانيس طالعة 20سم برا الصاج)
+  // نور الفرامل: توهّج ناعم (additive) بدل مستطيل أحمر لازق — بيدمج مع فانوس الموديل
+  const brake = new THREE.MeshBasicMaterial({ map: glowTex(), color: 0xff2a14, transparent: true, opacity: 0.2, blending: THREE.AdditiveBlending, depthWrite: false });
+  Object.defineProperty(brake, 'emissiveIntensity', { set(v) { brake.opacity = Math.min(1, 0.1 + v * 0.26); }, get() { return brake.opacity; } });
   const rw = (shared.rw ||= rearHalfWidth(model, body)); // (مرة واحدة: كل النسخ نفس الموديل)
   for (const sx of [-1, 1]) {
-    const p = new THREE.Mesh(new THREE.PlaneGeometry(0.13, 0.34), brake);
-    p.position.set(sx * (rw.hx - 0.08), 0.82, rw.zMax + 0.012);
+    const p = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.3), brake);
+    p.position.set(sx * (rw.hx - 0.08), 0.82, rw.zMax + 0.006);
     p.userData.role = 'tail';
     body.add(p);
   }
@@ -83,4 +84,14 @@ export function buildTrafficHiace(asset, R = Math.random) {
     lights: { head: { set emissiveIntensity(v) { if (S.lights) S.lights.emissiveIntensity = v * 0.35; } } },
     wheelRadius: 0.33,
   };
+}
+
+let _glow = null;
+function glowTex() {
+  if (_glow) return _glow;
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const g = c.getContext('2d'), r = g.createRadialGradient(32, 32, 2, 32, 32, 30);
+  r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(0.35, 'rgba(255,255,255,0.7)'); r.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = r; g.fillRect(0, 0, 64, 64);
+  return (_glow = new THREE.CanvasTexture(c));
 }
