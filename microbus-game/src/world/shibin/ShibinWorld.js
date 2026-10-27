@@ -1,7 +1,7 @@
 // =====================================================================
 //  شبين الكوم الحقيقية (من OpenStreetMap): تحميل المربعات حوالين اللاعب (Streaming) وبناها على دفعات صغيرة
 //  كل فريم (مفيش تهنيج)، والمربعات البعيدة بتتشال (hysteresis: تحميل لحد 650م وشيل بعد 900م).
-//  نفس واجهة RouteWorld (group / update / updateVisibility / queryColliders) عشان Game يتعامل معاها زي القديمة.
+//  واجهة العالم اللي Game بيستخدمها: group / update / updateVisibility / queryColliders.
 //  كمان بيقدّم ارتفاع الأرض للفيزيا (رصيف/ترعة/كوبري بمستويين)، وأماكن البداية والرجوع للطريق.
 // =====================================================================
 import * as THREE from 'three';
@@ -97,9 +97,9 @@ export class ShibinWorld {
     const ballast = new THREE.MeshStandardMaterial({ color: 0x77706a, roughness: 1, side: DS });
     const rail = new THREE.MeshStandardMaterial({ color: 0x6b6e72, roughness: 0.35, metalness: 0.8, side: DS });
     const bank = new THREE.MeshStandardMaterial({ color: 0x6b5d45, roughness: 1, side: DS });
-    // حرف الرصيف: نفس خامة الخريطة القديمة بس بالوشين (اتجاه حلقات المضلعات مش ثابت)
+    // حرف الرصيف: بالوشين (اتجاه حلقات المضلعات مش ثابت)
     const curb = M.curb.clone(); curb.side = DS;
-    // دهان الخطوط: نفس خامة الخريطة القديمة بالوشين (اتجاه الأشرطة بيتحدد من اتجاه الخط)
+    // دهان الخطوط: بالوشين (اتجاه الأشرطة بيتحدد من اتجاه الخط)
     const paint = M.paint.clone(); paint.side = DS;
     // خطوط باهتة/متآكلة في حتت (مش بيضا نضيفة طول الطريق)
     paint.onBeforeCompile = (sh) => {

@@ -283,19 +283,7 @@ await page.waitForFunction(() => !document.getElementById('go').disabled);
 const r13 = await page.evaluate(() => ({ map: game.mapId, tiles: game.world?.stats.tilesLoaded }));
 T(13, 'Reload', r13.map === 'shibin' && r13.tiles > 0, r13);
 
-// ===== 14) الرجوع للخريطة القديمة (من القايمة) =====
-await page.goto(BASE);
-await page.waitForFunction(() => !!document.querySelector('#maps [data-m="current"]'));
-await Promise.all([page.waitForNavigation(), page.evaluate(() => document.querySelector('#maps [data-m="current"]').click())]).catch(() => {});
-await page.waitForFunction(() => !document.getElementById('go').disabled, null, { timeout: 1200000 });
-const r14 = await page.evaluate(() => ({ map: game.mapId, world: !!game.world, oldRoute: !!game.route?.queryColliders && !game.world, race: !!game.race }));
-T(14, 'الرجوع للخريطة القديمة', r14.map === 'current' && !r14.world && r14.race, r14);
-
-// ===== 15) والرجوع لشبين تاني =====
-await Promise.all([page.waitForNavigation(), page.evaluate(() => document.querySelector('#maps [data-m="shibin"]').click())]).catch(() => {});
-await page.waitForFunction(() => !document.getElementById('go').disabled, null, { timeout: 1200000 });
-const r15 = await page.evaluate(() => ({ map: game.mapId, tiles: game.world?.stats.tilesLoaded }));
-T(15, 'الرجوع لشبين تاني', r15.map === 'shibin' && r15.tiles > 0, r15);
+// (14/15: التبديل للخريطة القديمة والرجوع — اتشالوا: الخريطة القديمة اتمسحت، شبين بس)
 
 }
 T('err', 'مفيش أخطاء JavaScript طول الاختبار', !errors.length, errors.slice(0, 5));
