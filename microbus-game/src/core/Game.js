@@ -10,6 +10,7 @@ import { addDriver } from '../world/Pedestrians.js';
 import { applyLivery } from '../vehicles/Livery.js';
 import { bakeTrafficVersion } from '../vehicles/ModelFit.js';
 import { buildSedan } from '../vehicles/SedanModel.js';
+import { Patrol } from '../gameplay/Patrol.js';
 import { staticColliders } from '../world/layout.js';
 import { PlayerVehicle } from '../vehicles/PlayerVehicle.js';
 import { buildCar } from '../vehicles/CarModels.js';
@@ -262,6 +263,7 @@ export class Game {
     // هروب من كمين → مطاردة من مكان عربية الكمين على شبكة الطرق
     this.police.onFlee = (c, x, z) => this.incidents.pursueFrom(x, z, this.player.physics, this.player.kind);
     this.incidents.onFinish = () => this.police.chaseOver();
+    if (this.traffic) this.patrol = new Patrol(this.scene, { traffic: this.traffic, audio: this.audio, hud: this.hud, incidents: this.incidents });
     this.race = this.raceTrack ? new Race(this) : null;
     this.docs = new Docs(this, this.touch ? this.touch.root.querySelector('.t-top') : null);
     this.mp = new Multiplayer(this);
@@ -970,6 +972,7 @@ export class Game {
       this.licenses.update(dt);
       this.police.update(dt, ph, this.player.kind, this.clock.elapsedTime);
       this.incidents.update(dt, ph);
+      this.patrol?.update(dt, ph);
       this.race?.update(dt, ph);
       this._stationUpdate(dt, ph);
       this.docs.update(dt);
