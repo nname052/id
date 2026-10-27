@@ -202,7 +202,8 @@ export class Multiplayer {
     const label = labelSprite(seat, name);
     g.scene.add(label); // في المشهد مش تحت العربية: العربية بتستخبى لما تبعد (LOD) والاسم لازم يفضل باين
     rig.root.updateMatrixWorld(true);
-    const lod = makeLodMesh(rig.root);
+    let lod = null;
+    try { lod = makeLodMesh(rig.root); } catch (e) { console.warn('[MP] LOD', e); } // (لو فشلت: العربية الكاملة بتفضل تترسم من بعيد — مايوقفش اللعبة)
     if (lod) g.scene.add(lod);
     return { peer, kind, seat, name, P, rig, label, lod, cur: null, snaps: [], at: 0 };
   }

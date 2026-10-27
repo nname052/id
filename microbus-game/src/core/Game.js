@@ -254,8 +254,8 @@ export class Game {
       this.traffic.extraSlows = () => this.police?.slowZones || [];
       this.crowd.onHit = (p, severe, v) => {
         this.audio?.thump?.(Math.min(1, v / 12));
-        this.hud?.toast(severe ? '⚠️ خبطت حد جامد! — الإسعاف والشرطة جايين' : '⚠️ خبطت واحد ماشي — قام الحمد لله، بس الشرطة جاية', 3);
-        if (severe) this.emergency.dispatch(p);
+        this.hud?.toast(severe ? '⚠️ خبطت حد جامد! — الإسعاف والشرطة جايين' : '⚠️ خبطت واحد ماشي — الإسعاف جاية له، والشرطة جاية', 3);
+        this.emergency.dispatch(p); // أي خبطة: الإسعاف بتيجي (المصاب بيفضل واقع لحد ما تشيله)
         if (this.started && !this.race?.active) this.incidents.trigger(severe ? 'ped' : 'pedMinor', this.player.physics, this.player.kind);
       };
     }
@@ -1028,7 +1028,7 @@ export class Game {
 
     if (inside) this.player.renderMirrors(this.renderer, this.scene, this.camera.position);
     this.diag.update(dt, this.player, inside);
-    this.mp.update(dt);
+    try { this.mp.update(dt); } catch (e) { if (!this._mpErr) { this._mpErr = 1; console.warn('[MP]', e); } } // اللعب الجماعي مايوقفش اللعبة لو فيه خطأ
     this.minimap.update(dt);
     // الضل: بيتحدّث كل فريم في الجودة العالية، وكل 2-3 فريمات في الواطية (أخف بكتير ومفيش إعادة بناء شيدرز)
     const sm = this.renderer.shadowMap;

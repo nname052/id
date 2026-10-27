@@ -141,8 +141,9 @@ export class Emergency {
     const yaw = Math.atan2(dx, dz);
     rig.yaw = rig.yaw === undefined ? yaw : rig.yaw + Math.atan2(Math.sin(yaw - rig.yaw), Math.cos(yaw - rig.yaw)) * Math.min(1, 0.15 + v * 0.02);
     rig.root.position.set(x, this.world.height(x, z, 0.5), z);
-    rig.root.rotation.set(0, rig.yaw, 0);
-    for (const w of rig.wheels || []) w.spin && (w.spin.rotation.x += v * 0.016 / 0.33);
+    // (rig.yaw = اتجاه السير الفعلي؛ موديل الميكروباص وشه ناحية -z → +π: كانت ماشية بضهرها)
+    rig.root.rotation.set(0, rig.yaw + Math.PI, 0);
+    for (const w of rig.wheels || []) w.spin && (w.spin.rotation.x -= v * 0.016 / 0.33);
   }
 
   _medics(J, rig, dt) {

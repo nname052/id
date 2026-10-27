@@ -108,7 +108,8 @@ export function bakeLod(root, key, shapeKey = key) {
     const m = new THREE.Matrix4();
     let pid = 0;
     lodParts(root, (o, mat, glass, grp) => {
-      let g = grp ? groupGeometry(o.geometry, grp) : o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
+      // (كل الأرقام Float32: موديلات الـ GLB (التاكسي/التوكتوك) فيها قيم مضغوطة Int16/Uint16 وكل جزء بنوع مختلف → الدمج كان بيفشل)
+      let g = groupGeometry(o.geometry, grp || { start: 0, count: (o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) });
       for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal' && k !== 'color') g.deleteAttribute(k);
       if (!g.attributes.normal) g.computeVertexNormals();
       m.multiplyMatrices(inv, o.matrixWorld);

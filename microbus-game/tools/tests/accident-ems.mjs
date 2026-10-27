@@ -1,6 +1,6 @@
 // =====================================================================
 //  حادثة ماشي + الإسعاف:
-//   - خبطة خفيفة (≈15 كم/س): بيقع، بيقوم بعد ثواني، وبيرجع للرصيف مشي (مش بينط)
+//   - خبطة خفيفة (≈15 كم/س): بيقع ويفضل واقع (مش بيقوم لوحده) والإسعاف بتيجي له؛ من غير بقعة
 //   - خبطة جامدة (≈45 كم/س): بيقع ويفضل نايم، بقعة صغيرة، الإسعاف بتيجي على الطريق، المسعفين بينزلوا،
 //     بيشيلوه على نقالة، والعربية بتمشي على مستشفى من البيانات؛ المرور بيقف قبل المصاب؛ الشرطة اتبلغت
 //   node tools/tests/accident-ems.mjs [baseUrl]
@@ -44,7 +44,8 @@ const r = await page.evaluate(async () => {
   const A = await hitWith(15);
   out.minor = { hit: !!A.hit, severe: A.hit?.severe };
   let maxFall = 0, maxY = 0; tick(30 * 12, () => { if (A.p.hit) { maxFall = Math.max(maxFall, A.p.hit.fall); maxY = Math.max(maxY, A.p.hit.y); } });
-  out.minor.fell = maxFall > 0.95; out.minor.gotUp = !A.p.hit; out.minor.walkingBack = !!A.p.ret || (!A.p.hit && A.p.on);
+  out.minor.fell = maxFall > 0.95; out.minor.stillDown = !!A.p.hit && A.p.hit.fall > 0.95; out.minor.noStain = !A.p.hit?.stain; out.minor.dispatched = E.dispatched;
+  E.jobs.length = 0; Cr.removeVictim(A.p);
   // 2) جامدة
   g.incidents.state = 'idle'; g.incidents._cool = 0;
   const B = await hitWith(45);
@@ -53,7 +54,7 @@ const r = await page.evaluate(async () => {
   out.severe.lying = !!B.p.hit && B.p.hit.fall > 0.95; out.severe.stain = !!B.p.hit?.stain;
   out.severe.trafficStops = g.traffic.extraStops().some((z) => Math.hypot(z.x - B.p.x, z.z - B.p.z) < 1);
   // الإسعاف: لحد ما تمشي على المستشفى (لحد 3 دقايق)
-  const states = new Set(); let medicsSeen = 0, stretcher = false, minD = 1e9;
+  const states = new Set(); let medicsSeen = 0, stretcher = false, minD = 1e9, fwdOk = 0, fwdBad = 0;
   const g0 = g.player.physics; g0.reset(B.p.x + 25, B.p.z + 25, 0); // اللاعب بعيد شوية
   for (let i = 0; i < 30 * 180; i++) {
     tick(1);
@@ -61,15 +62,16 @@ const r = await page.evaluate(async () => {
     if (Cr.extras.length >= 2) medicsSeen++;
     if (E._rig?.stretcher.visible) stretcher = true;
     if (E._rig?.root.visible && st === 'drive') minD = Math.min(minD, Math.hypot(E._rig.root.position.x - B.p.x, E._rig.root.position.z - B.p.z));
+    if (E._rig?.root.visible && (st === 'drive' || st === 'leave')) { const J = E.jobs[0], rr = E._rig; const ry = rr.root.rotation.y; const fx = -Math.sin(ry), fz = -Math.cos(ry); const px = rr._px, pz = rr._pz; if (px !== undefined) { const mx = rr.root.position.x - px, mz = rr.root.position.z - pz; if (Math.hypot(mx, mz) > 0.01) { if (mx * fx + mz * fz > 0) fwdOk++; else fwdBad++; } } rr._px = rr.root.position.x; rr._pz = rr.root.position.z; void J; }
     if (st === 'leave') break;
   }
-  out.ems = { states: [...states], medicsSeen: medicsSeen > 30, stretcher, arrivedWithin: +minD.toFixed(1), hospital: E.debugStats().hospital || E.jobs[0]?.hospital, victimRemoved: !B.p.hit && !Cr.victims.includes(B.p) };
+  out.ems = { states: [...states], medicsSeen: medicsSeen > 30, stretcher, arrivedWithin: +minD.toFixed(1), hospital: E.debugStats().hospital || E.jobs[0]?.hospital, victimRemoved: !B.p.hit && !Cr.victims.includes(B.p), facingForward: fwdOk > 20 && fwdBad <= fwdOk * 0.02, fwd: [fwdOk, fwdBad] };
   return out;
 });
 await browser.close();
-const pass = r.minor.hit && r.minor.severe === false && r.minor.fell && r.minor.gotUp &&
+const pass = r.minor.hit && r.minor.severe === false && r.minor.fell && r.minor.stillDown && r.minor.noStain && r.minor.dispatched >= 1 &&
   r.severe.hit && r.severe.severe && r.severe.lying && r.severe.stain && r.severe.trafficStops && r.severe.police !== 'idle' &&
-  r.ems.states.includes('drive') && r.ems.states.includes('medics') && r.ems.states.includes('leave') && r.ems.medicsSeen && r.ems.stretcher && r.ems.arrivedWithin < 9 && r.ems.victimRemoved && !errors.length;
+  r.ems.states.includes('drive') && r.ems.states.includes('medics') && r.ems.states.includes('leave') && r.ems.medicsSeen && r.ems.stretcher && r.ems.arrivedWithin < 9 && r.ems.victimRemoved && r.ems.facingForward && !errors.length;
 console.log(JSON.stringify({ ...r, errors }, null, 1));
 console.log(pass ? 'PASS accident-ems' : 'FAIL accident-ems');
 process.exit(pass ? 0 : 1);

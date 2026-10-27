@@ -327,8 +327,8 @@ export class ShibinCrowd {
     } else { const k = Math.exp(-dt * 5); H.vx *= k; H.vz *= k; }
     p.x += H.vx * dt; p.z += H.vz * dt;
     if (H.rest <= 3.5) H.fall = Math.min(1, H.fall + dt * 3.2); // (وهو بيقوم بيقل بس — مش بيتشد للأرض تاني)
-    if (H.severe) { this._victimStain(p, H); return; } // بيفضل نايم لحد ما الإسعاف تشيله (Emergency)
-    // خبطة خفيفة: بيفضل في الأرض شوية وبعدين يقوم ويرجع للرصيف
+    // أي خبطة: بيفضل واقع (متألم) لحد ما الإسعاف تشيله (Emergency) — مش بيقوم لوحده (كان بيقع ويقوم تاني)
+    if (H.severe || H.keepDown !== false) { if (H.severe) this._victimStain(p, H); return; }
     if (H.vy === 0 && Math.hypot(H.vx, H.vz) < 0.2) H.rest += dt;
     if (H.rest > 3.5) { H.fall = Math.max(0, H.fall - dt * 2.5); if (H.fall === 0) { const lx = p.x, lz = p.z; p.hit = null; p.hitCool = 6; p.scared = 4; this._pos(p); p.ret = { tx: p.x, tz: p.z }; p.x = lx; p.z = lz; } }
   }
