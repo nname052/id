@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#141414" />
-  <title>ميكروباص مصر</title>
+  <title>شبين الكوم · ميكروباص مصر</title>
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
   <!-- آيفون: "إضافة للشاشة الرئيسية" → اللعبة بتفتح ملء الشاشة بالعرض من غير شريط سفاري -->
@@ -21,8 +21,8 @@
   <!-- شاشة التحميل / البداية -->
   <div id="start">
     <div class="card">
-      <h1>ميكروباص مصر</h1>
-      <p class="sub">نسخة تجريبية · شبين الكوم الحقيقية (خريطة OpenStreetMap)</p>
+      <h1>ميكروباص شبين الكوم</h1>
+      <p class="sub">شبين الكوم · على خريطة حقيقية (OpenStreetMap)</p>
       <div id="progress"><div id="bar"></div></div>
       <p id="status">بيتحمّل...</p>
       <p id="ver" style="opacity:.55;font-size:12px;margin:2px 0 0">نسخة 12</p>
@@ -36,10 +36,6 @@
         <button data-v="microbus"><b>🚐</b><span>ميكروباص</span><small>14 راكب · هاي إس</small></button>
         <button data-v="taxi"><b>🚕</b><span>تاكسي</span><small>4 ركاب · سريع</small></button>
         <button data-v="tuktuk"><b>🛺</b><span>توكتوك</span><small>3 ركاب · بيدخل في أي حتة</small></button>
-      </div>
-      <div class="pick maps" id="maps">
-        <button data-m="shibin" class="on"><b>🏙️</b><span>شبين الكوم الحقيقية</span><small>المدينة كاملة من خريطة حقيقية (OSM)</small></button>
-        <button data-m="current"><b>🗺️</b><span>الخريطة القديمة</span><small>وسط البلد · الطريق الدائري (تخيلية)</small></button>
       </div>
       <p class="osm-attr" id="osm-attr">بيانات الخريطة © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a> (ODbL)</p>
       <button id="go" disabled>يلا بينا ▶</button>

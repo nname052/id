@@ -1,10 +1,6 @@
 import * as THREE from 'three';
 import { HumanBatch, humanVariants, seatedGeometry, humanStaticMaterial } from '../world/Humans.js';
-import { loopAt, LOOP } from '../traffic/TrafficSystem.js';
 import { groundHeight } from '../world/ground.js';
-import { roadPointAt, ROADS, SIDEWALK_W, onOtherCarriageway } from '../world/RoadNetwork.js';
-import { crossingAt } from '../world/layout.js';
-import { nearJunction, ZONE_LABEL } from '../world/Route.js';
 import { GeoBuilder } from '../render/GeoBuilder.js';
 import { canvas, tex, rng } from '../render/textures.js';
 import { GRAPH, findRoute, trackRoute } from '../nav/RoadGraph.js';
@@ -20,39 +16,6 @@ const MODE = { microbus: 'line', taxi: 'trip', tuktuk: 'trip' };
 // الأماكن اللي ينفع التوكتوك يشتغل فيها (شوارع جوه البلد والقرى، مش الطرق السريعة)
 const TUK_KINDS = new Set(['city', 'residential', 'village', 'agri', 'shibin', 'side']);
 
-const CITY_LEN = 450;
-// s على المسار الكامل (المدينة 0→450 وبعدها الطريق الدائري)
-const STOP_DEFS = [
-  { s: 40, name: 'موقف وسط البلد', kind: 'city' },
-  { s: 268, name: 'السوق', kind: 'market' },
-  { s: 150, name: 'الجامع الكبير', kind: 'city' },
-  { s: 390, name: 'آخر وسط البلد', kind: 'city' },
-  { s: CITY_LEN + 150, name: 'الحي السكني', kind: 'residential' },
-  { s: CITY_LEN + 420, name: 'الصيدلية', kind: 'residential' },
-  { s: CITY_LEN + 930, name: 'الطريق الزراعي', kind: 'agri' },
-  { s: CITY_LEN + 1205, name: 'القرية', kind: 'village' },
-  { s: CITY_LEN + 1460, name: 'استراحة الصحراوي', kind: 'desert' },
-  { s: CITY_LEN + 2480, name: 'طرف الطريق السريع', kind: 'highway' },
-];
-// مواقف على الطرق الفرعية
-const SIDE_STOPS = [
-  { road: 'R1', frac: 0.45, name: 'موقف الترعة', kind: 'agri' },
-  { road: 'R5', frac: 0.5, name: 'شارع الميدان', kind: 'side' },
-  { road: 'R5', frac: 0.85, name: 'المدرسة', kind: 'side' },
-  { road: 'R6', frac: 0.5, name: 'المقابر', kind: 'side' },
-  { road: 'S1', frac: 0.45, name: 'شارع باريس', kind: 'shibin', off: 4.4 + 3.2 - 1 },
-  { road: 'S1', frac: 0.15, name: 'أول شارع باريس', kind: 'shibin', off: 4.4 + 3.2 - 1 },
-  { road: 'S1', frac: 0.8, name: 'آخر شارع باريس', kind: 'shibin', off: 4.4 + 3.2 - 1 },
-  { road: 'S2', frac: 0.4, name: 'الكليات', kind: 'shibin', off: 5.2 + 3.2 - 1 },
-  { road: 'S2', frac: 0.75, name: 'المستشفى الجامعي', kind: 'shibin', off: 5.2 + 3.2 - 1 },
-  { road: 'S3', frac: 0.3, name: 'الكورنيش', kind: 'shibin', off: 3.8 + 3.2 - 1 },
-  { road: 'S3', frac: 0.7, name: 'قصر الثقافة', kind: 'shibin', off: 3.8 + 3.2 - 1 },
-  { road: 'S2', frac: 0.06, name: 'جامعة المنوفية', kind: 'shibin', off: 5.2 + 3.2 - 1 },
-  { road: 'S4', frac: 0.15, name: 'محطة القطر', kind: 'shibin', off: 3.8 + 3.2 - 1 },
-  // الموقف الكبير: ناس كتير ومستنيين على طول
-  { road: 'S4', frac: 0.55, name: 'موقف شبين الكوم', kind: 'terminal', off: 3.8 + 3.2 - 0.8 },
-];
-const URBAN = new Set(['city', 'market', 'residential']);
 // على الموبايل عدد أقل (كل واحد ماشي = كذا قطعة بتترسم)
 const MAX_WALKERS = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches ? 44 : 60; // (أكتر: ناس بتشاور على طول الخط)
 const WALK = 1.45, _v = new THREE.Vector3(), _w = new THREE.Vector3(), _in = new THREE.Vector3();
@@ -158,7 +121,7 @@ export class Passengers {
     const wps = this.lineDir ? [...L.stops].reverse() : L.stops;
     const path = { pts: [], cum: [], steps: [], length: 0 };
     const stopS = [0];
-    let heading = this.lineDir || this.world ? null : [0, 1]; // من الموقف: طالع على شارع المحطة ناحية شارع باريس
+    let heading = null;
     for (let k = 0; k < wps.length - 1; k++) {
       const a = wps[k], b = wps[k + 1];
       const r = findRoute(a.x, a.z, b.x, b.z, heading ? heading[0] : 0, heading ? heading[1] : 0);
@@ -291,70 +254,9 @@ export class Passengers {
     this.stops = [];
     this.cands = [];
     this.candGrid = new Map();
-    if (this.world) {
-      // الخريطة الحقيقية: الأماكن جاهزة (على الأرصفة الحقيقية، مع بُعدها عن التقاطعات)
-      const W = this.world.stopCandidates();
-      this.cands = W.cands; this.candGrid = W.grid;
-      return;
-    }
-    const q = {};
-    const mk = (base, side, edge, laneD, name, kind) => {
-      const d = side * edge;
-      const x = base.x + base.rx * d, z = base.z + base.rz * d;
-      const c = {
-        name, kind, side, x, z, y: groundHeight(x, z),
-        nx: -base.rx * side, nz: -base.rz * side,        // من الرصيف ناحية الطريق
-        ax: base.dx * side, az: base.dz * side,          // اتجاه السير
-        mx: base.x + base.rx * side * laneD, mz: base.z + base.rz * side * laneD,
-      };
-      c.my = groundHeight(c.mx, c.mz);
-      return c;
-    };
-    const addCand = (c) => {
-      this.cands.push(c);
-      const k = `${Math.floor(c.x / 60)},${Math.floor(c.z / 60)}`;
-      let a = this.candGrid.get(k); if (!a) this.candGrid.set(k, (a = [])); a.push(c);
-    };
-    // 1) الطريق الرئيسي (وسط البلد + الدائري)
-    const SKIP = new Set(['bridge', 'tunnel', 'mountain', 'highway']);
-    for (let s = 20; s < LOOP.length - 20; s += 30) {
-      loopAt(s, q);
-      if (SKIP.has(q.zone)) continue;
-      const city = s < CITY_LEN;
-      if (city && crossingAt(q.z, 7)) continue;
-      const urban = URBAN.has(q.zone) || city;
-      for (const side of [1, -1]) {
-        if (!city && nearJunction(s - CITY_LEN, side, 10)) continue;
-        // الأسفلت لحد 11.5م من النص برا المدينة → الناس على الجنب بعده
-        addCand(mk(q, side, urban ? 11.3 : 12.6, 8.6, city ? 'وسط البلد' : ZONE_LABEL[q.zone] || 'الطريق', q.zone));
-      }
-    }
-    // 2) الطرق الفرعية وشوارع شبين
-    for (const road of ROADS) {
-      if (road.style === 'highway' || road.style === 'desert') continue;
-      const urban = road.style === 'urban';
-      let next = 25;
-      for (const p of road.samples) {
-        if (p.s < next || p.s > road.length - 25) continue;
-        next = p.s + 30;
-        if (p.half > road.half + 0.5) continue; // بوق التقاطع
-        for (const side of [1, -1]) {
-          const edge = urban ? road.half + SIDEWALK_W - 1 : road.half + 1.6;
-          const c = mk(p, side, edge, road.half - 1.15, road.name, urban ? 'shibin' : 'side');
-          if (onOtherCarriageway(c.x, c.z, road, 1.5) || onOtherCarriageway(c.mx, c.mz, road, 1)) continue;
-          addCand(c);
-        }
-      }
-    }
-    // 3) الموقف الكبير (ثابت، وفيه ناس كتير على طول)
-    {
-      const def = SIDE_STOPS.find((d) => d.kind === 'terminal');
-      Object.assign(q, roadPointAt(def.road, def.frac));
-      for (const side of [1, -1]) this.stops.push({ ...mk(q, side, def.off, q.half - 1.15, def.name, 'terminal'), fixed: true, terminalStop: true, waiting: [], cooldown: 0 });
-    }
-    // بُعد كل مكان عن أقرب تقاطع (منقفش الزباين في نص التقاطع)
-    const xs = GRAPH.nodes.filter((n) => n.edges.length >= 3);
-    for (const c of this.cands) c.nearX = Math.min(...xs.map((n) => Math.hypot(n.x - c.mx, n.z - c.mz)));
+    // الأماكن جاهزة من العالم (على الأرصفة الحقيقية، مع بُعدها عن التقاطعات)
+    const W = this.world.stopCandidates();
+    this.cands = W.cands; this.candGrid = W.grid;
   }
 
   _activate(c) {
@@ -1023,5 +925,3 @@ function seatedHuman(variants, seed) {
   return _seated.get(variants[k]);
 }
 
-export { STOP_DEFS };
-void LOOP;

@@ -13,21 +13,10 @@ const bar = document.getElementById('bar');
 const go = document.getElementById('go');
 const start = document.getElementById('start');
 
-// الخريطة المختارة (لازم تتعرف قبل البناء): ?map=... في اللينك أو آخر اختيار محفوظ.
-// الافتراضي = شبين الكوم الحقيقية (بيانات OSM). الخريطة القديمة بتفضل متاحة لو اللاعب اختارها بنفسه.
-// (المفتاح الجديد egy-map2: المفتاح القديم كان ممكن يكون فيه 'current' من الأيام اللي كانت فيها هي الافتراضية)
-const MAPS = ['shibin', 'current'];
-const MAP_KEY = 'egy-map2';
-let mapPick = (() => {
-  const q = new URLSearchParams(location.search).get('map');
-  if (MAPS.includes(q)) return q;
-  try { const v = localStorage.getItem(MAP_KEY); return MAPS.includes(v) ? v : 'shibin'; } catch { return 'shibin'; }
-})();
-
 const game = new Game(document.getElementById('app'), (text, p) => {
   statusEl.textContent = text;
   bar.style.width = `${Math.round(p * 100)}%`;
-}, { map: mapPick });
+});
 window.game = game; // للتجربة من الـ Console
 
 // اختيار العربية من شاشة البداية (بيتحفظ في الإعدادات)
@@ -42,23 +31,7 @@ pick.addEventListener('click', (e) => {
   game.mp?.setMe({ kind: picked });
 });
 
-// اختيار الخريطة من شاشة البداية: كل خريطة عالم كامل لوحده، فالتبديل بيعيد تحميل الصفحة
-// (أنضف حاجة: مفيش بواقي من الخريطة التانية في الذاكرة)
-const maps = document.getElementById('maps');
-const syncMap = () => { for (const b of maps.children) b.classList.toggle('on', b.dataset.m === mapPick); };
-syncMap();
-maps.addEventListener('click', (e) => {
-  const b = e.target.closest('button'); if (!b || b.disabled) return;
-  const m = b.dataset.m;
-  if (m === mapPick) return;
-  try { localStorage.setItem(MAP_KEY, m); } catch { /* مفيش تخزين */ }
-  mapPick = m; syncMap();
-  go.disabled = true;
-  statusEl.textContent = m === 'shibin' ? 'بنحمّل شبين الكوم الحقيقية...' : 'بنحمّل الخريطة...';
-  const u = new URL(location.href); u.searchParams.delete('map');
-  location.replace(u.toString());
-});
-if (mapPick === 'shibin') {
+{
   // حقوق بيانات الخريطة جوه اللعبة كمان
   const a = document.createElement('div'); a.id = 'osm-ingame';
   a.innerHTML = '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors';

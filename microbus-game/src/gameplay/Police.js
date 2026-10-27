@@ -6,19 +6,11 @@
 // =====================================================================
 import * as THREE from 'three';
 import { buildSedan } from '../vehicles/SedanModel.js';
-import { roadPointAt, ROADS } from '../world/RoadNetwork.js';
 import { groundHeight } from '../world/ground.js';
 import { GeoBuilder } from '../render/GeoBuilder.js';
 import { canvas, tex } from '../render/textures.js';
 import { LICENSE } from './Licenses.js';
 
-const SPOTS = [
-  { road: 'S1', frac: 0.3, name: 'كمين شارع باريس' },
-  { road: 'R1', frac: 0.62, name: 'كمين طريق الترعة' },
-  { road: 'S2', frac: 0.55, name: 'كمين شارع الجامعة' },
-  { road: 'R4', frac: 0.45, name: 'كمين الطريق الغربي' },
-  { road: 'R5', frac: 0.5, name: 'كمين شارع الميدان' },
-];
 const FINE = { driver: 500, vehicle: 400, flee: 1000 };
 const CHANCE = 0.75;        // احتمال إن الكمين يبقى شغال لما تقرب
 const COOL = 8 * 60;       // بعد التفتيش: الكمين ده بيرتاح 8 دقايق
@@ -79,14 +71,14 @@ function officer() {
 }
 
 export class Police {
-  /** spots: أماكن الكماين للخريطة الحالية (افتراضيًا الخريطة القديمة). كل واحد {name, q:{x,z,dx,dz,rx,rz,half}} */
-  constructor(scene, { hud, wallet, licenses, spots = null } = {}) {
+  /** spots: أماكن الكماين. كل واحد {name, q:{x,z,dx,dz,rx,rz,half}} */
+  constructor(scene, { hud, wallet, licenses, spots = [] } = {}) {
     this.hud = hud; this.wallet = wallet; this.licenses = licenses;
     this.cps = [];
     const signMat = new THREE.MeshStandardMaterial({ map: signTexture(), roughness: 0.6 });
     const coneMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6 });
-    for (const def of spots || SPOTS) {
-      const q = def.q || roadPointAt(def.road, def.frac);
+    for (const def of spots) {
+      const q = def.q;
       const road = q.half || 4;
       const root = new THREE.Group(); root.name = def.name; root.visible = false;
       const y0 = groundHeight(q.x, q.z);
@@ -126,7 +118,7 @@ export class Police {
           colliders.push({ cx: x, cz: z, hx: len / 2, hz: 0.35, angle: yaw, restitution: 0.2, kind: 'prop' });
         };
         // (الشوارع اللي فيها جزيرة في النص: الحواجز على الجناب بس عشان العربية تعدي)
-        const blvd = ROADS.find((r) => r.id === def.road)?.boulevard;
+        const blvd = false;
         // الحواجز على الأطراف بس: الحارات نفسها فاضية (العربيات بتعدي من غير ما تخش فيها)
         const L = blvd ? 1.1 : Math.max(0.6, road - 3.2);
         for (const along of [-10, -6]) B(along, -1, L);

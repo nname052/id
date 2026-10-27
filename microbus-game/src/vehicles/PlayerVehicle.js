@@ -5,14 +5,8 @@ import { buildMicrobus } from './MicrobusModel.js';
 import { analyzeVehicle, specFromModel, integrateHiace } from './HiaceIntegration.js';
 import { Damage } from './Damage.js';
 import { addBobbleDog, updateBobbles } from './CabAccessories.js';
-import { nearestSide } from '../world/RoadNetwork.js';
-import { ROAD, CROSSINGS } from '../world/layout.js';
-import { TERMINAL } from '../world/Shibin.js';
-// البداية: راكن جوه موقف ميكروباص شبين الكوم ووشك ناحية شارع المحطة
-const PLAYER_START = { x: TERMINAL.x0 + 22.5, z: TERMINAL.z0 + 5, yaw: Math.PI / 2 }; // صف فاضي قدامه بوابة الخروج (القبلية)
 import { groundHeight } from '../world/ground.js';
 import { addDriver } from '../world/Pedestrians.js';
-import { loopProject, loopAt } from '../traffic/TrafficSystem.js';
 
 // الميكروباص بتاع اللاعب: بيربط الفيزياء بالموديل (عجل، دركسيون، عدادات، دواسات، فتيس، فرامل يد، سبحة، مرايات)
 
@@ -303,47 +297,16 @@ export class PlayerVehicle {
     const ph = this.physics;
     const W = PlayerVehicle.world;
     if (initial) {
-      const p = W ? W.spawnPose() : PLAYER_START;
+      const p = W ? W.spawnPose() : { x: 0, z: 0, yaw: 0 };
       ph.reset(p.x, p.z, p.yaw); this._savePrev(); return 'start';
     }
     if (ph.flip.mode) { ph.recover(); this._savePrev(); return 'recover'; }
     this.damage?.repair();
     let { x, z } = ph;
-    if (W) {
-      // الخريطة الحقيقية: أقرب طريق، على الحارة اليمين في نفس اتجاهك
-      const [fx, fz] = ph.forward;
-      const p = W.roadPose(x, z, fx, fz) || W.spawnPose();
-      ph.reset(p.x, p.z, p.yaw); this._savePrev();
-      return 'road';
-    }
-    // على طريق فرعي: نرجع لنص حارته في نفس الاتجاه
-    const sr = nearestSide(x, z);
-    if (sr && sr.dist < 20 && !(Math.abs(x) < 100 && z > ROAD.zMin && z < ROAD.zMax)) {
-      const p = sr.road.samples[sr.i];
-      const dir = ph.forward[0] * p.dx + ph.forward[1] * p.dz >= 0 ? 1 : -1;
-      const off = dir * Math.min(1.8, sr.road.half * 0.5);
-      ph.reset(p.x + p.rx * off, p.z + p.rz * off, dir > 0 ? Math.atan2(-p.dx, -p.dz) : Math.atan2(p.dx, p.dz));
-      this._savePrev();
-      return 'road';
-    }
-    const facingNorth = Math.cos(ph.yaw) < 0; // بيبص ناحية +Z
-    const onCross = CROSSINGS.find((c) => Math.abs(z - c.z) < c.half && Math.abs(x) > ROAD.curb);
-    if (onCross) {
-      z = onCross.z + (Math.sin(ph.yaw) < 0 ? 3.2 : -3.2);
-      x = THREE.MathUtils.clamp(x, onCross.xMin + 6, onCross.xMax - 6);
-      ph.reset(x, z, Math.sin(ph.yaw) < 0 ? -Math.PI / 2 : Math.PI / 2);
-    } else {
-      // أقرب حارة على المسار (مدينة أو طريق) في نفس اتجاهك
-      const pr = loopProject(x, z);
-      if (!pr) { ph.reset(PLAYER_START.x, PLAYER_START.z, PLAYER_START.yaw); this._savePrev(); return; }
-      const q = loopAt(pr.s);
-      const fwd = ph.forward;
-      const dir = fwd[0] * q.dx + fwd[1] * q.dz >= 0 ? 1 : -1;
-      const off = dir * ROAD.lanes[0];
-      ph.reset(q.x + q.rx * off, q.z + q.rz * off, dir > 0 ? Math.atan2(-q.dx, -q.dz) : Math.atan2(q.dx, q.dz));
-    }
-    void facingNorth;
-    this._savePrev();
+    // أقرب طريق، على الحارة اليمين في نفس اتجاهك
+    const [fx, fz] = ph.forward;
+    const p = W.roadPose(x, z, fx, fz) || W.spawnPose();
+    ph.reset(p.x, p.z, p.yaw); this._savePrev();
     return 'road';
   }
 

@@ -1,6 +1,4 @@
 import * as THREE from 'three';
-import { ROAD, CROSSINGS } from '../world/layout.js';
-import { LOOP, loopAt } from '../traffic/TrafficSystem.js';
 import { groundHeight } from '../world/ground.js';
 
 // 4 كاميرات: كرسي السائق / ورا الميكروباص / خارجية قريبة / سينمائية. زرار C للتبديل.
@@ -116,28 +114,7 @@ export class CameraSystem {
     });
   }
 
-  _cinePoints() {
-    const pts = [];
-    for (let z = ROAD.zMax - 15; z > ROAD.zMin + 10; z -= 28) {
-      const side = (Math.round(z / 28) % 2) ? 1 : -1;
-      // يا تحت أوراق الشجر (1.5م) يا فوقها (9.5م) عشان الكاميرا متدخلش جوه شجرة
-      const high = Math.round(z / 28) % 3 === 0;
-      pts.push(new THREE.Vector3(side * (ROAD.sidewalkOuter - 0.7), high ? 9.5 : 1.5, z));
-    }
-    for (const c of CROSSINGS) {
-      pts.push(new THREE.Vector3(ROAD.curb + 4, 9, c.z + c.half + 6));
-      pts.push(new THREE.Vector3(-(ROAD.curb + 4), 4, c.z - c.half - 6));
-    }
-    // كاميرات على طول الطريق الكبير (على الجنب، واطية أو عالية)
-    for (let s = 470, k = 0; s < LOOP.length - 20; s += 55, k++) {
-      const q = loopAt(s);
-      const side = k % 2 ? 1 : -1, d = side * 14.5;
-      const x = q.x + q.rx * d, z = q.z + q.rz * d;
-      const y = Math.max(groundHeight(x, z), q.y) + (k % 3 === 0 ? 8 : 1.6);
-      pts.push(new THREE.Vector3(x, y, z));
-    }
-    return pts;
-  }
+  _cinePoints() { return []; } // (شبين: نقط الكاميرا السينمائية بتيجي من العالم: world.cinePoints())
 
   /** الكاميرا اللي ورا متدخلش جوه عمارة: لو الخط من العربية للكاميرا بيخبط في مبنى نقرّبها */
   _avoidWalls(px, pz, cam) {

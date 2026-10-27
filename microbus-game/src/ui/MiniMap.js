@@ -1,10 +1,3 @@
-import { LOOP } from '../traffic/TrafficSystem.js';
-import { ROADS } from '../world/RoadNetwork.js';
-import { RACE } from '../world/RaceTrack.js';
-import { ROAD, CROSSINGS } from '../world/layout.js';
-import { TERMINAL } from '../world/Shibin.js';
-import { SHIBIN } from '../world/RoadNetwork.js';
-import { STATION } from '../world/PetrolStation.js';
 
 // خريطة الطرق: صغيرة في الركن (بتلف مع اتجاهك)، ولما تدوس عليها بتكبر لخريطة كاملة (الشمال لفوق).
 // الطرق بتترسم مرة واحدة في canvas جاهز، وكل فريم بنرسم فوقها: طريق الـ GPS، خط الميكروباص ومحطاته،
@@ -72,7 +65,7 @@ export class MiniMap {
     el.addEventListener('pointercancel', (e) => this._ptrs.delete(e.pointerId));
     el.addEventListener('wheel', (e) => { if (!this.big) return; e.preventDefault(); this._zoomAt(e.deltaY < 0 ? 1.25 : 0.8); this._t = 0; }, { passive: false });
     this.PX = PX;
-    if (game.world?.minimapData) this._bakeWorld(game.world); else this._bake();
+    this._bakeWorld(game.world);
     this._t = 0;
     // شاشة الخريطة اللي في تابلوه التاكسي/الميكروباص
     this.navCv = document.createElement('canvas');
@@ -127,73 +120,6 @@ export class MiniMap {
     this.panel.querySelector('.mm-pname').textContent = `${best.icon} ${best.name}`;
     this.panel.classList.remove('hidden');
     this._t = 0;
-  }
-
-  // ===== الطبقة الثابتة: كل الطرق =====
-  _bake() {
-    let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
-    const grow = (x, z) => { x0 = Math.min(x0, x); x1 = Math.max(x1, x); z0 = Math.min(z0, z); z1 = Math.max(z1, z); };
-    for (const p of LOOP.samples) grow(p.x, p.z);
-    for (const r of ROADS) for (const p of r.samples) grow(p.x, p.z);
-    for (const p of RACE.samples) grow(p.x, p.z);
-    x0 -= 60; x1 += 60; z0 -= 60; z1 += 60;
-    this.b = { x0, z0, w: x1 - x0, h: z1 - z0 };
-    const c = (this.base = document.createElement('canvas'));
-    c.width = Math.ceil(this.b.w * PX); c.height = Math.ceil(this.b.h * PX);
-    const x = c.getContext('2d');
-    // ستايل كرتوني: أرض خضرا فاتحة، طرق بيضا بحواف غامقة، الترعة زرقا
-    x.fillStyle = '#9fd67a'; x.fillRect(0, 0, c.width, c.height);
-    const P = (wx, wz) => [(wx - x0) * PX, (wz - z0) * PX];
-    // بقع خضرا أغمق شوية (غيطان) عشان الخلفية ماتبقاش مسطحة
-    for (let i = 0; i < 260; i++) {
-      const rx = (Math.sin(i * 12.9898) * 43758.5453) % 1, rz = (Math.sin(i * 78.233) * 12543.123) % 1;
-      x.fillStyle = i % 3 ? 'rgba(110,180,80,0.35)' : 'rgba(190,230,140,0.4)';
-      x.beginPath(); x.ellipse(Math.abs(rx) * c.width, Math.abs(rz) * c.height, 18 + (i % 7) * 6, 12 + (i % 5) * 5, i, 0, Math.PI * 2); x.fill();
-    }
-    const line = (pts, w, col) => {
-      x.strokeStyle = col; x.lineWidth = w * PX; x.lineCap = 'round'; x.lineJoin = 'round';
-      x.beginPath(); pts.forEach((p, i) => { const [a, b] = P(p.x, p.z); if (i) x.lineTo(a, b); else x.moveTo(a, b); }); x.stroke();
-    };
-    // الترعة (بحر شبين)
-    if (SHIBIN?.canal) { const C = SHIBIN.canal; const [ca, cb] = P(C.x - C.half, C.z0); x.fillStyle = '#4fb3ea'; x.fillRect(ca, cb, C.half * 2 * PX, (C.z1 - C.z0) * PX); }
-    // وسط البلد: بلوكات مباني فاتحة
-    x.fillStyle = '#f3e3c3';
-    { const [a, b] = P(-90, ROAD.zMin); x.fillRect(a, b, 180 * PX, (ROAD.zMax - ROAD.zMin) * PX); }
-    // الطرق: حدود غامقة + أسفلت أبيض/أصفر (الطريق الرئيسي أصفر زي خرايط الموبايل)
-    line(LOOP.samples, 30, '#5b5348');
-    for (const cr of CROSSINGS) line([{ x: cr.xMin, z: cr.z }, { x: cr.xMax, z: cr.z }], cr.half * 2 + 6, '#5b5348');
-    for (const r of ROADS) line(r.samples, r.half * 2 + 8, '#5b5348');
-    for (const cr of CROSSINGS) line([{ x: cr.xMin, z: cr.z }, { x: cr.xMax, z: cr.z }], cr.half * 2, '#ffffff');
-    for (const r of ROADS) line(r.samples, r.half * 2 + 1, r.surface === 'dirt' ? '#e2c48a' : '#ffffff');
-    line(LOOP.samples, 22, '#ffd34d');
-    // حلبة السباق: أسفلت غامق بحواف حمرا + خط البداية
-    { const loop = [...RACE.samples, RACE.samples[0]]; line(loop, 26, '#b91c1c'); line(loop, 16, '#4b5563'); }
-    // الموقف
-    x.fillStyle = '#ff9f43'; x.strokeStyle = '#5b5348'; x.lineWidth = 3;
-    const [ta, tb] = P(TERMINAL.x0, TERMINAL.z0); x.fillRect(ta, tb, (TERMINAL.x1 - TERMINAL.x0) * PX, (TERMINAL.z1 - TERMINAL.z0) * PX); x.strokeRect(ta, tb, (TERMINAL.x1 - TERMINAL.x0) * PX, (TERMINAL.z1 - TERMINAL.z0) * PX);
-    // البنزينة (أرضية + مظلة + علامة طلمبة)
-    {
-      const S = STATION, [a0, b0] = P(S.pad.x0, S.pad.z0);
-      x.fillStyle = '#8f8f94'; x.fillRect(a0, b0, (S.pad.x1 - S.pad.x0) * PX, (S.pad.z1 - S.pad.z0) * PX);
-      const [a1, b1] = P(S.canopy.x0, S.canopy.z0);
-      x.fillStyle = '#16a34a'; x.fillRect(a1, b1, (S.canopy.x1 - S.canopy.x0) * PX, (S.canopy.z1 - S.canopy.z0) * PX);
-      const [ia, ib] = P((S.canopy.x0 + S.canopy.x1) / 2, (S.canopy.z0 + S.canopy.z1) / 2);
-      x.fillStyle = '#fff'; x.beginPath(); x.arc(ia, ib, 7, 0, Math.PI * 2); x.fill();
-      x.fillStyle = '#16a34a'; x.fillRect(ia - 3, ib - 4, 5, 8); x.fillRect(ia + 2, ib - 2, 2, 5);
-    }
-    // نسخة من غير كلام للخريطة الصغيرة وشاشة التابلوه، والأسامي للكبيرة بس
-    this.baseNL = document.createElement('canvas');
-    this.baseNL.width = c.width; this.baseNL.height = c.height;
-    this.baseNL.getContext('2d').drawImage(c, 0, 0);
-    // أسامي الطرق: كلام غامق بحرف أبيض
-    x.font = 'bold 14px Cairo, sans-serif'; x.textAlign = 'center'; x.direction = 'rtl'; x.lineJoin = 'round';
-    const lbl = (t, wx, wz, size = 14) => { const [a, b] = P(wx, wz); x.font = `bold ${size}px Cairo, sans-serif`; x.lineWidth = 4; x.strokeStyle = '#fff'; x.strokeText(t, a, b); x.fillStyle = '#3a3128'; x.fillText(t, a, b); };
-    for (const r of ROADS) { const m = r.samples[r.samples.length >> 1]; lbl(r.name, m.x, m.z - 10); }
-    lbl('وسط البلد', 0, ROAD.zMax - 60, 18);
-    lbl('شبين الكوم', 220, 380, 18);
-    lbl('🚐 موقف الميكروباص', (TERMINAL.x0 + TERMINAL.x1) / 2, TERMINAL.z1 + 16, 15);
-    lbl('🏁 حلبة السباق', -410, 70, 16);
-    lbl('⛽ بنزينة الترعة', (STATION.pad.x0 + STATION.pad.x1) / 2, STATION.pad.z1 + 14, 14);
   }
 
   /** خريطة منطقة حقيقية (شبين الكوم من OSM): الطرق الحقيقية + الترع + السكة + المعالم + بوابات التوسع */
