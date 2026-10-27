@@ -28,19 +28,20 @@ from shapely import prepared
 import mapbox_earcut as earcut
 import numpy as np
 
-GEN_VERSION = 2  # v2: عرض الطرق الـ one-way على قد حاراتها + خطوط حافة/حارات
+GEN_VERSION = 3  # v3: شوارع أوسع ~15%. v2: عرض الطرق الـ one-way على قد حاراتها + خطوط حافة/حارات
 
 # ===================== جداول الطرق =====================
 DRIVE = ['motorway', 'trunk', 'primary', 'secondary', 'tertiary', 'unclassified', 'residential', 'living_street', 'service', 'road', 'track',
          'motorway_link', 'trunk_link', 'primary_link', 'secondary_link', 'tertiary_link']
 FOOT = ['footway', 'path', 'pedestrian', 'steps', 'cycleway']
 # عرض الطريق باتجاهين (للعب: الطرق الرئيسية أعرض شوية من v1 والحواري زي ما هي تقريبًا)
-WIDTH = {'motorway': 15, 'trunk': 14, 'primary': 14, 'secondary': 11, 'tertiary': 9, 'unclassified': 7, 'residential': 6.5, 'living_street': 5,
-         'service': 4.5, 'road': 6, 'track': 3.5, 'motorway_link': 7, 'trunk_link': 7, 'primary_link': 6.5, 'secondary_link': 6.5, 'tertiary_link': 6,
+# (v3: الشوارع أوسع ~15%: اللاعب والمرور والتوكتوك محتاجين مساحة — طلب اللاعب "وسّع الشوارع شوية")
+WIDTH = {'motorway': 17, 'trunk': 16, 'primary': 16.5, 'secondary': 13.5, 'tertiary': 11, 'unclassified': 8.5, 'residential': 8, 'living_street': 6,
+         'service': 5.5, 'road': 7.5, 'track': 4, 'motorway_link': 8, 'trunk_link': 8, 'primary_link': 8, 'secondary_link': 8, 'tertiary_link': 7,
          'footway': 2.2, 'path': 2.0, 'pedestrian': 4, 'steps': 2, 'cycleway': 2}
 # نص طريق مزدوج (one-way): العرض والحارات
-ONEWAY_W = {'motorway': 7.5, 'trunk': 7.5, 'primary': 7.5, 'secondary': 7, 'tertiary': 6.5, 'unclassified': 5.5, 'residential': 5, 'living_street': 4.5,
-            'service': 4, 'road': 5, 'track': 3.5}
+ONEWAY_W = {'motorway': 8.5, 'trunk': 8.5, 'primary': 8.5, 'secondary': 8, 'tertiary': 7.5, 'unclassified': 6.5, 'residential': 6, 'living_street': 5,
+            'service': 4.5, 'road': 6, 'track': 4}
 ONEWAY_LANES = {'motorway': 2, 'trunk': 2, 'primary': 2, 'secondary': 2, 'tertiary': 2}
 LANES = {'motorway': 4, 'trunk': 4, 'primary': 4, 'secondary': 2, 'tertiary': 2, 'unclassified': 2, 'residential': 2, 'living_street': 1,
          'service': 1, 'road': 2, 'track': 1}
@@ -224,10 +225,10 @@ def main():
             lanes, width = 0, tag_w or WIDTH.get(hw, 2)
         elif ow:
             lanes = tag_lanes or ONEWAY_LANES.get(base, 1)
-            width = tag_w or max(ONEWAY_W.get(base, 4.5), lanes * 3.3)
+            width = tag_w or max(ONEWAY_W.get(base, 4.5), lanes * 3.6)
         else:
             lanes = tag_lanes or (LANES.get(base, 1) if not hw.endswith('_link') else 2)
-            width = tag_w or max(WIDTH.get(hw, 5), (tag_lanes or 0) * 3.3)
+            width = tag_w or max(WIDTH.get(hw, 5), (tag_lanes or 0) * 3.6)
         layer = int(num(t.get('layer')) or 0)
         roads[wid] = dict(id=wid, hw=hw, k=k, ids=ids, xy=xy, ow=ow, lanes=int(lanes), w=r1(width), hwid=r2(width / 2),
                           sw=0 if k == 'foot' else SIDEWALK.get(hw, 0), name=t.get('name'), name_en=t.get('name:en'),
