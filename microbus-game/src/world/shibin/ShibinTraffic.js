@@ -293,7 +293,7 @@ export class ShibinTraffic {
     o.rig.root.visible = vis && !useLod;
     if (o.lod) {
       o.lod.visible = useLod;
-      if (useLod) { o.lod.position.set(o.x, o.y, o.z); o.lod.rotation.set(0, o.yaw, 0); }
+      if (useLod) { o.lod.position.set(o.x, o.y, o.z); o.lod.rotation.order = 'YXZ'; o.lod.rotation.set(o._pitch || 0, o.yaw, 0); }
     }
     return useLod;
   }
@@ -604,11 +604,17 @@ export class ShibinTraffic {
       const vis = c.on && !c.off && (c.x - cx) ** 2 + (c.z - cz) ** 2 < far2;
       c.visible = vis;
       const d2 = (c.x - cx) ** 2 + (c.z - cz) ** 2;
+      // ميل لقدام/لورا مع انحدار الكوبري (كانت أفقية دايمًا = نصها غاطس في المطلع)
+      if (vis) { const hd = Math.hypot(c.x - (c._ppx ?? c.x), c.z - (c._ppz ?? c.z));
+        if (hd > 3) c._pitch = 0; // (اتنقلت/اتولدت من جديد)
+        else if (hd > 0.05) { const sl = Math.max(-0.25, Math.min(0.25, (c.y - c._ppy) / hd)); c._pitch = (c._pitch || 0) + (Math.atan(sl) - (c._pitch || 0)) * Math.min(1, dt * 6); }
+        if (hd > 0.05 || c._ppx === undefined) { c._ppx = c.x; c._ppz = c.z; c._ppy = c.y; } }
       if (this._show(c, vis, d2) || !vis) continue;
       const shadow = d2 < 45 * 45; // (العجل كان بيستخبى بعد 70م = العربية ماشية من غير عجل "كتلة واحدة")
       if (shadow !== c._shadow) { c._shadow = shadow; r.root.traverse((o) => { if (o.isMesh && o.userData.role !== 'glass' && o.userData.role !== 'shadow') o.castShadow = shadow; }); }
       r.root.position.set(c.x, c.y, c.z);
-      r.root.rotation.set(0, c.yaw, 0);
+      r.root.rotation.order = 'YXZ';
+      r.root.rotation.set(c._pitch || 0, c.yaw, 0);
       c.spin += (c.v / (r.wheelRadius || 0.3)) * dt;
       // سرعة اللف (من تغيّر الاتجاه) → العجل اللي قدام بيلف مع الدركسيون، والجسم بيميل في اللفة (مش كتلة واحدة)
       const dyaw = c._pyaw === undefined ? 0 : Math.atan2(Math.sin(c.yaw - c._pyaw), Math.cos(c.yaw - c._pyaw));

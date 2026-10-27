@@ -306,6 +306,8 @@ export class VehiclePhysics {
 
     // ===== التعليق =====
     let springSum = 0, pitchT = 0, rollT = 0;
+    // أرض نص العربية: العجلة اللي عدّت حرف كوبري/مطلع ماتقراش الأرض اللي تحت بمترات (كانت بتقلب العربية على جنبها)
+    this._gC = this.groundHeight(this.x, this.z);
     for (const w of this.wheels) {
       const wx = this.x + rx * w.rx + fx * w.rf;
       const wz = this.z + rz * w.rx + fz * w.rf;
@@ -487,6 +489,9 @@ export class VehiclePhysics {
       }
     }
     const prev = w.ground ?? g0;
+    // ولا سطح أعلى بكتير لازق جنبها (الكوبري التاني في الاتجاه العكسي أعلى بـ 40سم = عجلتين بيطلعوا فجأة = انقلاب)
+    // (حرف رصيف عادي 15-20سم لسه بيتطلع عادي)
+    if (this._gC !== undefined) need = Math.max(this._gC - 0.45, Math.min(this._gC + 0.3, need - R)) + R;
     w.ground = need - R;
     w.stepFx = 0; w.stepFz = 0;
     if (bestD) {
@@ -633,7 +638,8 @@ export class VehiclePhysics {
         {
           const [rxB, rzB] = this.right;
           const jl = -(nx * rxB + nz * rzB) * j; // + = زقة ناحية اليمين
-          const lever = Math.max(0.15, s.cgHeight - 0.45);
+          // سور/حيطة ثابتة (مش عربية): بتزحلق العربية جنبها، مش بتقلبها (كانت بتنام على جنبها جنب سور الكوبري)
+          const lever = Math.max(0.15, s.cgHeight - 0.45) * (invB > 0 ? 1 : 0.25);
           if (this.flip.mode) this.flip.omega += (jl * lever) / (s.inertiaRoll * 3);
           else this.rollVel += (jl * lever) / (s.inertiaRoll * 1.6);
         }

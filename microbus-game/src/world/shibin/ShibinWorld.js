@@ -595,7 +595,7 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
     if (segs) {
       // أقرب سطح كوبري (بالمسافة من خطه) من اللي العربية ممكن تكون عليهم — مش "الأعلى":
       // الأعلى كان بيلقط الكوبري اللي جنبك أو طرف قطعة ممدود قبل بدايتها = قفزة/انقلاب
-      let bestD = Infinity, bh = null, bestE = null, bestHw = 0;
+      let bestD = Infinity, bestSc = Infinity, bh = null, bestE = null, bestHw = 0;
       const cand = this._cand || (this._cand = []); cand.length = 0;
       for (const s of segs) {
         const ex = s.bx - s.ax, ez = s.bz - s.az, l2 = ex * ex + ez * ez || 1e-9;
@@ -604,26 +604,31 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
         if (d > s.hw) continue;
         let h = s.ay + (s.by - s.ay) * t;
         // أول المطلع (واطي): حرفه الجانبي منحدر ناعم مش عتبة (لو حارة شارع جنبه بتلمسه)
+        // (عرض الحرف الناعم 1.2م مش 3م: الـ 3م كان بيعمل ميل جانبي تحت العجل اللي ماشية جنب السور → انقلاب)
         // (التنعيم بيقل تدريجيًا بين 0.4 و 1م — كان بيتقطع فجأة عند 0.5 = عتبة 10سم في الكباري الصغيرة)
-        if (h < 1) { const k = Math.min(1, (s.hw - d) / 3), b = h <= 0.4 ? 1 : (1 - h) / 0.6; h *= 1 - (1 - k) * b; }
+        if (h < 1) { const k = Math.min(1, (s.hw - d) / 1.2), b = h <= 0.4 ? 1 : (1 - h) / 0.6; h *= 1 - (1 - k) * b; }
         // بنفضل على السطح اللي العربية عليه: بس الأسطح القريبة من ارتفاعها (±0.8م) — مطلع جنب كوبري
         // أعلى/أوطى منه مايشقلبش العربية — ومن بينهم الأقرب لخطه (عشان التفريعة تمشي مع اللي ماشي عليها)
         // (الطلوع على سطح أعلى من العربية: لحد 40سم بس زي الرصيف — كان 80سم: العربية اللي على الأرض جنب المطلع
         //  بتمسك سطحه فجأة = قفزة 94سم في فريم واحد → تطير وتتقلب. النزول لسه لحد 80سم)
         if (h - ref > 0.4 || ref - h > 0.8 || h < g - 0.05) continue;
         cand.push(d, h);
-        if (d < bestD) { bestD = d; bh = h; bestE = s.e; bestHw = s.hw; }
+        // الأقرب لخطه + عقوبة على فرق الارتفاع عن العربية: الكوبري التاني (الاتجاه العكسي) اللي لازق جنبك وأعلى بـ 30-40سم
+        // كان بيتلقط تحت عجلتين بس → العربية بتميل فجأة وتتقلب. عند التفريعة السطحين نفس الارتفاع فمفيش فرق
+        const sc = d + Math.abs(h - ref) * 8;
+        if (sc < bestSc) { bestSc = sc; bestD = d; bh = h; bestE = s.e; bestHw = s.hw; }
       }
       // تنعيم عند انحناءات الخط: متوسط موزون للقطع القريبة (وزن بينزل لصفر خطيًا) — مفيش عتبات عند الكوع
       if (cand.length > 2) {
         let sw = 0, sh = 0;
-        for (let k = 0; k < cand.length; k += 2) { const w = Math.max(0, bestD + 0.8 - cand[k]); sw += w; sh += w * cand[k + 1]; }
+        const h0 = bh;
+        for (let k = 0; k < cand.length; k += 2) { if (Math.abs(cand[k + 1] - h0) > 0.15) continue; const w = Math.max(0, bestD + 0.8 - cand[k]); sw += w; sh += w * cand[k + 1]; }
         if (sw > 0) bh = sh / sw;
       }
       // أول/آخر المطلع (واطي) جنب شارع على الأرض موازي ليه: لو العربية أقرب لخط الشارع، فهي على الشارع
       // (بس لو العربية مش في قلب حارة المطلع: عند التفريعة الشارع الأرضي بيلمس المطلع، وكانت العربية اللي ماشية
       //  على المطلع بتتحسب على الشارع → المطلع يعلى فوقها وهي تفضل تحته = "دخلت الكوبري ولقيت نفسي تحت")
-      if (bh !== null && bh < 1.2 && bestD > bestHw * 0.55 && (ref < bh - 0.12 ? this._groundRoadNearer(x, z, Infinity, null) : bh < 0.8 && Math.abs(ref - bh) > 0.08 && this._groundRoadNearer(x, z, bestD, bestE))) bh = null; // (اللي ماشي على المطلع فعلًا — ارتفاعه = ارتفاعه — بيفضل عليه حتى عند حرفه)
+      if (bh !== null && bh < 1.2 && bestD > bestHw * 0.55 && (ref < bh - 0.3 ? this._groundRoadNearer(x, z, Infinity, null) : bh < 0.8 && Math.abs(ref - bh) > 0.08 && this._groundRoadNearer(x, z, bestD, bestE))) bh = null; // (اللي ماشي على المطلع فعلًا — ارتفاعه = ارتفاعه — بيفضل عليه حتى عند حرفه)
       if (bh !== null) g = bh;
     }
     return g;

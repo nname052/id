@@ -34,10 +34,13 @@ export function buildWorks(world, { max = 36 } = {}) {
   const root = new THREE.Group(); root.name = 'works';
   const zones = [];
   let n = 0;
-  for (const e of G.edges) {
+  // شارع جمال عبد الناصر: فيه أعمال رصف وتوسعة فعلًا (أخبار المنوفية) → بيتحط فيه شغل أكتر من غيره
+  const real = (e) => /جمال عبد الناصر/.test(e.name || '');
+  const order = [...G.edges.filter(real), ...G.edges.filter((e) => !real(e))];
+  for (const e of order) {
     if (n >= max) break;
     if (!OK.has(e.cls) || e.bridge || e.elevated || e.tunnel || e.closed || e.length < 90 || e.width < 7) continue;
-    if (hash(e.id * 7 + 3) > 0.11) continue;
+    if (hash(e.id * 7 + 3) > (real(e) ? 0.35 : 0.11)) continue;
     const s = e.length * (0.35 + hash(e.id) * 0.3);
     const p = edgePoint(e, s);
     const g = new THREE.Group();

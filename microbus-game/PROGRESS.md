@@ -256,3 +256,19 @@ Legend: [x] done + covered by a test · [~] partial · [!] limitation / needs th
       Positions are chosen deterministically from the road graph — decoration, not real works sites.
 - [!] Not done / unverified: real photos of Shibin could not be fetched (network blocked) → no photo-based redesign;
       freezes/heat need on-device profiling; "passengers upside down" not reproducible without a screenshot.
+
+## v14 (bridge flip from the user's screenshot)
+- [x] Microbus lying on its side on "كوبرى شبين الكوم العلوي": reproduced with a new sweep (5 bridge chains × lateral
+      offset 0/0.8/1.0/1.25 × 35/60 km/h): 10/40 flips before. Causes (traced per wheel): (1) the opposite-direction
+      deck next to the car, 30–40 cm higher, got picked under the right wheels only → instant 15° roll → flip;
+      (2) the 3 m soft edge on low ramps made a cross slope under wheels near the parapet.
+      Fixes: `ShibinWorld.height` picks the deck by distance + 8×height difference from the car (not the nearest line
+      alone) and averages only surfaces within 15 cm; edge softening 1.2 m; ramp/ground-road rule margin 0.3 m;
+      `VehiclePhysics` keeps each wheel within −45/+30 cm of the ground under the car centre; static walls give 25%
+      of the side-impact roll (cars scrape parapets instead of tipping). After: 0 flips at offsets 0–1.0; 2 runs at
+      1.25 (driving into the parapet from outside the deck) still tip.
+- [x] Traffic cars pitch with the ramp slope (were level, half sunk into the ramp).
+- [x] More traffic: mobile 42 (was 34), desktop 84 (was 68).
+- [x] iPhone pixel ratio 2.0/1.8/… (was 2.1/2.0/…) — ~27% fewer pixels at the default level (heat).
+- [x] Road works: more on شارع جمال عبد الناصر (paving/widening works there reported in Menoufia news).
+- Tests: bridge-audit PASS, road-surface 0 flips (same hits as before: random traffic/breakables), city-life PASS.

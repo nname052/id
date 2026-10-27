@@ -143,7 +143,7 @@ export class Game {
 
     S('المرور والمشاة...', 0.82);
     await nextFrame();
-    this.traffic = new ShibinTraffic(this.scene, (type, color, o) => this._makeCar(type, color, o), this.audio, this.world, { count: this.saverBoot ? 14 : this.tier === 'low' ? 20 : this.mobile ? 34 : 68, parked: this.tier === 'low' ? 14 : this.mobile ? 28 : 48 });
+    this.traffic = new ShibinTraffic(this.scene, (type, color, o) => this._makeCar(type, color, o), this.audio, this.world, { count: this.saverBoot ? 14 : this.tier === 'low' ? 20 : this.mobile ? 42 : 84, parked: this.tier === 'low' ? 14 : this.mobile ? 28 : 48 });
     this.traffic.viewDist = this.mobile ? 150 : 190;
     if (this.mobile) { this.traffic.activeR = 195; this.traffic.despawnR = 240; }
     this.crowdBase = this.tier === 'low' ? 80 : this.mobile ? 105 : 240; // (المدينة كانت فاضية: ناس أكتر بكتير)
@@ -580,7 +580,8 @@ export class Game {
     // الموبايل: الدقة بسقف ثابت لكل مستوى (شاشات 3x بترسم 9 أضعاف البكسلات من غير فرق واضح)
     // (كانت 1.5/1.35/1.2/1.0/0.85 — على شاشة 3x المتوسطة كانت بتتمط 2.5 مرة = مبكسلة/مغبشة)
     // (الأوطى كانت 1.15/1.0 = مبكسلة جدًا على شاشات الموبايل الحادة: أقل حاجة دلوقتي 1.3 — بنوفّر من الضل ومسافة الرؤية بدلها)
-    const MPR = this.ios ? [2.1, 2.0, 1.8, 1.6, 1.45] : [1.8, 1.65, 1.55, 1.45, 1.4];
+    // (الآيفون: 2.1 كان بيرسم 4.4 بكسل لكل نقطة × 60 فريم = سخونية؛ 1.8 = 27% بكسلات أقل وفرق شبه مش باين)
+    const MPR = this.ios ? [2.0, 1.8, 1.65, 1.5, 1.4] : [1.8, 1.65, 1.55, 1.45, 1.4];
     const pr = this.mobile
       ? Math.min(window.devicePixelRatio, level < 0 ? 1.75 : MPR[level])
       : level < 0 ? Math.min(window.devicePixelRatio, 2) : Math.max(floor, [base, base, base * 0.9, base * 0.8, base * 0.72][level]);
