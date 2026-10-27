@@ -242,3 +242,17 @@ Legend: [x] done + covered by a test · [~] partial · [!] limitation / needs th
 - [x] `city-life` after the final traffic fixes: 8/8 consecutive passes.
 - [x] tier-perf mobile MED: 155 draw calls, 169k triangles, 140 MB, pixelRatio 1.4 + MSAA.
 - [x] Built and published as a new version of the same Artifact (V33).
+
+## v13 (round: online taxi, ambulance, police, wider streets)
+- [x] Online: remote taxi/tuk-tuk threw in `makeLodMesh` (mixed array types in `mergeGeometries`) every frame inside
+      `mp.update` → fixed (all parts Float32) + try/catch so one bad remote can't stall the game.
+- [x] Ambulance drove backwards (model faces −z) → rotated +π, wheel spin sign fixed. Ambulance is always dispatched on a hit.
+- [x] Hit pedestrian no longer gets up right after falling (`keepDown` in `ShibinCrowd._hitStep`).
+- [x] `Patrol.js`: an AI car hits another and flees → police chase it (siren, catches it, stops it, leaves).
+- [x] Old fictional map and all its code deleted; only real Shibin ("شبين الكوم"). OSM rebuild is deterministic (GEN_VERSION 3).
+- [x] Streets widened (`build_region.py` WIDTH / lane 3.6). Tests: road-surface, bridge-audit, city-life, microbus-lines pass.
+- [x] Traffic HiAce brake lights: soft additive glow instead of a flat red box on the body.
+- [x] Road works (`ShibinWorks.js`): ~19 zones on main roads (cones, barriers, sand mound, sign), shown within 230 m.
+      Positions are chosen deterministically from the road graph — decoration, not real works sites.
+- [!] Not done / unverified: real photos of Shibin could not be fetched (network blocked) → no photo-based redesign;
+      freezes/heat need on-device profiling; "passengers upside down" not reproducible without a screenshot.

@@ -39,6 +39,7 @@ import { Radio } from '../audio/Radio.js';
 import { ShibinTraffic } from '../world/shibin/ShibinTraffic.js';
 import { ShibinCrowd } from '../world/shibin/ShibinCrowd.js';
 import { attachJobs } from '../world/shibin/ShibinJobs.js';
+import { buildWorks } from '../world/shibin/ShibinWorks.js';
 import { TouchControls, isTouchDevice } from '../ui/TouchControls.js';
 
 const FIXED_DT = 1 / 120;
@@ -113,6 +114,7 @@ export class Game {
     setGroundProvider(this.world);
     setGraph(this.world.graph);
     attachJobs(this.world, findRoute);
+    this.works = buildWorks(this.world); this.scene.add(this.works); // أعمال طرق (ديكور حيّ)
     this.findRoute = findRoute; // (للاختبارات والقياس: حساب مسار على شبكة الطرق من الـ Console)
     PlayerVehicle.world = this.world;
     this.lights = { update() {}, state: () => 'green' }; // (مفيش إشارات مرور مرسومة)
@@ -833,6 +835,7 @@ export class Game {
       this.police.update(dt, ph, this.player.kind, this.clock.elapsedTime);
       this.incidents.update(dt, ph);
       this.patrol?.update(dt, ph);
+      this.works?.userData.update(dt, ph.x, ph.z);
       this._stationUpdate(dt, ph);
       this.docs.update(dt);
     }

@@ -3,7 +3,7 @@
 ## Project
 - Vite + three.js 0.170 PWA, code comments in Egyptian Arabic (keep that style).
 - Default map: **real Shibin El Kom** (`src/world/shibin/*`, data in `public/data/shibin`, built from OSM by
-  `tools/osm/build_region.py`). The old fictional map (`?map=current`) is still selectable.
+  `tools/osm/build_region.py`). The old fictional map was removed (v13): Shibin only.
 - Published as a claude.ai Artifact (`dist/index.html` + `files` map). GLB models are base64-inlined in the JS
   (the Artifact host can't serve .glb), the service worker is intentionally disabled.
 
