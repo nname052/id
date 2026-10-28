@@ -272,3 +272,18 @@ Legend: [x] done + covered by a test · [~] partial · [!] limitation / needs th
 - [x] iPhone pixel ratio 2.0/1.8/… (was 2.1/2.0/…) — ~27% fewer pixels at the default level (heat).
 - [x] Road works: more on شارع جمال عبد الناصر (paving/widening works there reported in Menoufia news).
 - Tests: bridge-audit PASS, road-surface 0 flips (same hits as before: random traffic/breakables), city-life PASS.
+
+## v15 (real Shibin photos as textures)
+- [x] Network opened by the user (Wikimedia allowed). Searched Commons (Category:Shebin El-Kom + subcategories, Arabic/English
+      file search): 42 files found, with author + licence recorded. Flickr/Mapillary not used (API keys needed).
+- [x] `tools/photos/build_atlas.py` + `sources.json`: cuts 24 perspective-corrected cells (8 brick bays, 8 plaster bays,
+      8 ground-floor shops/entrances) + a tileable asphalt patch + station-plaza paving out of 8 photos by Faris knight
+      (CC BY-SA 4.0) → one JPEG `public/textures/shibin-photo-atlas.jpg` (2048×1792, ~445 KB) + `src/render/photoAtlas.json`.
+- [x] Runtime (`src/render/photoAtlas.js`): loaded once in parallel with fonts/models, painted onto the existing canvas
+      atlases (same sizes, same mipmaps → no extra GPU memory, textures or draw calls). Falls back to the generated
+      textures if the file fails/times out (9 s). Night windows = light colour × darkness of the glass in the photo.
+      Plain brick wall colour comes from the photos (`uBrickC`).
+- [x] Start screen: "مصادر الصور" list (file, author, licence link) generated from the same JSON; CREDITS.md updated.
+- [!] Corniche wall/railing of Bahr Shibin: only small (≤500 px) or watermarked photos on Commons → not turned into a
+      texture; corniche stays procedural. Photos with people/vehicles/brands in front of shops were skipped.
+- Tests: default-map PASS, city-life PASS, bridge-audit PASS, road-surface 13 drives, 0 steps, 0 flips (hits = random traffic/breakables, as in v14).

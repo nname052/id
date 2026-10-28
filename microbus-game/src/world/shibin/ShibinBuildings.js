@@ -46,6 +46,8 @@ export function buildingMaterial(M, { low = false } = {}) {
     uFacP: { value: fp.map }, uFacB: { value: fb.map }, uShop: { value: shop.map },
     uEmP: { value: fp.emissiveMap }, uEmB: { value: fb.emissiveMap }, uEmS: { value: shop.emissiveMap || shop.map },
     uNight: { value: 0 },
+    // لون الطوب الصافي: من صور شبين الحقيقية لو اتحملت (M.photoWall)، وإلا الأحمر المولّد
+    uBrickC: { value: new THREE.Vector3(...(M.photoWall ? M.photoWall.brick : [0.56, 0.27, 0.18])) },
   };
   const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.92, metalness: 0, emissive: 0xffffff, emissiveIntensity: 1 });
   mat.userData.U = U;
@@ -60,6 +62,7 @@ vB = position * vSz; vInfo = aInfo; vFace = aFace;`);
       .replace('#include <common>', `#include <common>
 uniform sampler2D uFacP, uFacB, uShop, uEmP, uEmB, uEmS;
 uniform float uNight;
+uniform vec3 uBrickC;
 // flat: قيم ثابتة للعمارة كلها (لو اتعملها interpolation الـ hash بيتغير من بكسل للتاني = نقط وتشويش)
 varying vec3 vB; flat varying vec3 vSz; flat varying vec4 vInfo; flat varying float vFace;
 float h1(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
@@ -103,8 +106,8 @@ vec3 fcol = vec3(1.0); vec3 fem = vec3(0.0);
     vec2 bf = fract(bq), fw = fwidth(bq);
     float aa = clamp(max(fw.x, fw.y) * 2.6 - 0.25, 0.0, 1.0); // بعيد/مايل: لون الطوب المتوسط بدل خطوط (moire)
     float mortar = clamp(step(bf.x, 0.06) + step(bf.y, 0.12), 0.0, 1.0);
-    vec3 bc = vec3(0.56, 0.27, 0.18) * mix(0.82 + 0.3 * h1(floor(bq) + seed), 0.97, aa);
-    wall = mix(mix(bc, vec3(0.66, 0.62, 0.56), mortar), mix(vec3(0.56, 0.27, 0.18) * 0.97, vec3(0.66, 0.62, 0.56), 0.17), aa);
+    vec3 bc = uBrickC * mix(0.82 + 0.3 * h1(floor(bq) + seed), 0.97, aa);
+    wall = mix(mix(bc, vec3(0.66, 0.62, 0.56), mortar), mix(uBrickC * 0.97, vec3(0.66, 0.62, 0.56), 0.17), aa);
     float slab = step(mod(y - GF_, FH_), 0.22) * step(GF_ - 0.01, y);
     wall = mix(wall, vec3(0.62, 0.61, 0.58), slab);
   } else {

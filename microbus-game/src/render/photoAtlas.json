@@ -1,0 +1,418 @@
+{
+ "size": [
+  2048,
+  1792
+ ],
+ "cell": 256,
+ "rows": {
+  "brick": {
+   "y": 0,
+   "cells": [
+    {
+     "win": [
+      0.38,
+      0.12,
+      1.0,
+      0.85
+     ],
+     "mean": [
+      0.414,
+      0.355,
+      0.319
+     ]
+    },
+    {
+     "win": [
+      0.25,
+      0.0,
+      0.68,
+      0.55
+     ],
+     "mean": [
+      0.43,
+      0.417,
+      0.392
+     ]
+    },
+    {
+     "win": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "mean": [
+      0.463,
+      0.409,
+      0.328
+     ]
+    },
+    {
+     "win": [
+      0.18,
+      0.2,
+      0.62,
+      0.95
+     ],
+     "mean": [
+      0.421,
+      0.407,
+      0.448
+     ]
+    },
+    {
+     "win": [
+      0.22,
+      0.2,
+      0.62,
+      0.7
+     ],
+     "mean": [
+      0.416,
+      0.409,
+      0.423
+     ]
+    },
+    {
+     "win": [
+      0.2,
+      0.15,
+      0.8,
+      0.85
+     ],
+     "mean": [
+      0.416,
+      0.42,
+      0.413
+     ]
+    },
+    {
+     "win": [
+      0.2,
+      0.15,
+      0.8,
+      0.8
+     ],
+     "mean": [
+      0.468,
+      0.392,
+      0.351
+     ]
+    },
+    {
+     "win": [
+      0.1,
+      0.1,
+      0.95,
+      0.6
+     ],
+     "mean": [
+      0.424,
+      0.403,
+      0.44
+     ]
+    }
+   ]
+  },
+  "plaster": {
+   "y": 256,
+   "cells": [
+    {
+     "win": [
+      0.18,
+      0.1,
+      0.92,
+      0.75
+     ],
+     "mean": [
+      0.535,
+      0.531,
+      0.548
+     ]
+    },
+    {
+     "win": [
+      0.1,
+      0.18,
+      0.95,
+      0.95
+     ],
+     "mean": [
+      0.529,
+      0.519,
+      0.528
+     ]
+    },
+    {
+     "win": [
+      0.35,
+      0.2,
+      0.8,
+      0.8
+     ],
+     "mean": [
+      0.59,
+      0.534,
+      0.462
+     ]
+    },
+    {
+     "win": [
+      0.25,
+      0.15,
+      0.75,
+      0.8
+     ],
+     "mean": [
+      0.555,
+      0.546,
+      0.538
+     ]
+    },
+    {
+     "win": [
+      0.0,
+      0.1,
+      1.0,
+      0.75
+     ],
+     "mean": [
+      0.544,
+      0.506,
+      0.526
+     ]
+    },
+    {
+     "win": [
+      0.1,
+      0.12,
+      0.9,
+      0.8
+     ],
+     "mean": [
+      0.551,
+      0.547,
+      0.543
+     ]
+    },
+    {
+     "win": [
+      0.33,
+      0.1,
+      0.7,
+      0.9
+     ],
+     "mean": [
+      0.531,
+      0.514,
+      0.488
+     ]
+    },
+    {
+     "win": [
+      0.12,
+      0.15,
+      0.6,
+      0.85
+     ],
+     "mean": [
+      0.559,
+      0.538,
+      0.509
+     ]
+    }
+   ]
+  },
+  "shop": {
+   "y": 512,
+   "cells": [
+    {
+     "win": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "mean": [
+      0.4,
+      0.428,
+      0.396
+     ]
+    },
+    {
+     "win": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "mean": [
+      0.418,
+      0.417,
+      0.41
+     ]
+    },
+    {
+     "win": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "mean": [
+      0.46,
+      0.41,
+      0.344
+     ]
+    },
+    {
+     "win": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "mean": [
+      0.443,
+      0.4,
+      0.369
+     ]
+    },
+    {
+     "win": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "mean": [
+      0.4,
+      0.422,
+      0.391
+     ]
+    },
+    {
+     "win": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "mean": [
+      0.449,
+      0.408,
+      0.388
+     ]
+    },
+    {
+     "win": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "mean": [
+      0.435,
+      0.416,
+      0.385
+     ]
+    },
+    {
+     "win": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "mean": [
+      0.44,
+      0.406,
+      0.394
+     ]
+    }
+   ]
+  }
+ },
+ "asphalt": [
+  0,
+  768,
+  1024
+ ],
+ "sidewalk": [
+  1024,
+  768,
+  512
+ ],
+ "sources": [
+  {
+   "title": "Shebin El-Kom Banzina.jpg",
+   "author": "Faris knight",
+   "license": "CC BY-SA 4.0",
+   "url": "https://commons.wikimedia.org/wiki/File:Shebin_El-Kom_Banzina.jpg"
+  },
+  {
+   "title": "Shubra Bas.jpg",
+   "author": "Faris knight",
+   "license": "CC BY-SA 4.0",
+   "url": "https://commons.wikimedia.org/wiki/File:Shubra_Bas.jpg"
+  },
+  {
+   "title": "Shebin El-Kom Railway Station.jpg",
+   "author": "Faris knight",
+   "license": "CC BY-SA 4.0",
+   "url": "https://commons.wikimedia.org/wiki/File:Shebin_El-Kom_Railway_Station.jpg"
+  },
+  {
+   "title": "من شوارع شبين الكوم.jpg",
+   "author": "Faris knight",
+   "license": "CC BY-SA 4.0",
+   "url": "https://commons.wikimedia.org/wiki/File:%D9%85%D9%86_%D8%B4%D9%88%D8%A7%D8%B1%D8%B9_%D8%B4%D8%A8%D9%8A%D9%86_%D8%A7%D9%84%D9%83%D9%88%D9%85.jpg"
+  },
+  {
+   "title": "Shebin El-Kom-2014-1.jpg",
+   "author": "Faris knight",
+   "license": "CC BY-SA 4.0",
+   "url": "https://commons.wikimedia.org/wiki/File:Shebin_El-Kom-2014-1.jpg"
+  },
+  {
+   "title": "Shebin El-Kom-2014-2.jpg",
+   "author": "Faris knight",
+   "license": "CC BY-SA 4.0",
+   "url": "https://commons.wikimedia.org/wiki/File:Shebin_El-Kom-2014-2.jpg"
+  },
+  {
+   "title": "Shebin El-Kom-2014-3.jpg",
+   "author": "Faris knight",
+   "license": "CC BY-SA 4.0",
+   "url": "https://commons.wikimedia.org/wiki/File:Shebin_El-Kom-2014-3.jpg"
+  },
+  {
+   "title": "Shebin El-Kom-2014-4.jpg",
+   "author": "Faris knight",
+   "license": "CC BY-SA 4.0",
+   "url": "https://commons.wikimedia.org/wiki/File:Shebin_El-Kom-2014-4.jpg"
+  }
+ ],
+ "wall": {
+  "brick": [
+   0.279,
+   0.258,
+   0.227
+  ],
+  "plaster": [
+   0.331,
+   0.248,
+   0.163
+  ]
+ },
+ "asphaltMean": [
+  0.42,
+  0.42,
+  0.407
+ ],
+ "sidewalkMean": [
+  0.624,
+  0.592,
+  0.539
+ ]
+}

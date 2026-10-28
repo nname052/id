@@ -1,5 +1,6 @@
 import { Game } from './core/Game.js';
 import { seatColor } from './net/Multiplayer.js';
+import { PHOTO_SOURCES } from './render/photoAtlas.js';
 
 // نقطة البداية
 // آيفون من سفاري (مش من الشاشة الرئيسية): نوضّح إزاي تبقى ملء الشاشة (سفاري مابيسمحش بملء الشاشة للصفحات)
@@ -30,6 +31,16 @@ pick.addEventListener('click', (e) => {
   if (game.settings) game.settings.set('vehicle', picked);
   game.mp?.setMe({ kind: picked });
 });
+
+{
+  // مصادر الصور الحقيقية (المصوّر + الرخصة + لينك كل صورة): من نفس ملف الأطلس عشان مايختلفوش
+  const ul = document.getElementById('photo-list');
+  const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+  const LIC = { 'CC BY-SA 4.0': 'https://creativecommons.org/licenses/by-sa/4.0/', 'CC BY-SA 3.0': 'https://creativecommons.org/licenses/by-sa/3.0/' };
+  const lic = (l) => (LIC[l] ? `<a href="${LIC[l]}" target="_blank" rel="noopener">${esc(l)}</a>` : esc(l));
+  if (ul) ul.innerHTML = PHOTO_SOURCES.map((s) => `<li><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title)}</a> — ${esc(s.author)} · ${lic(s.license)}</li>`).join('')
+    + '<li>اتقصت حتت من الصور واتعدّل منظورها ولونها عشان تبقى خامات (واجهات، محلات، أسفلت، رصيف) — نفس الرخصة.</li>';
+}
 
 {
   // حقوق بيانات الخريطة جوه اللعبة كمان

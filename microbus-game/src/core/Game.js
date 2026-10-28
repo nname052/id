@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { createMaterials } from '../render/materials.js';
+import { loadPhotoAtlas, applyPhotoAtlas } from '../render/photoAtlas.js';
 import { Environment } from '../world/Environment.js';
 import { addDriver } from '../world/Pedestrians.js';
 import { applyLivery } from '../vehicles/Livery.js';
@@ -62,6 +63,8 @@ export class Game {
     const S = this.status;
     this._initT0 = performance.now();
     this.diag = new Diagnostics();
+    // صور شوارع شبين الحقيقية (ملف واحد): بيتحمل بالتوازي مع الخطوط والموديلات
+    const photos = loadPhotoAtlas();
     S('تحميل الخطوط العربية...', 0.05);
     await Promise.all(['Lalezar', 'Rakkas', 'Lemonada', 'El Messiri', 'Aref Ruqaa', 'Cairo'].map((f) => document.fonts.load(`40px "${f}"`).catch(() => {})));
 
@@ -96,6 +99,7 @@ export class Game {
     S('توليد خامات الأسفلت والعمارات...', 0.2);
     await nextFrame();
     this.M = createMaterials();
+    this.photoAtlas = applyPhotoAtlas(this.M, await photos);
     applyTextureOverrides(this.assets, this.M);
 
     S('السما والشمس...', 0.4);
