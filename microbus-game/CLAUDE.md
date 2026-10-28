@@ -8,6 +8,11 @@
   (the Artifact host can't serve .glb), the service worker is intentionally disabled.
 
 ## Data post-processing (run after `tools/osm/build_region.py`, in this order)
+- `python3 tools/osm/import_ms_buildings.py` — real building footprints (Microsoft Global ML Building
+  Footprints, ODbL, quadkey 122121120 filtered to the city bbox) replace the generated buildings inside the city.
+- `python3 tools/osm/roundabouts.py tools/osm/roundabouts_overpass.json` — OSM roundabout islands (grass/kerb/palms)
+  into features.json; removes buildings inside the rings.
+- `python3 tools/osm/audit_buildings.py --fix` — shrinks/removes building rectangles that touch asphalt/sidewalk/decks.
 - `python3 tools/osm/clean_sidewalks.py` — paves the sidewalk "spikes" inside junctions (convex hull of the junction asphalt).
 - `python3 tools/osm/audit_buildings.py --fix-real` — pulls real OSM footprints off widened asphalt; without flags it
   only reports overlaps (generated buildings vs asphalt/sidewalk/bridge decks; should print zeros).

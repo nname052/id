@@ -118,7 +118,8 @@ vec3 fcol = vec3(1.0); vec3 fem = vec3(0.0);
     wall *= mix(0.86, 1.0, smoothstep(0.0, 2.5, y));
   }
   bool front = face < 0.5;
-  bool windows = front || (face < 1.5 && h1(vec2(seed, 3.0)) < 0.7) || (face > 1.5 && face < 3.5 && h1(vec2(seed, face)) < 0.12);
+  // (العمارات بقت من بصمات حقيقية متقسمة: جنب كتير منها بيبص على الشارع — شبابيك على الجناب أكتر من الأول)
+  bool windows = front || (face < 1.5 && h1(vec2(seed, 3.0)) < 0.7) || (face > 1.5 && face < 3.5 && h1(vec2(seed, face)) < 0.45);
   if (face > 3.5) {
     fcol = vec3(0.42, 0.41, 0.39) * (0.82 + 0.18 * h1(floor(vB.xz * 0.7) + seed));
   } else if (y < GF_) {
@@ -176,7 +177,7 @@ diffuseColor.rgb *= fcol;`)
     // دلوقتي: نفس صورة الواجهة بس من نسخة صغيرة (mip) — نفس اللون المتوسط وأرخص
     if (low) sh.fragmentShader = sh.fragmentShader.replace('fcol = brick ? tB : tP * vec3(0.86, 0.84, 0.8);', 'fcol = brick ? textureLod(uFacB, uvW, 3.0).rgb : textureLod(uFacP, uvW, 3.0).rgb * vec3(0.86, 0.84, 0.8);');
   };
-  mat.customProgramCacheKey = () => (low ? 'shibin-bld-low-6' : 'shibin-bld-5');
+  mat.customProgramCacheKey = () => (low ? 'shibin-bld-low-7' : 'shibin-bld-6');
   return mat;
 }
 

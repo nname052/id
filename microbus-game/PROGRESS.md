@@ -316,3 +316,18 @@ Legend: [x] done + covered by a test · [~] partial · [!] limitation / needs th
 - [!] Not done: Google Maps/Earth/Street View imagery can't be used (licence); Mapillary needs an access token;
       KartaView had no coverage. OSM canal width (~10 m) looks narrower than photos of Bahr Shibin (~35 m) — not
       changed without a licensed source. The microbus's curved kerb-view mirror is part of the HiAce model (kept).
+
+## v17 (real building footprints + roundabouts)
+- [x] OSM still has only 13 buildings in Shibin (checked via Overpass on 2026-10-28). Imported **Microsoft Global ML
+      Building Footprints** (ODbL, satellite-derived, release 2026-02-03): 6,622 footprints → 27,449 rectangles
+      (clipped off roads/sidewalks/decks/water/rail/OSM buildings/stadium, split into ~11 m cells for complex blocks),
+      replacing 28,109 generated buildings inside the city; 5,700 generated outside the coverage stay.
+      Heights are NOT in the data → floors/style copied from the nearest previously generated building (estimate).
+      audit_buildings --fix afterwards: 1 asphalt / 10 sidewalk raster touches left of 32,919.
+- [x] 7 OSM roundabouts (junction=roundabout): a building stood on the main roundabout's island → islands now grass +
+      yellow/black kerb (colliders) + palms; buildings inside rings removed.
+- [x] Building side faces get windows more often (street-facing sides of split blocks were blank).
+- [x] Perf (tier-perf, same build, old vs new buildings): mobile-med 359 → 361 draw calls, 307k → 307k triangles, heap 125 MB.
+- [!] Governorate HQ (ديوان عام محافظة المنوفية): no location in OSM, Nominatim or Wikidata, and no geotagged Commons
+      photo → not placed (news only says a new HQ is planned on أرض المهبط, حي شرق). Needs a location from the user.
+- Tests: default-map, city-life, street-kit, bridge-audit, living-city, boarding, accident-ems, tier-perf, visual-tour PASS.

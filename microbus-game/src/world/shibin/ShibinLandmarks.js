@@ -439,11 +439,82 @@ function streetTrees(W, inst) {
   const corn = inst.cornicheCheck;
   inst.check = (it) => {
     if (it.tag === 'corniche') return corn(it);
+    if (it.tag === 'roundabout') return true; // جوه جزيرة الميدان (المكان اتحسب من الداتا)
     const Tl = W.tiles.get(W._tkey(Math.floor(it.x / W.TS), Math.floor(it.z / W.TS)));
     if (!Tl || !Tl.ready) return undefined;
     if (W._underDeck?.(it.x, it.z)) return false;
     return Math.abs(W.height(it.x, it.z, 0) - 0.15) < 0.01; // على الرصيف بس
   };
+}
+
+// ===================== جزر الدورانات =====================
+/** list: [{x, z, island:[x,z,...], area}] من features.json (tools/osm/roundabouts.py) */
+function buildRoundabouts(W, list, group, trees) {
+  const R = rng(77), H = 0.24;
+  const gp = [], gi = [], cp = [], cc = [], ci = [];
+  const yel = lin([0.95, 0.76, 0.1]), blk = lin([0.08, 0.08, 0.08]), top = lin([0.72, 0.7, 0.66]);
+  for (const rb of list) {
+    const pts = []; for (let i = 0; i < rb.island.length; i += 2) pts.push(new THREE.Vector2(rb.island[i], rb.island[i + 1]));
+    if (pts.length < 3) continue;
+    if (THREE.ShapeUtils.isClockWise(pts)) pts.reverse();
+    // النجيلة
+    const k0 = gp.length / 3;
+    for (const p of pts) gp.push(p.x, H, p.y);
+    for (const tr of THREE.ShapeUtils.triangulateShape(pts, [])) gi.push(k0 + tr[0], k0 + tr[2], k0 + tr[1]);
+    // الحرف: حيطة صغيرة بره الجزيرة مدهونة أصفر/أسود كل متر + تصادم
+    for (let i = 0; i < pts.length; i++) {
+      const a = pts[i], b = pts[(i + 1) % pts.length], L = a.distanceTo(b);
+      if (L < 0.05) continue;
+      const nx = (b.y - a.y) / L, nz = -(b.x - a.x) / L; // لبره (الحلقة عكس عقارب الساعة)
+      const n = Math.max(1, Math.round(L));
+      for (let s = 0; s < n; s++) {
+        const u0 = s / n, u1 = (s + 1) / n;
+        const x0 = a.x + (b.x - a.x) * u0, z0 = a.y + (b.y - a.y) * u0, x1 = a.x + (b.x - a.x) * u1, z1 = a.y + (b.y - a.y) * u1;
+        const col = (s + i) % 2 ? yel : blk, k = cp.length / 3;
+        cp.push(x0 + nx * 0.18, 0, z0 + nz * 0.18, x1 + nx * 0.18, 0, z1 + nz * 0.18, x1 + nx * 0.18, H, z1 + nz * 0.18, x0 + nx * 0.18, H, z0 + nz * 0.18);
+        cp.push(x0 + nx * 0.18, H, z0 + nz * 0.18, x1 + nx * 0.18, H, z1 + nz * 0.18, x1, H + 0.005, z1, x0, H + 0.005, z0);
+        for (let j = 0; j < 4; j++) cc.push(...col);
+        for (let j = 0; j < 4; j++) cc.push(...top);
+        ci.push(k, k + 2, k + 1, k, k + 3, k + 2, k + 4, k + 6, k + 5, k + 4, k + 7, k + 6);
+      }
+      W._addCollider({ cx: (a.x + b.x) / 2 + nx * 0.1, cz: (a.y + b.y) / 2 + nz * 0.1, hx: 0.2, hz: L / 2, angle: Math.atan2(b.x - a.x, b.y - a.y), restitution: 0.15, kind: 'curb', yMax: H + 0.1 }, null);
+    }
+    // نخل: واحدة في النص للجزيرة الصغيرة، ودايرة نخل (وشجر جوه) للكبيرة
+    const inside = (x, z) => { let c = false; for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) { const p = pts[i], q = pts[j]; if ((p.y > z) !== (q.y > z) && x < ((q.x - p.x) * (z - p.y)) / (q.y - p.y) + p.x) c = !c; } return c; };
+    trees.add(rb.x, H, rb.z, R() * 6.28, 1.0, 1.0, 'roundabout');
+    if (rb.area > 60) {
+      for (let i = 0; i < pts.length; i++) {
+        const a = pts[i], b = pts[(i + 1) % pts.length], L = a.distanceTo(b);
+        for (let s = 3; s < L; s += 7) {
+          const x = a.x + (b.x - a.x) * (s / L), z = a.y + (b.y - a.y) * (s / L);
+          const dx = rb.x - x, dz = rb.z - z, l = Math.hypot(dx, dz) || 1;
+          const px = x + dx / l * 1.8, pz = z + dz / l * 1.8;
+          if (inside(px, pz)) trees.add(px, H, pz, R() * 6.28, 0.8 + R() * 0.25, 0.8 + R() * 0.25, 'roundabout');
+        }
+      }
+    }
+  }
+  if (!gi.length) return 0;
+  const gg = new THREE.BufferGeometry();
+  gg.setAttribute('position', new THREE.Float32BufferAttribute(gp, 3)); gg.setIndex(gi); gg.computeVertexNormals();
+  const grass = new THREE.Mesh(gg, new THREE.MeshStandardMaterial({ map: grassTex(), color: 0xffffff, roughness: 1 }));
+  { const uv = []; for (let i = 0; i < gp.length; i += 3) uv.push(gp[i] / 3, gp[i + 2] / 3); gg.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); }
+  grass.receiveShadow = true; grass.name = 'roundabout-grass'; group.add(grass);
+  const cg = new THREE.BufferGeometry();
+  cg.setAttribute('position', new THREE.Float32BufferAttribute(cp, 3)); cg.setAttribute('color', new THREE.Float32BufferAttribute(cc, 3)); cg.setIndex(ci); cg.computeVertexNormals();
+  const curb = new THREE.Mesh(cg, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8 }));
+  curb.receiveShadow = true; curb.name = 'roundabout-curb'; group.add(curb);
+  return list.length;
+}
+
+/** نجيلة: ضوضاء خضرا بسيطة (بتتكرر كل 3م) */
+let _grass = null;
+function grassTex() {
+  if (_grass) return _grass;
+  const c = canvas(128, 128), x = c.getContext('2d'), R = rng(5);
+  x.fillStyle = '#4c7a2f'; x.fillRect(0, 0, 128, 128);
+  for (let i = 0; i < 900; i++) { const g = 90 + R() * 70; x.fillStyle = `rgba(${40 + R() * 40},${g},${20 + R() * 30},0.55)`; x.fillRect(R() * 128, R() * 128, 1 + R() * 2, 2 + R() * 4); }
+  return (_grass = tex(c));
 }
 
 // ===================== يافطات المحلات (OSM) =====================
@@ -539,6 +610,8 @@ export function buildLandmarks(W, features, { mobile = false } = {}) {
   for (const it of trees.items) it.tag = 'corniche';
   streetTrees(W, trees);
   stats.streetTrees = trees.items.length;
+  // جزر الميادين/الدورانات الحقيقية (OSM): نجيلة + حرف أصفر وأسود + نخل (كانت تراب/عمارة في النص)
+  stats.roundabouts = features?.roundabouts ? buildRoundabouts(W, features.roundabouts, group, trees) : 0;
   // يافطات المحلات
   const skip = new Set(W.landmarks.confirmed.map((l) => l.name));
   stats.poiSigns = features?.pois ? poiSigns(W, features.pois, group, skip) : 0;

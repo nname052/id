@@ -42,23 +42,29 @@
  "tile_size": 400,
  "tiles": {
   "t_-6_-8": [
-   "roads"
+   "roads",
+   "buildings"
   ],
   "t_-6_-7": [
-   "roads"
+   "roads",
+   "buildings"
   ],
   "t_-6_-6": [
-   "roads"
+   "roads",
+   "buildings"
   ],
   "t_-6_-5": [
-   "roads"
+   "roads",
+   "buildings"
   ],
   "t_-6_-4": [
-   "roads"
+   "roads",
+   "buildings"
   ],
   "t_-6_-3": [
    "roads",
-   "water"
+   "water",
+   "buildings"
   ],
   "t_-6_-2": [
    "roads",
@@ -70,7 +76,8 @@
    "buildings"
   ],
   "t_-6_1": [
-   "roads"
+   "roads",
+   "buildings"
   ],
   "t_-6_2": [
    "roads",
@@ -94,7 +101,8 @@
    "buildings"
   ],
   "t_-5_-5": [
-   "roads"
+   "roads",
+   "buildings"
   ],
   "t_-5_-4": [
    "roads",
@@ -114,7 +122,8 @@
    "buildings"
   ],
   "t_-5_0": [
-   "roads"
+   "roads",
+   "buildings"
   ],
   "t_-5_1": [
    "roads"
@@ -128,14 +137,16 @@
    "buildings"
   ],
   "t_-5_4": [
-   "roads"
+   "roads",
+   "buildings"
   ],
   "t_-4_-8": [
    "roads",
    "buildings"
   ],
   "t_-4_-7": [
-   "roads"
+   "roads",
+   "buildings"
   ],
   "t_-4_-6": [
    "roads",
@@ -168,13 +179,16 @@
    "buildings"
   ],
   "t_-4_1": [
-   "roads"
+   "roads",
+   "buildings"
   ],
   "t_-4_2": [
-   "roads"
+   "roads",
+   "buildings"
   ],
   "t_-3_-8": [
-   "roads"
+   "roads",
+   "buildings"
   ],
   "t_-3_-7": [
    "roads",
@@ -223,13 +237,16 @@
    "buildings"
   ],
   "t_-3_4": [
-   "roads"
+   "roads",
+   "buildings"
   ],
   "t_-2_-8": [
-   "roads"
+   "roads",
+   "buildings"
   ],
   "t_-2_-7": [
-   "roads"
+   "roads",
+   "buildings"
   ],
   "t_-2_-6": [
    "roads",
@@ -271,10 +288,12 @@
    "buildings"
   ],
   "t_-2_3": [
-   "roads"
+   "roads",
+   "buildings"
   ],
   "t_-2_4": [
-   "roads"
+   "roads",
+   "buildings"
   ],
   "t_-1_-8": [
    "roads",
@@ -331,7 +350,8 @@
    "railways"
   ],
   "t_-1_4": [
-   "roads"
+   "roads",
+   "buildings"
   ],
   "t_0_-8": [
    "roads",
@@ -393,7 +413,8 @@
   ],
   "t_0_4": [
    "roads",
-   "water"
+   "water",
+   "buildings"
   ],
   "t_1_-8": [
    "roads",
@@ -447,7 +468,8 @@
    "buildings"
   ],
   "t_1_4": [
-   "roads"
+   "roads",
+   "buildings"
   ],
   "t_2_-8": [
    "roads",
@@ -499,13 +521,16 @@
    "buildings"
   ],
   "t_2_4": [
-   "roads"
+   "roads",
+   "buildings"
   ],
   "t_3_-8": [
-   "roads"
+   "roads",
+   "buildings"
   ],
   "t_3_-7": [
-   "roads"
+   "roads",
+   "buildings"
   ],
   "t_3_-6": [
    "roads",
@@ -540,20 +565,24 @@
    "buildings"
   ],
   "t_3_2": [
-   "roads"
+   "roads",
+   "buildings"
   ],
   "t_3_3": [
    "roads",
    "buildings"
   ],
   "t_3_4": [
-   "roads"
+   "roads",
+   "buildings"
   ],
   "t_4_-8": [
-   "roads"
+   "roads",
+   "buildings"
   ],
   "t_4_-7": [
-   "roads"
+   "roads",
+   "buildings"
   ],
   "t_4_-6": [
    "roads",
@@ -576,20 +605,86 @@
    "buildings"
   ],
   "t_4_-1": [
-   "roads"
+   "roads",
+   "buildings"
   ],
   "t_4_0": [
    "roads",
    "buildings"
   ],
   "t_4_1": [
-   "roads"
+   "roads",
+   "buildings"
   ],
   "t_4_2": [
-   "roads"
+   "roads",
+   "buildings"
   ],
   "t_4_3": [
    "roads",
+   "buildings"
+  ],
+  "t_5_-6": [
+   "buildings"
+  ],
+  "t_5_-5": [
+   "buildings"
+  ],
+  "t_5_-7": [
+   "buildings"
+  ],
+  "t_5_-3": [
+   "buildings"
+  ],
+  "t_5_-4": [
+   "buildings"
+  ],
+  "t_5_-2": [
+   "buildings"
+  ],
+  "t_-3_-9": [
+   "buildings"
+  ],
+  "t_-4_4": [
+   "buildings"
+  ],
+  "t_5_1": [
+   "buildings"
+  ],
+  "t_5_3": [
+   "buildings"
+  ],
+  "t_-2_-9": [
+   "buildings"
+  ],
+  "t_4_4": [
+   "buildings"
+  ],
+  "t_5_2": [
+   "buildings"
+  ],
+  "t_-6_4": [
+   "buildings"
+  ],
+  "t_5_-8": [
+   "buildings"
+  ],
+  "t_-1_-9": [
+   "buildings"
+  ],
+  "t_1_-9": [
+   "buildings"
+  ],
+  "t_-6_-9": [
+   "buildings"
+  ],
+  "t_5_0": [
+   "buildings"
+  ],
+  "t_-4_-9": [
+   "buildings"
+  ],
+  "t_5_-1": [
    "buildings"
   ]
  },
@@ -757,7 +852,7 @@
   }
  ],
  "generated": {
-  "buildings": "OSM has almost no building footprints in this city, so buildings are GENERATED along real streets (no building on any road/sidewalk/water/rail/park). Real OSM footprints are used where they exist.",
+  "buildings": "Building footprints: Microsoft Global ML Building Footprints (ODbL, from satellite imagery) inside the city; each footprint is clipped off roads/sidewalks/water and split into rectangles. Heights are not in the data: floors/style are estimated (nearest previously generated building). Real OSM footprints are kept. Outside the Microsoft coverage the old generated buildings remain.",
   "elevation": "OSM has no elevations: the ground is flat (y=0); bridge decks get an estimated profile (overpass 6 m with 140 m ramps, canal bridges 1 m hump).",
   "widths": "road width/lanes from OSM tags when present, otherwise class defaults (see tools/osm/build_region.py WIDTH/LANES)",
   "sidewalks": "sidewalk widths by road class (not in OSM)"
