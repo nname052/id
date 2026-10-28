@@ -338,3 +338,17 @@ Legend: [x] done + covered by a test · [~] partial · [!] limitation / needs th
       on the seam sat half high / half low. `tools/osm/unify_ramps.py` gives both the same height where they overlap
       (blend over 3 m, endpoints fixed, slope capped at 8%), decks + road-graph heights. Max step now 0.12 m (foot of
       the west ramp), max grade 8.0%. bridge-audit PASS, road-surface 13 drives / 0 steps / 0 flips.
+
+## v19 (bridge: bouncing on the ramps + passengers fleeing on the bridge)
+- [x] Bounce: ramp heights had a saw-tooth after unify_ramps (grade 6% → 0% → 3% → -4% within metres at the ramp feet)
+      and `ShibinWorld.height` blended the clamped segment-end height with the next segment = a ripple every 4 m.
+      `tools/osm/smooth_ramps.py` (monotone ramps + vertical curves, twins coupled, 8% cap; deck heights copied from the
+      graph) + slope extrapolation past segment ends. Drive probe on 6 bridge edges at 30/50 km/h: max vertical
+      acceleration 3–5 → 0.2–1.0 m/s², 0 impacts, 0 incidents. Drawn deck vs physics surface: 0.21 → 0.01 m.
+- [x] Panic: the two one-way carriageways of the upper bridge are 5–7 m apart in OSM but 8 m wide each → inner lanes
+      ~1 m from the opposite inner lane (head-on = "crash" → passengers flee). `edge.laneLo/laneHi` keep traffic lanes
+      out of the opposite direction (1 lane if < 5.4 m). Side scrapes on static walls (bridge parapet) are no longer a
+      crash unless head-on or ≥ 12 m/s into the wall; hitting a car still is.
+- Tests: bridge-audit, city-life (overlapsMax 0), accident-ems, boarding PASS; road-surface 13 drives / 0 steps / 0 flips;
+      lane-scan bumps 6 → 1 (a 10 cm edge at the east ramp foot).
+- [!] The exact spot the user saw wasn't reproduced; the fixes cover the two causes found by the probe.
