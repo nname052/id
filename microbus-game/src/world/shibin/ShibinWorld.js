@@ -93,10 +93,32 @@ export class ShibinWorld {
   _materials() {
     const M = this.M;
     const DS = THREE.DoubleSide;
-    const water = new THREE.MeshStandardMaterial({ color: 0x3f6f6a, roughness: 0.12, metalness: 0.15, transparent: true, opacity: 0.92 });
+    // مية بحر شبين: لونها من صورة حقيقية للترعة (كوبري عمر أفندي — himoz، Commons، FAL): أخضر رمادي غامق،
+    // والسما بتنعكس عليها (envMap) + تموّج خفيف بيتحرك (حسابات في الشيدر، من غير صور)
+    const water = new THREE.MeshStandardMaterial({ color: new THREE.Color().setRGB(0.235, 0.298, 0.278, THREE.SRGBColorSpace), roughness: 0.07, metalness: 0, envMapIntensity: 0.9 });
+    const WU = (this._waterU = { uWT: { value: 0 } });
+    water.onBeforeCompile = (sh) => {
+      Object.assign(sh.uniforms, WU);
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec2 vWW;').replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvWW = (modelMatrix * vec4(transformed, 1.0)).xz;');
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec2 vWW; uniform float uWT;')
+        .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+{
+  // موجتين صغيرين بيتحركوا مع التيار + تموّج أدق: ميل السطح (gradient) → بيعوج الـ normal
+  vec2 p = vWW;
+  float a1 = p.x * 0.55 + p.y * 0.31 + uWT * 1.1, a2 = p.x * -0.27 + p.y * 0.83 - uWT * 0.8, a3 = (p.x + p.y) * 2.3 + uWT * 2.6;
+  vec2 gr = vec2(0.55, 0.31) * cos(a1) * 0.045 + vec2(-0.27, 0.83) * cos(a2) * 0.04 + vec2(2.3, 2.3) * cos(a3) * 0.006;
+  float fade = 1.0 - smoothstep(60.0, 220.0, length(vViewPosition)); // بعيد: سطح هادي (من غير وشوشة)
+  normal = normalize(normal + (viewMatrix * vec4(-gr.x, 0.0, -gr.y, 0.0)).xyz * fade);
+}`);
+    };
+    water.customProgramCacheKey = () => 'shibin-water-2';
+    // "فتحة" الترعة في الأرض: الأرض (y≈0) كانت مغطية المية (-0.55) — وماكانتش بتبان غير من بعيد
+    // (لما الـ polygonOffset بتاع الأرض يكبر). ده سطح مش بيترسم لون، بيكتب عمق بس فوق الترعة بعد المية،
+    // فالأرض اللي تحته متترسمش. (مفيش خامات ولا draw calls تقيلة)
+    const waterCut = new THREE.MeshBasicMaterial({ colorWrite: false });
     const ballast = new THREE.MeshStandardMaterial({ color: 0x77706a, roughness: 1, side: DS });
     const rail = new THREE.MeshStandardMaterial({ color: 0x6b6e72, roughness: 0.35, metalness: 0.8, side: DS });
-    const bank = new THREE.MeshStandardMaterial({ color: 0x6b5d45, roughness: 1, side: DS });
+    const bank = new THREE.MeshStandardMaterial({ color: 0x7a7266, roughness: 1, side: DS }); // جناب الترعة: حيطة حجر/خرسانة (زي صور الكورنيش)
     // حرف الرصيف: بالوشين (اتجاه حلقات المضلعات مش ثابت)
     const curb = M.curb.clone(); curb.side = DS;
     // دهان الخطوط: بالوشين (اتجاه الأشرطة بيتحدد من اتجاه الخط)
@@ -113,9 +135,9 @@ export class ShibinWorld {
     asphalt.onBeforeCompile = (sh) => {
       // لمعة الشمس على الأسفلت (لما تبص ناحية الشمس الطريق كان بيبيض كله): الأسفلت المترب مطفي تقريبًا
       sh.fragmentShader = sh.fragmentShader.replace('#include <lights_physical_fragment>', '#include <lights_physical_fragment>\nmaterial.specularColor *= 0.3; material.specularF90 = 0.25;');
-      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec2 vAW;').replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvAW = (modelMatrix * vec4(transformed, 1.0)).xz;');
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec2 vAW; varying float vAY;').replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvec4 aw4 = modelMatrix * vec4(transformed, 1.0); vAW = aw4.xz; vAY = aw4.y;');
       sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
-varying vec2 vAW;
+varying vec2 vAW; varying float vAY;
 float hA(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float nA(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(hA(i), hA(i + vec2(1, 0)), f.x), mix(hA(i + vec2(0, 1)), hA(i + vec2(1, 1)), f.x), f.y); }`)
         .replace('#include <map_fragment>', `#include <map_fragment>
@@ -124,7 +146,7 @@ float nA(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
   vec2 pc = floor(vAW / vec2(6.0, 4.0)); float ph = hA(pc);
   vec2 pf = fract(vAW / vec2(6.0, 4.0));
   float patchM = step(0.86, ph) * step(0.12, pf.x) * step(pf.x, 0.88) * step(0.15, pf.y) * step(pf.y, 0.85);
-  diffuseColor.rgb *= mix(1.0, 0.72, patchM);
+  diffuseColor.rgb *= mix(1.0, 0.72, patchM * step(vAY, 1.5)); // (على سطح الكوبري: من غير رقع — كانت بتبان مربعات زي العيب)
   // تفاوت لون الأسفلت + بقع زيت/تراب
   float n = nA(vAW * 0.08) * 0.6 + nA(vAW * 0.35) * 0.4;
   diffuseColor.rgb *= mix(0.86, 1.08, n) * 0.85; // أسفلت مترب: أغمق شوية من الرصيف
@@ -137,7 +159,7 @@ float nA(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
   diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.5), step(0.38, md) * step(md, 0.44) * step(0.55, hA(mc + 1.3)) * 0.6);
 }`);
     };
-    asphalt.customProgramCacheKey = () => 'shibin-asphalt-wear-3';
+    asphalt.customProgramCacheKey = () => 'shibin-asphalt-wear-4';
     const foot = new THREE.MeshStandardMaterial({ color: 0xa89878, roughness: 1 });
     const plain = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 });
     const concrete = new THREE.MeshStandardMaterial({ color: 0x9c9890, roughness: 0.9, side: DS });
@@ -163,7 +185,7 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
     concrete.customProgramCacheKey = () => 'shibin-concrete-1';
     const steel = new THREE.MeshStandardMaterial({ color: 0x8a8e92, roughness: 0.45, metalness: 0.6, side: DS });
     const pitch = new THREE.MeshStandardMaterial({ color: 0x3f8f3a, roughness: 0.95 });
-    this.mats = { asphalt, water, ballast, rail, bank, foot, plain, concrete, steel, pitch, curb, paint, bld: buildingMaterial(M), bldLow: buildingMaterial(M, { low: true }) };
+    this.mats = { asphalt, water, waterCut, ballast, rail, bank, foot, plain, concrete, steel, pitch, curb, paint, bld: buildingMaterial(M), bldLow: buildingMaterial(M, { low: true }) };
   }
 
   setNight(on) {
@@ -642,6 +664,7 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
   _tkey(i, j) { return i * 1000 + j; }
 
   update(dt) {
+    if (this._waterU) this._waterU.uWT.value += dt;
     if (this.fallen?.length) this._updateFallen(dt);
     // بنبني على دفعات: ميزانية وقت صغيرة كل فريم
     const budget = this.low ? 4 : 7;
@@ -897,9 +920,11 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
   // ---------- الميه ----------
   _buildWater(T, W) {
     if (W.water) {
-      const m = new THREE.Mesh(flatGeo(W.water.v, W.water.i, WATER_Y, 1 / 6), this.mats.water); m.name = 'water'; T.group.add(m);
+      // الترتيب مهم: المية والجناب → الفتحة (عمق بس) → الأرض وكل حاجة تانية
+      const m = new THREE.Mesh(flatGeo(W.water.v, W.water.i, WATER_Y, 1 / 6), this.mats.water); m.name = 'water'; m.renderOrder = -3; m.receiveShadow = true; T.group.add(m);
       const bank = curbGeo(W.water.rings, WATER_FLOOR - 0.2, 0, T, this.TS);
-      if (bank) { const b = new THREE.Mesh(bank, this.mats.bank); b.receiveShadow = true; T.group.add(b); }
+      if (bank) { const b = new THREE.Mesh(bank, this.mats.bank); b.receiveShadow = true; b.renderOrder = -3; T.group.add(b); }
+      const cut = new THREE.Mesh(flatGeo(W.water.v, W.water.i, 0.005, 1 / 6), this.mats.waterCut); cut.name = 'water-cut'; cut.renderOrder = -2; T.group.add(cut);
       T.waterGrid = triGrid(W.water.v, W.water.i, 6);
       // جناب الترعة: حاجز (للي على الأرض بس — اللي على الكوبري فوقها)
       for (const ring of W.water.rings) {

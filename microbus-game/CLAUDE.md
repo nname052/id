@@ -7,6 +7,13 @@
 - Published as a claude.ai Artifact (`dist/index.html` + `files` map). GLB models are base64-inlined in the JS
   (the Artifact host can't serve .glb), the service worker is intentionally disabled.
 
+## Data post-processing (run after `tools/osm/build_region.py`, in this order)
+- `python3 tools/osm/clean_sidewalks.py` — paves the sidewalk "spikes" inside junctions (convex hull of the junction asphalt).
+- `python3 tools/osm/audit_buildings.py --fix-real` — pulls real OSM footprints off widened asphalt; without flags it
+  only reports overlaps (generated buildings vs asphalt/sidewalk/bridge decks; should print zeros).
+- `python3 tools/photos/build_atlas.py` — rebuilds `public/textures/shibin-photo-atlas.jpg` + `src/render/photoAtlas.json`
+  from the Commons photos in `tools/photos/sources.json` (cache in `tools/photos/cache`, not in git).
+
 ## Run / test
 - Dev server: `NOHMR=1 npx vite --port 5173 --strictPort`; build: `npx vite build`; preview: `npx vite preview --port 4173`.
 - All tests: `TAIL=3 sh tools/tests/run-all.sh` (Playwright + SwiftShader, ~1.5 h). Run heavy tests one at a time:
@@ -27,4 +34,7 @@
   front; `tools/tests/hiace-front.mjs` fails if interior shows through the body again.
 - **Cockpit camera** (`CameraSystem.js`): `fovH` is horizontal FOV; horizon uses `player.groundPitch/groundRoll`
   + partial suspension (`MOTION` table). `tools/tests/cockpit-view.mjs` checks cabin %, road visibility, horizon roll.
+- **Canal water**: the ground plane (y≈0) covers the water (y=-0.55). Water draws first (renderOrder -3), then a
+  depth-only "cut" over the canal (renderOrder -2), then the ground. Keep that order or the canal disappears up close.
+- **Photo textures**: never add photos without author/licence in `sources.json`; Google Maps/Earth/Street View are not allowed.
 - Don't invent landmarks/routes and label them real; don't fake test results; real-device FPS/thermals need the user.

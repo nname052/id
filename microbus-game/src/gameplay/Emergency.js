@@ -91,13 +91,14 @@ export class Emergency {
     if (J.state === 'wait') {
       J.t -= dt; if (J.t > 0) return;
       // طالعة من طريق على بُعد 200-320م من المصاب
+      // (كانت 10 محاولات بس، ولو فشلت الإسعاف ماكانتش بتيجي خالص والمصاب بيختفي — دلوقتي لازم تيجي)
       let r = null;
-      for (let k = 0; k < 10 && !r; k++) {
-        const a = Math.random() * Math.PI * 2, d = 200 + Math.random() * 120;
+      for (let k = 0; k < 40 && !r; k++) {
+        const a = Math.random() * Math.PI * 2, d = (k < 20 ? 200 : 90) + Math.random() * 140;
         r = this._routeTo(P.x + Math.cos(a) * d, P.z + Math.sin(a) * d, P.x, P.z);
-        if (r && r.length < 120) r = null;
+        if (r && r.length < (k < 20 ? 120 : 50)) r = null;
       }
-      if (!r) { this.jobs.shift(); this.crowd.removeVictim(P); return; }
+      if (!r) { J.t = 2; J.tries = (J.tries || 0) + 1; if (J.tries > 5) { this.jobs.shift(); this.crowd.removeVictim(P); } return; }
       this._startDrive(J, r); J.state = 'drive';
       rig.root.visible = true;
     }

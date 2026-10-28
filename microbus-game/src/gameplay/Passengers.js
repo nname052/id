@@ -66,6 +66,10 @@ export class Passengers {
       p.root.visible = false;
       this.pool.push(p);
     }
+    // علامة لون الخط فوق كل واحد مستني (الميكروباص): كل خط له لونه، فتعرف من بعيد مين مستنيك ومين مستني خط تاني
+    this.badges = new THREE.InstancedMesh(new THREE.OctahedronGeometry(0.17, 0).scale(1, 1.45, 1), new THREE.MeshBasicMaterial({ toneMapped: false }), MAX_WALKERS);
+    this.badges.setColorAt(0, new THREE.Color()); this.badges.count = 0; this.badges.frustumCulled = false; this.badges.name = 'pax-line-badges';
+    this.group.add(this.badges);
     this._resetJob();
   }
 
@@ -345,7 +349,7 @@ export class Passengers {
     const dests = new Set(this.onboard.map((o) => o.dest));
     const nextLine = this.nextStop;
     for (const st of this.stops) {
-      const has = st.waiting.some((w) => w.state === 'wait' || w.state === 'toDoor' || w.state === 'enter') && (this.mode === 'line' ? this.lineStops.includes(st) || st.hail : st.kind !== 'terminal');
+      const has = st.waiting.some((w) => (w.state === 'wait' || w.state === 'toDoor' || w.state === 'enter') && (this.mode !== 'line' || w.dest)) && (this.mode === 'line' ? this.lineStops.includes(st) || st.hail : st.kind !== 'terminal');
       const dest = dests.has(st) || st === nextLine;
       if (!has && !dest) continue;
       const d2 = (st.mx - ph.x) ** 2 + (st.mz - ph.z) ** 2;
@@ -360,7 +364,7 @@ export class Passengers {
       m.position.set(st.mx, st.my + 0.035, st.mz);
       m.rotation.y = Math.atan2(st.ax, st.az);
       const inside = this._inMarker(st, ph);
-      const col = inside ? 0x3ee07a : dest ? 0x4fc3ff : 0xf2c230;
+      const col = inside ? 0x3ee07a : dest ? 0x4fc3ff : this.mode === 'line' && this.line?.color ? this.line.color : 0xf2c230;
       m.material.color.set(col);
       m.material.opacity = 0.8 + 0.2 * Math.sin(t * 4);
       const beam = m.userData.beam;
@@ -498,6 +502,16 @@ export class Passengers {
       p.delay = 0;
       p.group = group;
       p.dest = this.mode === 'line' ? (stop.hail ? this._hailDest(stop) : this.lineStops.indexOf(stop) >= 0 ? this._lineDest(this.lineStops.indexOf(stop)) : null) : dest;
+      p.lineK = undefined;
+      if (this.mode === 'line') {
+        // مش كل اللي واقفين مستنيين خطك: جزء منهم مستني خط تاني (لونه مختلف ومش هيركب معاك)
+        const mine = this.lineIdx % this.LINES.length, k = this.lineStops.indexOf(stop);
+        const pMine = !p.dest ? 0 : stop.hail ? 0.62 : k === 0 ? 0.8 : 0.7;
+        if (this.LINES.length > 1 && this.R() >= pMine) {
+          let o = Math.floor(this.R() * (this.LINES.length - 1)); if (o >= mine) o++;
+          p.lineK = o; p.dest = null;
+        } else p.lineK = p.dest ? mine : undefined;
+      }
       stop.waiting.push(p);
     }
   }
@@ -637,6 +651,7 @@ export class Passengers {
           if (sideOk && Math.hypot(st.mx - vx, st.mz - vz) < 14 && !this._nearNote) { this._nearNote = 1; this.hud?.toast('قرّب على العلامة اللي على الأرض عشان الناس تركب', 2.5); }
           continue;
         }
+        if (this.mode === 'line' && !st.waiting.some((p) => p.dest) && !this._otherNote) { this._otherNote = 1; this.hud?.toast('الناس دي مستنية خط تاني (لونهم مختلف عن لون خطك)', 2.6); }
         let k = 0;
         for (const p of st.waiting) {
           if (p.state !== 'wait' || (this.mode === 'line' && !p.dest)) continue;
@@ -654,7 +669,7 @@ export class Passengers {
         out.forEach((p, i) => { p.leaving = true; p.leaveDelay = 0.4 + i * 0.9; p.leaveStop = st; });
       }
     }
-    if (!still) { this._fullNote = 0; this._nearNote = 0; }
+    if (!still) { this._fullNote = 0; this._nearNote = 0; this._otherNote = 0; }
     this._watchDriving(dt, ph);
     this._updateMarkers(ph, performance.now() / 1000);
     // عدّيت محطة حد؟
@@ -724,7 +739,8 @@ export class Passengers {
         // بيبص ناحية الطريق، ولو العربية جاية بيشاور
         const dist = Math.hypot(p.x - vx, p.z - vz);
         const yaw = Math.atan2(p.stop.nx - p.stop.ax * 0.5, p.stop.nz - p.stop.az * 0.5);
-        this._pose(p, dist < 70 ? p.style : 'idle', 0, yaw);
+        const forMe = this.mode !== 'line' || !!p.dest;
+        this._pose(p, dist < 70 && forMe ? p.style : 'idle', 0, yaw);
         continue;
       }
       if (p.state === 'toDoor') {
@@ -914,8 +930,24 @@ export class Passengers {
       B.add(p.variant, r.position.x, r.position.y, r.position.z, r.rotation.y, p.scale, p.phase || 0, p.amp, p.armR, p.armL);
     }
     B.flush();
+    // علامات ألوان الخطوط فوق المستنيين (القريبين بس)
+    const bm = this.badges;
+    let n = 0;
+    if (this.mode === 'line') {
+      const cam = this.camPos, t = performance.now() / 1000;
+      for (const p of this.walkers) {
+        if (p.lineK === undefined || !p.root.visible || (p.state !== 'wait' && p.state !== 'toDoor' && p.state !== 'return')) continue;
+        if (cam && (p.x - cam.x) ** 2 + (p.z - cam.z) ** 2 > 75 * 75) continue;
+        const L = this.LINES[p.lineK % this.LINES.length];
+        _bm.makeRotationY(t * 2 + p.phase).setPosition(p.x, p.root.position.y + 2.15 * p.scale + 0.06 * Math.sin(t * 3 + p.phase), p.z);
+        bm.setMatrixAt(n, _bm); bm.setColorAt(n, _bc.set(L.color)); n++;
+      }
+    }
+    bm.count = n;
+    if (n) { bm.instanceMatrix.needsUpdate = true; bm.instanceColor.needsUpdate = true; }
   }
 }
+const _bm = new THREE.Matrix4(), _bc = new THREE.Color();
 
 /** شكل راكب قاعد (من الأشكال الجاهزة، متخزن) */
 const _seated = new Map();

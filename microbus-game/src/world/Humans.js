@@ -209,7 +209,9 @@ const ANIM_BODY = `
     if (b > 0.5 && b < 4.5) {
       float side = b < 2.5 ? -1.0 : 1.0;
       float th = side < 0.0 ? sw : -sw;
-      float kn = (max(0.0, sin(ph + (side < 0.0 ? -1.3 : 1.84))) * 0.95 + 0.06) * amp;
+      // الركبة بتتني وهي الرجل رايحة لقدام (swing)، مش وهي على الأرض راجعة لورا (stance) —
+      // كانت بالعكس بالظبط (فرق π) فالناس كانوا شكلهم ماشيين بضهرهم
+      float kn = (max(0.0, sin(ph + (side < 0.0 ? 1.84 : -1.3))) * 0.95 + 0.06) * amp;
       vec3 hip = vec3(side * ${J.hipX.toFixed(3)}, ${J.hipY.toFixed(3)}, 0.0), knee = vec3(side * ${J.hipX.toFixed(3)}, ${J.kneeY.toFixed(3)}, 0.0);
       if (abs(b - 2.0) < 0.5 || abs(b - 4.0) < 0.5) { P = rx3(P, knee, kn); N = rxN(N, kn); }
       P = rx3(P, hip, -th); N = rxN(N, -th);

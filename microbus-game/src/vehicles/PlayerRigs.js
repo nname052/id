@@ -203,11 +203,16 @@ export function buildTuktukRig(spec, assets = null) {
   const S = rig.shell;
   const add = (geo, mat, m, shadow = true) => { const mesh = new THREE.Mesh(geo, mat); if (m) mesh.applyMatrix4(m); mesh.castShadow = shadow; mesh.receiveShadow = true; S.add(mesh); return mesh; };
   const tube = (a, b, r, mat) => {
-    const A = new THREE.Vector3(...a), B = new THREE.Vector3(...b), len = A.distanceTo(B);
-    const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, 8), mat);
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 1, 8), mat);
+    placeTube(m, a, b);
+    m.castShadow = true; S.add(m); return m;
+  };
+  // (العصاية بتتحط من جديد لو العربية اتعرّضت: كانت بتتنقل من نصها بس فطرفها مابيوصلش للمراية/الكابينة)
+  const placeTube = (m, a, b) => {
+    const A = new THREE.Vector3(...a), B = new THREE.Vector3(...b);
+    m.scale.set(1, A.distanceTo(B), 1);
     m.position.copy(A).add(B).multiplyScalar(0.5);
     m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), B.clone().sub(A).normalize());
-    m.castShadow = true; S.add(m); return m;
   };
   const zF = -spec.cgToFront, zR = spec.wheelBase - spec.cgToFront; // z العجلة القدام/الورا
   // الشاسيه والأرضية
@@ -276,11 +281,14 @@ export function buildTuktukRig(spec, assets = null) {
   const rl = mk(-t, zR, -1), rr = mk(t, zR, 1);
   rig.wheels.push({ id: 'FL', front: true, ...fw }, { id: 'FR', front: true, ...ghost }, { id: 'RL', front: false, ...rl }, { id: 'RR', front: false, ...rr });
   // المرايات: مدورة على عصيان قدام
+  // العصاية من حرف الكابينة لضهر المراية بالظبط (زي البجاج: المراية قريبة من الكابينة، مش طايرة بعيد)
   const mirrorSticks = [];
+  const stickEnds = (sx, WX = 1) => [[sx * 0.44 * WX, 1.12, zF + 0.3], [sx * 0.6 * WX, 1.27, zF + 0.2]];
   for (const sx of [-1, 1]) {
-    mirrorSticks.push(tube([sx * 0.45, 1.1, zF + 0.12], [sx * 0.74, 1.3, zF + 0.05], 0.01, black));
+    const [a, b] = stickEnds(sx);
+    const st = tube(a, b, 0.01, black); st.userData.sx = sx; mirrorSticks.push(st);
     const { holder, face } = mirrorFace(0.12, 0.09);
-    holder.position.set(sx * 0.76, 1.34, zF + 0.04);
+    holder.position.set(sx * 0.62, 1.31, zF + 0.185);
     const back = new THREE.Mesh(new RoundedBoxGeometry(0.135, 0.105, 0.03, 2, 0.02), black); back.position.z = -0.018; holder.add(back);
     face.position.z = 0.002;
     S.add(holder);
@@ -318,7 +326,7 @@ export function buildTuktukRig(spec, assets = null) {
       rig.model.scale.x *= WX;
       ck.group.scale.x = WX;
       for (const m of rig.mirrors) m.holder.position.x *= WX;
-      for (const o of mirrorSticks) o.position.x *= WX;
+      for (const o of mirrorSticks) placeTube(o, ...stickEnds(o.userData.sx, WX));
       for (const t of tails) t.position.x *= WX;
       rig.lamps.tail = tails.map((t) => [t.position.x, t.position.y, 1.035]);
       rig.dims.HW *= WX;

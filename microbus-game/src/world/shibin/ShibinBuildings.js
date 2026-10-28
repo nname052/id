@@ -86,7 +86,8 @@ vec3 fcol = vec3(1.0); vec3 fem = vec3(0.0);
   vec2 gx = dFdx(wc) * vec2(0.25, 0.5), gy = dFdy(wc) * vec2(0.25, 0.5);
   float bay = floor(wc.x), row = floor(wc.y);
   float prim = floor(h1(vec2(seed, 1.0)) * 8.0);
-  float cell = h1(vec2(bay * 7.0 + seed, row)) < 0.62 ? prim : floor(h1(vec2(bay, row + seed * 3.0)) * 8.0);
+  // (الخانات بقت صور حقيقية: لو كل شباك من عمارة شكل الواجهة بتبقى كولاج — أغلبها من نفس الصورة)
+  float cell = h1(vec2(bay * 7.0 + seed, row)) < 0.86 ? prim : floor(h1(vec2(bay, row + seed * 3.0)) * 8.0);
   vec2 uvW = cellUV(cell, fract(wc));
   vec3 tP = textureGrad(uFacP, uvW, gx, gy).rgb, tB = textureGrad(uFacB, uvW, gx, gy).rgb;
   vec3 eP = textureGrad(uEmP, uvW, gx, gy).rgb, eB = textureGrad(uEmB, uvW, gx, gy).rgb;
@@ -175,7 +176,7 @@ diffuseColor.rgb *= fcol;`)
     // دلوقتي: نفس صورة الواجهة بس من نسخة صغيرة (mip) — نفس اللون المتوسط وأرخص
     if (low) sh.fragmentShader = sh.fragmentShader.replace('fcol = brick ? tB : tP * vec3(0.86, 0.84, 0.8);', 'fcol = brick ? textureLod(uFacB, uvW, 3.0).rgb : textureLod(uFacP, uvW, 3.0).rgb * vec3(0.86, 0.84, 0.8);');
   };
-  mat.customProgramCacheKey = () => (low ? 'shibin-bld-low-5' : 'shibin-bld-4');
+  mat.customProgramCacheKey = () => (low ? 'shibin-bld-low-6' : 'shibin-bld-5');
   return mat;
 }
 

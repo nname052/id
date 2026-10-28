@@ -287,3 +287,32 @@ Legend: [x] done + covered by a test · [~] partial · [!] limitation / needs th
 - [!] Corniche wall/railing of Bahr Shibin: only small (≤500 px) or watermarked photos on Commons → not turned into a
       texture; corniche stays procedural. Photos with people/vehicles/brands in front of shops were skipped.
 - Tests: default-map PASS, city-life PASS, bridge-audit PASS, road-surface 13 drives, 0 steps, 0 flips (hits = random traffic/breakables, as in v14).
+
+## v16 (user report round: lines, passengers, police, accidents, bridge, canal, sidewalks)
+- [x] Changing the microbus line no longer teleports the car: it stays put and the GPS leads to the first stop
+      (only the very first pick at game start places the car at the terminal).
+- [x] Line colours: every waiting passenger has a floating diamond in their line's colour; ~30-40% at stops/roadside wait
+      for *other* lines (they don't wave and don't board). Stop markers use your line's colour. Toast if you stop for
+      people of another line.
+- [x] "Walking backwards": the walk-cycle knee bend was exactly π out of phase (knees bent in stance, not swing) on
+      every pedestrian/passenger → swapped. Seated passengers verified facing forward in all 3 vehicles.
+- [x] Green screen in the cockpit: seat "back" +15 cm put the eye inside the body shell (whole screen = body colour),
+      worse when accelerating (head inertia). `_clearEye` raycasts from the default eye to the requested one against the
+      vehicle meshes and keeps 6-12 cm clearance (never moves the default position). 18 seat/vehicle combos checked.
+- [x] Police patrol no longer drives through cars: look-ahead avoidance (overtake on a free side or follow), oriented-box
+      check before every move/turn, push-out if a car drives into it; traffic treats it as a stop zone.
+      Measured over 8 forced chases: 53 → 0-2 overlap frames.
+- [x] Accidents: 2-4 nearest people run to the injured person and stay around them until the ambulance takes them
+      (traffic stops for them); ambulance route search no longer gives up after 10 tries (40 tries + retries).
+      `accident-ems` now also checks ≥2 helpers arrive.
+- [x] Bridge by Maxim Mall (كوبرى شبين العلوي + ramp 641): lamp poles were placed on the neighbouring carriageway's deck
+      (two decks 5 m apart) → elevated lamps validated against other decks; repair-patch squares removed on decks;
+      photo asphalt de-shaded (no checkerboard).
+- [x] Canal (ترعة بحر شبين) was invisible up close (ground plane covered it) → depth cut-out; water colour from a real
+      photo of the canal (himoz, FAL), animated ripples in the shader; banks stone grey.
+- [x] Sidewalk spikes in junctions paved (tools/osm/clean_sidewalks.py, 0.5% of sidewalk area);
+      8 real OSM buildings (mostly schools) stood on widened asphalt → footprints pulled back (audit_buildings.py).
+- [x] Tuktuk mirror stalks re-attached (rebuilt after widening); facades use mostly one photo cell per building.
+- [!] Not done: Google Maps/Earth/Street View imagery can't be used (licence); Mapillary needs an access token;
+      KartaView had no coverage. OSM canal width (~10 m) looks narrower than photos of Bahr Shibin (~35 m) — not
+      changed without a licensed source. The microbus's curved kerb-view mirror is part of the HiAce model (kept).

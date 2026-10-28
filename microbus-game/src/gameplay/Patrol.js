@@ -95,20 +95,101 @@ export class Patrol {
     this._sync(dt, ph);
   }
 
+  /** للمرور: مايدخلوش في عربية الشرطة (بيقفوا وراها) */
+  get stopZones() {
+    if (this.state === 'idle') return [];
+    return [{ x: this.p.x, z: this.p.z, r: 2.2, gap: 4 }];
+  }
+
   _near(ph) { return Math.hypot(this.p.x - ph.x, this.p.z - ph.z) < 160; }
+
+  /**
+   * الشرطة مش بتعدّي جوه العربيات: بتبص قدامها، ولو فيه عربية في طريقها بتعدّيها من الجنب الفاضي
+   * (زي السارينة في الحقيقة)، ولو الجنبين مقفولين بتهدّي وتمشي وراها. بيرجّع [tx, tz, want] بعد التعديل.
+   */
+  _avoid(tx, tz, want) {
+    const P = this.p, T = this.traffic;
+    if (!T?.cars) return [tx, tz, want];
+    const fx = -Math.sin(P.yaw), fz = -Math.cos(P.yaw), rx = -fz, rz = fx;
+    const look = 6 + P.v * 1.1;
+    const near = [];
+    for (const c of T.cars) {
+      if (!c.on || c.off || c === this.off && this.state !== 'chase') continue;
+      const dx = c.x - P.x, dz = c.z - P.z;
+      if (dx * dx + dz * dz > (look + 6) ** 2) continue;
+      near.push({ c, f: dx * fx + dz * fz, l: dx * rx + dz * rz });
+    }
+    const blocked = (off) => {
+      let best = null;
+      for (const n of near) {
+        if (n.c === this.off && this.state === 'chase') continue; // الهربان نفسه: بنقرّب منه عادي
+        if (n.f > -1.5 && n.f < look && Math.abs(n.l - off) < 2.6 && (!best || n.f < best.f)) best = n;
+      }
+      return best;
+    };
+    const b = blocked(0);
+    this._blocked = !!b;
+    if (!b) return [tx, tz, want];
+    // جنب فاضي؟ (الأول اللي التارجت ناحيته)
+    const tl = (tx - P.x) * rx + (tz - P.z) * rz;
+    for (const side of tl >= 0 ? [3.4, -3.4] : [-3.4, 3.4]) {
+      if (blocked(side)) continue;
+      const k = Math.min(b.f + 4, 12);
+      return [P.x + fx * k + rx * side, P.z + fz * k + rz * side, Math.min(want, Math.max(8, (b.c.v || 0) + 5))];
+    }
+    // مقفولة: ورا العربية بسرعتها، ولو قريبة أوي: وقوف
+    return [tx, tz, b.f < 5.5 ? 0 : Math.min(want, Math.max(0, (b.c.v || 0) - 0.5))];
+  }
 
   _steer(dt, tx, tz, want) {
     const P = this.p;
+    [tx, tz, want] = this._avoid(tx, tz, want);
     const ang = Math.atan2(-(tx - P.x), -(tz - P.z));
     let d = ang - P.yaw; d = Math.atan2(Math.sin(d), Math.cos(d));
     const maxTurn = (1.6 + 8 / (2 + P.v)) * dt;
+    const y0 = P.yaw, was = this._overlapAt(P.x, P.z, y0);
     P.yaw += Math.max(-maxTurn, Math.min(maxTurn, d));
+    // اللفة نفسها مش لازم تدخّل مقدمة/ضهر العربية في عربية جنبها
+    if (!was && this._overlapAt(P.x, P.z, P.yaw)) P.yaw = y0;
+    // لو عربية دخلت فيها (أو اتولدت جنبها): تتزق على جنب لحد ما يبعدوا
+    if (was) {
+      const rx = Math.cos(P.yaw), rz = -Math.sin(P.yaw), side = (P.x - was.x) * rx + (P.z - was.z) * rz >= 0 ? 1 : -1;
+      P.x += rx * side * 2 * dt; P.z += rz * side * 2 * dt;
+    }
     if (Math.abs(d) > 1.2) want = Math.min(want, 7);
     P.v += Math.max(-16 * dt, Math.min(7 * dt, want - P.v));
     this._move(dt);
   }
 
-  _move(dt) { const P = this.p; P.x += -Math.sin(P.yaw) * P.v * dt; P.z += -Math.cos(P.yaw) * P.v * dt; }
+  _move(dt) {
+    const P = this.p;
+    const nx = P.x - Math.sin(P.yaw) * P.v * dt, nz = P.z - Math.cos(P.yaw) * P.v * dt;
+    // ممنوع تدخل جوه عربية: لو الخطوة الجاية هتعمل تداخل والحالية مفيهاش → تقف مكانها (لو عربية دخلت فيها هي: تقدر تتحرك وتطلع)
+    const c = this._overlapAt(nx, nz, P.yaw);
+    if (c && !this._overlapAt(P.x, P.z, P.yaw)) { P.v = Math.min(P.v, Math.max(0, (c.v || 0) * 0.5)); return; }
+    P.x = nx; P.z = nz;
+  }
+
+  /** عربية مرور متداخلة مع عربية الشرطة لو كانت في (x,z,yaw)؟ (مستطيلين، فحص المحاور الفاصلة) */
+  _overlapAt(x, z, yaw) {
+    const T = this.traffic; if (!T?.cars) return null;
+    const ax = [[-Math.sin(yaw), -Math.cos(yaw)], [Math.cos(yaw), -Math.sin(yaw)]], ha = [2.35, 0.95];
+    for (const c of T.cars) {
+      if (!c.on || c.off || (c === this.off && this.state === 'chase')) continue;
+      const dx = c.x - x, dz = c.z - z;
+      if (dx * dx + dz * dz > 36) continue;
+      const bx = [[-Math.sin(c.yaw), -Math.cos(c.yaw)], [Math.cos(c.yaw), -Math.sin(c.yaw)]], hb = [(c.len || 4.4) / 2, (c.width || 1.8) / 2];
+      let sep = false;
+      for (const [ux, uz] of [...ax, ...bx]) {
+        const d = Math.abs(dx * ux + dz * uz);
+        const ra = ha[0] * Math.abs(ax[0][0] * ux + ax[0][1] * uz) + ha[1] * Math.abs(ax[1][0] * ux + ax[1][1] * uz);
+        const rb = hb[0] * Math.abs(bx[0][0] * ux + bx[0][1] * uz) + hb[1] * Math.abs(bx[1][0] * ux + bx[1][1] * uz);
+        if (d > ra + rb) { sep = true; break; }
+      }
+      if (!sep) return c;
+    }
+    return null;
+  }
 
   _sync(dt) {
     const P = this.p, r = this.car.root;

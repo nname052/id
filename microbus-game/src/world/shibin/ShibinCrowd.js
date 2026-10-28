@@ -191,10 +191,15 @@ export class ShibinCrowd {
         continue;
       }
       const d2 = (p.x - cx) ** 2 + (p.z - cz) ** 2;
-      if (d2 > RECYCLE * RECYCLE && !p.hit) { if (p.shop) { p.shop.it.busy = false; p.shop = null; } p.on = false; p.cross = null; p.group = null; p.ret = null; continue; }
+      if (d2 > RECYCLE * RECYCLE && !p.hit) { if (p.shop) { p.shop.it.busy = false; p.shop = null; } p.on = false; p.cross = null; p.group = null; p.ret = null; p.help = null; continue; }
       if (p.hitCool) p.hitCool = Math.max(0, p.hitCool - dt);
       if (p.hit) { this._hitStep(p, dt); continue; }
       if (p.ret) { this._returnStep(p, dt); continue; }
+      if (p.help) {
+        // اللي بيساعد ممكن يبقى في نص الشارع: العربية ممكن تخبطه هو كمان
+        if (ph && Math.abs(p.x - ph.x) < 4.5 && Math.abs(p.z - ph.z) < 4.5 && this._hitTest(p, ph)) continue;
+        this._helpStep(p, dt); continue;
+      }
       // اللي رايح/راجع من محل ماشي على الرصيف عادي: لازم يتخبط لو عربية طلعت عليه (كان بيتعدّى الفحص ده خالص)
       if (p.shop) {
         if (p.shop.phase !== 'in' && ph && Math.abs(p.x - ph.x) < 4.5 && Math.abs(p.z - ph.z) < 4.5 && this._hitTest(p, ph)) continue;
@@ -226,7 +231,7 @@ export class ShibinCrowd {
     // اللي بيعدّوا الشارع دلوقتي (المرور بيقف لهم)
     const X = this.crossers || (this.crossers = []);
     X.length = 0;
-    for (let i = 0; i < this.count; i++) { const p = this.people[i]; if (p.on && p.cross && p.cross.wait <= 0) X.push(p); }
+    for (let i = 0; i < this.count; i++) { const p = this.people[i]; if (p.on && ((p.cross && p.cross.wait <= 0) || p.help)) X.push(p); }
     this.batch.begin();
     for (let i = 0; i < this.count; i++) {
       const p = this.people[i];
@@ -235,6 +240,11 @@ export class ShibinCrowd {
       const amp = p.standing && !p.scared ? 0 : p.scared ? 1.5 : Math.min(1.2, p.speed * 0.8);
       if (p.shop?.phase === 'in') continue; // جوه المحل
       if (p.shop) { this.batch.add(p.variant, p.x, 0.15, p.z, p.heading, 1, p.phase, p.shop.phase === 'look' ? 0 : 0.8, p.shop.phase === 'look' ? 0.15 : 0, 0); continue; }
+      if (p.help) {
+        const H = p.help, arm = H.moving ? 0 : (i % 3 === 0 ? 0.55 + Math.sin(p.phase * 2) * 0.1 : 0); // واحد منهم بيشاور للعربيات تقف
+        this.batch.add(p.variant, p.x, this.world.height(p.x, p.z, 0) + (H.moving ? 0 : 0), p.z, p.heading, 1, p.phase, H.moving || 0, arm, 0);
+        continue;
+      }
       if (p.hit || p.ret) {
         const H = p.hit;
         this.batch.add(p.variant, p.x, H ? H.y : this.world.height(p.x, p.z, 0), p.z, p.heading, 1, p.phase, H ? 0 : 0.6, 0, 0, H ? H.fall : 0);
@@ -310,10 +320,25 @@ export class ShibinCrowd {
     const vx = fx * ph.forwardSpeed, vz = fz * ph.forwardSpeed, side = Math.sign(lat) || 1;
     p.hit = { t: 0, y: p.cross ? 0 : 0.15, vy: 1.2 + v * 0.12, vx: vx * 0.7 + -fz * side * 0.9, vz: vz * 0.7 + fx * side * 0.9, fall: 0, severe, rest: 0 };
     p.heading = Math.atan2(vx, vz) + Math.PI; // بيقع على ضهره بعكس اتجاه الخبطة
-    p.cross = null; p.group = null; p.standing = false;
+    p.cross = null; p.group = null; p.standing = false; p.help = null;
     if (p.shop) { p.shop.it.busy = false; p.shop = null; } // (كان رايح محل: الزيارة اتلغت)
-    // اللي حواليه بيتخضوا ويبعدوا
-    for (const q of this.people) if (q.on && q !== p && !q.hit && (q.x - p.x) ** 2 + (q.z - p.z) ** 2 < 25 * 25) { q.scared = 4; q.standing = false; q.speed ||= 1.2; }
+    // اللي حواليه: أقرب 2-4 بيجروا على المصاب يساعدوه (زي الحقيقة)، واللي لازقين في العربية بيتخضوا ويبعدوا
+    const near = [];
+    for (const q of this.people) {
+      if (!q.on || q === p || q.hit || q.help || q.shop?.phase === 'in') continue;
+      const d2 = (q.x - p.x) ** 2 + (q.z - p.z) ** 2;
+      if (d2 < 35 * 35) near.push([d2, q]);
+    }
+    near.sort((a, b) => a[0] - b[0]);
+    const nHelp = Math.min(near.length, 2 + Math.floor(this.R() * 3));
+    near.forEach(([d2, q], k) => {
+      if (k < nHelp) {
+        if (q.shop) { q.shop.it.busy = false; q.shop = null; }
+        const a = (k / nHelp) * Math.PI * 2 + this.R() * 0.6;
+        q.help = { v: p, a, r: 1.15 + this.R() * 0.35, t: 0, home: { x: q.x, z: q.z } };
+        q.cross = null; q.group = null; q.standing = false; q.scared = 0;
+      } else if (d2 < 10 * 10) { q.scared = 4; q.standing = false; q.speed ||= 1.2; }
+    });
     this.onHit?.(p, severe, v);
     return true;
   }
@@ -331,6 +356,27 @@ export class ShibinCrowd {
     if (H.severe || H.keepDown !== false) { if (H.severe) this._victimStain(p, H); return; }
     if (H.vy === 0 && Math.hypot(H.vx, H.vz) < 0.2) H.rest += dt;
     if (H.rest > 3.5) { H.fall = Math.max(0, H.fall - dt * 2.5); if (H.fall === 0) { const lx = p.x, lz = p.z; p.hit = null; p.hitCool = 6; p.scared = 4; this._pos(p); p.ret = { tx: p.x, tz: p.z }; p.x = lx; p.z = lz; } }
+  }
+
+  /** بيجري على المصاب ويقف جنبه (بيبص عليه ويشاور) لحد ما الإسعاف تشيله، وبعدين يرجع مكانه */
+  _helpStep(p, dt) {
+    const H = p.help, v = H.v;
+    H.t += dt;
+    const gone = !v.on || !v.hit || H.t > 120;
+    const tx = gone ? H.home.x : v.x + Math.sin(H.a) * H.r, tz = gone ? H.home.z : v.z + Math.cos(H.a) * H.r;
+    const dx = tx - p.x, dz = tz - p.z, d = Math.hypot(dx, dz);
+    if (d > 0.12) {
+      const sp = Math.min(d, (gone ? 1.2 : 3.1) * dt);
+      p.x += dx / d * sp; p.z += dz / d * sp;
+      p.heading = Math.atan2(dx, dz); p.phase += dt * (gone ? 4.5 : 11);
+      H.moving = gone ? 0.8 : 1.5;
+    } else {
+      if (gone) { p.help = null; this._pos(p); p.ret = { tx: p.x, tz: p.z }; p.x = tx; p.z = tz; return; }
+      H.moving = 0;
+      const ty = Math.atan2(v.x - p.x, v.z - p.z); // بيبص على المصاب
+      p.heading += Math.atan2(Math.sin(ty - p.heading), Math.cos(ty - p.heading)) * Math.min(1, dt * 5);
+      p.phase += dt;
+    }
   }
 
   /** بعد ما قام: بيمشي (بيعرج) لمكانه على الرصيف بدل ما ينط له */

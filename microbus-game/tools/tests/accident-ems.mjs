@@ -3,6 +3,7 @@
 //   - خبطة خفيفة (≈15 كم/س): بيقع ويفضل واقع (مش بيقوم لوحده) والإسعاف بتيجي له؛ من غير بقعة
 //   - خبطة جامدة (≈45 كم/س): بيقع ويفضل نايم، بقعة صغيرة، الإسعاف بتيجي على الطريق، المسعفين بينزلوا،
 //     بيشيلوه على نقالة، والعربية بتمشي على مستشفى من البيانات؛ المرور بيقف قبل المصاب؛ الشرطة اتبلغت
+//   - الناس اللي حواليه (2 على الأقل) بيجروا عليه ويقفوا جنبه لحد ما الإسعاف تيجي
 //   node tools/tests/accident-ems.mjs [baseUrl]
 // =====================================================================
 const PW = process.env.PLAYWRIGHT || '/opt/node22/lib/node_modules/playwright/index.mjs';
@@ -23,7 +24,7 @@ const r = await page.evaluate(async () => {
   // نجيب ماشي على الرصيف قريب من الكاميرا ونحط العربية وراه جاية عليه
   const hitWith = async (kmh) => {
     tick(30);
-    const p = Cr.people.find((q) => q.on && !q.hit && !q.cross && !q.ret);
+    const p = Cr.people.find((q) => q.on && !q.hit && !q.cross && !q.ret && !q.help);
     const ph = g.player.physics;
     const yaw = p.heading + Math.PI; // جاية من قدامه
     const fx = Math.sin(yaw), fz = Math.cos(yaw);
@@ -51,6 +52,9 @@ const r = await page.evaluate(async () => {
   const B = await hitWith(45);
   out.severe = { hit: !!B.hit, severe: B.hit?.severe, police: g.incidents.state };
   tick(30 * 3);
+  out.severe.helpers = Cr.people.filter((q) => q.on && q.help?.v === B.p).length;
+  tick(30 * 4);
+  out.severe.helpersArrived = Cr.people.filter((q) => q.on && q.help?.v === B.p && Math.hypot(q.x - B.p.x, q.z - B.p.z) < 2).length;
   out.severe.lying = !!B.p.hit && B.p.hit.fall > 0.95; out.severe.stain = !!B.p.hit?.stain;
   out.severe.trafficStops = g.traffic.extraStops().some((z) => Math.hypot(z.x - B.p.x, z.z - B.p.z) < 1);
   // الإسعاف: لحد ما تمشي على المستشفى (لحد 3 دقايق)
@@ -70,7 +74,7 @@ const r = await page.evaluate(async () => {
 });
 await browser.close();
 const pass = r.minor.hit && r.minor.severe === false && r.minor.fell && r.minor.stillDown && r.minor.noStain && r.minor.dispatched >= 1 &&
-  r.severe.hit && r.severe.severe && r.severe.lying && r.severe.stain && r.severe.trafficStops && r.severe.police !== 'idle' &&
+  r.severe.hit && r.severe.severe && r.severe.helpersArrived >= 2 && r.severe.lying && r.severe.stain && r.severe.trafficStops && r.severe.police !== 'idle' &&
   r.ems.states.includes('drive') && r.ems.states.includes('medics') && r.ems.states.includes('leave') && r.ems.medicsSeen && r.ems.stretcher && r.ems.arrivedWithin < 9 && r.ems.victimRemoved && r.ems.facingForward && !errors.length;
 console.log(JSON.stringify({ ...r, errors }, null, 1));
 console.log(pass ? 'PASS accident-ems' : 'FAIL accident-ems');

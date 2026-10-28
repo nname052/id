@@ -203,7 +203,7 @@ export class Game {
     // حوادث المشاة + الإسعاف (شبين)
     if (this.crowd?.extras) {
       this.emergency = new Emergency(this.scene, { world: this.world, crowd: this.crowd, traffic: this.traffic, makeBody: (t) => this._makeCarBody(t, 0xffffff, {}), audio: this.audio, hud: this.hud });
-      this.traffic.extraStops = () => this.emergency.stopZones;
+      this.traffic.extraStops = () => { const a = this.emergency.stopZones, b = this.patrol?.stopZones; return b?.length ? [...a, ...b] : a; };
       this.traffic.extraSlows = () => this.police?.slowZones || [];
       this.crowd.onHit = (p, severe, v) => {
         this.audio?.thump?.(Math.min(1, v / 12));
@@ -518,7 +518,17 @@ export class Game {
     const P = this.passengers;
     if (P.mode !== 'line') return;
     if (P.onboard.length) { this.hud.toast('نزّل الركاب الأول قبل ما تغيّر الخط', 2.4); return; }
-    showLinePicker(P.lineOptions(), (i) => { if (P.selectLine(i)) this.startLineShift(); });
+    showLinePicker(P.lineOptions(), (i) => {
+      if (!P.selectLine(i)) return;
+      // أول اختيار (بداية اللعب) بس: العربية بتبدأ في الموقف. بعد كده تغيير الخط مش بينقل العربية —
+      // بتفضل مكانها والـ GPS بيوديك لأول الخط
+      if (!this._shiftStarted) { this._shiftStarted = true; this.startLineShift(); return; }
+      const st = P.lineStops?.[0], ph = this.player.physics;
+      if (!st) return;
+      this.userTarget = null; this._navT = 0;
+      const d = Math.hypot(st.mx - ph.x, st.mz - ph.z);
+      this.hud.toast(d < 40 ? `🚏 إنت في ${st.name} — أول الخط` : `🧭 الـ GPS هيوديك لأول الخط: ${st.name} (${d < 1000 ? Math.round(d / 10) * 10 + ' م' : (d / 1000).toFixed(1) + ' كم'})`, 3.2);
+    });
   }
 
   /** سقف الفريمات: على الموبايل 60/120 فريم = كارت شاشة شغال على الآخر = سخونية. الافتراضي 60 (أو 30 لو الجهاز مش ملاحق) */
@@ -712,6 +722,50 @@ export class Game {
     if (!P._liv) P._liv = applyLivery(P.rig, v); else P._liv(v);
   }
 
+  /**
+   * مكان العين اللي اتطلب (ظبط الكرسي) لازم يفضل جوه الكابينة: لو الكرسي لورا/لفوق أوي العين كانت بتطلع
+   * جوه جسم العربية (الشاشة كلها لون العربية — "شاشة خضرا") أو جوه مسند الكرسي، وأول ما تدوس بنزين الراس
+   * بترجع لورا كمان. بنمد شعاع من مكان العين الأصلي للمكان المطلوب ونقف قبل أي سطح، ونسيب مسافة أمان حواليها
+   * (لورا: قصور الراس مع البنزين، ولفوق، وللجناب).
+   */
+  _clearEye(rig, want) {
+    const par = rig.eye.parent;
+    par.updateWorldMatrix(true, false);
+    const meshes = [];
+    rig.root.traverse((o) => { if (o.isMesh && o.visible && o !== this.passengers?.seatedMesh) meshes.push(o); });
+    const sides = new Map();
+    for (const m of meshes) for (const mat of [].concat(m.material)) if (mat && !sides.has(mat)) { sides.set(mat, mat.side); mat.side = THREE.DoubleSide; }
+    const rc = (this._eyeRc ||= new THREE.Raycaster());
+    const W = (v) => v.clone().applyMatrix4(par.matrixWorld);
+    const hit = (fromL, dirL, len) => {
+      const a = W(fromL), b = W(fromL.clone().addScaledVector(dirL, len));
+      const d = b.sub(a); const L = d.length(); if (L < 1e-4) return null;
+      rc.set(a, d.divideScalar(L)); rc.far = L; rc.near = 0;
+      const h = rc.intersectObjects(meshes, false)[0];
+      return h ? h.distance / L * len : null;
+    };
+    const base = rig.eyeBase.clone(), pos = want.clone();
+    try {
+      // 1) من العين الأصلية للمكان المطلوب: نقف قبل أول سطح بـ 8 سم
+      const dir = pos.clone().sub(base), len = dir.length();
+      if (len > 1e-3) { dir.divideScalar(len); const t = hit(base, dir, len + 0.08); if (t !== null) pos.copy(base).addScaledVector(dir, Math.max(0, t - 0.08)); }
+      // 2) مسافة أمان: لورا 12 سم (الراس بترجع مع البنزين)، فوق 10، الجناب 9، قدام 6
+      const M = [[new THREE.Vector3(0, 0, 1), 0.12], [new THREE.Vector3(0, 1, 0), 0.1], [new THREE.Vector3(1, 0, 0), 0.09], [new THREE.Vector3(-1, 0, 0), 0.09], [new THREE.Vector3(0, 0, -1), 0.06]];
+      //    (الدفع عمره ما يعدّي مكان العين الأصلي: الوضع الافتراضي زي ما هو)
+      for (let it = 0; it < 2; it++) for (const [d, m] of M) {
+        const t = hit(pos, d, m); if (t === null) continue;
+        for (const ax of ['x', 'y', 'z']) {
+          if (!d[ax]) continue;
+          const nv = pos[ax] - d[ax] * (m - t);
+          pos[ax] = d[ax] > 0 ? Math.max(nv, Math.min(base[ax], pos[ax])) : Math.min(nv, Math.max(base[ax], pos[ax]));
+        }
+      }
+    } finally {
+      for (const [mat, s] of sides) mat.side = s;
+    }
+    return pos;
+  }
+
   /** تطبيق إعداد (عند البداية ولما يتغير من اللوحة) */
   _applySetting(k, v) {
     switch (k) {
@@ -724,7 +778,7 @@ export class Game {
         if (rig.eyeBase) {
           const o = { near: [-0.16, -0.03], normal: [0, 0], back: [0.14, 0.04] }[this.settings.get('seat')] || [0, 0];
           const h = (this.settings.get('seatH') || 0) / 100, zf = (this.settings.get('seatZ') || 0) / 100;
-          rig.eye.position.set(rig.eyeBase.x, rig.eyeBase.y + o[1] + h, rig.eyeBase.z + o[0] + zf);
+          rig.eye.position.copy(this._clearEye(rig, new THREE.Vector3(rig.eyeBase.x, rig.eyeBase.y + o[1] + h, rig.eyeBase.z + o[0] + zf)));
         }
         break;
       }

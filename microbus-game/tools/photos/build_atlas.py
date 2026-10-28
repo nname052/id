@@ -77,9 +77,20 @@ def tileable(im, blend=0.22):
     return Image.composite(im, off, mask)
 
 
+def flatten(im, radius):
+    """بيشيل تدرّج الإضاءة الكبير في الصورة (ضل/شمس/بُعد الكاميرا) ويسيب التفاصيل: الخامة لما تتكرر
+    ماتطلعش مربعات فاتحة وغامقة (كانت باينة زي رقعة شطرنج على سطح الكوبري)"""
+    import numpy as np
+    a = np.asarray(im).astype(np.float32)
+    low = np.asarray(im.filter(ImageFilter.GaussianBlur(radius))).astype(np.float32)
+    out = a / np.maximum(low, 1) * low.reshape(-1, 3).mean(0)
+    return Image.fromarray(np.clip(out, 0, 255).astype(np.uint8))
+
+
 def ground(im, target, sat):
     """أرضيات (أسفلت/رصيف): من غير autocontrast (بيطلّع ألوان غريبة من التشويش) — تنعيم خفيف + تشبع أقل + إضاءة"""
     from PIL import ImageEnhance
+    im = flatten(im, im.size[0] / 10)
     im = im.filter(ImageFilter.GaussianBlur(0.8))
     im = ImageEnhance.Color(im).enhance(sat)
     m = sum(ImageStat.Stat(im.convert('L')).mean) / 255

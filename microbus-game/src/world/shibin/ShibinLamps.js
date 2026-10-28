@@ -66,7 +66,7 @@ export class ShibinLamps {
           if (seen.has(key)) continue;
           seen.add(key);
           // الدراع بيبص ناحية الشارع
-          const L = { x, z, y: e.elevated ? q.y : 0.15, ax: -nx * side, az: -nz * side, elevated: e.elevated, ok: e.elevated ? true : undefined, col: false };
+          const L = { x, z, y: e.elevated ? q.y : 0.15, ax: -nx * side, az: -nz * side, elevated: e.elevated, edge: e.src, ok: undefined, col: false };
           this.lamps.push(L);
           const ck = Math.floor(x / CELL) * 100003 + Math.floor(z / CELL);
           let a = this.grid.get(ck); if (!a) this.grid.set(ck, (a = [])); a.push(L);
@@ -129,7 +129,9 @@ export class ShibinLamps {
           // أول مرة المربع يبقى جاهز: لازم يكون على رصيف حقيقي (مش مدخل/ترعة/أسفلت)
           const T = W.tiles.get(W._tkey(Math.floor(L.x / W.TS), Math.floor(L.z / W.TS)));
           if (!T || !T.ready) continue;
-          L.ok = Math.abs(W.height(L.x, L.z, 0) - 0.15) < 0.01;
+          // على الكوبري: الدروة بتاعته — بس مش لو المكان ده هو نفسه سطح كوبري تاني لازق فيه
+          // (الاتجاهين قريبين من بعض/مكان تفرّع المطلع: العمود كان بيطلع في نص الحارة اللي جنبه)
+          L.ok = L.elevated ? !W._onOtherDeck(L.x, L.z, L.edge) : Math.abs(W.height(L.x, L.z, 0) - 0.15) < 0.01;
         }
         if (!L.ok) continue;
         // (اللي على الكوبري مالوش collider: الدروة نفسها بتمنع)
