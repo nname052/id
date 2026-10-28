@@ -256,9 +256,10 @@ export class ShibinTraffic {
   /** حارة تانية في نفس الاتجاه لو الطريق فيه أكتر من حارة (للتخطي) — بيرجّع الإزاحات المتاحة */
   _laneSet(e) {
     if (!e.oneway) return (e.lanes || 2) >= 4 ? [0.25 * e.half, 0.75 * e.half] : null;
-    const n = Math.max(1, e.lanes || 1);
+    const lo = e.laneLo ?? -e.half, w = (e.laneHi ?? e.half) - lo; // (من غير الحتة اللي داخلة في الاتجاه العكسي)
+    const n = this._laneCount(e, w);
     if (n < 2) return null;
-    const out = []; for (let k = 0; k < n; k++) out.push(-e.half + (k + 0.5) * (e.width / n));
+    const out = []; for (let k = 0; k < n; k++) out.push(lo + (k + 0.5) * (w / n));
     return out;
   }
 
@@ -370,11 +371,13 @@ export class ShibinTraffic {
       if ((e.lanes || 2) >= 4) return (this.R() < 0.5 ? 0.25 : 0.75) * e.half;
       return Math.max(1.0, Math.min(2.2, e.half * 0.5));
     }
-    const n = Math.max(1, e.lanes || 1);
-    if (n === 1) return 0;
-    const k = Math.floor(this.R() * n);
-    return -e.half + (k + 0.5) * (e.width / n);
+    const lo = e.laneLo ?? -e.half, w = (e.laneHi ?? e.half) - lo, n = this._laneCount(e, w);
+    if (n === 1) return lo + w / 2;
+    return lo + (Math.floor(this.R() * n) + 0.5) * (w / n);
   }
+
+  /** عدد الحارات اللي تساع فعلًا (الحارة ≥ 2.7م): الاتجاه اللي اتزنق بالاتجاه العكسي ممكن يبقى حارة واحدة */
+  _laneCount(e, w) { return Math.max(1, Math.min(e.lanes || 1, Math.floor(w / 2.7))); }
 
   /** نقطة على وصلة باتجاه السير (s من أول اتجاه السير) + إزاحة الحارة */
   _at(e, dir, s, off, out) {

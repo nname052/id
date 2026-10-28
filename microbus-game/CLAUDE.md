@@ -13,6 +13,8 @@
 - `python3 tools/osm/roundabouts.py tools/osm/roundabouts_overpass.json` — OSM roundabout islands (grass/kerb/palms)
   into features.json; removes buildings inside the rings.
 - `python3 tools/osm/unify_ramps.py` (run 4×) — both carriageways of a ramp share one height where their decks overlap.
+- `python3 tools/osm/smooth_ramps.py` — ramps rise monotonically + vertical curves (no 4 m "saw-tooth"), twins kept
+  together; deck heights are then copied from the graph (physics = drawn surface).
 - `python3 tools/osm/audit_buildings.py --fix` — shrinks/removes building rectangles that touch asphalt/sidewalk/decks.
 - `python3 tools/osm/clean_sidewalks.py` — paves the sidewalk "spikes" inside junctions (convex hull of the junction asphalt).
 - `python3 tools/osm/audit_buildings.py --fix-real` — pulls real OSM footprints off widened asphalt; without flags it
@@ -40,6 +42,10 @@
   front; `tools/tests/hiace-front.mjs` fails if interior shows through the body again.
 - **Cockpit camera** (`CameraSystem.js`): `fovH` is horizontal FOV; horizon uses `player.groundPitch/groundRoll`
   + partial suspension (`MOTION` table). `tools/tests/cockpit-view.mjs` checks cabin %, road visibility, horizon roll.
+- **Deck height** (`ShibinWorld.height`): past a segment end the height follows the segment's slope (≤1.5 m), not the
+  clamped end height — the clamped value + the neighbour blend made a bump every 4 m on ramps.
+- **Twin one-way carriageways** (bridge: OSM lines 5–7 m apart, 8 m wide): `edge.laneLo/laneHi` (ShibinData) keep traffic
+  lanes out of the opposite direction; static-wall side scrapes are not a "crash" (Game onImpact).
 - **Canal water**: the ground plane (y≈0) covers the water (y=-0.55). Water draws first (renderOrder -3), then a
   depth-only "cut" over the canal (renderOrder -2), then the ground. Keep that order or the canal disappears up close.
 - **Photo textures**: never add photos without author/licence in `sources.json`; Google Maps/Earth/Street View are not allowed.

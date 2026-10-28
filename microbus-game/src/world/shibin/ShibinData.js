@@ -56,6 +56,32 @@ export function buildGraph(G) {
     const cz0 = Math.floor(Math.min(a.z, b.z) / CELL), cz1 = Math.floor(Math.max(a.z, b.z) / CELL);
     for (let cx = cx0; cx <= cx1; cx++) for (let cz = cz0; cz <= cz1; cz++) { const kk = key(cx, cz); let arr = grid.get(kk); if (!arr) grid.set(kk, (arr = [])); arr.push(e, i); }
   }
+  // الاتجاهين المتداخلين (الكوبري العلوي: خطين OSM بينهم 5-7م وكل واحد عرضه 8م): الحارة الجوانية للاتجاه ده
+  // كانت لازقة في الحارة الجوانية للاتجاه العكسي (متر بينهم) = خبط وش في وش فوق الكوبري → الركاب يتخضوا وينزلوا.
+  // بنحسب لكل وصلة اتجاه واحد عرضها الفعلي لحد نص المسافة للاتجاه التاني (laneLo..laneHi = إزاحة يمين السير)
+  for (const e of edges) {
+    e.laneLo = -e.half; e.laneHi = e.half;
+    if (!e.oneway) continue;
+    for (let i = 0; i < e.pts.length - 1; i++) {
+      const a = e.pts[i], b = e.pts[i + 1], L = Math.hypot(b.x - a.x, b.z - a.z) || 1, dx = (b.x - a.x) / L, dz = (b.z - a.z) / L;
+      const x = (a.x + b.x) / 2, z = (a.z + b.z) / 2, y = (a.y + b.y) / 2;
+      for (let gx = -1; gx <= 1; gx++) for (let gz = -1; gz <= 1; gz++) {
+      const arr = grid.get(key(Math.floor(x / CELL) + gx, Math.floor(z / CELL) + gz)) || [];
+      for (let k = 0; k < arr.length; k += 2) {
+        const o = arr[k]; if (o === e || !o.oneway) continue;
+        const p = o.pts[arr[k + 1]], q = o.pts[arr[k + 1] + 1], ol = Math.hypot(q.x - p.x, q.z - p.z) || 1;
+        if (((q.x - p.x) * dx + (q.z - p.z) * dz) / ol > -0.8) continue; // نفس الاتجاه/تقاطع
+        const ex = q.x - p.x, ez = q.z - p.z, tt = Math.max(0, Math.min(1, ((x - p.x) * ex + (z - p.z) * ez) / (ol * ol)));
+        const cx = p.x + ex * tt, cz = p.z + ez * tt, cy = p.y + (q.y - p.y) * tt;
+        const d = Math.hypot(cx - x, cz - z);
+        if (d > e.half + o.half + 0.6 || Math.abs(cy - y) > 1.5) continue;
+        const side = (cx - x) * -dz + (cz - z) * dx; // + = ناحية الإزاحة الموجبة
+        const room = Math.max(1.6, d / 2 - 0.25);
+        if (side > 0) e.laneHi = Math.min(e.laneHi, room); else e.laneLo = Math.max(e.laneLo, -room);
+      }
+      }
+    }
+  }
   return { nodes, edges, grid, CELL, key, names: G.names };
 }
 

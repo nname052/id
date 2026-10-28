@@ -212,8 +212,9 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
         for (let gi = x0; gi <= x1; gi++) for (let gj = z0; gj <= z1; gj++) {
           const k = gi * 100003 + gj; let arr = this.deckGrid.get(k); if (!arr) this.deckGrid.set(k, (arr = [])); arr.push(sgm);
         }
-        // الرسم: الجزء الواطي بس (العالي متبني في المربع)
-        if (Math.max(a.y, b.y) > 0.45 || Math.max(a.y, b.y) < 0.005) continue;
+        // الرسم: الجزء الواطي بس (العالي متبني في المربع) — لحد 1م: سطح الكوبري المرسوم بقى بيبدأ من ارتفاع
+        // الشبكة نفسه (smooth_ramps.py) فرجله ممكن تبقى على 0.6-1م؛ التداخل معاه مش باين (نفس الارتفاع + 1سم)
+        if (Math.min(a.y, b.y) > 1.05 || Math.max(a.y, b.y) < 0.005) continue;
         const dx = b.x - a.x, dz = b.z - a.z, L = Math.hypot(dx, dz) || 1, rx = -dz / L * hw, rz = dx / L * hw;
         const k = pos.length / 3;
         pos.push(a.x - rx, a.y + 0.012, a.z - rz, a.x + rx, a.y + 0.012, a.z + rz, b.x + rx, b.y + 0.012, b.z + rz, b.x - rx, b.y + 0.012, b.z - rz);
@@ -621,10 +622,13 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
       const cand = this._cand || (this._cand = []); cand.length = 0;
       for (const s of segs) {
         const ex = s.bx - s.ax, ez = s.bz - s.az, l2 = ex * ex + ez * ez || 1e-9;
-        const t = Math.max(0, Math.min(1, ((x - s.ax) * ex + (z - s.az) * ez) / l2));
+        const tr = ((x - s.ax) * ex + (z - s.az) * ez) / l2, t = Math.max(0, Math.min(1, tr));
         const d = Math.hypot(x - (s.ax + ex * t), z - (s.az + ez * t));
         if (d > s.hw) continue;
-        let h = s.ay + (s.by - s.ay) * t;
+        // الارتفاع بعد طرف القطعة (لحد 1.5م) = امتداد ميلها مش ارتفاع الطرف: التنعيم تحت كان بيخلط ارتفاع الطرف
+        // الثابت مع القطعة اللي بعدها = تموّج كل 4م في المطلع (العربية بتتنطط وهي طالعة)
+        const te = Math.max(-1.5 / Math.sqrt(l2), Math.min(1 + 1.5 / Math.sqrt(l2), tr));
+        let h = s.ay + (s.by - s.ay) * te;
         // أول المطلع (واطي): حرفه الجانبي منحدر ناعم مش عتبة (لو حارة شارع جنبه بتلمسه)
         // (عرض الحرف الناعم 1.2م مش 3م: الـ 3م كان بيعمل ميل جانبي تحت العجل اللي ماشية جنب السور → انقلاب)
         // (التنعيم بيقل تدريجيًا بين 0.4 و 1م — كان بيتقطع فجأة عند 0.5 = عتبة 10سم في الكباري الصغيرة)

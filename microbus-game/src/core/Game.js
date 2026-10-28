@@ -378,7 +378,11 @@ export class Game {
       this._hitT = now; this._hitV = v;
       this.audio.impact(v); this.cams && (this.cams.shake = Math.min(1.5, v / 4));
       // خبطة جامدة (≈ 30 كم/س في حاجة) → حادثة: الركاب بيخافوا والشرطة جاية (مش في السباق، ومش عربية الشرطة نفسها وهي بتطاردك)
-      if (v >= 8.5 && this.started && other !== this.incidents?.col) this.incidents?.trigger('crash', ph, this.player.kind);
+      // (حكّة بالجنب في سور/حيطة ثابتة — زي سور الكوبري وانت ماشي جنبه — مش حادثة: لازم الخبطة تبقى بالوش/الضهر
+      //  أو جامدة أوي ≈ 43 كم/س عمودي على السور. كانت الركاب بينزلوا يجروا من حكّة في سور الكوبري)
+      const [fx, fz] = ph.forward, headOn = nx === undefined || Math.abs(fx * nx + fz * nz) > 0.6;
+      const crash = v >= 8.5 && (other?.mass || headOn || v >= 12);
+      if (crash && this.started && other !== this.incidents?.col) this.incidents?.trigger('crash', ph, this.player.kind);
       if (this.player.damage && nx !== undefined && v >= 2.2) {
         const q = this._dmgQ;
         if (!q || v > q[5]) this._dmgQ = [px, ph.heave - ph.spec.cgHeight + 0.65, pz, nx, nz, v];
