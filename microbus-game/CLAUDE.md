@@ -12,6 +12,7 @@
   Footprints, ODbL, quadkey 122121120 filtered to the city bbox) replace the generated buildings inside the city.
 - `python3 tools/osm/roundabouts.py tools/osm/roundabouts_overpass.json` — OSM roundabout islands (grass/kerb/palms)
   into features.json; removes buildings inside the rings.
+- `python3 tools/osm/unify_ramps.py` (run 4×) — both carriageways of a ramp share one height where their decks overlap.
 - `python3 tools/osm/audit_buildings.py --fix` — shrinks/removes building rectangles that touch asphalt/sidewalk/decks.
 - `python3 tools/osm/clean_sidewalks.py` — paves the sidewalk "spikes" inside junctions (convex hull of the junction asphalt).
 - `python3 tools/osm/audit_buildings.py --fix-real` — pulls real OSM footprints off widened asphalt; without flags it

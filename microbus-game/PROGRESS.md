@@ -331,3 +331,10 @@ Legend: [x] done + covered by a test · [~] partial · [!] limitation / needs th
 - [!] Governorate HQ (ديوان عام محافظة المنوفية): no location in OSM, Nominatim or Wikidata, and no geotagged Commons
       photo → not placed (news only says a new HQ is planned on أرض المهبط, حي شرق). Needs a location from the user.
 - Tests: default-map, city-life, street-kit, bridge-audit, living-city, boarding, accident-ems, tier-perf, visual-tour PASS.
+
+## v18 (bridge ramp "high piece / low piece")
+- [x] Both ramps of كوبرى شبين العلوي: the two carriageways' decks overlap side by side but rose at different rates →
+      in the overlap strip two surfaces up to 1.07 m (west, edges 3987/4016) and 0.71 m (east, 3988/3990) apart; a car
+      on the seam sat half high / half low. `tools/osm/unify_ramps.py` gives both the same height where they overlap
+      (blend over 3 m, endpoints fixed, slope capped at 8%), decks + road-graph heights. Max step now 0.12 m (foot of
+      the west ramp), max grade 8.0%. bridge-audit PASS, road-surface 13 drives / 0 steps / 0 flips.
