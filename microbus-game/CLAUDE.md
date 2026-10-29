@@ -7,7 +7,7 @@
 - **Other Egyptian cities (v20)**: 26 governorate capitals (`src/world/maps.js`, picker on the start screen, `?map=<id>`).
   Same code (`ShibinWorld` with `id`), data built by `tools/osm/egypt/build_city.sh <id>` (Egypt PBF from
   download.openstreetmap.fr → `osmium extract` per city in `../data/osm/egypt/cities`, configs from `make_configs.py`,
-  MS footprints from `fetch_ms.py`) into `../data/cities/<id>` (raw, not in git), then `pack_city.py` → 5 gzip files in
+  MS footprints from `fetch_ms.py`) into `../data/cities/<id>` (raw, not in git), then `pack_city.py` → 5 gzip+base64 .txt files in
   `public/packs/<id>/` (the Artifact allows 511 files). `ShibinData.loadJSON` reads packs transparently (`usePacks`).
   Everything Shibin-specific must stay behind `world.id === 'shibin'` or a landmark lookup (`mainStation()`).
 - Published as a claude.ai Artifact (`dist/index.html` + `files` map). GLB models are base64-inlined in the JS

@@ -6,7 +6,7 @@ LIST=$(python3 -c "import json;print(' '.join(c['id'] for c in json.load(open('t
 [ "$1" = "rev" ] && LIST=$(echo $LIST | tr ' ' '\n' | tac | tr '\n' ' ')
 LOCK=$(cd .. && pwd)/data/locks; mkdir -p $LOCK
 for c in $LIST; do
-  [ -f public/packs/$c/base.bin ] && continue
+  [ -f public/packs/$c/base.txt ] && continue
   mkdir $LOCK/$c 2>/dev/null || continue
   echo "### $c $(date +%T)"
   sh tools/osm/egypt/build_city.sh $c 2>&1 | grep -E "^\{\"(region|ms_footprints|buildings)|done|Error|Traceback|Exception" | tail -4
