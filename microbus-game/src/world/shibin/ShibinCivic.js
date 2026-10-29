@@ -32,8 +32,15 @@ const STYLES = {
   hotel: { wall: '#efe7d6', trim: '#c2b28f', win: '#3d5566', frame: '#ffffff', sign: ['#5b2a6b', '#fff'] },
   apartments: { wall: '#d8c3a5', trim: '#a8916f', win: '#3a3a3a', balcony: true, sign: null },
   default: { wall: '#ddd2bd', trim: '#b0a083', win: '#3c4c58', sign: ['#2d4f6b', '#fff'] },
+  // آثار/قلاع/جوامع قديمة: حجر جيري بشبابيك صغيرة مقوسة
+  stone: { wall: '#c8ad80', trim: '#a88b5f', win: '#3a2e24', arch: true, sign: ['#5a4630', '#fff'] },
 };
-const KIND = (k) => (k === 'yes' ? 'mall' : STYLES[k] ? k : 'default');
+// building=yes (أغلب مباني القاهرة/إسكندرية في OSM) = عمارة سكني — كانت بتطلع مول زجاج أزرق.
+// المول/المكاتب الحقيقية بس بالزجاج
+const MAP = { yes: 'apartments', residential: 'apartments', house: 'apartments', commercial: 'mall', retail: 'mall', office: 'mall', supermarket: 'mall',
+  mosque: 'stone', church: 'stone', cathedral: 'stone', castle: 'stone', fort: 'stone', ruins: 'stone', temple: 'stone', palace: 'stone',
+  university: 'school', college: 'school', train_station: 'train_station', hotel: 'hotel', school: 'school' };
+const KIND = (k) => MAP[k] || (STYLES[k] ? k : 'default');
 const matCache = new Map();
 function facadeMat(kind) {
   if (matCache.has(kind)) return matCache.get(kind);
@@ -106,8 +113,11 @@ export function styledRealBuilding(rb, W) {
   // السطح + دروة
   const rp = [], ri = [];
   const k0 = 0; for (let i = 0; i < rb.v.length; i += 2) rp.push(rb.v[i], h, rb.v[i + 1]);
-  for (let i = 0; i < rb.i.length; i += 3) ri.push(k0 + rb.i[i], k0 + rb.i[i + 2], k0 + rb.i[i + 1], k0 + rb.i[i], k0 + rb.i[i + 1], k0 + rb.i[i + 2]);
-  const rg = new THREE.BufferGeometry(); rg.setAttribute('position', new THREE.Float32BufferAttribute(rp, 3)); rg.setIndex(ri); rg.computeVertexNormals();
+  // (كان كل مثلث مرسوم بالاتجاهين + computeVertexNormals → النورمال بيلغي بعضه = سطوح سودا. دلوقتي وش واحد
+  //  ونورمال لفوق صريح، والخامة DoubleSide)
+  for (let i = 0; i < rb.i.length; i += 3) ri.push(k0 + rb.i[i], k0 + rb.i[i + 2], k0 + rb.i[i + 1]);
+  const rg = new THREE.BufferGeometry(); rg.setAttribute('position', new THREE.Float32BufferAttribute(rp, 3)); rg.setIndex(ri);
+  rg.setAttribute('normal', new THREE.Float32BufferAttribute(new Float32Array(rp.length).map((_, j) => (j % 3 === 1 ? 1 : 0)), 3));
   group.add(new THREE.Mesh(rg, new THREE.MeshStandardMaterial({ color: 0x8f8a82, roughness: 0.95, side: THREE.DoubleSide })));
   // اليافطة باسمها (الاسم من OSM بس؛ من غير اسم = من غير يافطة)
   const name = rb.name || (kind === 'train_station' ? 'محطة قطار' : null);

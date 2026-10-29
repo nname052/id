@@ -115,7 +115,7 @@ export class Game {
     // ===== شبين الكوم الحقيقية: المربعات بتتحمل حوالين اللاعب، والأرض والـ GPS من نفس البيانات =====
     const t0 = performance.now();
     if (this.map.packed) usePacks(this.mapId);
-    this.world = await new ShibinWorld(this.M, { id: this.mapId, name: this.map.name, water: this.map.water, spawn: this.map.spawn, assets: this.assets, low: this.mobile, tier: this.saverBoot ? 'low' : this.tier }).init(S);
+    this.world = await new ShibinWorld(this.M, { id: this.mapId, name: this.map.name, water: this.map.water, spawn: this.map.spawn, ground: this.map.ground, assets: this.assets, low: this.mobile, tier: this.saverBoot ? 'low' : this.tier }).init(S);
     this.scene.add(this.world.group);
     this.route = this.world;
     setGroundProvider(this.world);

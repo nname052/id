@@ -39,6 +39,19 @@ function stoneTex() {
   return _stone;
 }
 
+/** UV بالمتر حسب اتجاه الوش (الحجر مايتمطش على الحيطان الطويلة): كل s متر = تكرار واحد للخامة */
+function worldUV(g, s = 12.8, ox = 0, oz = 0) {
+  const p = g.attributes.position, n = g.attributes.normal, uv = new Float32Array(p.count * 2);
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i) + ox, y = p.getY(i), z = p.getZ(i) + oz, ax = Math.abs(n.getX(i)), ay = Math.abs(n.getY(i)), az = Math.abs(n.getZ(i));
+    if (ay > ax && ay > az) { uv[i * 2] = x / s; uv[i * 2 + 1] = z / s; }
+    else if (ax > az) { uv[i * 2] = z / s; uv[i * 2 + 1] = y / s; }
+    else { uv[i * 2] = x / s; uv[i * 2 + 1] = y / s; }
+  }
+  g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  return g;
+}
+
 /** القاعدة: أصغر مستطيل حوالين المضلع على اتجاه أطول ضلع (الأهرامات متوجهة للشمال تقريبًا) */
 function obb(fp) {
   let best = null;
@@ -177,8 +190,7 @@ export function buildMonuments(W, group) {
       P.push(new THREE.BoxGeometry(8.5, 9, 8.2).translate(len * 0.25, 18.5, 0));                      // الراس
       P.push(new THREE.BoxGeometry(5.5, 7, 11.5).translate(len * 0.23, 17.5, 0));                     // غطا الراس (النمس)
       P.push(new THREE.BoxGeometry(2.2, 2.8, 2.6).translate(len * 0.31, 17.5, 0));                    // الوش لقدام
-      const g = mergeGeometries(P.map((q) => q.toNonIndexed()));
-      const uv = g.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 0.6, uv.getY(i) * 0.5);
+      const g = worldUV(mergeGeometries(P.map((q) => q.toNonIndexed())), 6.4);
       const m = new THREE.Mesh(g, stone); m.position.set(cx, 0, cz); m.rotation.y = ang; add(m, 'sphinx');
       W._addCollider({ cx, cz, hx: len / 2, hz: 8, angle: ang, restitution: 0.1, kind: 'building' }, null);
       zone(cx, cz, len / 2 + 3, 10, ang, l.footprint);
@@ -220,7 +232,9 @@ export function buildMonuments(W, group) {
       continue;
     }
     // ===== قلعة قايتباي =====
-    if (/قلعة قايتباي/.test(name) && l.footprint?.length >= 4) {
+    if (/قلعة قايتباي/.test(name)) {
+      // (لو المعلم جه من علاقة من غير مضلع: سور 140×120م حوالين مكانه — مقاس القلعة الحقيقي تقريبًا)
+      if (!(l.footprint?.length >= 4)) l.footprint = [[-70, -60], [70, -60], [70, 60], [-70, 60], [-70, -60]].map(([x, z]) => [l.x + x, l.z + z]);
       const b = obb(l.footprint); if (!b) continue;
       const P = [], ang = -b.ang;
       // السور الخارجي على حدود المضلع (12م) + البرج الأوسط (17م، 30×30) بأبراج مدورة في الأركان
@@ -235,7 +249,7 @@ export function buildMonuments(W, group) {
       for (const sx of [-1, 1]) for (const sz of [-1, 1]) K.push(new THREE.CylinderGeometry(3.4, 3.6, 19, 14).translate(sx * keep / 2, 9.5, sz * keep / 2));
       K.push(new THREE.CylinderGeometry(1.3, 1.5, 9, 8).translate(0, 21.5, 0)); // المئذنة الصغيرة فوق
       const keepG = mergeGeometries(K.map((q) => q.toNonIndexed())).rotateY(ang).translate(b.cx - l.x, 0, b.cz - l.z);
-      const m1 = new THREE.Mesh(mergeGeometries(P.map((q) => q.toNonIndexed()).concat([keepG])), stone);
+      const m1 = new THREE.Mesh(worldUV(mergeGeometries(P.map((q) => q.toNonIndexed()).concat([keepG])), 6.4), stone);
       m1.position.set(l.x, 0, l.z); add(m1, 'qaitbay');
       W._addCollider({ cx: b.cx, cz: b.cz, hx: keep / 2 + 3, hz: keep / 2 + 3, angle: ang, restitution: 0.1, kind: 'building' }, null);
       zone(b.cx, b.cz, b.hw, b.hd, ang, l.footprint);
@@ -243,8 +257,8 @@ export function buildMonuments(W, group) {
       continue;
     }
     // ===== مكتبة الإسكندرية =====
-    if (/^مكتبة الإسكندرية$/.test(name) && l.footprint?.length >= 4) {
-      let r = 0; for (const [x, z] of l.footprint) r = Math.max(r, Math.hypot(x - l.x, z - l.z));
+    if (/^مكتبة الإسكندرية$/.test(name)) {
+      let r = l.footprint ? 0 : 80; for (const [x, z] of l.footprint || []) r = Math.max(r, Math.hypot(x - l.x, z - l.z));
       r = Math.min(r, 85);
       const disc = new THREE.CylinderGeometry(r, r, 2, 48).rotateX(THREE.MathUtils.degToRad(16)).translate(0, 16, 0); // القرص المايل للشمال
       const drum = new THREE.CylinderGeometry(r * 0.98, r * 0.98, 16, 48, 1, true).translate(0, 8, 0);
@@ -253,7 +267,7 @@ export function buildMonuments(W, group) {
       const a = new THREE.Mesh(disc, rm), d = new THREE.Mesh(drum, wm);
       for (const m of [a, d]) { m.position.set(l.x, 0, l.z); add(m, 'bibliotheca'); }
       W._addCollider({ cx: l.x, cz: l.z, hx: r * 0.7, hz: r * 0.7, angle: 0, restitution: 0.1, kind: 'building' }, null);
-      zone(l.x, l.z, r, r, 0, l.footprint);
+      zone(l.x, l.z, r, r, 0, l.footprint || [[-r, -r], [r, -r], [r, r], [-r, r], [-r, -r]].map(([x, z]) => [l.x + x, l.z + z]));
       out.push({ name, kind: 'library' });
     }
   }

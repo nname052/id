@@ -369,3 +369,24 @@ Legend: [x] done + covered by a test · [~] partial · [!] limitation / needs th
       sidewalk). Kenney car kit (CC0) was tried and rejected: toy proportions don't fit the game.
 - [x] Shop signs were mirrored (UVs reversed on both faces) — now readable.
 - [!] "All of Egypt" at building level doesn't fit (≈1M km²; Artifact ≤256 MB): each capital's centre (~16 km²).
+
+## v21 (governorate liveries, monuments, wider big cities, real-model pipeline)
+- [x] Taxi + microbus colours per governorate (`maps.js` taxi {body, accent, style}): Cairo/Giza white + black checker,
+      Alexandria black with yellow doors, Port Said white/blue, Kafr El Sheikh white/yellow, Menoufia green/yellow,
+      Ismailia orange/white (sources conflict); others: white + checker (unverified). Microbus "لون المحافظة" = white
+      with the governorate colour stripe + city name (Shibin keeps the real turquoise). Player taxi (Seal) + traffic sedans.
+- [x] Wider maps: Giza 10.6×7 km (pyramids, Sphinx, GEM, Moneeb), Cairo 6.5×5 (Ramses, Egyptian Museum, Cairo Tower,
+      Citadel, Azhar), Alexandria 8.6×7.5 (whole corniche Qaitbay→Stanley), Luxor 9.4×7 (temples + airport),
+      Hurghada 6×8.6 (airport), Aswan 4.6×5. Spawn hints (Alex: Raml station; Giza: pyramids; Luxor: temple).
+- [x] Monuments (`Monuments.js`): pyramids from OSM footprints + known heights, Sphinx, Cairo Tower, Pompey's Pillar,
+      Qaitbay, Bibliotheca; airports from OSM runways/taxiways. OSM buildings inside a monument are not drawn twice.
+- [x] Fixes found on the way: sky box stayed at the origin (black sky >2 km away — big cities); OSM `building=yes`
+      drawn as blue glass malls (now apartments; castles/mosques stone); real-building roofs black (double-sided
+      triangles + averaged normals); desert ground for desert/coastal cities; base pack released after load.
+- [x] Real models: ToxSam repos checked (all stylised/fantasy → rejected for near-player use), Kenney (toy) rejected,
+      CGTrader/BlendSwap need login. Sketchfab CC BY candidates verified by API (Lanos, Verna, Sunny, Bajaj tuk-tuk,
+      Sphinx, Cairo Tower, Muhammad Ali Mosque); `tools/models/sketchfab.mjs` downloads + re-checks licence + simplifies
+      (gltf-transform) + writes credits — needs `SKETCHFAB_API_TOKEN`. Game code ready (`realTrafficCar`, monuments).
+- [x] ambientCG Asphalt031 (CC0) normal/roughness on the asphalt.
+- [!] Big-city load (SwiftShader): Giza ~35 s, heap ~255 MB on the mobile profile (Shibin 139 MB). Real devices not measured.
+- Audit: `docs/AUDIT.md` (`tools/osm/egypt/audit_cities.py`).

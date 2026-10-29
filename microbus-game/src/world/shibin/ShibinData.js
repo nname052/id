@@ -40,18 +40,26 @@ async function readPack(url, keep = false) {
   return p;
 }
 async function fromPack(P, rel) {
-  const base = await readPack(P.dir + 'base.txt', true);
   const m = /^\w+\/t_(-?\d+)_(-?\d+)\.json$/.exec(rel);
-  let obj = base;
+  // الفهرس (أنهي مربع في أنهي ملف) بيتخزن لوحده — الملف الكبير بيتشال من الذاكرة بعد البناء (releaseBase)
+  let obj = null;
+  if (!m || !P.index) { obj = await readPack(P.dir + 'base.txt', true); P.index = obj.pack; }
   if (m) {
-    const { group, off } = base.pack;
+    const { group, off } = P.index, pk = P.index.packs;
     const name = `p_${Math.floor((+m[1] + off) / group)}_${Math.floor((+m[2] + off) / group)}`;
-    if (!base.pack.packs.includes(name)) throw new Error(`404 ${rel}`);
+    if (!pk.includes(name)) throw new Error(`404 ${rel}`);
     obj = await readPack(P.dir + name + '.txt');
   }
   if (!(rel in obj)) throw new Error(`404 ${rel}`);
   const v = obj[rel];
   return typeof v === 'string' ? JSON.parse(v) : v; // (المربعات متخزنة نص: بتتفك لما تتطلب بس)
+}
+
+/** بعد ما الخريطة تتبني: الملفات الكبيرة اللي اتقرت مرة (الشبكة 40 ألف وصلة في الجيزة ≈ 40م.ب في الذاكرة)
+ *  بتتشال من الكاش — المربعات بتفضل بتتقري من الـ packs عادي (الفهرس متخزن لوحده) */
+export function releaseBase() {
+  for (const [b, P] of packed) { if (P.index) decoded.delete(P.dir + 'base.txt'); }
+  for (const k of [...cache.keys()]) if (!/\/t_-?\d+_-?\d+\.json$/.test(k)) cache.delete(k);
 }
 
 const cache = new Map();

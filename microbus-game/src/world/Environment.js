@@ -141,6 +141,8 @@ export class Environment {
     const d = 120;
     this.sun.position.set(focus.x + this.sunDir.x * d, focus.y + this.sunDir.y * d, focus.z + this.sunDir.z * d);
     this.sun.target.position.copy(focus);
+    // السما (صندوق 4كم) بتمشي مع العربية: المدن الكبيرة (الجيزة/إسكندرية) أبعد من 2كم عن نقطة الأصل — السما كانت بتبان سودا
+    this.sky.position.set(focus.x, 0, focus.z);
     if (this.stars && this.stars.visible) { this.stars.position.copy(focus); this.moon.position.copy(focus).addScaledVector(this.sunDir, 1600); }
     // تثبيت الضل على بكسلات الـ shadow map لتقليل الرعشة
     this.sun.target.updateMatrixWorld();

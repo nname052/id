@@ -6,7 +6,7 @@
 // =====================================================================
 import * as THREE from 'three';
 import { buildMonuments, buildAirport } from './Monuments.js';
-import { REGION_BASE, loadJSON, dropCache, buildGraph, edgePoint, edgesNear } from './ShibinData.js';
+import { REGION_BASE, loadJSON, releaseBase, dropCache, buildGraph, edgePoint, edgesNear } from './ShibinData.js';
 import { StreetKit } from './ShibinStreetKit.js';
 import { ShibinRail } from './ShibinRail.js';
 import { styledRealBuilding, buildWorship } from './ShibinCivic.js';
@@ -24,8 +24,8 @@ export const SIDEWALK = { motorway: 0, trunk: 2, primary: 3, secondary: 2.5, ter
 const _v = new THREE.Vector3();
 
 export class ShibinWorld {
-  constructor(M, { id = 'shibin', name = 'شبين الكوم', low = false, tier = 'high', assets = null, water = null, spawn = null } = {}) {
-    this.M = M; this.id = id; this.name = name; this.assets = assets; this.waterStyle = water; this.spawnLL = spawn; this.low = low; this.tier = tier;
+  constructor(M, { id = 'shibin', name = 'شبين الكوم', low = false, tier = 'high', assets = null, water = null, spawn = null, ground = null } = {}) {
+    this.M = M; this.id = id; this.name = name; this.assets = assets; this.waterStyle = water; this.spawnLL = spawn; this.groundStyle = ground; this.low = low; this.tier = tier;
     // (assets: موديلات GLB جاهزة — كراسي القهاوي…)
     this.base = REGION_BASE(id);
     this.group = new THREE.Group(); this.group.name = `region-${id}`;
@@ -49,7 +49,6 @@ export class ShibinWorld {
     this.meta = meta; this.region = region; this.landmarks = landmarks;
     this.TS = meta.tile_size;
     this.graph = buildGraph(graph);
-    this.rawGraph = graph;
     // الترع والسكة كلها (ملفات صغيرة) للخريطة — بتتحفظ في الكاش فالـ streaming مش هيحمّلها تاني
     const mm = Object.entries(meta.tiles).flatMap(([n, ls]) => ls.filter((l) => l === 'water' || l === 'railways').map((l) => [l, n]));
     const mmData = await Promise.all(mm.map(([l, n]) => loadJSON(`${B}${l}/${n}.json`).then((d) => [l, d]).catch(() => [l, null])));
@@ -92,6 +91,7 @@ export class ShibinWorld {
     try { this.airport = buildAirport(this, features?.aero, this.group); } catch (e) { console.warn('[airport]', e); }
     this.group.add(this.lamps.group);
     this.stats.loadMs = Math.round(performance.now() - t0);
+    releaseBase(); // (الشبكة الخام وباقي الملفات الكبيرة: اتبنى منها اللي محتاجينه)
     return this;
   }
 
@@ -439,11 +439,11 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
       }
       const mask = tex(c, { repeat: false, srgb: false });
       mask.wrapS = mask.wrapT = THREE.ClampToEdgeWrapping; mask.minFilter = THREE.LinearFilter; mask.generateMipmaps = false;
-      const U = { uMask: { value: mask }, uMB: { value: new THREE.Vector4(ox, oz, w, d) } };
+      const U = { uMask: { value: mask }, uMB: { value: new THREE.Vector4(ox, oz, w, d) }, uDesert: { value: this.groundStyle === 'desert' ? 1 : 0 } };
       mat.onBeforeCompile = (sh) => {
         Object.assign(sh.uniforms, U);
         sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec2 vGW;').replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvGW = (modelMatrix * vec4(transformed, 1.0)).xz;');
-        sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform sampler2D uMask; uniform vec4 uMB; varying vec2 vGW;')
+        sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform sampler2D uMask; uniform vec4 uMB; uniform float uDesert; varying vec2 vGW;')
           .replace('#include <map_fragment>', `#include <map_fragment>
 {
   float urb = smoothstep(0.25, 0.75, texture2D(uMask, (vGW - uMB.xy) / uMB.zw).r);
@@ -451,9 +451,12 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
   // (كانت فاتحة أوي = بتبان زي التلج في الشمس حوالين الاستاد والأراضي الفاضية) — تراب أغمق وبتفاصيل الصورة
   vec3 dust = vec3(0.5, 0.45, 0.38) * (0.55 + 0.9 * lum);
   diffuseColor.rgb = mix(diffuseColor.rgb, dust, urb * 0.75);
+  // مدن الصحرا/الساحل: برّه الشوارع رمل أصفر (مش غيطان خضرا)
+  vec3 sand = vec3(0.46, 0.32, 0.17) * (0.55 + 0.9 * lum); // (خطي = رملي #b89a6c تقريبًا)
+  diffuseColor.rgb = mix(diffuseColor.rgb, sand, uDesert * (1.0 - urb * 0.6));
 }`);
       };
-      mat.customProgramCacheKey = () => 'shibin-ground-urban-2';
+      mat.customProgramCacheKey = () => 'shibin-ground-urban-4';
     }
     mat.polygonOffset = true; mat.polygonOffsetFactor = 2; mat.polygonOffsetUnits = 2; // دايمًا ورا الأسفلت والأرصفة
     const m = new THREE.Mesh(g, mat);
@@ -1063,14 +1066,19 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
     // المدن التانية: أقرب شارع حقيقي (مش خدمة/مدخل) طوله 60م+ — في المنصورة كان بيبدأ في آخر مدخل المحطة
     // ووشه في الحيطة. بنقف في نص الشارع، والوش ناحية الحتة الأطول منه
     const ok = new Set(['primary', 'secondary', 'tertiary', 'residential', 'unclassified', 'trunk', 'primary_link', 'secondary_link', 'tertiary_link', 'living_street', 'road']);
+    // الشوارع الرئيسية الأول (طنطا: شارع جانبي جنب المحطة كان فيه مبنى من بصمات الأقمار الصناعية راكب عليه)
+    const MAJOR = new Set(['primary', 'secondary', 'tertiary', 'trunk']);
     let best = null;
-    for (const e of edgesNear(this.graph, x, z, 260)) {
+    for (const e of edgesNear(this.graph, x, z, 400)) {
       if (e.closed || e.elevated || e.length < 60 || !ok.has(e.cls)) continue;
-      const q = edgePoint(e, e.length / 2), d = Math.hypot(q.x - x, q.z - z);
+      const q = edgePoint(e, e.length / 2), d = Math.hypot(q.x - x, q.z - z) + (MAJOR.has(e.cls) ? 0 : 250);
       if (!best || d < best.d) best = { d, q, e };
     }
     if (!best) return this.roadPose(x, z) || { x: 0, z: 0, yaw: 0 };
-    return this.roadPose(best.q.x, best.q.z, best.q.dx, best.q.dz) || { x: 0, z: 0, yaw: 0 };
+    // المكان والاتجاه من الشارع اللي اخترناه نفسه (roadPose كان ممكن يلقط شارع تاني بيقطعه في النص → الوش في حيطة)
+    const e = best.e, q = best.q, dx = q.dx, dz = q.dz;
+    const off = e.oneway ? Math.min(1.6, e.half * 0.4) : Math.min(1.9, e.half * 0.5);
+    return { x: q.x - dz * off, z: q.z + dx * off, y: q.y, yaw: Math.atan2(-dx, -dz), edge: e };
   }
 
   /** اسم الشارع اللي إنت عليه (من OSM بس — الشارع اللي مالوش اسم بيرجع '') */
