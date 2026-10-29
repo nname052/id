@@ -689,6 +689,7 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
     const TS = this.TS, cx = cam.x, cz = cam.z;
     this.lamps?.update(0.25, cam);
     this.landmarksLayer?.update(0.25, cam);
+    for (const it of this.worship?.instancers || []) it.update(cam);
     this._lastCam = cam;
     this._kitT = (this._kitT || 0) - 0.25; if (this._kitT <= 0) { this._kitT = 0.5; this.kitRoof?.update(cam); this.kitAC?.update(cam); this.streetKit?.update(cam); }
     const tiles = this.meta.tiles;

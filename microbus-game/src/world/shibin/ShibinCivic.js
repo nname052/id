@@ -8,6 +8,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { canvas, tex } from '../../render/textures.js';
+import { NearInstancer } from './ShibinLandmarks.js';
 
 const FLOOR = 3.3;
 const _c = new THREE.Color();
@@ -162,10 +163,13 @@ function churchGeo() {
   return mergeGeometries(P);
 }
 
-/** المسجد والكنيسة في أماكنهم من OSM (الـ POIs) */
+/** المسجد والكنيسة في أماكنهم من OSM (الـ POIs)
+ *  (القاهرة/إسكندرية فيهم 60+ مسجد وكنيسة: شكل واحد لكل نوع + InstancedMesh بيرسم القريب بس — كان Mesh وgeometry لكل واحد) */
 export function buildWorship(W, features, group) {
   const out = [];
   const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 });
+  const inst = {};
+  const get = (k) => inst[k] ||= new NearInstancer(k === 'mosque' ? mosqueGeo() : churchGeo(), mat, { R: W.low ? 380 : 520, max: 24, name: k, castShadow: true });
   for (const p of features?.pois || []) {
     if (p.kind !== 'place_of_worship') continue;
     const rel = p.tags?.religion;
@@ -174,19 +178,18 @@ export function buildWorship(W, features, group) {
     // الواجهة ناحية أقرب شارع
     const r = W.nearestRoad(x, z, 80);
     const yaw = r ? Math.atan2(r.x - x, r.z - z) + (rel === 'christian' ? Math.PI : 0) : 0;
-    const mesh = new THREE.Mesh(rel === 'muslim' ? mosqueGeo() : churchGeo(), mat);
     // لو المكان نفسه على الطريق: بنزقه لورا لحد ما يبعد عن الشارع
     let px = x, pz = z;
     const half = rel === 'muslim' ? 8.5 : 12.5;
     if (r && r.d < r.e.half + half) { const k = (r.e.half + half + 1 - r.d) / Math.max(0.1, r.d); px = x + (x - r.x) * k; pz = z + (z - r.z) * k; }
-    mesh.position.set(px, 0, pz); mesh.rotation.y = yaw;
-    mesh.castShadow = true; mesh.receiveShadow = true; mesh.name = rel === 'muslim' ? 'mosque' : 'church';
-    group.add(mesh);
+    get(rel === 'muslim' ? 'mosque' : 'church').add(px, 0, pz, yaw);
     const hx = rel === 'muslim' ? 8 : 7, hz = rel === 'muslim' ? 8 : 12;
     W._addCollider({ cx: px, cz: pz, hx, hz, angle: yaw, restitution: 0.1, kind: 'building' }, null);
     if (rel === 'muslim') W._addCollider({ cx: px + Math.cos(yaw) * 6.5 + Math.sin(yaw) * 6.5, cz: pz - Math.sin(yaw) * 6.5 + Math.cos(yaw) * 6.5, hx: 1.6, hz: 1.6, angle: yaw, restitution: 0.1, kind: 'building' }, null);
     (W.exclude ||= []).push({ cx: px, cz: pz, hx: hx + 3, hz: hz + 3, angle: yaw });
     out.push({ name: p.name, kind: rel === 'muslim' ? 'mosque' : 'church', x: px, z: pz, osm: p.osm });
   }
+  out.instancers = Object.values(inst);
+  for (const it of out.instancers) group.add(it.mesh);
   return out;
 }

@@ -74,6 +74,11 @@ game.init().then(() => {
   console.error(e);
   game.diag?.set('hiace', `INIT FAILED — ${e.message}`, 'bad');
   statusEl.textContent = 'حصلت مشكلة: ' + e.message + ' — جرّب Chrome أو Edge محدّث.';
+  // خريطة مدينة ماتحمّلتش (نت/ملف ناقص): زرار يرجّعك لشبين بدل ما الشاشة تفضل واقفة
+  if (currentMap().id !== 'shibin') {
+    const b = document.createElement('button'); b.className = 'map-back'; b.textContent = 'ارجع لخريطة شبين الكوم';
+    b.onclick = () => switchMap('shibin'); statusEl.after(b);
+  }
 });
 
 // ===== اللوبي: رقم من 1 لـ 7 + اسم (اللعب الجماعي) =====
