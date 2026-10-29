@@ -131,7 +131,9 @@ export class MiniMap {
     this.b = { x0, z0, w: bx1 - bx0 + 160, h: bz1 - bz0 + 160 };
     const c = (this.base = document.createElement('canvas'));
     c.width = Math.ceil(this.b.w * PXw); c.height = Math.ceil(this.b.h * PXw);
-    const x = c.getContext('2d');
+    // canvas على المعالج (willReadFrequently): عشرات الآلاف من الخطوط العريضة بتترسم مرة واحدة —
+    // على كارت الشاشة (الافتراضي) كانت بتاخد ~22 ث في الجيزة على كارت سوفتوير، على المعالج أسرع بكتير
+    const x = c.getContext('2d', { willReadFrequently: true });
     x.fillStyle = '#9fd67a'; x.fillRect(0, 0, c.width, c.height);
     const P = (wx, wz) => [(wx - x0) * PXw, (wz - z0) * PXw];
     const poly = (flat, w, col, dash) => {
@@ -141,12 +143,26 @@ export class MiniMap {
       for (let i = 0; i < flat.length; i += 2) { const [a, b] = P(flat[i], flat[i + 1]); if (i) x.lineTo(a, b); else x.moveTo(a, b); }
       x.stroke(); x.setLineDash([]);
     };
+    // كل الخطوط اللي ليها نفس العرض واللون في path واحد (stroke واحد): الجيزة فيها ~39 ألف وصلة = 116 ألف
+    // stroke لوحدهم كانوا بيقعدوا ~24 ث على كارت شاشة سوفتوير (والـ canvas بيترسم على كارت الشاشة)
+    const batch = (list, wf, cf, dash) => {
+      const groups = new Map();
+      for (const r of list) { const k = `${Math.round(wf(r) * PXw * 2) / 2}|${cf(r)}`; let g = groups.get(k); if (!g) groups.set(k, (g = [])); g.push(r.p); }
+      for (const [k, ps] of groups) {
+        const [w, col] = k.split('|');
+        x.strokeStyle = col; x.lineWidth = Math.max(1, +w); x.lineCap = 'round'; x.lineJoin = 'round'; x.setLineDash(dash || []);
+        x.beginPath();
+        for (const flat of ps) for (let i = 0; i < flat.length; i += 2) { const [a, b] = P(flat[i], flat[i + 1]); if (i) x.lineTo(a, b); else x.moveTo(a, b); }
+        x.stroke();
+      }
+      x.setLineDash([]);
+    };
     // المدينة: نسيج مباني فاتح حوالين كل الشوارع
-    for (const r of D.roads) poly(r.p, 46, '#efe0c2');
-    for (const w of D.water) poly(w.p, Math.max(6, w.w), '#4fb3ea');
-    for (const r of D.rail) poly(r.p, 4, '#6b5b4b', [10, 6]);
-    for (const r of D.roads) poly(r.p, r.w + 6, '#5b5348');
-    for (const r of D.roads) poly(r.p, r.w + 1, r.major ? '#ffd34d' : '#ffffff');
+    batch(D.roads, () => 46, () => '#efe0c2');
+    batch(D.water, (w) => Math.max(6, w.w), () => '#4fb3ea');
+    batch(D.rail, () => 4, () => '#6b5b4b', [10, 6]);
+    batch(D.roads, (r) => r.w + 6, () => '#5b5348');
+    batch(D.roads, (r) => r.w + 1, (r) => (r.major ? '#ffd34d' : '#ffffff'));
     // بوابات التوسع (حدود المنطقة)
     for (const g of D.gates) { const [a, b] = P(g.x, g.z); x.fillStyle = '#d62828'; x.fillRect(a - 4, b - 4, 8, 8); }
     // حدود المنطقة
@@ -154,7 +170,7 @@ export class MiniMap {
     x.beginPath(); D.boundary.forEach(([wx, wz], i) => { const [a, b] = P(wx, wz); if (i) x.lineTo(a, b); else x.moveTo(a, b); }); x.stroke(); x.setLineDash([]);
     this.baseNL = document.createElement('canvas');
     this.baseNL.width = c.width; this.baseNL.height = c.height;
-    this.baseNL.getContext('2d').drawImage(c, 0, 0);
+    this.baseNL.getContext('2d', { willReadFrequently: true }).drawImage(c, 0, 0);
     x.textAlign = 'center'; x.direction = 'rtl'; x.lineJoin = 'round';
     const lbl = (t, wx, wz, size = 13, col = '#3a3128') => { const [a, b] = P(wx, wz); x.font = `bold ${size}px Cairo, sans-serif`; x.lineWidth = 4; x.strokeStyle = '#fff'; x.strokeText(t, a, b); x.fillStyle = col; x.fillText(t, a, b); };
     for (const s of D.streetLabels) lbl(s.name, s.x, s.z, 12);

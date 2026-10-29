@@ -469,10 +469,13 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
       x.fillStyle = '#000'; x.fillRect(0, 0, N, N);
       const sx = N / w, sz = N / d, ox = (x0 - pad), oz = (z0 - pad);
       x.strokeStyle = 'rgba(255,255,255,0.55)'; x.lineCap = 'round'; x.lineJoin = 'round'; x.lineWidth = 90 * sx; // (أقوى: جنب كوبري/شارع لوحده كانت بتطلع غيط بخضرة)
+      // (path واحد لكل الشوارع: stroke لكل وصلة = عشرات الآلاف من أوامر الرسم في المدن الكبيرة)
+      x.beginPath();
       for (const e of this.graph.edges) {
         if (e.cls === 'track' || e.cls === 'service' && e.length > 300) continue;
-        x.beginPath(); e.pts.forEach((q, i) => { const X = (q.x - ox) * sx, Z = (q.z - oz) * sz; if (i) x.lineTo(X, Z); else x.moveTo(X, Z); }); x.stroke();
+        e.pts.forEach((q, i) => { const X = (q.x - ox) * sx, Z = (q.z - oz) * sz; if (i) x.lineTo(X, Z); else x.moveTo(X, Z); });
       }
+      x.stroke();
       const mask = tex(c, { repeat: false, srgb: false });
       mask.wrapS = mask.wrapT = THREE.ClampToEdgeWrapping; mask.minFilter = THREE.LinearFilter; mask.generateMipmaps = false;
       const U = { uMask: { value: mask }, uMB: { value: new THREE.Vector4(ox, oz, w, d) }, uDesert: { value: this.groundStyle === 'desert' ? 1 : 0 } };
