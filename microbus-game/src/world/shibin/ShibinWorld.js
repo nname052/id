@@ -107,26 +107,59 @@ export class ShibinWorld {
     // لون المية: ترعة (أخضر رمادي) — البحر في المدن الساحلية أزرق (maps.js: sea) والنيل بينهم
     const WC = { sea: [0.13, 0.33, 0.45], nile: [0.2, 0.32, 0.33] }[this.waterStyle] || [0.235, 0.298, 0.278];
     const water = new THREE.MeshStandardMaterial({ color: new THREE.Color().setRGB(...WC, THREE.SRGBColorSpace), roughness: 0.07, metalness: 0, envMapIntensity: 0.9 });
-    const WU = (this._waterU = { uWT: { value: 0 } });
+    const WU = (this._waterU = { uWT: { value: 0 }, uSea: { value: this.waterStyle === 'sea' ? 1 : this.waterStyle === 'nile' ? 0.35 : 0 } });
     water.onBeforeCompile = (sh) => {
       Object.assign(sh.uniforms, WU);
       sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec2 vWW;').replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvWW = (modelMatrix * vec4(transformed, 1.0)).xz;');
-      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec2 vWW; uniform float uWT;')
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec2 vWW; uniform float uWT; uniform float uSea;')
         .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
 {
   // موجتين صغيرين بيتحركوا مع التيار + تموّج أدق: ميل السطح (gradient) → بيعوج الـ normal
   vec2 p = vWW;
   float a1 = p.x * 0.55 + p.y * 0.31 + uWT * 1.1, a2 = p.x * -0.27 + p.y * 0.83 - uWT * 0.8, a3 = (p.x + p.y) * 2.3 + uWT * 2.6;
   vec2 gr = vec2(0.55, 0.31) * cos(a1) * 0.045 + vec2(-0.27, 0.83) * cos(a2) * 0.04 + vec2(2.3, 2.3) * cos(a3) * 0.006;
-  float fade = 1.0 - smoothstep(60.0, 220.0, length(vViewPosition)); // بعيد: سطح هادي (من غير وشوشة)
+  // البحر (والنيل أقل): موج أطول جاي ناحية الشط (طول موجة 9–26م) + موج مكسّر صغير — الانعكاس بيتكسر زي البحر الحقيقي
+  if (uSea > 0.0) {
+    float b1 = dot(p, vec2(0.24, 0.10)) - uWT * 1.25, b2 = dot(p, vec2(-0.12, 0.50)) - uWT * 1.9, b3 = dot(p, vec2(0.63, -0.41)) + uWT * 2.4, b4 = dot(p, vec2(1.7, 1.1)) - uWT * 3.7;
+    gr += (vec2(0.24, 0.10) * cos(b1) * 0.55 + vec2(-0.12, 0.50) * cos(b2) * 0.22 + vec2(0.63, -0.41) * cos(b3) * 0.09 + vec2(1.7, 1.1) * cos(b4) * 0.025) * uSea;
+  }
+  float fade = 1.0 - smoothstep(60.0 + 120.0 * uSea, 220.0 + 380.0 * uSea, length(vViewPosition)); // بعيد: سطح هادي (من غير وشوشة)
   normal = normalize(normal + (viewMatrix * vec4(-gr.x, 0.0, -gr.y, 0.0)).xyz * fade);
 }`);
     };
-    water.customProgramCacheKey = () => 'shibin-water-2';
+    water.customProgramCacheKey = () => 'shibin-water-3';
     // "فتحة" الترعة في الأرض: الأرض (y≈0) كانت مغطية المية (-0.55) — وماكانتش بتبان غير من بعيد
     // (لما الـ polygonOffset بتاع الأرض يكبر). ده سطح مش بيترسم لون، بيكتب عمق بس فوق الترعة بعد المية،
     // فالأرض اللي تحته متترسمش. (مفيش خامات ولا draw calls تقيلة)
     const waterCut = new THREE.MeshBasicMaterial({ colorWrite: false });
+    // شط البحر/النيل: شريط على حرف المية من جوه — مية أفتح (ضحلة) + رغوة موج بتيجي ناحية الشط وتروح (مش صورة ثابتة)
+    // aU = 0 عند الشط → 1 جوه المية. البحر: رغوة واضحة؛ النيل: لون ضحل بس
+    // (مش transparent: الشفاف بيترسم بعد كل حاجة، والـ "فتحة" اللي فوق المية بتغطيه. الـ CustomBlending بيخلط برضه
+    //  وهو في دور الحاجات العادية بترتيبه: المية ← الشط ← الفتحة)
+    const shore = new THREE.MeshLambertMaterial({ color: 0xffffff, depthWrite: false, fog: true, side: DS, blending: THREE.CustomBlending, blendSrc: THREE.SrcAlphaFactor, blendDst: THREE.OneMinusSrcAlphaFactor });
+    const SU = { uFoam: { value: this.waterStyle === 'sea' ? 1 : 0 }, uShallow: { value: new THREE.Color(this.waterStyle === 'sea' ? 0x4fb3ad : 0x6d8a74) } };
+    shore.onBeforeCompile = (sh) => {
+      Object.assign(sh.uniforms, WU, SU);
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aU; varying float vU; varying vec2 vSW;')
+        .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvU = aU; vSW = (modelMatrix * vec4(transformed, 1.0)).xz;');
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
+varying float vU; varying vec2 vSW; uniform float uWT, uFoam; uniform vec3 uShallow;
+float hS(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float nS(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(hS(i), hS(i + vec2(1, 0)), f.x), mix(hS(i + vec2(0, 1)), hS(i + vec2(1, 1)), f.x), f.y); }`)
+        .replace('#include <color_fragment>', `#include <color_fragment>
+{
+  float u = clamp(vU, 0.0, 1.0), n = nS(vSW * 0.35 + uWT * 0.07), n2 = nS(vSW * 1.7 - uWT * 0.2);
+  float shallowA = (1.0 - smoothstep(0.0, 1.0, u)) * (0.3 + 0.2 * n);
+  // خطوط الموج: جاية ناحية الشط (الطور بيقل مع الوقت) ومتقطعة بالـ noise
+  float ph = u * 3.2 + uWT * 0.32 + n * 0.9;
+  float crest = smoothstep(0.7, 0.93, fract(-ph)) * (1.0 - smoothstep(0.85, 0.95, fract(-ph))) * (1.0 - u) * (1.0 - u) * 1.6;
+  float edge = (1.0 - smoothstep(0.02, 0.13 + 0.06 * n, u)) * (0.6 + 0.4 * sin(uWT * 1.3 + n * 6.0));
+  float foam = clamp((crest * (0.35 + 0.9 * n2) + edge) * uFoam, 0.0, 1.0);
+  diffuseColor.rgb = mix(uShallow * 1.5, vec3(1.0), foam);
+  diffuseColor.a = max(shallowA, foam * 0.95);
+}`);
+    };
+    shore.customProgramCacheKey = () => 'shibin-shore-2';
     const ballast = new THREE.MeshStandardMaterial({ color: 0x77706a, roughness: 1, side: DS });
     const rail = new THREE.MeshStandardMaterial({ color: 0x6b6e72, roughness: 0.35, metalness: 0.8, side: DS });
     const bank = new THREE.MeshStandardMaterial({ color: 0x7a7266, roughness: 1, side: DS }); // جناب الترعة: حيطة حجر/خرسانة (زي صور الكورنيش)
@@ -196,7 +229,7 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
     concrete.customProgramCacheKey = () => 'shibin-concrete-1';
     const steel = new THREE.MeshStandardMaterial({ color: 0x8a8e92, roughness: 0.45, metalness: 0.6, side: DS });
     const pitch = new THREE.MeshStandardMaterial({ color: 0x3f8f3a, roughness: 0.95 });
-    this.mats = { asphalt, water, waterCut, ballast, rail, bank, foot, plain, concrete, steel, pitch, curb, paint, bld: buildingMaterial(M), bldLow: buildingMaterial(M, { low: true }) };
+    this.mats = { asphalt, water, waterCut, shore, ballast, rail, bank, foot, plain, concrete, steel, pitch, curb, paint, bld: buildingMaterial(M), bldLow: buildingMaterial(M, { low: true }) };
   }
 
   setNight(on) {
@@ -946,6 +979,10 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
       if (bank) { const b = new THREE.Mesh(bank, this.mats.bank); b.receiveShadow = true; b.renderOrder = -3; T.group.add(b); }
       const cut = new THREE.Mesh(flatGeo(W.water.v, W.water.i, 0.005, 1 / 6), this.mats.waterCut); cut.name = 'water-cut'; cut.renderOrder = -2; T.group.add(cut);
       T.waterGrid = triGrid(W.water.v, W.water.i, 6);
+      if (this.waterStyle === 'sea' || this.waterStyle === 'nile') {
+        const sg = shoreGeo(W.water.rings, T, this.TS, this.waterStyle === 'sea' ? 16 : 6, WATER_Y + 0.015);
+        if (sg) { const s = new THREE.Mesh(sg, this.mats.shore); s.name = 'water-shore'; s.renderOrder = -2.5; T.group.add(s); }
+      }
       // جناب الترعة: حاجز (للي على الأرض بس — اللي على الكوبري فوقها)
       for (const ring of W.water.rings) {
         for (let i = 0; i + 3 < ring.length; i += 2) {
@@ -1157,6 +1194,46 @@ function onTileEdge(ax, az, bx, bz, T, TS) {
   const e = 0.05;
   const x0 = T.i * TS, x1 = (T.i + 1) * TS, z0 = T.j * TS, z1 = (T.j + 1) * TS;
   return (Math.abs(ax - bx) < e && (Math.abs(ax - x0) < e || Math.abs(ax - x1) < e)) || (Math.abs(az - bz) < e && (Math.abs(az - z0) < e || Math.abs(az - z1) < e));
+}
+
+/** شريط الشط: من حرف المية لجوه بعرض W (بيتقطع عند حدود المربع). الاتجاه لجوه من الـ waterGrid نفسه
+ *  (اتجاه لفّة الحلقات مش ثابت)، والـ normal عند كل نقطة = متوسط الضلعين (من غير فتحات في الكوع) */
+function shoreGeo(rings, T, TS, Wd, y) {
+  const pos = [], aU = [], idx = [];
+  const G = T.waterGrid;
+  for (const ring of rings) {
+    const n = ring.length / 2; if (n < 3) continue;
+    // اتجاه الماية: نجرب على أطول ضلع
+    let side = 0, best = 0;
+    for (let i = 0; i + 1 < n; i++) {
+      const ax = ring[i * 2], az = ring[i * 2 + 1], bx = ring[i * 2 + 2], bz = ring[i * 2 + 3], L = Math.hypot(bx - ax, bz - az);
+      if (L <= best || onTileEdge(ax, az, bx, bz, T, TS)) continue;
+      const nx = -(bz - az) / L, nz = (bx - ax) / L, mx = (ax + bx) / 2, mz = (az + bz) / 2;
+      const a = inTriGrid(G, mx + nx * 0.6, mz + nz * 0.6), b = inTriGrid(G, mx - nx * 0.6, mz - nz * 0.6);
+      if (a !== b) { best = L; side = a ? 1 : -1; }
+    }
+    if (!side) continue;
+    let run = -1; // أول نقطة في الشريط الحالي
+    const N = (i) => { const j = Math.min(n - 1, i + 1), k = Math.max(0, i - 1); const dx = ring[j * 2] - ring[k * 2], dz = ring[j * 2 + 1] - ring[k * 2 + 1], L = Math.hypot(dx, dz) || 1; return [-dz / L * side, dx / L * side]; };
+    for (let i = 0; i + 1 < n; i++) {
+      const ax = ring[i * 2], az = ring[i * 2 + 1], bx = ring[i * 2 + 2], bz = ring[i * 2 + 3];
+      if (onTileEdge(ax, az, bx, bz, T, TS) || Math.hypot(bx - ax, bz - az) < 0.05) { run = -1; continue; }
+      if (run < 0) { const [nx, nz] = N(i); run = pos.length / 3; pos.push(ax, y, az, ax + nx * Wd, y, az + nz * Wd); aU.push(0, 1); }
+      const [nx, nz] = N(i + 1), v = pos.length / 3;
+      pos.push(bx, y, bz, bx + nx * Wd, y, bz + nz * Wd); aU.push(0, 1);
+      // الوش لفوق (مع DoubleSide الوش اللي لتحت بياخد normal مقلوب = أسود)
+      const up = (i0, i1, i2) => { const ax2 = pos[i1 * 3] - pos[i0 * 3], az2 = pos[i1 * 3 + 2] - pos[i0 * 3 + 2], bx2 = pos[i2 * 3] - pos[i0 * 3], bz2 = pos[i2 * 3 + 2] - pos[i0 * 3 + 2]; return az2 * bx2 - ax2 * bz2 > 0 ? [i0, i1, i2] : [i0, i2, i1]; };
+      idx.push(...up(v - 2, v - 1, v), ...up(v - 1, v + 1, v));
+    }
+  }
+  if (!idx.length) return null;
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('aU', new THREE.Float32BufferAttribute(aU, 1));
+  const nor = new Float32Array(pos.length); for (let i = 1; i < nor.length; i += 3) nor[i] = 1;
+  g.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+  g.setIndex(idx);
+  return g;
 }
 
 /** حيطان رأسية على حواف المضلعات (حرف الرصيف / جناب الترعة) — مش على حدود المربع */
