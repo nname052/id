@@ -174,8 +174,9 @@ export const SEDAN_LIVERIES = {
   // تاكسي شبين الكوم: أخضر فاتح + شريطة صفرا مايلة قدام وورا + دايرة سودا على الباب + شيال سقف
   // (المدن التانية: ألوان تاكسي المحافظة من maps.js — taxiLivery())
   taxi: { paint: 0x19b82a, stripe: 0xf5d000, stripes: 1, emblem: 1, rack: true },
-  // الشرطة: أبيض وتحت كحلي + كلمة شرطة + كشاف سقف
-  police: { paint: 0xf2f3f4, lower: 0x14285a, police: 1, lightbar: true },
+  // الشرطة المصرية (من صور حقيقية على Commons "Egypt police car 01/03/05.jpg"، CC BY 4.0 — للألوان بس):
+  // جسم أسود، الأبواب لوح أبيض عليه "شرطة / POLICE" بالأسود، كشاف سقف أزرق
+  police: { paint: 0x111317, lower: 0xf1f1ee, police: 1, lightbar: true },
 };
 
 /** ألوان تاكسي المدينة الحالية (maps.js → taxi) — شبين: الأخضر والأصفر الأصلي */
@@ -211,7 +212,7 @@ function policeTexture() {
   if (_policeTex) return _policeTex;
   const c = canvas(512, 128), x = c.getContext('2d');
   x.clearRect(0, 0, 512, 128);
-  x.fillStyle = '#14285a'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.direction = 'rtl';
+  x.fillStyle = '#0d0e10'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.direction = 'rtl';
   x.font = 'bold 70px Cairo, sans-serif'; x.fillText('شرطة', 170, 66);
   x.direction = 'ltr'; x.font = 'bold 52px Arial, sans-serif'; x.fillText('POLICE', 380, 68);
   _policeTex = tex(c, { repeat: false });
@@ -282,13 +283,13 @@ float rough = roughness;
       diffuseColor.rgb = mix(diffuseColor.rgb, mix(uAccent, vec3(0.95), ck), band);
     }
   }
-  // ===== الشرطة: نص تحت كحلي + كلمة شرطة على الباب =====
+  // ===== الشرطة: جسم أسود + الأبواب لوح أبيض (uLower) + "شرطة POLICE" بالأسود =====
   if (uPolice > 0.5) {
-    float lowerPart = side * (1.0 - smoothstep(0.66, 0.675, vP.y)) * step(0.3, vP.y);
-    diffuseColor.rgb = mix(diffuseColor.rgb, uLower, lowerPart);
-    vec2 uv = vec2((vP.z - (-0.85)) / 1.9, (vP.y - 0.68) / 0.2);
+    float doors = side * step(-0.97, vP.z) * step(vP.z, 1.13) * step(0.3, vP.y) * step(vP.y, 0.94);
+    diffuseColor.rgb = mix(diffuseColor.rgb, uLower, doors);
+    vec2 uv = vec2((vP.z - (-0.85)) / 1.9, (vP.y - 0.5) / 0.22);
     if (vP.x > 0.0) uv.x = 1.0 - uv.x;
-    if (uv.x > 0.0 && uv.x < 1.0 && uv.y > 0.0 && uv.y < 1.0) diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.08, 0.16, 0.36), texture2D(uPoliceTex, uv).a * side);
+    if (uv.x > 0.0 && uv.x < 1.0 && uv.y > 0.0 && uv.y < 1.0) diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.02), texture2D(uPoliceTex, uv).a * doors);
   }
   // ===== الدايرة السودا على الباب القدام =====
   if (uEmblem > 0.5) {
@@ -420,7 +421,8 @@ function partMats() {
     plate: new THREE.MeshStandardMaterial({ map: plateTexture(), roughness: 0.5 }),
     badge: new THREE.MeshStandardMaterial({ map: bydTexture(), roughness: 0.3, metalness: 0.5, transparent: true }),
     liner: new THREE.MeshStandardMaterial({ color: 0x0a0a0a, roughness: 0.95, side: THREE.DoubleSide }),
-    lightbarRed: new THREE.MeshStandardMaterial({ color: 0x8a0d10, emissive: 0xff1010, emissiveIntensity: 0.4, roughness: 0.3 }),
+    // (كشاف الشرطة المصرية في الصور أزرق — نصين أزرق بيلمعوا بالتبادل)
+    lightbarRed: new THREE.MeshStandardMaterial({ color: 0x0d1a8a, emissive: 0x2a60ff, emissiveIntensity: 0.4, roughness: 0.3 }),
     lightbarBlue: new THREE.MeshStandardMaterial({ color: 0x0d1a8a, emissive: 0x1030ff, emissiveIntensity: 0.4, roughness: 0.3 }),
   });
 }

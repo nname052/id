@@ -21,3 +21,10 @@
 | المطبات | features.json `bumps` | OSM traffic_calming (ODbL) + مستنتجة | ODbL | ✅ |
 
 مصادر اتراجعت ومرفوضة: ToxSam CC0 (كلها ستايل كرتوني)، Kenney (ألعاب/لو بولي)، CGTrader وBlendSwap (محتاجين تسجيل دخول).
+
+## صور مرجعية (للألوان بس، مفيش بكسلات منها في اللعبة)
+| الصورة | الرخصة | استخدامها |
+|---|---|---|
+| Commons: Ambulance in Egypt 02.jpg (2024) | CC BY 4.0 | ألوان الإسعاف |
+| Commons: Ambulance, Cairo.JPG (2012) | CC BY-SA 3.0 | ألوان الإسعاف |
+| Commons: Egypt police car 01 / 03 / 05.jpg | CC BY 4.0 | ألوان الشرطة |

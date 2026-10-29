@@ -238,7 +238,7 @@ export class Police {
         else if (c.t <= 0 || pd > 160) this._flee(c);
       }
     }
-    // كشاف الشرطة: أحمر/أزرق بالتبادل (خامة مشتركة لكل عربيات الشرطة)
+    // كشاف الشرطة: النصين (أزرق) بالتبادل (خامة مشتركة لكل عربيات الشرطة)
     this._flash += dt;
     const lb = this.cps[0]?.car.lightbar;
     if (lb) {
