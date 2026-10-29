@@ -28,7 +28,7 @@ const a = await page.evaluate(async () => {
     spawnOnRoad: !!rd && rd.d <= (rd.e?.half ?? 4) + 0.5, roadName: rd?.e?.name || null, camToEye: +cam.distanceTo(eye).toFixed(2) };
 });
 await browser.close();
-const pass = a.mapId === 'shibin' && /شبين الكوم/.test(a.title) && /شبين الكوم/.test(a.sub) && !a.picker && a.hasWorld && a.osm && a.started && a.camMode === 0 && a.spawnOnRoad && a.camToEye < 0.3 && !errors.length;
+const pass = a.mapId === 'shibin' && /ميكروباص/.test(a.title) && /شبين الكوم/.test(a.sub) && !a.picker && a.hasWorld && a.osm && a.started && a.camMode === 0 && a.spawnOnRoad && a.camToEye < 0.3 && !errors.length;
 console.log(JSON.stringify({ first: a, errors }, null, 1));
 console.log(pass ? 'PASS default-map' : 'FAIL default-map');
 process.exit(pass ? 0 : 1);

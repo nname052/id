@@ -352,3 +352,20 @@ Legend: [x] done + covered by a test · [~] partial · [!] limitation / needs th
 - Tests: bridge-audit, city-life (overlapsMax 0), accident-ems, boarding PASS; road-surface 13 drives / 0 steps / 0 flips;
       lane-scan bumps 6 → 1 (a 10 cm edge at the east ramp foot).
 - [!] The exact spot the user saw wasn't reproduced; the fixes cover the two causes found by the probe.
+
+## v20 (Egypt: 26 governorate capitals + seated passengers)
+- [x] Passengers sat facing forward with legs/arms bent backwards: `seatedGeometry` rotated thighs/arms the wrong way
+      (+x rotation sends limbs to -z, the face is +z). Fixed signs; boarding test PASS (microbus/taxi/tuk-tuk).
+- [x] Cities: picker on the start screen (list + Egypt outline from OSM relation 1473947), `?map=<id>`.
+      Pipeline `tools/osm/egypt/*`: Egypt PBF (download.openstreetmap.fr, 2026-10-29) → `osmium extract` per city,
+      `make_configs.py` (bbox ±2 km around the OSM place node; landmarks auto-picked from OSM tags, Arabic names only),
+      `build_region.py` (+ multipolygon water: Nile/lakes, + sea from `natural=coastline`), Microsoft footprints
+      (`fetch_ms.py`; none for Kharga/Marsa Matruh), roundabouts, ramps, audits → `pack_city.py` (5 gzip files/city,
+      55 MB total; Artifact file limit 511). Tiles are kept as JSON text in the pack and parsed on demand.
+- [x] Lines in other cities: from the main station/bus station to real OSM landmarks 0.9–3 km away (gameplay
+      approximation, verified:false, fare ~7 EGP marked approximate). Spawn = main station (or centre).
+- [x] Water colour per map (sea blue / Nile / canal green). Mosques/churches instanced (Cairo has ~65).
+- [x] Free 3D model: Poly Haven "Plastic Monobloc Chair 01" (CC0) at every OSM café (chairs + small tables on the
+      sidewalk). Kenney car kit (CC0) was tried and rejected: toy proportions don't fit the game.
+- [x] Shop signs were mirrored (UVs reversed on both faces) — now readable.
+- [!] "All of Egypt" at building level doesn't fit (≈1M km²; Artifact ≤256 MB): each capital's centre (~16 km²).

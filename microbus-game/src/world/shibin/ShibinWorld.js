@@ -24,7 +24,8 @@ const _v = new THREE.Vector3();
 
 export class ShibinWorld {
   constructor(M, { id = 'shibin', name = 'شبين الكوم', low = false, tier = 'high', assets = null, water = null } = {}) {
-    this.M = M; this.id = id; this.name = name; this.assets = assets; this.waterStyle = water; // (موديلات GLB جاهزة: كراسي القهاوي…) this.low = low; this.tier = tier;
+    this.M = M; this.id = id; this.name = name; this.assets = assets; this.waterStyle = water; this.low = low; this.tier = tier;
+    // (assets: موديلات GLB جاهزة — كراسي القهاوي…)
     this.base = REGION_BASE(id);
     this.group = new THREE.Group(); this.group.name = `region-${id}`;
     this.tiles = new Map();
@@ -1040,8 +1041,19 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
   spawnPose() {
     const st = this.mainStation() || { x: 0, z: 0 };
     const lp = st.id && this.landmarkPoints.find((l) => l.id === st.id);
-    const p = this.roadPose(lp ? lp.rx : st.x, lp ? lp.rz : st.z);
-    return p || { x: 0, z: 0, yaw: 0 };
+    const x = lp ? lp.rx : st.x, z = lp ? lp.rz : st.z;
+    if (this.id === 'shibin') return this.roadPose(x, z) || { x: 0, z: 0, yaw: 0 };
+    // المدن التانية: أقرب شارع حقيقي (مش خدمة/مدخل) طوله 60م+ — في المنصورة كان بيبدأ في آخر مدخل المحطة
+    // ووشه في الحيطة. بنقف في نص الشارع، والوش ناحية الحتة الأطول منه
+    const ok = new Set(['primary', 'secondary', 'tertiary', 'residential', 'unclassified', 'trunk', 'primary_link', 'secondary_link', 'tertiary_link', 'living_street', 'road']);
+    let best = null;
+    for (const e of edgesNear(this.graph, x, z, 260)) {
+      if (e.closed || e.elevated || e.length < 60 || !ok.has(e.cls)) continue;
+      const q = edgePoint(e, e.length / 2), d = Math.hypot(q.x - x, q.z - z);
+      if (!best || d < best.d) best = { d, q, e };
+    }
+    if (!best) return this.roadPose(x, z) || { x: 0, z: 0, yaw: 0 };
+    return this.roadPose(best.q.x, best.q.z, best.q.dx, best.q.dz) || { x: 0, z: 0, yaw: 0 };
   }
 
   /** اسم الشارع اللي إنت عليه (من OSM بس — الشارع اللي مالوش اسم بيرجع '') */
