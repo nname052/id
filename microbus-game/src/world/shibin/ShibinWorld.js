@@ -13,6 +13,7 @@ import { styledRealBuilding, buildWorship } from './ShibinCivic.js';
 import { buildingMaterial, buildTileBuildings, buildRealBuilding, tileKitItems, kitGeometries } from './ShibinBuildings.js';
 import { canvas, tex } from '../../render/textures.js';
 import { ShibinLamps } from './ShibinLamps.js';
+import { SpeedBumps } from './SpeedBumps.js';
 import { buildLandmarks, NearInstancer } from './ShibinLandmarks.js';
 
 const LOAD_R = 780, UNLOAD_R = 1000;
@@ -79,6 +80,8 @@ export class ShibinWorld {
       this.group.add(this.landmarksLayer.group);
     } catch (e) { console.warn('[landmarks]', e); this.landmarksLayer = null; }
     this.features = features;
+    // المطبات (OSM + قدام المدارس/المستشفيات): جزء من ارتفاع الأرض → العجل والمساعدين بيحسوا بيها
+    try { this.bumps = new SpeedBumps(this, features?.bumps); if (this.bumps.mesh) this.group.add(this.bumps.mesh); } catch (e) { console.warn('[bumps]', e); this.bumps = null; }
     this.lamps = new ShibinLamps(this, { mobile: this.low, extra: this.landmarksLayer?.lampSpots || [] });
     // السكة الشغالة (قطر + مزلقانات + محطة) — قبل تحميل المربعات عشان مكان المحطة يتشال من العمارات المولّدة
     try { this.rail = new ShibinRail(this, this.group, { low: this.low }); } catch (e) { console.warn('[rail]', e); this.rail = null; }
@@ -668,6 +671,7 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
       if (bh !== null && bh < 1.2 && bestD > bestHw * 0.55 && (ref < bh - 0.3 ? this._groundRoadNearer(x, z, Infinity, null) : bh < 0.8 && Math.abs(ref - bh) > 0.08 && this._groundRoadNearer(x, z, bestD, bestE))) bh = null; // (اللي ماشي على المطلع فعلًا — ارتفاعه = ارتفاعه — بيفضل عليه حتى عند حرفه)
       if (bh !== null) g = bh;
     }
+    if (g === 0 && this.bumps) g = this.bumps.h(x, z); // على الأسفلت بس (مش الرصيف/الكوبري)
     return g;
   }
 
@@ -1086,20 +1090,6 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
     const p = this.nearestRoad(x, z, 40);
     if (!p || p.d > p.e.half + 4) return null;
     return { name: p.e.name, edge: p.e };
-  }
-
-  /** نقط كاميرا السينما (شاشة البداية): فوق الشوارع الرئيسية الحقيقية */
-  cinePoints() {
-    const out = [];
-    const big = this.graph.edges.filter((e) => ['primary', 'secondary', 'tertiary'].includes(e.cls) && e.length > 60 && !e.elevated);
-    const sp = this.spawnPose();
-    big.sort((a, b) => Math.hypot(a.pts[0].x - sp.x, a.pts[0].z - sp.z) - Math.hypot(b.pts[0].x - sp.x, b.pts[0].z - sp.z));
-    for (const e of big.slice(0, 14)) {
-      const q = edgePoint(e, e.length / 2);
-      const k = out.length % 2 ? 1 : -1;
-      out.push(new THREE.Vector3(q.x - q.dz * k * (e.half + 1.2), 8 + (out.length % 3) * 4, q.z + q.dx * k * (e.half + 1.2)));
-    }
-    return out;
   }
 
   /** بيانات الخريطة الصغيرة (الطرق الحقيقية + الترع + السكة + المعالم + البوابات) */

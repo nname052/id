@@ -118,9 +118,8 @@ export class Multiplayer {
       }
     }
     this._myLabel();
-    // اسمك فوق عربيتك: مايبانش وإنت سايق (كان بيحجب الطريق) — بيبان في الكاميرا اللي من فوق/السينمائية بس
-    // اسمك فوق عربيتك: بس في الكاميرا السينمائية/اللي من فوق (وانت سايق بيحجب الطريق)
-    if (this._mine) this._mine.visible = !['cockpit', 'hood', 'chase', 'close'].includes(g.cams?.modeId);
+    // اسمك فوق عربيتك: في الكاميرا الحرة بس (وانت سايق بيحجب الطريق)
+    if (this._mine) this._mine.visible = g.cams?.modeId === 'orbit';
     // عربيات اللاعبين التانيين
     const seen = new Set();
     const now = performance.now() / 1000;

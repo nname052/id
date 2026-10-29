@@ -225,8 +225,7 @@ export class Game {
     this.minimap = new MiniMap(this);
     this.settings.onChange((k, v) => this._applySetting(k, v));
     if (this.player.damage) this.player.damage.onBreak = () => this.audio.glass();
-    this.cams.mode = 3; // سينمائية ورا شاشة البداية
-    this.cams.cinePoints = this.world.cinePoints();
+    this.cams.mode = 2; this.cams.attract = true; // ورا شاشة البداية: الكاميرا الحرة بتلف حوالين العربية
 
     // أنوار الشارع بالليل: عدد صغير من الأنوار بنحركها لأقرب أعمدة (أداء)
     // كل PointLight بيتحسب في كل بكسل لكل الخامات (حتى وهو مطفي بالنهار) → عدد قليل على حسب الجهاز.
@@ -497,7 +496,7 @@ export class Game {
     await this.audio.start();
     if (this.mp?.available) this._spawnForSeat(this.mp.me.seat);
     this.started = true;
-    this.cams.mode = 0;
+    this.cams.mode = CameraSystem.savedMode(); this.cams.attract = false;
     this.cams.snap = true;
     this.hud.show();
     this.minimap.show();

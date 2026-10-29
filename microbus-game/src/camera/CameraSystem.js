@@ -1,21 +1,22 @@
 import * as THREE from 'three';
 import { groundHeight } from '../world/ground.js';
 
-// 4 كاميرات: كرسي السائق / ورا الميكروباص / خارجية قريبة / سينمائية. زرار C للتبديل.
+// 3 كاميرات بس: كرسي السواق / ورا العربية / حرة 360° حوالين العربية. زرار واحد (C / الزرار اللي على الشاشة) بيلف عليهم
+// واللي اخترته آخر مرة بيتحفظ
 
 export const CAMERA_MODES = [
-  { id: 'cockpit', label: 'من كرسي السائق' },
-  { id: 'chase', label: 'خلف الميكروباص' },
-  { id: 'close', label: 'خارجية قريبة' },
-  { id: 'cinematic', label: 'سينمائية' },
+  { id: 'cockpit', label: 'من كرسي السواق' },
+  { id: 'chase', label: 'ورا العربية' },
+  { id: 'orbit', label: 'حرة 360°' },
 ];
+const MODE_KEY = 'egy-microbus-cam-v1';
 
 const _bus = new THREE.Vector3(), _q3 = new THREE.Quaternion(), _v2 = new THREE.Vector3();
 
 // زووم كل كاميرا (بيتحفظ): كرسي السواق = زاوية الرؤية من الإعدادات (fov)،
 // والكاميرات اللي برا = مضاعف للمسافة/الزاوية. الحدود بتمنع الكاميرا تدخل جوه العربية أو تبعد أوي
 const ZOOM_KEY = 'egy-microbus-zoom-v1';
-const ZOOM_LIMITS = { chase: [0.62, 1.75], close: [0.7, 1.6], cinematic: [0.55, 1.6] };
+const ZOOM_LIMITS = { chase: [0.62, 1.75], orbit: [0.45, 2.6] };
 const FOV_LIMITS = [70, 115]; // زاوية الرؤية بالعرض (كرسي السواق)
 // حركة الراس/الأفق في كرسي السواق: [قصور الراس، كام من ميل المساعدين (قدام/ورا)، كام من الميلان (يمين/شمال)]
 // ميل الطريق نفسه (كوبري/مطلع) بيتاخد كامل دايمًا — اللي بيتقلل هو هزة المساعدين بس (أفق ثابت وانت سايق)
@@ -32,10 +33,11 @@ export class CameraSystem {
     this.headOffset = new THREE.Vector3();
     this.headVel = new THREE.Vector3();
     this.look = { yaw: 0, pitch: 0, dragging: false, lastX: 0, lastY: 0, idle: 0 };
-    this.cine = { pos: new THREE.Vector3(), target: new THREE.Vector3(), timer: 0 };
-    this.cinePoints = this._cinePoints();
+    // الكاميرا الحرة: زاوية حوالين العربية (نسبة لاتجاهها) + ميل لفوق/لتحت — مابترجعش للنص لوحدها
+    this.orbit = { yaw: 0.6, pitch: 0.32, pos: new THREE.Vector3() };
+    this.attract = false; // شاشة البداية: الحرة بتلف لوحدها ببطء
     this.shake = 0;
-    this.zoom = { chase: 1, close: 1, cinematic: 1 };
+    this.zoom = { chase: 1, orbit: 1 };
     try { Object.assign(this.zoom, JSON.parse(localStorage.getItem(ZOOM_KEY) || '{}')); } catch { /* مفيش تخزين */ }
     this._initMouse(dom);
     this._initZoom(dom);
@@ -90,10 +92,16 @@ export class CameraSystem {
 
   get modeId() { return CAMERA_MODES[this.mode]?.id || 'free'; }
 
+  /** آخر كاميرا اختارها اللاعب (أول مرة: كرسي السواق) */
+  static savedMode() {
+    try { const i = +localStorage.getItem(MODE_KEY); return i >= 0 && i < CAMERA_MODES.length ? i : 0; } catch { return 0; }
+  }
+
   next() {
     this.mode = (this.mode + 1) % CAMERA_MODES.length;
     this.snap = true;
     this.look.yaw = 0; this.look.pitch = 0;
+    try { localStorage.setItem(MODE_KEY, String(this.mode)); } catch { /* مفيش تخزين */ }
     return CAMERA_MODES[this.mode].label;
   }
 
@@ -108,13 +116,18 @@ export class CameraSystem {
       if (e.pointerType === 'mouse' && !e.buttons) { this.look.dragging = false; return; }
       const dx = e.clientX - this.look.lastX, dy = e.clientY - this.look.lastY;
       this.look.lastX = e.clientX; this.look.lastY = e.clientY;
+      if (this.modeId === 'orbit') { this._orbitBy(-dx * 0.006 * this._sens(), dy * 0.004 * this._sens()); return; }
       this.look.yaw = THREE.MathUtils.clamp(this.look.yaw - dx * 0.004 * this._sens(), -2.2, 2.2);
       this.look.pitch = THREE.MathUtils.clamp(this.look.pitch - dy * 0.003 * this._sens(), -0.7, 0.6);
       this.look.idle = 0;
     });
   }
 
-  _cinePoints() { return []; } // (شبين: نقط الكاميرا السينمائية بتيجي من العالم: world.cinePoints())
+  _orbitBy(dyaw, dpitch) {
+    const o = this.orbit;
+    o.yaw = Math.atan2(Math.sin(o.yaw + dyaw), Math.cos(o.yaw + dyaw));
+    o.pitch = THREE.MathUtils.clamp(o.pitch + dpitch, -0.12, 1.35); // من مستوى الأرض تقريبًا لحد فوق العربية
+  }
 
   /** الكاميرا اللي ورا متدخلش جوه عمارة: لو الخط من العربية للكاميرا بيخبط في مبنى نقرّبها */
   _avoidWalls(px, pz, cam) {
@@ -145,7 +158,9 @@ export class CameraSystem {
     const root = p.rig.root;
     const id = this.modeId;
 
-    if (input && (Math.abs(input.lookX) > 0.1 || Math.abs(input.lookY) > 0.1)) {
+    if (id === 'orbit' && input && (Math.abs(input.lookX) > 0.1 || Math.abs(input.lookY) > 0.1)) {
+      this._orbitBy(-input.lookX * dt * 2.2 * this._sens(), input.lookY * dt * 1.2 * this._sens());
+    } else if (input && (Math.abs(input.lookX) > 0.1 || Math.abs(input.lookY) > 0.1)) {
       this.look.yaw = THREE.MathUtils.clamp(this.look.yaw - input.lookX * dt * 2.5 * this._sens(), -2.2, 2.2);
       this.look.pitch = THREE.MathUtils.clamp(this.look.pitch - input.lookY * dt * 1.5 * this._sens(), -0.7, 0.6);
       this.look.idle = 0;
@@ -216,40 +231,22 @@ export class CameraSystem {
       cam.position.copy(this.chasePos);
       const fwd = ph.forward;
       cam.lookAt(root.position.x + fwd[0] * 2.5, baseY + 1.4, root.position.z + fwd[1] * 2.5);
-    } else if (id === 'close') {
-      cam.fov = 55; cam.near = 0.1;
-      _m.makeRotationY(ph.yaw + this.look.yaw * 1.4);
-      const z = this.zoom.close, sz = ph.spec.halfLength / 2.64;
-      const off = _v.set(2.5 * z * (0.6 + 0.4 * sz), (1.15 + this.look.pitch * 2) * (0.7 + 0.3 * z), -3.7 * z * (0.55 + 0.45 * sz)).applyMatrix4(_m);
-      const baseY = ph.heave - ph.spec.cgHeight;
-      // (لما تنزّل الكاميرا لتحت كانت بتنزل تحت الأرض = منظر تحت العربية/جوه الأسفلت) → أقل حاجة 60سم فوق الأرض
-      cam.position.set(root.position.x + off.x, Math.max(baseY + off.y, Math.max(baseY, groundHeight(root.position.x + off.x, root.position.z + off.z)) + 0.6), root.position.z + off.z);
-      cam.lookAt(root.position.x, baseY + 0.75, root.position.z);
     } else {
-      // سينمائية: كاميرات ثابتة على الرصيف بتتابع الميكروباص
-      const c = this.cine;
-      const bus = _bus.set(root.position.x, ph.heave - ph.spec.cgHeight, root.position.z);
-      const d = c.pos.distanceTo(bus);
-      const fwd = ph.forward;
-      const behind = (c.pos.x - bus.x) * fwd[0] + (c.pos.z - bus.z) * fwd[1] < -12;
-      if (this.snap || d > 75 || behind) {
-        let best = null, bestScore = Infinity;
-        for (const pt of this.cinePoints) {
-          const ahead = (pt.x - bus.x) * fwd[0] + (pt.z - bus.z) * fwd[1];
-          const dist = pt.distanceTo(bus);
-          if (ahead < 8 || dist > 70) continue;
-          const score = Math.abs(dist - 35);
-          if (score < bestScore) { bestScore = score; best = pt; }
-        }
-        if (!best) best = new THREE.Vector3(bus.x + fwd[0] * 30 + 6, bus.y + 3, bus.z + fwd[1] * 30);
-        c.pos.copy(best);
-        c.target.copy(bus);
-      }
-      c.target.lerp(_v.set(bus.x, bus.y + 1.2, bus.z), Math.min(1, dt * 4));
-      cam.position.copy(c.pos);
-      cam.lookAt(c.target);
-      cam.fov = THREE.MathUtils.clamp(THREE.MathUtils.radToDeg(2 * Math.atan(5.5 / Math.max(5, d))) * this.zoom.cinematic, 10, 75);
-      cam.near = 0.1;
+      // حرة 360°: بتلف حوالين العربية بالسحب (ماوس/صباع) أو العصاية اليمين، وبتقرّب/تبعد بالعجلة أو بصباعين
+      cam.fov = 55; cam.near = 0.1;
+      const o = this.orbit;
+      if (this.attract) this._orbitBy(dt * 0.12, 0);
+      const baseY = ph.heave - ph.spec.cgHeight;
+      const size = ph.spec.halfLength * 2, dist = (size * 0.9 + 3.2) * this.zoom.orbit;
+      const yaw = ph.yaw + Math.PI + o.yaw, cp = Math.cos(o.pitch);
+      const focusY = baseY + (ph.spec.roofHeight ?? 2) * 0.45;
+      const target = _v.set(root.position.x + Math.sin(yaw) * cp * dist, focusY + Math.sin(o.pitch) * dist, root.position.z + Math.cos(yaw) * cp * dist);
+      // ماتدخلش جوه مبنى، وماتنزلش تحت الأرض
+      this._avoidWalls(root.position.x, root.position.z, target);
+      target.y = Math.max(target.y, groundHeight(target.x, target.z) + 0.45, baseY + 0.35);
+      if (this.snap) o.pos.copy(target); else o.pos.lerp(target, Math.min(1, dt * 12));
+      cam.position.copy(o.pos);
+      cam.lookAt(root.position.x, focusY, root.position.z);
     }
     if (this.shake > 0) {
       // هزة الخبطة: موجات ناعمة (مش رقم عشوائي جديد كل فريم = رعشة)

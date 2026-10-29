@@ -718,6 +718,11 @@ export class ShibinTraffic {
     }
     // ===== التقاطع الجاي =====
     let target = vMax;
+    // المطب اللي جاي: هدّي لـ 9 كم/س تقريبًا وعدّي عليه (زي أي سواق)
+    if (c.e.bumps) for (const sb of c.e.bumps) {
+      const d = (c.dir > 0 ? sb : L - sb) - c.s;
+      if (d > -1.5 && d < 45) target = Math.min(target, Math.sqrt(2.5 * 2.5 + 2 * 2.2 * Math.max(0, d - 2)));
+    }
     if (!c.turn) {
       const rem = L - c.s;
       if (!c.next && rem < 40) {
