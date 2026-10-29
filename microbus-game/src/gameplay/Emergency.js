@@ -42,9 +42,23 @@ export class Emergency {
     const hw = (bb.max.x - bb.min.x) / 2 - 0.2, L = bb.max.z - bb.min.z;
     const word = new THREE.MeshBasicMaterial({ map: signTex('إسعاف', 512, 128, null, '#2747c9'), transparent: true, side: THREE.DoubleSide, depthWrite: false });
     const H = bb.max.y - bb.min.y;
+    // سقف عالي (زي فانات الإسعاف في الصور): كابوت فوق السقف من ورا الزجاج للآخر، وشه مايل لقدام
+    const CAP = 0.42, cz0 = bb.min.z + L * 0.3, cz1 = bb.max.z - 0.2, cw = hw * 1.5;
+    {
+      const s = new THREE.Shape([new THREE.Vector2(-cz0, 0), new THREE.Vector2(-cz1, 0), new THREE.Vector2(-cz1, CAP), new THREE.Vector2(-(cz0 + 0.4), CAP)]);
+      const g = new THREE.ExtrudeGeometry(s, { depth: cw, bevelEnabled: true, bevelThickness: 0.04, bevelSize: 0.04, bevelSegments: 2 });
+      g.rotateY(Math.PI / 2); g.translate(-cw / 2, H - 0.05, 0); g.computeVertexNormals();
+      const cap = new THREE.Mesh(g, white); cap.castShadow = true; body.add(cap);
+      // "إسعاف" على وش الكابوت المايل
+      const n = new THREE.Vector3(0, 0.4, -CAP).normalize();
+      const fw = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.3), new THREE.MeshBasicMaterial({ map: signTex('إسعاف', 512, 128, null, '#2747c9'), transparent: true, side: THREE.DoubleSide, depthWrite: false }));
+      fw.position.set(0, H - 0.05 + CAP / 2, cz0 + 0.2).addScaledVector(n, 0.05); fw.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), n);
+      body.add(fw);
+    }
+    const HT = H + CAP; // ارتفاع العربية بالكابوت
     // الحزام والخطين و"إسعاف" على الجناب: مرسومين في خامة الصاج نفسها (بإحداثيات العربية) — بيلفوا مع شكل الجسم
     // (اللوحات المسطحة كانت طالعة برّه الجسم المدوّر)
-    const U = { uRootInv: { value: new THREE.Matrix4() }, uH: { value: H }, uHW: { value: hw }, uWord: { value: word.map } };
+    const U = { uRootInv: { value: new THREE.Matrix4() }, uH: { value: HT }, uHW: { value: hw }, uWord: { value: word.map } };
     white.onBeforeCompile = (sh) => {
       Object.assign(sh.uniforms, U);
       sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform mat4 uRootInv; varying vec3 vLoc;')
@@ -69,7 +83,7 @@ export class Emergency {
     // قدام: AMBULANCE مقلوبة فوق الشبكة
     const front = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 0.22), new THREE.MeshBasicMaterial({ map: signTex('AMBULANCE', 512, 96, null, '#2747c9', true), transparent: true, side: THREE.DoubleSide, depthWrite: false }));
     front.position.set(0, 1.08, bb.min.z - 0.03); front.rotation.y = Math.PI; body.add(front);
-    const bar = new THREE.Group(); bar.position.set(0, bb.max.y - bb.min.y + 0.08, -L / 2 + 1.4); body.add(bar);
+    const bar = new THREE.Group(); bar.position.set(0, HT + 0.02, cz0 + 0.6); body.add(bar);
     const red = new THREE.MeshStandardMaterial({ color: 0x000a50, emissive: 0x2a6bff, emissiveIntensity: 0 }); // (الكشاف أزرق كله زي الحقيقي)
     const blue = new THREE.MeshStandardMaterial({ color: 0x000a50, emissive: 0x1050ff, emissiveIntensity: 0 });
     for (const [m, x] of [[red, -0.32], [blue, 0.32]]) { const b = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.14, 0.26), m); b.position.x = x; bar.add(b); }
