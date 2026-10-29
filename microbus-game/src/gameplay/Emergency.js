@@ -247,5 +247,13 @@ export class Emergency {
     return out;
   }
 
+  /** للمرور: الإسعاف ماشية بالسارينة → اللي قدامها في نفس الاتجاه بيهدّي ويركن على يمين (yield) */
+  get slowZones() {
+    const J = this.jobs[0], rig = this._rig;
+    if (!J || !rig?.root.visible || (J.state !== 'drive' && J.state !== 'leave') || !(J.v > 1)) return [];
+    const fx = Math.sin(rig.yaw || 0), fz = Math.cos(rig.yaw || 0), p = rig.root.position;
+    return [{ x: p.x + fx * 18, z: p.z + fz * 18, r: 22, v: 2.5, yield: { fx, fz } }];
+  }
+
   debugStats() { const J = this.jobs[0]; return { dispatched: this.dispatched, delivered: this.delivered, state: J?.state || 'idle', hospital: J?.hospital || null }; }
 }

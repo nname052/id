@@ -663,7 +663,16 @@ export class ShibinTraffic {
     // اتكلكس له: بيسرّع شوية (لحد 15% فوق سرعته) لو قدامه فاضي
     if (c.hornT > 0) { c.hornT -= dt; vMax *= 1.15; }
     // مناطق تهدية (كمين شغال…): السرعة القصوى بتقل جواها
-    for (const z of this._slows) if ((z.x - c.x) ** 2 + (z.z - c.z) ** 2 < z.r * z.r) vMax = Math.min(vMax, z.v);
+    for (const z of this._slows) {
+      if ((z.x - c.x) ** 2 + (z.z - c.z) ** 2 >= z.r * z.r) continue;
+      vMax = Math.min(vMax, z.v);
+      // عربية طوارئ جاية من ورا بالسارينة: افسح لها — ركّن ناحية الرصيف (وبيرجع لحارته لوحده بعد ما تعدّي)
+      if (z.yield && !c.pull && !c.turn && c.lastDx * z.yield.fx + c.lastDz * z.yield.fz > 0.5) {
+        const curb = Math.max(c.lane, Math.min(e.half - 1.15, e.half * 0.8));
+        c.lane += Math.sign(curb - c.lane) * Math.min(Math.abs(curb - c.lane), dt * 2.2);
+        c.yielding = 1;
+      }
+    }
     // ===== اللي قدامي (عربية أو اللاعب) في نفس اتجاهي =====
     let gap = 1e9, vLead = 30, playerAhead = false;
     const hx = c.lastDx, hz = c.lastDz;

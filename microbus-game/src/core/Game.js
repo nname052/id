@@ -207,7 +207,7 @@ export class Game {
     if (this.crowd?.extras) {
       this.emergency = new Emergency(this.scene, { world: this.world, crowd: this.crowd, traffic: this.traffic, makeBody: (t) => this._makeCarBody(t, 0xffffff, {}), audio: this.audio, hud: this.hud });
       this.traffic.extraStops = () => { const a = this.emergency.stopZones, b = this.patrol?.stopZones; return b?.length ? [...a, ...b] : a; };
-      this.traffic.extraSlows = () => this.police?.slowZones || [];
+      this.traffic.extraSlows = () => { const a = this.police?.slowZones || [], b = this.emergency?.slowZones || []; return b.length ? [...a, ...b] : a; };
       this.crowd.onHit = (p, severe, v) => {
         this.audio?.thump?.(Math.min(1, v / 12));
         this.hud?.toast(severe ? '⚠️ خبطت حد جامد! — الإسعاف والشرطة جايين' : '⚠️ خبطت واحد ماشي — الإسعاف جاية له، والشرطة جاية', 3);
