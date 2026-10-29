@@ -80,6 +80,7 @@ export class ShibinWorld {
       this.group.add(this.landmarksLayer.group);
     } catch (e) { console.warn('[landmarks]', e); this.landmarksLayer = null; }
     this.features = features;
+    this._beaches(features?.beaches);
     // المطبات (OSM + قدام المدارس/المستشفيات): جزء من ارتفاع الأرض → العجل والمساعدين بيحسوا بيها
     try { this.bumps = new SpeedBumps(this, features?.bumps); if (this.bumps.mesh) this.group.add(this.bumps.mesh); } catch (e) { console.warn('[bumps]', e); this.bumps = null; }
     this.lamps = new ShibinLamps(this, { mobile: this.low, extra: this.landmarksLayer?.lampSpots || [] });
@@ -229,7 +230,7 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
     concrete.customProgramCacheKey = () => 'shibin-concrete-1';
     const steel = new THREE.MeshStandardMaterial({ color: 0x8a8e92, roughness: 0.45, metalness: 0.6, side: DS });
     const pitch = new THREE.MeshStandardMaterial({ color: 0x3f8f3a, roughness: 0.95 });
-    this.mats = { asphalt, water, waterCut, shore, ballast, rail, bank, foot, plain, concrete, steel, pitch, curb, paint, bld: buildingMaterial(M), bldLow: buildingMaterial(M, { low: true }) };
+    this.mats = { asphalt, water, waterCut, shore, wetSand: new THREE.MeshStandardMaterial({ color: 0xa48a62, roughness: 0.75, side: DS }), sand: new THREE.MeshStandardMaterial({ color: 0xd6c193, roughness: 1, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }), ballast, rail, bank, foot, plain, concrete, steel, pitch, curb, paint, bld: buildingMaterial(M), bldLow: buildingMaterial(M, { low: true }) };
   }
 
   setNight(on) {
@@ -654,6 +655,40 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
     }
   }
 
+  // ===================== الشطوط (OSM natural=beach) =====================
+  _beaches(list) {
+    if (!list?.length) return;
+    this.beaches = list.map((f) => { let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity; for (let i = 0; i < f.length; i += 2) { x0 = Math.min(x0, f[i]); x1 = Math.max(x1, f[i]); z0 = Math.min(z0, f[i + 1]); z1 = Math.max(z1, f[i + 1]); } return { f, x0, z0, x1, z1 }; });
+    // رمل الشط: تحت مستوى "فتحة" المية (0.005) → جوه المية مابيبانش، وعلى البر فوق الأرض
+    const pos = [], idx = [];
+    for (const b of this.beaches) {
+      const pts = []; for (let i = 0; i + 1 < b.f.length; i += 2) pts.push(new THREE.Vector2(b.f[i], b.f[i + 1]));
+      if (pts.length > 3 && pts[0].equals(pts[pts.length - 1])) pts.pop();
+      if (pts.length < 3) continue;
+      const tri = THREE.ShapeUtils.triangulateShape(pts, []), k = pos.length / 3;
+      for (const q of pts) pos.push(q.x, 0.003, q.y);
+      for (const [a, c, d] of tri) idx.push(k + a, k + d, k + c);
+    }
+    if (!idx.length) return;
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    const nor = new Float32Array(pos.length); for (let i = 1; i < nor.length; i += 3) nor[i] = 1;
+    g.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); g.setIndex(idx);
+    this.mats.sand.side = THREE.DoubleSide;
+    const m = new THREE.Mesh(g, this.mats.sand); m.name = 'beaches'; m.receiveShadow = true; this.group.add(m);
+  }
+
+  /** ضلع من حرف المية: البر اللي وراه (3م) جوه شط؟ */
+  _beachSeg(ax, az, bx, bz, G) {
+    const mx = (ax + bx) / 2, mz = (az + bz) / 2, L = Math.hypot(bx - ax, bz - az) || 1;
+    const nx = -(bz - az) / L, nz = (bx - ax) / L;
+    // ناحية البر = الناحية اللي مش مية
+    const s = inTriGrid(G, mx + nx * 0.6, mz + nz * 0.6) ? -1 : 1;
+    const px = mx + nx * 3 * s, pz = mz + nz * 3 * s;
+    for (const b of this.beaches) if (px >= b.x0 && px <= b.x1 && pz >= b.z0 && pz <= b.z1 && pointInRing(b.f, px, pz)) return true;
+    return false;
+  }
+
   // ===================== ارتفاع الأرض (للفيزيا والناس) =====================
   height(x, z, yHint) {
     const ref = yHint ?? this.refY;
@@ -978,10 +1013,14 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
     if (W.water) {
       // الترتيب مهم: المية والجناب → الفتحة (عمق بس) → الأرض وكل حاجة تانية
       const m = new THREE.Mesh(flatGeo(W.water.v, W.water.i, WATER_Y, 1 / 6), this.mats.water); m.name = 'water'; m.renderOrder = -3; m.receiveShadow = true; T.group.add(m);
-      const bank = curbGeo(W.water.rings, WATER_FLOOR - 0.2, 0, T, this.TS);
+      // الشط: الحتة اللي البر جنبها رمل (OSM natural=beach) مش حيطة — الرمل بينزل جوه المية بميل
+      const T0 = { waterGrid: triGrid(W.water.v, W.water.i, 6) };
+      const onBeach = this.beaches ? (ax, az, bx, bz) => this._beachSeg(ax, az, bx, bz, T0.waterGrid) : null;
+      const bank = curbGeo(W.water.rings, WATER_FLOOR - 0.2, 0, T, this.TS, false, onBeach);
+      if (onBeach) { const sg = beachSlopeGeo(W.water.rings, T, this.TS, T0.waterGrid, onBeach); if (sg) { const s = new THREE.Mesh(sg, this.mats.wetSand); s.name = 'beach-slope'; s.receiveShadow = true; s.renderOrder = -3; T.group.add(s); } }
       if (bank) { const b = new THREE.Mesh(bank, this.mats.bank); b.receiveShadow = true; b.renderOrder = -3; T.group.add(b); }
       const cut = new THREE.Mesh(flatGeo(W.water.v, W.water.i, 0.005, 1 / 6), this.mats.waterCut); cut.name = 'water-cut'; cut.renderOrder = -2; T.group.add(cut);
-      T.waterGrid = triGrid(W.water.v, W.water.i, 6);
+      T.waterGrid = T0.waterGrid;
       if (this.waterStyle === 'sea' || this.waterStyle === 'nile') {
         const sg = shoreGeo(W.water.rings, T, this.TS, this.waterStyle === 'sea' ? 16 : 6, WATER_Y + 0.015);
         if (sg) { const s = new THREE.Mesh(sg, this.mats.shore); s.name = 'water-shore'; s.renderOrder = -2.5; T.group.add(s); }
@@ -1199,6 +1238,36 @@ function onTileEdge(ax, az, bx, bz, T, TS) {
   return (Math.abs(ax - bx) < e && (Math.abs(ax - x0) < e || Math.abs(ax - x1) < e)) || (Math.abs(az - bz) < e && (Math.abs(az - z0) < e || Math.abs(az - z1) < e));
 }
 
+function pointInRing(f, x, z) {
+  let inside = false;
+  for (let i = 0, j = f.length - 2; i < f.length; j = i, i += 2) {
+    const xi = f[i], zi = f[i + 1], xj = f[j], zj = f[j + 1];
+    if ((zi > z) !== (zj > z) && x < (xj - xi) * (z - zi) / (zj - zi || 1e-9) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+/** ميل الرمل من حرف المية (0) لجوه المية (-0.9 على بعد 9م): المية (-0.55) بتقطعه على ~5.5م = خط شط طبيعي */
+function beachSlopeGeo(rings, T, TS, G, isBeach) {
+  const pos = [], idx = [], D = 9, Y1 = -0.9;
+  for (const r of rings) for (let i = 0; i + 3 < r.length; i += 2) {
+    const ax = r[i], az = r[i + 1], bx = r[i + 2], bz = r[i + 3];
+    if (onTileEdge(ax, az, bx, bz, T, TS) || !isBeach(ax, az, bx, bz)) continue;
+    const L = Math.hypot(bx - ax, bz - az); if (L < 0.05) continue;
+    let nx = -(bz - az) / L, nz = (bx - ax) / L;
+    if (!inTriGrid(G, (ax + bx) / 2 + nx * 0.6, (az + bz) / 2 + nz * 0.6)) { nx = -nx; nz = -nz; }
+    const k = pos.length / 3;
+    pos.push(ax, 0, az, bx, 0, bz, bx + nx * D, Y1, bz + nz * D, ax + nx * D, Y1, az + nz * D);
+    // الوش لفوق
+    const cr = (bx - ax) * (nz * D) - (bz - az) * (nx * D);
+    if (cr < 0) idx.push(k, k + 1, k + 2, k, k + 2, k + 3); else idx.push(k, k + 2, k + 1, k, k + 3, k + 2);
+  }
+  if (!idx.length) return null;
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals();
+  return g;
+}
+
 /** شريط الشط: من حرف المية لجوه بعرض W (بيتقطع عند حدود المربع). الاتجاه لجوه من الـ waterGrid نفسه
  *  (اتجاه لفّة الحلقات مش ثابت)، والـ normal عند كل نقطة = متوسط الضلعين (من غير فتحات في الكوع) */
 function shoreGeo(rings, T, TS, Wd, y) {
@@ -1240,12 +1309,12 @@ function shoreGeo(rings, T, TS, Wd, y) {
 }
 
 /** حيطان رأسية على حواف المضلعات (حرف الرصيف / جناب الترعة) — مش على حدود المربع */
-function curbGeo(rings, y0, y1, T, TS, both = false) {
+function curbGeo(rings, y0, y1, T, TS, both = false, skip = null) {
   const pos = [], nor = [], uv = [], idx = [];
   for (const r of rings) {
     for (let i = 0; i + 3 < r.length; i += 2) {
       const ax = r[i], az = r[i + 1], bx = r[i + 2], bz = r[i + 3];
-      if (onTileEdge(ax, az, bx, bz, T, TS)) continue;
+      if (onTileEdge(ax, az, bx, bz, T, TS) || skip?.(ax, az, bx, bz)) continue;
       const L = Math.hypot(bx - ax, bz - az); if (L < 0.02) continue;
       const nx = (bz - az) / L, nz = -(bx - ax) / L;
       const k = pos.length / 3;
