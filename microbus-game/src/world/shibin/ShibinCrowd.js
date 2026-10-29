@@ -19,7 +19,9 @@ export class ShibinCrowd {
     this.R = rng(777);
     this.group = new THREE.Group(); this.group.name = 'crowd';
     scene.add(this.group);
-    this.batch = new HumanBatch(this.group, humanVariants(VARIANTS, 777, true), this.cap);
+    const V = humanVariants(VARIANTS, 777, true);
+    this.batch = new HumanBatch(this.group, V, this.cap);
+    this.batch.types = V.map((v) => v.type);
     this.people = []; this.extras = [];
     for (let i = 0; i < this.cap; i++) this.people.push({ on: false, variant: i % VARIANTS, phase: this.R() * 10, heading: 0, scared: 0 });
     this.setCount(count);
@@ -78,6 +80,7 @@ export class ShibinCrowd {
       p.standing = this.R() < 0.3;
       p.dir = this.R() < 0.5 ? 1 : -1;
       p.speed = p.standing ? 0 : 0.85 + this.R() * 0.7;
+      if (this.batch.types?.[p.variant] === 'elder') p.speed *= 0.6; // الكبار بيمشوا براحة
       p.look = this.R() * 2 - 1;
       p.on = true; p.cross = null;
       p.heading = this._yaw(p);

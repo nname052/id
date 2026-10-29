@@ -14,13 +14,14 @@ export const J = { hipX: 0.095, hipY: 0.92, kneeY: 0.5, shX: 0.195, shY: 1.42, e
 // الألوان مكتوبة sRGB (زي ما بنشوفها) وبتتحول linear تحت (عشان البشرة واللبس مايطلعوش باهتين)
 const SKIN = [[0.86, 0.68, 0.54], [0.76, 0.57, 0.43], [0.66, 0.48, 0.36], [0.56, 0.4, 0.3], [0.47, 0.33, 0.25]];
 const HAIR = [[0.05, 0.04, 0.035], [0.12, 0.08, 0.05], [0.2, 0.14, 0.09], [0.55, 0.55, 0.55]];
+const KID = [[0.85, 0.2, 0.2], [0.2, 0.45, 0.85], [0.95, 0.75, 0.15], [0.25, 0.65, 0.35], [0.9, 0.45, 0.6]];
 const SHIRT = [[0.9, 0.9, 0.88], [0.22, 0.36, 0.6], [0.62, 0.18, 0.16], [0.3, 0.46, 0.32], [0.88, 0.76, 0.5], [0.15, 0.15, 0.17], [0.55, 0.62, 0.72]];
 const PANTS = [[0.14, 0.17, 0.26], [0.3, 0.3, 0.31], [0.36, 0.29, 0.21], [0.1, 0.1, 0.11], [0.45, 0.42, 0.36]];
 const ROBE = [[0.88, 0.88, 0.85], [0.45, 0.42, 0.38], [0.3, 0.31, 0.34], [0.24, 0.3, 0.44], [0.52, 0.42, 0.32], [0.6, 0.55, 0.45]];
 const ABAYA = [[0.08, 0.08, 0.1], [0.16, 0.12, 0.18], [0.2, 0.26, 0.34], [0.32, 0.22, 0.24], [0.38, 0.32, 0.28]];
 const HIJAB = [[0.88, 0.86, 0.82], [0.55, 0.16, 0.22], [0.22, 0.36, 0.56], [0.75, 0.6, 0.45], [0.12, 0.12, 0.13], [0.48, 0.55, 0.42], [0.85, 0.6, 0.62]];
 const SHOE = [[0.08, 0.07, 0.06], [0.28, 0.18, 0.1], [0.85, 0.85, 0.85], [0.15, 0.15, 0.16]];
-for (const pal of [SKIN, HAIR, SHIRT, PANTS, ROBE, ABAYA, HIJAB, SHOE]) for (const c of pal) for (let i = 0; i < 3; i++) c[i] = Math.pow(c[i], 2.2);
+for (const pal of [SKIN, HAIR, SHIRT, PANTS, ROBE, ABAYA, HIJAB, SHOE, KID]) for (const c of pal) for (let i = 0; i < 3; i++) c[i] = Math.pow(c[i], 2.2);
 
 // ===== أطلس الوشوش: 8 وشوش (ابيض + ملامح غامقة) بيتضربوا في لون البشرة =====
 const FA = { cols: 4, rows: 2, w: 96, h: 120 };
@@ -112,18 +113,21 @@ const lathe = (prof, seg) => new THREE.LatheGeometry(prof.map(([r, y]) => new TH
 const limb = (rTop, rBottom, len, seg) => new THREE.CylinderGeometry(rTop, rBottom, len, seg, 1, true);
 
 /**
- * بيبني شكل شخص (geometry واحدة). opts: { type: 'casual'|'galabeya'|'woman'|'abaya'|'kid', low }
+ * بيبني شكل شخص (geometry واحدة). opts: { type: 'casual'|'galabeya'|'woman'|'abaya'|'kid'|'elder', low }
+ * elder: راجل كبير (شعر أبيض/رمادي، جلابية أو قميص غامق، عصاية في إيده اليمين) — kid: طفل (بيتصغّر في humanVariants، لبس ملوّن)
  * بيرجع { geo, type, height }
  */
 export function buildHuman(R, opts = {}) {
   const low = !!opts.low, S = (n) => (low ? Math.max(5, Math.round(n * 0.6)) : n);
   const roll = R();
-  const type = opts.type || (roll < 0.3 ? 'galabeya' : roll < 0.48 ? 'woman' : roll < 0.6 ? 'abaya' : 'casual');
+  const role = opts.type || (roll < 0.3 ? 'galabeya' : roll < 0.48 ? 'woman' : roll < 0.6 ? 'abaya' : 'casual');
+  // (اللبس: الكبير جلابية أو قميص، الطفل قميص وبنطلون)
+  const type = role === 'elder' ? (R() < 0.6 ? 'galabeya' : 'casual') : role === 'kid' ? 'casual' : role;
   const pick = (a) => a[Math.floor(R() * a.length)];
   const fem = type === 'woman' || type === 'abaya';
-  const skin = pick(SKIN), hair = R() < 0.18 && !fem ? HAIR[3] : pick(HAIR.slice(0, 3));
+  const skin = pick(SKIN), hair = role === 'elder' ? (R() < 0.5 ? HAIR[3] : [0.72, 0.72, 0.66]) : R() < 0.18 && !fem ? HAIR[3] : pick(HAIR.slice(0, 3));
   const P = new Parts();
-  const top = type === 'galabeya' ? pick(ROBE) : type === 'abaya' ? pick(ABAYA) : pick(SHIRT);
+  const top = role === 'kid' ? pick(KID) : type === 'galabeya' ? pick(ROBE) : type === 'abaya' ? pick(ABAYA) : pick(SHIRT);
   const bottom = type === 'casual' ? pick(PANTS) : type === 'woman' ? pick([...ABAYA, ...PANTS]) : top;
   const shoe = pick(SHOE);
   const longSleeve = type !== 'casual' || R() < 0.5;
@@ -187,7 +191,9 @@ export function buildHuman(R, opts = {}) {
     // الإيد: كف مقفول شوية
     P.add(new THREE.SphereGeometry(1, S(8), S(6)), T(ax, J.elY - 0.31, 0.01, 0, 0, 0, 0.036, 0.075, 0.03), skin, bf);
   }
-  return { geo: P.build(), type, height: 1.75 };
+  // العصاية (الكبير): من الإيد اليمين للأرض، بتتحرك مع الدراع
+  if (role === 'elder') P.add(limb(0.013, 0.011, J.elY - 0.33, S(6)), T(J.shX + 0.015, (J.elY - 0.33) / 2, 0.06, 0.06, 0, 0), [0.08, 0.036, 0.011], 8); // (ألوان خطية زي باقي الباليتات)
+  return { geo: P.build(), type: role, height: 1.75 };
 }
 
 // ===== الشيدر: حركة المشي من aAnim (phase, amp, armR, armL) =====
@@ -302,11 +308,12 @@ const _variants = new Map();
 export function humanVariants(n, seed = 2024, low = false) {
   const key = `${n}:${seed}:${low}`;
   if (_variants.has(key)) return _variants.get(key);
-  const out = [], kinds = ['casual', 'galabeya', 'woman', 'casual', 'abaya', 'galabeya', 'woman', 'casual'];
+  // (12 شكل للشارع: فيهم 2 كبار و1 طفل)
+  const out = [], kinds = ['casual', 'galabeya', 'woman', 'casual', 'abaya', 'galabeya', 'woman', 'casual', 'elder', 'kid', 'woman', 'elder'];
   for (let i = 0; i < n; i++) {
     const R = rng((seed + i * 7919) >>> 0); for (let k = 0; k < 6; k++) R();
     const h = buildHuman(R, { type: kinds[i % kinds.length], low });
-    h.scale = 0.93 + R() * 0.12;
+    h.scale = h.type === 'kid' ? 0.6 + R() * 0.08 : h.type === 'elder' ? 0.9 + R() * 0.06 : 0.93 + R() * 0.12;
     out.push(h);
   }
   _variants.set(key, out);
