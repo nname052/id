@@ -12,10 +12,11 @@ import { canvas, tex } from '../render/textures.js';
 
 const V_MAX = 13;
 
-function signTex(text, w = 512, h = 128, bg = null, fg = '#c81414') {
+function signTex(text, w = 512, h = 128, bg = null, fg = '#c81414', mirror = false) {
   const c = canvas(w, h), x = c.getContext('2d');
   if (bg) { x.fillStyle = bg; x.fillRect(0, 0, w, h); } else x.clearRect(0, 0, w, h);
-  x.fillStyle = fg; x.font = `bold ${Math.round(h * 0.62)}px Cairo, sans-serif`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.direction = 'rtl';
+  if (mirror) { x.translate(w, 0); x.scale(-1, 1); } // مقلوبة: تتقري صح في مراية العربية اللي قدامها
+  x.fillStyle = fg; x.font = `bold ${Math.round(h * 0.62)}px Cairo, sans-serif`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.direction = /[A-Z]/.test(text) ? 'ltr' : 'rtl';
   x.fillText(text, w / 2, h / 2 + 4);
   return tex(c, { repeat: false, aniso: 4 });
 }
@@ -32,20 +33,44 @@ export class Emergency {
   _ambulance() {
     if (this._rig) return this._rig;
     const rig = this._makeBody('microbus');
-    // أبيض + شريط أحمر + "إسعاف" على الجنبين والكبوت + كشاف فوق
-    const white = new THREE.MeshPhysicalMaterial({ color: 0xf6f6f2, roughness: 0.35, clearcoat: 1, clearcoatRoughness: 0.1, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
+    // ألوان هيئة الإسعاف المصرية (من صور حقيقية على Commons: "Ambulance in Egypt 02.jpg" CC BY 4.0، "Ambulance, Cairo.JPG" CC BY-SA 3.0):
+    // جسم برتقالي، حزام أخضر بترولي غامق تحت حوالين العربية + خطين على السقف، "إسعاف" و AMBULANCE (مقلوبة على الكبوت) بالأزرق، كشاف أزرق
+    const white = new THREE.MeshPhysicalMaterial({ color: 0xe8681c, roughness: 0.38, clearcoat: 1, clearcoatRoughness: 0.12, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
     rig.root.traverse((o) => { if (o.isMesh && (o.userData.matName || '').toLowerCase() === 'paint') o.material = white; });
     const body = rig.body || rig.root;
     const bb = new THREE.Box3().setFromObject(rig.root);
     const hw = (bb.max.x - bb.min.x) / 2 - 0.2, L = bb.max.z - bb.min.z;
-    const stripe = new THREE.MeshBasicMaterial({ color: 0xd8261c, side: THREE.DoubleSide });
-    const word = new THREE.MeshBasicMaterial({ map: signTex('إسعاف'), transparent: true, side: THREE.DoubleSide, depthWrite: false });
-    for (const sx of [-1, 1]) {
-      const s = new THREE.Mesh(new THREE.PlaneGeometry(L * 0.86, 0.22), stripe); s.position.set(sx * (hw + 0.215), 0.95, 0); s.rotation.y = sx * Math.PI / 2; body.add(s);
-      const w = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 0.4), word); w.position.set(sx * (hw + 0.22), 1.35, 0.3); w.rotation.y = sx * Math.PI / 2; body.add(w);
-    }
+    const word = new THREE.MeshBasicMaterial({ map: signTex('إسعاف', 512, 128, null, '#2747c9'), transparent: true, side: THREE.DoubleSide, depthWrite: false });
+    const H = bb.max.y - bb.min.y;
+    // الحزام والخطين و"إسعاف" على الجناب: مرسومين في خامة الصاج نفسها (بإحداثيات العربية) — بيلفوا مع شكل الجسم
+    // (اللوحات المسطحة كانت طالعة برّه الجسم المدوّر)
+    const U = { uRootInv: { value: new THREE.Matrix4() }, uH: { value: H }, uHW: { value: hw }, uWord: { value: word.map } };
+    white.onBeforeCompile = (sh) => {
+      Object.assign(sh.uniforms, U);
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform mat4 uRootInv; varying vec3 vLoc;')
+        .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvLoc = (uRootInv * modelMatrix * vec4(transformed, 1.0)).xyz;');
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vLoc; uniform float uH, uHW; uniform sampler2D uWord;')
+        .replace('#include <color_fragment>', `#include <color_fragment>
+{
+  vec3 teal = vec3(0.012, 0.10, 0.075);
+  float y = vLoc.y;
+  float band = step(0.56, y) * step(y, 0.92);
+  float roof = (step(uH - 0.30, y) * step(y, uH - 0.25) + step(uH - 0.19, y) * step(y, uH - 0.14)) * step(0.55 * uHW, abs(vLoc.x));
+  diffuseColor.rgb = mix(diffuseColor.rgb, teal, clamp(band + roof, 0.0, 1.0));
+  // "إسعاف" على الجنبين فوق الحزام وتحت الشبابيك (بتتقري صح من برّه في الناحيتين)
+  if (abs(vLoc.x) > 0.75 * uHW) {
+    vec2 wuv = vec2((vLoc.x > 0.0 ? (1.0 - vLoc.z) : (vLoc.z + 0.4)) / 1.4, (y - 0.93) / 0.32);
+    if (wuv.x > 0.0 && wuv.x < 1.0 && wuv.y > 0.0 && wuv.y < 1.0) { vec4 w = texture2D(uWord, wuv); diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.03, 0.06, 0.6), w.a); }
+  }
+}`);
+    };
+    white.customProgramCacheKey = () => 'eg-ambulance-1';
+    rig.root.traverse((o) => { if (o.isMesh && o.material === white) o.onBeforeRender = () => U.uRootInv.value.copy(rig.root.matrixWorld).invert(); });
+    // قدام: AMBULANCE مقلوبة فوق الشبكة
+    const front = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 0.22), new THREE.MeshBasicMaterial({ map: signTex('AMBULANCE', 512, 96, null, '#2747c9', true), transparent: true, side: THREE.DoubleSide, depthWrite: false }));
+    front.position.set(0, 1.08, bb.min.z - 0.03); front.rotation.y = Math.PI; body.add(front);
     const bar = new THREE.Group(); bar.position.set(0, bb.max.y - bb.min.y + 0.08, -L / 2 + 1.4); body.add(bar);
-    const red = new THREE.MeshStandardMaterial({ color: 0x500000, emissive: 0xff1a10, emissiveIntensity: 0 });
+    const red = new THREE.MeshStandardMaterial({ color: 0x000a50, emissive: 0x2a6bff, emissiveIntensity: 0 }); // (الكشاف أزرق كله زي الحقيقي)
     const blue = new THREE.MeshStandardMaterial({ color: 0x000a50, emissive: 0x1050ff, emissiveIntensity: 0 });
     for (const [m, x] of [[red, -0.32], [blue, 0.32]]) { const b = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.14, 0.26), m); b.position.x = x; bar.add(b); }
     rig.bar = { red, blue };

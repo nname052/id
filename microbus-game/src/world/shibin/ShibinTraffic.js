@@ -615,9 +615,17 @@ export class ShibinTraffic {
       if (this._show(c, vis, d2) || !vis) continue;
       const shadow = d2 < 45 * 45; // (العجل كان بيستخبى بعد 70م = العربية ماشية من غير عجل "كتلة واحدة")
       if (shadow !== c._shadow) { c._shadow = shadow; r.root.traverse((o) => { if (o.isMesh && o.userData.role !== 'glass' && o.userData.role !== 'shadow') o.castShadow = shadow; }); }
-      r.root.position.set(c.x, c.y, c.z);
+      // المطب: العجل اللي قدام ورا اللي ورا (ارتفاع المطب تحت كل محور → الجسم بيطلع ويميل). قريب بس (رخيص)
+      let by = 0, bp = 0;
+      const B = this.world.bumps;
+      if (B && d2 < 80 * 80 && c.e?.bumps) {
+        const fx = -Math.sin(c.yaw), fz = -Math.cos(c.yaw), hl = (c.len || 4.4) * 0.32;
+        const hf = B.h(c.x + fx * hl, c.z + fz * hl), hr = B.h(c.x - fx * hl, c.z - fz * hl);
+        by = (hf + hr) / 2; bp = Math.atan2(hf - hr, 2 * hl);
+      }
+      r.root.position.set(c.x, c.y + by, c.z);
       r.root.rotation.order = 'YXZ';
-      r.root.rotation.set(c._pitch || 0, c.yaw, 0);
+      r.root.rotation.set((c._pitch || 0) + bp, c.yaw, 0);
       c.spin += (c.v / (r.wheelRadius || 0.3)) * dt;
       // سرعة اللف (من تغيّر الاتجاه) → العجل اللي قدام بيلف مع الدركسيون، والجسم بيميل في اللفة (مش كتلة واحدة)
       const dyaw = c._pyaw === undefined ? 0 : Math.atan2(Math.sin(c.yaw - c._pyaw), Math.cos(c.yaw - c._pyaw));
