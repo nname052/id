@@ -23,37 +23,61 @@
       "id": "rail_station_1",
       "name": "بنها",
       "kind": "rail_station",
-      "osm": "node/1029624589"
+      "osm": "node/1029624589",
+      "lonlat": [
+        31.180968,
+        30.456075
+      ]
     },
     {
       "id": "university_2",
       "name": "جامعة بنها",
       "kind": "university",
-      "osm": "way/771303417"
+      "osm": "way/771303417",
+      "lonlat": [
+        31.196951,
+        30.475834
+      ]
     },
     {
       "id": "hospital_3",
       "name": "مستشفى بنها للصحة النفسية وعلاج الإدمان",
       "kind": "hospital",
-      "osm": "node/13907606661"
+      "osm": "node/13907606661",
+      "lonlat": [
+        31.186996,
+        30.465381
+      ]
     },
     {
       "id": "hospital_4",
       "name": "مستشفي جامعة بنها",
       "kind": "hospital",
-      "osm": "way/94125740"
+      "osm": "way/94125740",
+      "lonlat": [
+        31.178725,
+        30.469645
+      ]
     },
     {
       "id": "hospital_5",
       "name": "مستشفى الحميات",
       "kind": "hospital",
-      "osm": "way/1076112442"
+      "osm": "way/1076112442",
+      "lonlat": [
+        31.180821,
+        30.473216
+      ]
     },
     {
       "id": "historic_6",
       "name": "بطا",
       "kind": "historic",
-      "osm": "node/4704924490"
+      "osm": "node/4704924490",
+      "lonlat": [
+        31.169272,
+        30.462562
+      ]
     }
   ],
   "needs_verification": []

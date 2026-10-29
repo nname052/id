@@ -23,49 +23,81 @@
       "id": "stadium_1",
       "name": "ستاد الفيوم",
       "kind": "stadium",
-      "osm": "way/98383713"
+      "osm": "way/98383713",
+      "lonlat": [
+        30.840262,
+        29.318348
+      ]
     },
     {
       "id": "university_2",
       "name": "جامعة الفيوم",
       "kind": "university",
-      "osm": "way/94184915"
+      "osm": "way/94184915",
+      "lonlat": [
+        30.836948,
+        29.321473
+      ]
     },
     {
       "id": "rail_station_3",
       "name": "الفيوم",
       "kind": "rail_station",
-      "osm": "node/1022171353"
+      "osm": "node/1022171353",
+      "lonlat": [
+        30.847736,
+        29.309064
+      ]
     },
     {
       "id": "hospital_4",
       "name": "مستشفى مصطفى حسن الجامعي لطب وجراحات الاطفال",
       "kind": "hospital",
-      "osm": "node/14134164664"
+      "osm": "node/14134164664",
+      "lonlat": [
+        30.850195,
+        29.313714
+      ]
     },
     {
       "id": "hospital_5",
       "name": "مستشفى الفيوم عام",
       "kind": "hospital",
-      "osm": "node/14134254767"
+      "osm": "node/14134254767",
+      "lonlat": [
+        30.849972,
+        29.316322
+      ]
     },
     {
       "id": "historic_6",
       "name": "مسلة سنوسرت",
       "kind": "historic",
-      "osm": "node/14134259987"
+      "osm": "node/14134259987",
+      "lonlat": [
+        30.85259,
+        29.315303
+      ]
     },
     {
       "id": "hospital_7",
       "name": "مستشفي التامين الصحي بالفيوم",
       "kind": "hospital",
-      "osm": "node/3966622155"
+      "osm": "node/3966622155",
+      "lonlat": [
+        30.859477,
+        29.310651
+      ]
     },
     {
       "id": "park_8",
       "name": "الحديقة الدولية",
       "kind": "park",
-      "osm": "way/94184945"
+      "osm": "way/94184945",
+      "lonlat": [
+        30.834025,
+        29.31802
+      ]
     }
   ],
   "needs_verification": []

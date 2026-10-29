@@ -5,6 +5,7 @@
 //  كمان بيقدّم ارتفاع الأرض للفيزيا (رصيف/ترعة/كوبري بمستويين)، وأماكن البداية والرجوع للطريق.
 // =====================================================================
 import * as THREE from 'three';
+import { buildMonuments, buildAirport } from './Monuments.js';
 import { REGION_BASE, loadJSON, dropCache, buildGraph, edgePoint, edgesNear } from './ShibinData.js';
 import { StreetKit } from './ShibinStreetKit.js';
 import { ShibinRail } from './ShibinRail.js';
@@ -23,8 +24,8 @@ export const SIDEWALK = { motorway: 0, trunk: 2, primary: 3, secondary: 2.5, ter
 const _v = new THREE.Vector3();
 
 export class ShibinWorld {
-  constructor(M, { id = 'shibin', name = 'شبين الكوم', low = false, tier = 'high', assets = null, water = null } = {}) {
-    this.M = M; this.id = id; this.name = name; this.assets = assets; this.waterStyle = water; this.low = low; this.tier = tier;
+  constructor(M, { id = 'shibin', name = 'شبين الكوم', low = false, tier = 'high', assets = null, water = null, spawn = null } = {}) {
+    this.M = M; this.id = id; this.name = name; this.assets = assets; this.waterStyle = water; this.spawnLL = spawn; this.low = low; this.tier = tier;
     // (assets: موديلات GLB جاهزة — كراسي القهاوي…)
     this.base = REGION_BASE(id);
     this.group = new THREE.Group(); this.group.name = `region-${id}`;
@@ -84,7 +85,11 @@ export class ShibinWorld {
     try { this.rail = new ShibinRail(this, this.group, { low: this.low }); } catch (e) { console.warn('[rail]', e); this.rail = null; }
     this._breakables(); // (بعد الشجر وأعمدة الكهربا)
     // المسجد والكنيسة اللي في OSM (قبل المربعات عشان العمارات المولّدة تتشال من مكانهم)
+    // المعالم المشهورة (الأهرامات، أبو الهول، برج القاهرة، قايتباي، مكتبة الإسكندرية…) — قبل المربعات عشان مكانها يتشال
+    // (وقبل دور العبادة: جامع محمد علي الحقيقي بياخد مكان المسجد العام)
+    try { this.monuments = buildMonuments(this, this.group); } catch (e) { console.warn('[monuments]', e); this.monuments = []; }
     try { this.worship = buildWorship(this, features, this.group); } catch (e) { console.warn('[worship]', e); this.worship = []; }
+    try { this.airport = buildAirport(this, features?.aero, this.group); } catch (e) { console.warn('[airport]', e); }
     this.group.add(this.lamps.group);
     this.stats.loadMs = Math.round(performance.now() - t0);
     return this;
@@ -969,6 +974,13 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
     }
   }
 
+  /** مركز الحلقة جوه مضلع معلم (هرم/قلعة…) */
+  _inMonument(r) {
+    let cx = 0, cz = 0, n = 0; for (let i = 0; i + 1 < r.length; i += 2) { cx += r[i]; cz += r[i + 1]; n++; }
+    cx /= n; cz /= n;
+    return this.monumentZones.some((P) => { let c = false; for (let i = 0, j = P.length - 1; i < P.length; j = i++) { const [xi, zi] = P[i], [xj, zj] = P[j]; if ((zi > cz) !== (zj > cz) && cx < ((xj - xi) * (cz - zi)) / (zj - zi) + xi) c = !c; } return c; });
+  }
+
   // ---------- العمارات ----------
   _buildBuildings(T, Bd) {
     // أماكن محجوزة (المحطة…): العمارات المولّدة اللي جواها بتتشال
@@ -989,6 +1001,8 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
       this.stats.buildings += T.nB;
     }
     for (const rb of Bd.real || []) {
+      // (مبنى OSM جوه معلم متبني لوحده — الهرم/القلعة/المكتبة — مايتبنيش تاني فوقه)
+      if (this.monumentZones?.length && rb.rings?.[0] && this._inMonument(rb.rings[0])) continue;
       // مبنى OSM حقيقي: واجهة حسب نوعه + يافطة باسمه (المحطة/المدارس/المولات…)
       const { group } = styledRealBuilding(rb, this);
       T.group.add(group);
@@ -1041,7 +1055,10 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
   spawnPose() {
     const st = this.mainStation() || { x: 0, z: 0 };
     const lp = st.id && this.landmarkPoints.find((l) => l.id === st.id);
-    const x = lp ? lp.rx : st.x, z = lp ? lp.rz : st.z;
+    let x = lp ? lp.rx : st.x, z = lp ? lp.rz : st.z;
+    // مكان بداية مكتوب للمدينة (maps.js: الإسكندرية على الكورنيش، الجيزة عند الأهرامات) — lat/lon → متر حوالين نقطة الأصل
+    const sp = this.spawnLL, O = this.meta?.origin;
+    if (sp && O) { x = (sp.lon - O.lon) * 111320 * Math.cos(O.lat * Math.PI / 180); z = -(sp.lat - O.lat) * 110574; }
     if (this.id === 'shibin') return this.roadPose(x, z) || { x: 0, z: 0, yaw: 0 };
     // المدن التانية: أقرب شارع حقيقي (مش خدمة/مدخل) طوله 60م+ — في المنصورة كان بيبدأ في آخر مدخل المحطة
     // ووشه في الحيطة. بنقف في نص الشارع، والوش ناحية الحتة الأطول منه

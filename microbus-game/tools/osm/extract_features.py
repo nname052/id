@@ -26,7 +26,7 @@ AREA_LEISURE = {'stadium', 'pitch', 'track', 'sports_centre', 'park', 'garden'}
 
 class H(osmium.SimpleHandler):
     def __init__(s):
-        super().__init__(); s.pois = []; s.areas = []; s.stops = []
+        super().__init__(); s.pois = []; s.areas = []; s.stops = []; s.aero = []
     def _poi(s, kind, tags, lon, lat, osm):
         s.pois.append({'kind': kind, 'name': tags.get('name:ar') or tags.get('name') or '', 'p': P(lon, lat), 'osm': osm,
                        'tags': {k: tags[k] for k in ('amenity', 'shop', 'cuisine', 'brand', 'sport', 'religion') if k in tags}})
@@ -38,6 +38,16 @@ class H(osmium.SimpleHandler):
             s.stops.append({'name': t.get('name:ar') or t.get('name') or '', 'p': P(lon, lat), 'osm': f'node/{n.id}', 'tags': dict(t)})
         if 'shop' in t: s._poi('shop', t, lon, lat, f'node/{n.id}')
         elif t.get('amenity') in SHOP_AMENITY: s._poi(t['amenity'], t, lon, lat, f'node/{n.id}')
+    def way(s, w):
+        # المطار: الممرات (runway/taxiway) بعرضها من OSM — اللعبة بترسمها بالخرسانة والعلامات البيضا
+        t = w.tags; k = t.get('aeroway')
+        if k not in ('runway', 'taxiway'): return
+        try: pts = [(nd.lon, nd.lat) for nd in w.nodes]
+        except Exception: return
+        if not any(inside(*q) for q in pts): return
+        try: wd = float((t.get('width') or '').split()[0])
+        except Exception: wd = 45.0 if k == 'runway' else 18.0
+        s.aero.append({'kind': k, 'w': wd, 'ref': t.get('ref', ''), 'p': [P(*q) for q in pts], 'osm': f'way/{w.id}'})
     def area(s, a):
         t = a.tags
         kind = t.get('leisure') if t.get('leisure') in AREA_LEISURE else ('shop' if 'shop' in t else t.get('amenity') if t.get('amenity') in SHOP_AMENITY else None)
@@ -63,8 +73,8 @@ h = H()
 pbf = args.pbf or cfg['source_pbf']
 h.apply_file(pbf, locations=True)
 out = {'note': 'all features come from OSM (ODbL); nothing invented', 'source': os.path.basename(pbf),
-       'areas': h.areas, 'pois': h.pois, 'transit_stops': h.stops}
+       'areas': h.areas, 'pois': h.pois, 'transit_stops': h.stops, 'aero': h.aero}
 od = os.path.join(args.out, cfg['id'], 'landmarks'); os.makedirs(od, exist_ok=True)
 json.dump(out, open(os.path.join(od, 'features.json'), 'w'), ensure_ascii=False, separators=(',', ':'))
 from collections import Counter
-print('areas', Counter(a['kind'] for a in h.areas), 'pois', Counter(p['kind'] for p in h.pois), 'named pois', sum(1 for p in h.pois if p['name']), 'stops', len(h.stops))
+print('areas', Counter(a['kind'] for a in h.areas), 'pois', Counter(p['kind'] for p in h.pois), 'named pois', sum(1 for p in h.pois if p['name']), 'stops', len(h.stops), 'aero', len(h.aero))

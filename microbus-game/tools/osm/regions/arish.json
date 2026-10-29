@@ -23,13 +23,21 @@
       "id": "government_1",
       "name": "الهلال الأحمر",
       "kind": "government",
-      "osm": "node/7035253147"
+      "osm": "node/7035253147",
+      "lonlat": [
+        33.798672,
+        31.137114
+      ]
     },
     {
       "id": "hospital_2",
       "name": "مستشفي العريش العام",
       "kind": "hospital",
-      "osm": "way/952595678"
+      "osm": "way/952595678",
+      "lonlat": [
+        33.809283,
+        31.136288
+      ]
     }
   ],
   "needs_verification": []

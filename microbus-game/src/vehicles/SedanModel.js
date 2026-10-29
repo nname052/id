@@ -4,6 +4,7 @@ import { buildWheel } from './wheel.js';
 import { vehicleMaterials } from '../render/materials.js';
 import { canvas, tex } from '../render/textures.js';
 import { contactShadow } from './CarModels.js';
+import { currentMap } from '../world/maps.js';
 
 // =====================================================================
 //  سيدان بنسب BYD F3 (تاكسي شبين الكوم في الصورة المرجعية):
@@ -171,10 +172,18 @@ export function sedanBodyGeometry(lod = 0) {
 // ===== الألوان (Liveries) =====
 export const SEDAN_LIVERIES = {
   // تاكسي شبين الكوم: أخضر فاتح + شريطة صفرا مايلة قدام وورا + دايرة سودا على الباب + شيال سقف
+  // (المدن التانية: ألوان تاكسي المحافظة من maps.js — taxiLivery())
   taxi: { paint: 0x19b82a, stripe: 0xf5d000, stripes: 1, emblem: 1, rack: true },
   // الشرطة: أبيض وتحت كحلي + كلمة شرطة + كشاف سقف
   police: { paint: 0xf2f3f4, lower: 0x14285a, police: 1, lightbar: true },
 };
+
+/** ألوان تاكسي المدينة الحالية (maps.js → taxi) — شبين: الأخضر والأصفر الأصلي */
+export function taxiLivery() {
+  const T = currentMap().taxi;
+  if (!T) return SEDAN_LIVERIES.taxi;
+  return { paint: T.body, accent: T.accent, checker: T.style === 'checker', doors: T.style === 'doors', band: T.style === 'band', rack: true };
+}
 
 let _plateTex = null, _bydTex = null, _policeTex = null;
 function plateTexture() {
@@ -217,12 +226,15 @@ const _matCache = new Map();
 export function sedanPaintMaterial(livery = 'taxi', { unique = false } = {}) {
   const key = String(livery);
   if (!unique && _matCache.has(key)) return _matCache.get(key);
-  const L = typeof livery === 'number' ? { paint: livery } : SEDAN_LIVERIES[livery] || SEDAN_LIVERIES.taxi;
+  const L = typeof livery === 'number' ? { paint: livery } : livery === 'taxi' ? taxiLivery() : SEDAN_LIVERIES[livery] || SEDAN_LIVERIES.taxi;
   const mat = new THREE.MeshPhysicalMaterial({ color: L.paint, roughness: 0.58, metalness: 0.0, clearcoat: 0, envMapIntensity: 0.25 }); // (لمعة وانعكاس سما أقل: من بعيد كانت بتبان فضي/أبيض — خصوصًا على الآيفون)
   const U = {
     uStripe: { value: new THREE.Color(L.stripe ?? 0xf3d20f) }, uStripes: { value: L.stripes ? 1 : 0 },
     uEmblem: { value: L.emblem ? 1 : 0 }, uLower: { value: new THREE.Color(L.lower ?? 0x000000) }, uPolice: { value: L.police ? 1 : 0 },
     uPoliceTex: { value: policeTexture() },
+    // تاكسي المحافظة: شريط شطرنج على الأبواب (القاهرة) / الأبواب بلون تاني (إسكندرية) / شريطة عرض على الجنب
+    uChecker: { value: L.checker ? 1 : 0 }, uDoors: { value: L.doors ? 1 : 0 }, uBand: { value: L.band ? 1 : 0 },
+    uAccent: { value: new THREE.Color(L.accent ?? 0x111111) },
     uHead: { value: 0 }, uTail: { value: 0.12 }, uBrake: { value: 0 }, uRev: { value: 0 },
   };
   mat.userData.U = U;
@@ -234,7 +246,7 @@ export function sedanPaintMaterial(livery = 'taxi', { unique = false } = {}) {
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
 varying vec3 vP; varying vec3 vN0;
-uniform vec3 uStripe, uLower; uniform float uStripes, uEmblem, uPolice, uHead, uTail, uBrake, uRev;
+uniform vec3 uStripe, uLower, uAccent; uniform float uStripes, uEmblem, uPolice, uHead, uTail, uBrake, uRev, uChecker, uDoors, uBand;
 uniform sampler2D uPoliceTex;
 float bandLine(vec2 p, vec2 a, vec2 b, float w) { vec2 d = normalize(b - a); vec2 n = vec2(-d.y, d.x); float t = dot(p - a, d); float L = length(b - a); return step(abs(dot(p - a, n)), w) * step(0.0, t) * step(t, L); }
 float lineZ(float z, float z0, float w) { return 1.0 - smoothstep(w * 0.5, w, abs(z - z0)); }`)
@@ -255,6 +267,20 @@ float rough = roughness;
     float s2 = bandLine(sz, vec2(1.12, 1.02), vec2(1.66, 0.36), 0.09);
     float m = max(s1, s2) * side * step(vP.y, 0.985);
     diffuseColor.rgb = mix(diffuseColor.rgb, uStripe, m);
+  }
+  // ===== تاكسي المحافظة =====
+  {
+    float doorZ = step(-0.97, vP.z) * step(vP.z, 1.13), doorY = step(0.27, vP.y) * step(vP.y, 0.94);
+    // الأبواب كلها بلون تاني (تاكسي إسكندرية: أسود والأبواب صفرا)
+    if (uDoors > 0.5) diffuseColor.rgb = mix(diffuseColor.rgb, uAccent, side * doorZ * doorY);
+    // شريطة عرض على طول الجنب تحت الشبابيك
+    if (uBand > 0.5) diffuseColor.rgb = mix(diffuseColor.rgb, uAccent, side * step(0.62, vP.y) * step(vP.y, 0.76) * step(-1.9, vP.z) * step(vP.z, 1.95));
+    // شريط شطرنج (مربعات 8سم) على الأبواب
+    if (uChecker > 0.5) {
+      float band = side * doorZ * step(0.62, vP.y) * step(vP.y, 0.78);
+      float ck = mod(floor(vP.z / 0.08) + floor((vP.y - 0.62) / 0.08), 2.0);
+      diffuseColor.rgb = mix(diffuseColor.rgb, mix(uAccent, vec3(0.95), ck), band);
+    }
   }
   // ===== الشرطة: نص تحت كحلي + كلمة شرطة على الباب =====
   if (uPolice > 0.5) {

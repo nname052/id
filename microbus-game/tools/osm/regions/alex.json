@@ -11,10 +11,10 @@
     "note": "OSM place=city node 'الإسكندرية' (city centre)"
   },
   "bbox": {
-    "south": 31.181214,
-    "west": 29.874168,
-    "north": 31.217147,
-    "east": 29.916176
+    "west": 29.872,
+    "south": 31.178,
+    "east": 29.962,
+    "north": 31.245
   },
   "tile_size": 400,
   "stub_outside": 40,
@@ -23,109 +23,301 @@
       "id": "rail_station_1",
       "name": "محطة مصر",
       "kind": "rail_station",
-      "osm": "node/1125997846"
+      "osm": "node/1125997846",
+      "lonlat": [
+        29.906759,
+        31.193363
+      ]
     },
     {
-      "id": "historic_2",
-      "name": "تمثال سعد زغلول",
-      "kind": "historic",
-      "osm": "node/5810401995"
+      "id": "university_2",
+      "name": "كلية الزراعة",
+      "kind": "university",
+      "osm": "way/28825824",
+      "lonlat": [
+        29.919483,
+        31.205993
+      ]
     },
     {
-      "id": "museum_3",
-      "name": "متحف كڤافيس",
-      "kind": "museum",
-      "osm": "node/9629067137"
+      "id": "rail_station_3",
+      "name": "محطة محرم بيك",
+      "kind": "rail_station",
+      "osm": "node/1111472626",
+      "lonlat": [
+        29.926146,
+        31.18609
+      ]
     },
     {
-      "id": "historic_4",
-      "name": "محطة الرمل",
-      "kind": "historic",
-      "osm": "node/5433927432"
+      "id": "rail_station_4",
+      "name": "الحضرة",
+      "kind": "rail_station",
+      "osm": "node/269662884",
+      "lonlat": [
+        29.929932,
+        31.204076
+      ]
     },
     {
-      "id": "historic_5",
-      "name": "كوم الدكة",
-      "kind": "historic",
-      "osm": "way/28817193"
+      "id": "rail_station_5",
+      "name": "محطة قطار سيدى جابر",
+      "kind": "rail_station",
+      "osm": "node/3605745439",
+      "lonlat": [
+        29.942465,
+        31.218991
+      ]
     },
     {
       "id": "historic_6",
-      "name": "المسرح الروماني",
+      "name": "تمثال سعد زغلول",
       "kind": "historic",
-      "osm": "way/604768231"
+      "osm": "node/5810401995",
+      "lonlat": [
+        29.899405,
+        31.200914
+      ]
     },
     {
       "id": "museum_7",
-      "name": "المتحف اليونانى الرومانى",
+      "name": "متحف كڤافيس",
       "kind": "museum",
-      "osm": "way/110658139"
+      "osm": "node/9629067137",
+      "lonlat": [
+        29.901229,
+        31.197606
+      ]
     },
     {
-      "id": "museum_8",
-      "name": "مركز القبة السماوية العلمي",
-      "kind": "museum",
-      "osm": "way/157879323"
+      "id": "historic_8",
+      "name": "محطة الرمل",
+      "kind": "historic",
+      "osm": "node/5433927432",
+      "lonlat": [
+        29.90135,
+        31.201541
+      ]
     },
     {
-      "id": "library_9",
-      "name": "مكتبة الإسكندرية",
-      "kind": "library",
-      "osm": "way/28825451"
+      "id": "historic_9",
+      "name": "كوم الدكة",
+      "kind": "historic",
+      "osm": "way/28817193",
+      "lonlat": [
+        29.904037,
+        31.195322
+      ]
     },
     {
       "id": "historic_10",
+      "name": "المسرح الروماني",
+      "kind": "historic",
+      "osm": "way/604768231",
+      "lonlat": [
+        29.904049,
+        31.194666
+      ]
+    },
+    {
+      "id": "museum_11",
+      "name": "المتحف اليونانى الرومانى",
+      "kind": "museum",
+      "osm": "way/110658139",
+      "lonlat": [
+        29.906766,
+        31.199188
+      ]
+    },
+    {
+      "id": "museum_12",
+      "name": "مركز القبة السماوية العلمي",
+      "kind": "museum",
+      "osm": "way/157879323",
+      "lonlat": [
+        29.908107,
+        31.208969
+      ]
+    },
+    {
+      "id": "library_13",
+      "name": "مكتبة الإسكندرية",
+      "kind": "library",
+      "osm": "way/28825451",
+      "lonlat": [
+        29.908609,
+        31.208411
+      ]
+    },
+    {
+      "id": "historic_14",
       "name": "عامود السوارى",
       "kind": "historic",
-      "osm": "node/1263172956"
+      "osm": "node/1263172956",
+      "lonlat": [
+        29.896393,
+        31.182581
+      ]
     },
     {
-      "id": "bus_station_11",
+      "id": "historic_15",
+      "name": "عمود السواري والحديقة الأثرية",
+      "kind": "historic",
+      "osm": "way/28817044",
+      "lonlat": [
+        29.896519,
+        31.182249
+      ]
+    },
+    {
+      "id": "historic_16",
+      "name": "قلعة قايتباي",
+      "kind": "historic",
+      "osm": "way/28826432",
+      "lonlat": [
+        29.885574,
+        31.213692
+      ]
+    },
+    {
+      "id": "museum_17",
+      "name": "متحف الإسكندرية القومي",
+      "kind": "museum",
+      "osm": "way/110658128",
+      "lonlat": [
+        29.913085,
+        31.201124
+      ]
+    },
+    {
+      "id": "historic_18",
+      "name": "سور الإسكندرية القديم",
+      "kind": "historic",
+      "osm": "way/602131244",
+      "lonlat": [
+        29.913856,
+        31.202638
+      ]
+    },
+    {
+      "id": "hospital_19",
+      "name": "مستشفي جمال عبد الناصر",
+      "kind": "hospital",
+      "osm": "way/773041859",
+      "lonlat": [
+        29.92626,
+        31.204459
+      ]
+    },
+    {
+      "id": "hospital_20",
+      "name": "مستشفى مصطفى كامل العسكري",
+      "kind": "hospital",
+      "osm": "way/414971251",
+      "lonlat": [
+        29.940855,
+        31.225919
+      ]
+    },
+    {
+      "id": "bus_station_21",
       "name": "موقف سعد زغلول",
       "kind": "bus_station",
-      "osm": "node/14144118000"
+      "osm": "node/14144118000",
+      "lonlat": [
+        29.898825,
+        31.200311
+      ]
     },
     {
-      "id": "bus_station_12",
+      "id": "bus_station_22",
       "name": "موقف الاتوبيس المكيف",
       "kind": "bus_station",
-      "osm": "node/14144098354"
+      "osm": "node/14144098354",
+      "lonlat": [
+        29.899142,
+        31.200395
+      ]
     },
     {
-      "id": "university_13",
+      "id": "bus_station_23",
+      "name": "موقف محطة مصر",
+      "kind": "bus_station",
+      "osm": "node/14103824147",
+      "lonlat": [
+        29.90296,
+        31.192379
+      ]
+    },
+    {
+      "id": "bus_station_24",
+      "name": "موقف اتوبيسات محطة مصر",
+      "kind": "bus_station",
+      "osm": "node/14100179613",
+      "lonlat": [
+        29.904221,
+        31.193724
+      ]
+    },
+    {
+      "id": "university_25",
       "name": "جامعة الإسكندرية، مركز علوم الطب",
       "kind": "university",
-      "osm": "way/28826289"
+      "osm": "way/28826289",
+      "lonlat": [
+        29.905948,
+        31.201629
+      ]
     },
     {
-      "id": "university_14",
+      "id": "university_26",
       "name": "كلية العلوم",
       "kind": "university",
-      "osm": "way/30675448"
+      "osm": "way/30675448",
+      "lonlat": [
+        29.907452,
+        31.189273
+      ]
     },
     {
-      "id": "university_15",
-      "name": "كلية الحقوق",
-      "kind": "university",
-      "osm": "way/97409643"
+      "id": "stadium_27",
+      "name": "ملعب عز الدين يعقوب",
+      "kind": "stadium",
+      "osm": "node/5878917097",
+      "lonlat": [
+        29.917302,
+        31.199457
+      ]
     },
     {
-      "id": "hospital_16",
+      "id": "government_28",
+      "name": "سموحة",
+      "kind": "government",
+      "osm": "node/11878324669",
+      "lonlat": [
+        29.942181,
+        31.215679
+      ]
+    },
+    {
+      "id": "hospital_29",
       "name": "مستشفى سهلا الجديدة",
       "kind": "hospital",
-      "osm": "node/6796349005"
+      "osm": "node/6796349005",
+      "lonlat": [
+        29.908555,
+        31.191064
+      ]
     },
     {
-      "id": "hospital_17",
-      "name": "مستشفى النقراشي",
-      "kind": "hospital",
-      "osm": "node/4759348722"
-    },
-    {
-      "id": "hospital_18",
-      "name": "مستشفى زمزم",
-      "kind": "hospital",
-      "osm": "node/6572089485"
+      "id": "museum_30",
+      "name": "متحف الموزاييك",
+      "kind": "museum",
+      "osm": "way/28825875",
+      "lonlat": [
+        29.919123,
+        31.203399
+      ]
     }
   ],
   "needs_verification": []

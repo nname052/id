@@ -11,73 +11,163 @@
     "note": "OSM place=city node 'الأقصر' (city centre)"
   },
   "bbox": {
-    "south": 25.68413,
-    "west": 32.627247,
-    "north": 25.720062,
-    "east": 32.667125
+    "west": 32.618,
+    "south": 25.665,
+    "east": 32.712,
+    "north": 25.728
   },
   "tile_size": 400,
   "stub_outside": 40,
   "landmarks": [
     {
-      "id": "rail_station_1",
-      "name": "الأقصر",
-      "kind": "rail_station",
-      "osm": "node/1018818485"
+      "id": "airport_1",
+      "name": "ميناء الأقصر الجوى",
+      "kind": "airport",
+      "osm": "way/765905189",
+      "lonlat": [
+        32.701496,
+        25.674529
+      ]
     },
     {
-      "id": "historic_2",
-      "name": "طريق الكباش",
-      "kind": "historic",
-      "osm": "way/384948047"
+      "id": "rail_station_2",
+      "name": "الأقصر",
+      "kind": "rail_station",
+      "osm": "node/1018818485",
+      "lonlat": [
+        32.644966,
+        25.696542
+      ]
     },
     {
       "id": "historic_3",
-      "name": "معبد الأقصر",
+      "name": "طريق الكباش",
       "kind": "historic",
-      "osm": "way/1079039494"
+      "osm": "way/384948047",
+      "lonlat": [
+        32.64892,
+        25.708706
+      ]
     },
     {
       "id": "historic_4",
-      "name": "معبد الكرنك",
+      "name": "معبد الأقصر",
       "kind": "historic",
-      "osm": "relation/14358790"
+      "osm": "way/1079039494",
+      "lonlat": [
+        32.639558,
+        25.699583
+      ]
     },
     {
       "id": "historic_5",
-      "name": "فناء الخبيئة",
+      "name": "معبد الكرنك",
       "kind": "historic",
-      "osm": "way/1263302544"
+      "osm": "relation/14358790",
+      "lonlat": [
+        32.656609,
+        25.715791
+      ]
     },
     {
       "id": "historic_6",
+      "name": "فناء الخبيئة",
+      "kind": "historic",
+      "osm": "way/1263302544",
+      "lonlat": [
+        32.657803,
+        25.717743
+      ]
+    },
+    {
+      "id": "historic_7",
       "name": "الفناء الكبير",
       "kind": "historic",
-      "osm": "way/1264868522"
+      "osm": "way/1264868522",
+      "lonlat": [
+        32.657164,
+        25.718794
+      ]
     },
     {
-      "id": "hospital_7",
+      "id": "historic_8",
+      "name": "فناء الدولة الوسطى",
+      "kind": "historic",
+      "osm": "way/325559835",
+      "lonlat": [
+        32.659201,
+        25.717987
+      ]
+    },
+    {
+      "id": "historic_9",
+      "name": "معبد الأخمنو",
+      "kind": "historic",
+      "osm": "way/115784205",
+      "lonlat": [
+        32.659599,
+        25.717725
+      ]
+    },
+    {
+      "id": "historic_10",
+      "name": "المقصورة البيضاء للملك سنوسرت الأول",
+      "kind": "historic",
+      "osm": "way/1250321244",
+      "lonlat": [
+        32.657187,
+        25.720358
+      ]
+    },
+    {
+      "id": "museum_11",
+      "name": "المتحف المفتوح",
+      "kind": "museum",
+      "osm": "way/115784229",
+      "lonlat": [
+        32.657549,
+        25.720178
+      ]
+    },
+    {
+      "id": "hospital_12",
       "name": "مستشفي كليوباترا",
       "kind": "hospital",
-      "osm": "node/13110393001"
+      "osm": "node/13110393001",
+      "lonlat": [
+        32.642433,
+        25.700007
+      ]
     },
     {
-      "id": "hospital_8",
+      "id": "hospital_13",
       "name": "مستشفى الكرنك الدولي",
       "kind": "hospital",
-      "osm": "way/207309094"
+      "osm": "way/207309094",
+      "lonlat": [
+        32.645179,
+        25.708505
+      ]
     },
     {
-      "id": "library_9",
+      "id": "library_14",
       "name": "مكتبة مصر العامة بالأقصر",
       "kind": "library",
-      "osm": "way/477442397"
+      "osm": "way/477442397",
+      "lonlat": [
+        32.649371,
+        25.710054
+      ]
     },
     {
-      "id": "hospital_10",
+      "id": "hospital_15",
       "name": "مركز الاقصر الطبى",
       "kind": "hospital",
-      "osm": "way/476938609"
+      "osm": "way/476938609",
+      "lonlat": [
+        32.633488,
+        25.688738
+      ]
     }
   ],
   "needs_verification": []

@@ -145,16 +145,17 @@ export class AssetManager {
 
 /** يطبّق الخامات الحقيقية لو موجودة */
 export function applyTextureOverrides(assets, M) {
-  const apply = (mat, t) => {
+  const apply = (mat, t, uvMeters) => {
     if (!t) return;
-    const rep = 1;
+    // الـ UV بتاع الأرض = متر/uvMeters → التكرار على قد مقاس الصورة الحقيقي (metersPerTile)
+    const rep = uvMeters / (t.metersPerTile || uvMeters);
     for (const slot of ['map', 'normalMap', 'roughnessMap']) {
       if (t[slot]) { t[slot].repeat.set(rep, rep); mat[slot] = t[slot]; }
     }
     mat.needsUpdate = true;
   };
-  apply(M.asphalt, assets.textures.asphalt);
-  apply(M.sidewalkTop, assets.textures.sidewalk);
+  apply(M.asphalt, assets.textures.asphalt, 7);
+  apply(M.sidewalkTop, assets.textures.sidewalk, 2);
 }
 
 /** يحوّل كل SkinnedMesh لـ Mesh ثابت بنفس الشكل بالظبط (bind pose) في إحداثيات الموديل */

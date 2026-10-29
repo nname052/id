@@ -31,6 +31,16 @@ export const MODEL_ASSETS = {
   person_scan: { file: 'person_scan.glb', targetHeight: 1.74, rotationY: 0 },
   // ميكروباصات المرور: نفس موديل الهاي إس (نسخة منفصلة)
   microbus_traffic: { file: 'microbus.glb', targetLength: 4.69, rotationY: 90, trafficHiace: true },
+  // عربيات المرور الحقيقية (Sketchfab، CC BY — tools/models/sketchfab.mjs بيحمّلها ويبسّطها ويكتب الحقوق).
+  // لو الملف مش موجود: المرور بيستخدم السيدان الإجرائي. rotationY: الوش ناحية -z زي باقي العربيات
+  car_lanos: { file: 'car_lanos.glb', targetLength: 4.24, rotationY: 180 },
+  car_verna: { file: 'car_verna.glb', targetLength: 4.37, rotationY: 180 },
+  car_sunny: { file: 'car_sunny.glb', targetLength: 4.34, rotationY: 180 },
+  tuktuk_real: { file: 'tuktuk_real.glb', targetLength: 2.65, rotationY: 180 },
+  // المعالم الحقيقية (لو اتحمّلت): المقاس الحقيقي بالمتر
+  mon_sphinx: { file: 'mon_sphinx.glb', targetLength: 73, rotationY: 0 },
+  mon_cairo_tower: { file: 'mon_cairo_tower.glb', targetHeight: 187, rotationY: 0 },
+  mon_ali_mosque: { file: 'mon_ali_mosque.glb', targetLength: 82, rotationY: 0 },
   // كرسي القهوة البلاستيك الأبيض (Poly Haven "Plastic Monobloc Chair 01" — Kuutti Siitonen، CC0؛ خامة اللون اتصغّرت 256)
   chair_plastic: { file: 'chair_plastic.glb', targetHeight: 0.82, rotationY: 0 },
   // المشاة (يفضّل يكون فيه أنيميشن اسمه فيه "walk")  →  assets/models/pedestrian.glb
@@ -40,7 +50,8 @@ export const MODEL_ASSETS = {
 // خامات PBR حقيقية (اختياري) → assets/textures/
 // تقدر تنزلها مجانًا من ambientcg.com أو polyhaven.com (رخصة CC0)
 export const TEXTURE_ASSETS = {
-  asphalt: { map: 'asphalt_color.jpg', normalMap: 'asphalt_normal.jpg', roughnessMap: 'asphalt_roughness.jpg', metersPerTile: 7 },
+  // الأسفلت: النتوءات والخشونة من سكان حقيقي (ambientCG "Asphalt 031"، CC0 — اتصغّر 512)؛ اللون من صور شوارع شبين
+  asphalt: { map: 'asphalt_color.jpg', normalMap: 'asphalt_normal.jpg', roughnessMap: 'asphalt_roughness.jpg', metersPerTile: 2 },
   sidewalk: { map: 'sidewalk_color.jpg', normalMap: 'sidewalk_normal.jpg', roughnessMap: 'sidewalk_roughness.jpg', metersPerTile: 2 },
 };
 

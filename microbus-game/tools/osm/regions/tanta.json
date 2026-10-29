@@ -23,37 +23,61 @@
       "id": "university_1",
       "name": "جامعة طنطا",
       "kind": "university",
-      "osm": "way/94129784"
+      "osm": "way/94129784",
+      "lonlat": [
+        30.992831,
+        30.800484
+      ]
     },
     {
       "id": "rail_station_2",
       "name": "محطة قطار طنطا",
       "kind": "rail_station",
-      "osm": "node/4723141800"
+      "osm": "node/4723141800",
+      "lonlat": [
+        30.994211,
+        30.781334
+      ]
     },
     {
       "id": "university_3",
       "name": "كلية التجارة - جامعة طنطا",
       "kind": "university",
-      "osm": "way/94129733"
+      "osm": "way/94129733",
+      "lonlat": [
+        31.002693,
+        30.798561
+      ]
     },
     {
       "id": "bus_station_4",
       "name": "موقف العجيزي طنطا شبين الكوم",
       "kind": "bus_station",
-      "osm": "node/10048341828"
+      "osm": "node/10048341828",
+      "lonlat": [
+        30.991566,
+        30.767914
+      ]
     },
     {
       "id": "hospital_5",
       "name": "مستشفى طنطا للصحة النفسية وعلاج الإدمان",
       "kind": "hospital",
-      "osm": "node/13914231401"
+      "osm": "node/13914231401",
+      "lonlat": [
+        30.995785,
+        30.800447
+      ]
     },
     {
       "id": "park_6",
       "name": "نادي طنطا الرياضي",
       "kind": "park",
-      "osm": "way/203400559"
+      "osm": "way/203400559",
+      "lonlat": [
+        30.994668,
+        30.797025
+      ]
     }
   ],
   "needs_verification": []

@@ -9,6 +9,7 @@ import { fitModelToRig, tuktukColors } from './ModelFit.js';
 import { buildSedan, SEDAN } from './SedanModel.js';
 import { buildTaxiCockpit, buildTuktukCockpit } from './Cockpits.js';
 import { addBobbleDog } from './CabAccessories.js';
+import { currentMap } from '../world/maps.js';
 
 // عربيات اللاعب التانية (غير الميكروباص): تاكسي وتوكتوك.
 // كل واحدة بترجع "rig" بنفس شكل rig الهاي إس عشان PlayerVehicle والكاميرا والمرايات والركاب يشتغلوا عليها:
@@ -65,28 +66,38 @@ function sealShibinLivery(o, shell) {
   shell.updateMatrixWorld(true);
   const M = { value: new THREE.Matrix4().copy(shell.matrixWorld).invert().multiply(o.matrixWorld) };
   const mat = (o.material = o.material.clone());
-  mat.color.set(0x19b82a);
+  // المدن التانية: ألوان تاكسي المحافظة (maps.js) — 0 شبين (أخضر + شرايط مايلة)، 1 شطرنج، 2 أبواب، 3 شريطة
+  const T = currentMap().taxi, st = T ? { checker: 1, doors: 2, band: 3 }[T.style] || 1 : 0;
+  mat.color.set(T ? T.body : 0x19b82a);
+  const TU = { uTSt: { value: st }, uTAcc: { value: new THREE.Color(T ? T.accent : 0) } };
   mat.onBeforeCompile = (sh) => {
-    sh.uniforms.uSM = M;
+    sh.uniforms.uSM = M; Object.assign(sh.uniforms, TU);
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nuniform mat4 uSM; varying vec3 vSP; varying vec3 vSN;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSP = (uSM * vec4(position, 1.0)).xyz; vSN = normalize(mat3(uSM) * normal);');
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
-varying vec3 vSP; varying vec3 vSN;
+varying vec3 vSP; varying vec3 vSN; uniform float uTSt; uniform vec3 uTAcc;
 float bandL(vec2 p, vec2 a, vec2 b, float w) { vec2 d = normalize(b - a); vec2 n = vec2(-d.y, d.x); float t = dot(p - a, d); return step(abs(dot(p - a, n)), w) * step(0.0, t) * step(t, length(b - a)); }`)
       .replace('#include <color_fragment>', `#include <color_fragment>
 {
   float side = smoothstep(0.35, 0.6, abs(vSN.x));
   vec2 sz = vec2(vSP.z, vSP.y);
+  if (uTSt > 0.5) {
+    float doorZ = step(-1.0, vSP.z) * step(vSP.z, 1.15), doorY = step(0.3, vSP.y) * step(vSP.y, 0.9);
+    if (uTSt > 1.5 && uTSt < 2.5) diffuseColor.rgb = mix(diffuseColor.rgb, uTAcc, side * doorZ * doorY);
+    if (uTSt > 2.5) diffuseColor.rgb = mix(diffuseColor.rgb, uTAcc, side * step(0.6, vSP.y) * step(vSP.y, 0.74));
+    if (uTSt < 1.5) { float ck = mod(floor(vSP.z / 0.08) + floor((vSP.y - 0.6) / 0.08), 2.0); diffuseColor.rgb = mix(diffuseColor.rgb, mix(uTAcc, vec3(0.95), ck), side * doorZ * step(0.6, vSP.y) * step(vSP.y, 0.76)); }
+  } else {
   float m = max(bandL(sz, vec2(-0.55, 0.92), vec2(-1.75, 0.3), 0.12), bandL(sz, vec2(1.3, 0.9), vec2(1.95, 0.35), 0.09)) * side;
   diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.96, 0.82, 0.0), m);
   float r = length(sz - vec2(0.05, 0.62));
   diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.03), (1.0 - smoothstep(0.1, 0.104, r)) * side);
   diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.8), (1.0 - smoothstep(0.004, 0.008, abs(r - 0.075))) * side * 0.8);
+  }
 }`);
   };
-  mat.customProgramCacheKey = () => 'seal-shibin-1';
+  mat.customProgramCacheKey = () => 'seal-city-1';
   mat.needsUpdate = true;
 }
 

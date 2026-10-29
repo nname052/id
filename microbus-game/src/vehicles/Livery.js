@@ -15,6 +15,14 @@ export const LIVERIES = {
   red: { mode: 1, body: 0xf3f1ec, stripe: 0x8c1d22, thin: 0x8c1d22, text: 0xffffff },
   plain: { mode: 0, body: 0xf3f1ec },
 };
+/** شكل المحافظة: شبين = التركواز الحقيقي؛ المدن التانية = أبيض بشريطة بلون تاكسي المحافظة + اسمها (تقديري) */
+export function cityLivery() {
+  const T = currentMap().taxi;
+  if (!T) return LIVERIES.shibin;
+  // (لو لون التاكسي أسود: الشريطة بلونه التاني — إسكندرية أصفر)
+  const c = T.accent === 0x111111 ? 0x1d1d1d : T.accent, dark = T.body < 0x404040 ? T.accent : c;
+  return { mode: 1, body: 0xf3f1ec, stripe: dark, thin: dark, text: dark === 0xf2b705 || dark === 0xf2c200 ? 0x1a1a1a : 0xffffff };
+}
 
 let _tex = null;
 function textTexture() {
@@ -44,7 +52,7 @@ function signTexture() {
  * rig: ريج الميكروباص بتاع اللاعب (فيه shell و dims).
  * بيرجّع دالة set(name) لتغيير الشكل.
  */
-export function applyLivery(rig, name = 'shibin') {
+export function applyLivery(rig, name = 'city') {
   const D = rig.dims, shell = rig.shell;
   if (!D || !shell) return () => {};
   shell.updateMatrixWorld(true);
@@ -79,7 +87,7 @@ export function applyLivery(rig, name = 'shibin') {
     shell.add(sign);
   }
   const set = (n) => {
-    const L = LIVERIES[n] || LIVERIES.shibin;
+    const L = n === 'city' || !n ? cityLivery() : LIVERIES[n] || LIVERIES.shibin;
     U.uLivMode.value = L.mode;
     if (L.stripe) { U.uLivStripe.value.set(L.stripe); U.uLivThin.value.set(L.thin); U.uLivText.value.set(L.text); }
     if (L.corner) U.uLivCorner.value.set(L.corner);

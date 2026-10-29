@@ -13,10 +13,12 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
 PBF = os.path.join(os.path.dirname(ROOT), 'data', 'osm', 'egypt', 'cities')
 HALF = 2000.0
-MAXK = {'rail_station': 3, 'historic': 5, 'university': 3, 'hospital': 3, 'museum': 3}
+MAXK = {'rail_station': 4, 'historic': 8, 'university': 3, 'hospital': 3, 'museum': 5, 'bus_station': 4, 'pyramid': 4, 'airport': 1, 'metro': 3}
 
 # (اختبار التاج، النوع في اللعبة، الأولوية: الأصغر الأهم)
 KINDS = [
+    (lambda t: t.get('aeroway') == 'aerodrome' and t.get('aerodrome:type', '') != 'military', 'airport', 0),
+    (lambda t: 'هرم' in (t.get('name:ar') or t.get('name') or '') and (t.get('historic') or t.get('tourism')), 'pyramid', 0),
     (lambda t: t.get('railway') in ('station', 'halt') and t.get('station') not in ('subway', 'light_rail') and t.get('railway') == 'station', 'rail_station', 0),
     (lambda t: t.get('amenity') == 'bus_station', 'bus_station', 1),
     (lambda t: t.get('amenity') == 'university', 'university', 1),
@@ -78,15 +80,18 @@ def main():
         if want and c['id'] not in want: continue
         dlat = HALF / 111320; dlon = HALF / (111320 * math.cos(math.radians(c['lat'])))
         bb = dict(south=round(c['lat'] - dlat, 6), west=round(c['lon'] - dlon, 6), north=round(c['lat'] + dlat, 6), east=round(c['lon'] + dlon, 6))
+        # المدن الكبيرة: حدود أوسع مكتوبة في cities.json (عشان تشمل المعالم الأساسية: الأهرامات/الكورنيش/المطار…)
+        if c.get('bbox'): bb = dict(west=c['bbox'][0], south=c['bbox'][1], east=c['bbox'][2], north=c['bbox'][3])
         ok = lambda lon, lat: bb['west'] <= lon <= bb['east'] and bb['south'] <= lat <= bb['north']
         pbf = os.path.join(PBF, c['id'] + '.osm.pbf')
         h = H(ok); h.apply_file(pbf, locations=True)
-        # معلم واحد لكل اسم، والأهم الأول، ومش أكتر من MAXK من نفس النوع (16 في الإجمالي)
+        # معلم واحد لكل اسم، والأهم الأول، ومش أكتر من MAXK من نفس النوع (30 في الإجمالي)
         seen, per, lms = set(), {}, []
         for f in sorted(h.found, key=lambda f: (f['pr'], math.hypot(f['lon'] - c['lon'], f['lat'] - c['lat']))):
-            if f['name'] in seen or per.get(f['kind'], 0) >= MAXK.get(f['kind'], 2) or len(lms) >= 18: continue
+            if f['name'] in seen or per.get(f['kind'], 0) >= MAXK.get(f['kind'], 2) or len(lms) >= 30: continue
             seen.add(f['name']); per[f['kind']] = per.get(f['kind'], 0) + 1
-            lms.append(dict(id=f"{f['kind']}_{len(lms) + 1}", name=f['name'], kind=f['kind'], osm=f['osm']))
+            # lonlat: مكان احتياطي (العلاقات زي المطار مش بتتقري في build_region)
+            lms.append(dict(id=f"{f['kind']}_{len(lms) + 1}", name=f['name'], kind=f['kind'], osm=f['osm'], lonlat=[round(f['lon'], 6), round(f['lat'], 6)]))
         cfg = dict(id=c['id'], name=c['name'], name_en=c['name_en'], governorate=c['gov'],
                    source_pbf=os.path.relpath(pbf, ROOT),
                    source_note='OpenStreetMap Egypt extract (download.openstreetmap.fr, 2026-10-29), cut per city with osmium extract',

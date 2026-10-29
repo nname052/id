@@ -23,49 +23,81 @@
       "id": "rail_station_1",
       "name": "مرسى مطروح",
       "kind": "rail_station",
-      "osm": "node/1889476237"
+      "osm": "node/1889476237",
+      "lonlat": [
+        27.244366,
+        31.348578
+      ]
     },
     {
       "id": "library_2",
       "name": "مكتبة مصر العامة مرسى مطروح",
       "kind": "library",
-      "osm": "way/639968018"
+      "osm": "way/639968018",
+      "lonlat": [
+        27.237651,
+        31.355458
+      ]
     },
     {
       "id": "hospital_3",
       "name": "مستشفى عرابي التخصصي",
       "kind": "hospital",
-      "osm": "node/6784633286"
+      "osm": "node/6784633286",
+      "lonlat": [
+        27.243095,
+        31.351247
+      ]
     },
     {
       "id": "hospital_4",
       "name": "مستشفى مطروح العام",
       "kind": "hospital",
-      "osm": "node/595353701"
+      "osm": "node/595353701",
+      "lonlat": [
+        27.241359,
+        31.349242
+      ]
     },
     {
       "id": "museum_5",
       "name": "متحف كهف رومل",
       "kind": "museum",
-      "osm": "node/595353662"
+      "osm": "node/595353662",
+      "lonlat": [
+        27.248435,
+        31.36562
+      ]
     },
     {
       "id": "hospital_6",
       "name": "مستشفى الصدر",
       "kind": "hospital",
-      "osm": "way/1559332912"
+      "osm": "way/1559332912",
+      "lonlat": [
+        27.220702,
+        31.344591
+      ]
     },
     {
       "id": "historic_7",
       "name": "شاطئ الغرام",
       "kind": "historic",
-      "osm": "node/6478964085"
+      "osm": "node/6478964085",
+      "lonlat": [
+        27.221675,
+        31.368321
+      ]
     },
     {
       "id": "post_8",
       "name": "مكتب بريد الريفيه",
       "kind": "post",
-      "osm": "node/14184994597"
+      "osm": "node/14184994597",
+      "lonlat": [
+        27.220849,
+        31.342764
+      ]
     }
   ],
   "needs_verification": []

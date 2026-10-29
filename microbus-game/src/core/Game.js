@@ -4,7 +4,7 @@ import { loadPhotoAtlas, applyPhotoAtlas } from '../render/photoAtlas.js';
 import { Environment } from '../world/Environment.js';
 import { addDriver } from '../world/Pedestrians.js';
 import { applyLivery } from '../vehicles/Livery.js';
-import { bakeTrafficVersion } from '../vehicles/ModelFit.js';
+import { bakeTrafficVersion, realTrafficCar } from '../vehicles/ModelFit.js';
 import { buildSedan } from '../vehicles/SedanModel.js';
 import { Patrol } from '../gameplay/Patrol.js';
 import { PlayerVehicle } from '../vehicles/PlayerVehicle.js';
@@ -115,7 +115,7 @@ export class Game {
     // ===== شبين الكوم الحقيقية: المربعات بتتحمل حوالين اللاعب، والأرض والـ GPS من نفس البيانات =====
     const t0 = performance.now();
     if (this.map.packed) usePacks(this.mapId);
-    this.world = await new ShibinWorld(this.M, { id: this.mapId, name: this.map.name, water: this.map.water, assets: this.assets, low: this.mobile, tier: this.saverBoot ? 'low' : this.tier }).init(S);
+    this.world = await new ShibinWorld(this.M, { id: this.mapId, name: this.map.name, water: this.map.water, spawn: this.map.spawn, assets: this.assets, low: this.mobile, tier: this.saverBoot ? 'low' : this.tier }).init(S);
     this.scene.add(this.world.group);
     this.route = this.world;
     setGroundProvider(this.world);
@@ -444,6 +444,17 @@ export class Game {
       const car = buildSedan({ livery: type === 'taxi' ? 'taxi' : color, lod: 1, seeThrough: false });
       car.brake = null; car.lights = null;
       return car;
+    }
+    // الملاكي: موديلات عربيات حقيقية منتشرة في مصر لو موجودة (لانوس/فيرنا/صني — tools/models/sketchfab.mjs)،
+    // بخاماتها الأصلية ولون الصاج بتاع العربية. التاكسي بيفضل السيدان بألوان تاكسي المحافظة
+    if (type === 'sedan' && this.tier !== 'low') { // (الجودة الواطية: السيدان الإجرائي — draw calls أقل)
+      const real = (this._realCars ||= ['car_lanos', 'car_verna', 'car_sunny'].map((k) => this.assets.get(k)).filter(Boolean));
+      if (real.length) {
+        this._realK = ((this._realK || 0) + 1) % real.length;
+        const car = realTrafficCar(real[this._realK], opts.parked ? undefined : color);
+        car.lights = null;
+        return car;
+      }
     }
     // التاكسي والملاكي: نفس شكل السيدان (BYD F3) — التاكسي بألوان شبين، والملاكي بألوان مختلفة.
     // geometry وشيدر مشتركين؛ كل عربية ليها خامة (نفس البرنامج) عشان فوانيس الفرامل بتاعتها لوحدها

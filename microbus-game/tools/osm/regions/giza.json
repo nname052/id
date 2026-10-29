@@ -11,121 +11,313 @@
     "note": "OSM place=city node 'الجيزة' (city centre)"
   },
   "bbox": {
-    "south": 29.969109,
-    "west": 31.191063,
-    "north": 30.005042,
-    "east": 31.232549
+    "west": 31.112,
+    "south": 29.968,
+    "east": 31.222,
+    "north": 30.032
   },
   "tile_size": 400,
   "stub_outside": 40,
   "landmarks": [
     {
-      "id": "historic_1",
+      "id": "pyramid_1",
+      "name": "هرم خنت كاوس 1",
+      "kind": "pyramid",
+      "osm": "way/73174154",
+      "lonlat": [
+        31.135506,
+        29.973431
+      ]
+    },
+    {
+      "id": "pyramid_2",
+      "name": "هرم خوفو",
+      "kind": "pyramid",
+      "osm": "way/4420397",
+      "lonlat": [
+        31.134413,
+        29.979509
+      ]
+    },
+    {
+      "id": "pyramid_3",
+      "name": "هرم خفرع",
+      "kind": "pyramid",
+      "osm": "way/4420396",
+      "lonlat": [
+        31.130268,
+        29.976098
+      ]
+    },
+    {
+      "id": "pyramid_4",
+      "name": "هرم منقرع",
+      "kind": "pyramid",
+      "osm": "way/4420398",
+      "lonlat": [
+        31.128445,
+        29.972632
+      ]
+    },
+    {
+      "id": "university_5",
+      "name": "جامعة القاهرة",
+      "kind": "university",
+      "osm": "relation/15072032",
+      "lonlat": [
+        31.197095,
+        30.027092
+      ]
+    },
+    {
+      "id": "rail_station_6",
+      "name": "ضواحي الجيزة",
+      "kind": "rail_station",
+      "osm": "node/5217365043",
+      "lonlat": [
+        31.208251,
+        30.005245
+      ]
+    },
+    {
+      "id": "rail_station_7",
+      "name": "محطة قطار الجيزة",
+      "kind": "rail_station",
+      "osm": "way/1466334348",
+      "lonlat": [
+        31.207908,
+        30.009239
+      ]
+    },
+    {
+      "id": "historic_8",
       "name": "القرية الفرعونية",
       "kind": "historic",
-      "osm": "relation/20053769"
+      "osm": "relation/20053769",
+      "lonlat": [
+        31.215274,
+        29.997333
+      ]
     },
     {
-      "id": "museum_2",
-      "name": "المتخف الجيولوجي المصري",
+      "id": "museum_9",
+      "name": "متحف أحمد شوقي",
       "kind": "museum",
-      "osm": "node/432875456"
+      "osm": "way/30065918",
+      "lonlat": [
+        31.217559,
+        30.021424
+      ]
     },
     {
-      "id": "bus_station_3",
-      "name": "موقف المنيب (العياط)",
-      "kind": "bus_station",
-      "osm": "node/13326437802"
-    },
-    {
-      "id": "bus_station_4",
-      "name": "موقف المنيب (الصعيد)",
-      "kind": "bus_station",
-      "osm": "node/5070576421"
-    },
-    {
-      "id": "metro_5",
-      "name": "ساقية مكي",
-      "kind": "metro",
-      "osm": "node/9160395525"
-    },
-    {
-      "id": "historic_6",
-      "name": "نزلة المنيب",
+      "id": "historic_10",
+      "name": "معبد أبو الهول",
       "kind": "historic",
-      "osm": "node/13974982701"
-    },
-    {
-      "id": "hospital_7",
-      "name": "مستشفى المروة التخصصى",
-      "kind": "hospital",
-      "osm": "node/1939482580"
-    },
-    {
-      "id": "museum_8",
-      "name": "متحف عبد الناصر",
-      "kind": "museum",
-      "osm": "node/13448197096"
-    },
-    {
-      "id": "historic_9",
-      "name": "مقبرة توت عنخ أمون",
-      "kind": "historic",
-      "osm": "node/13448197095"
-    },
-    {
-      "id": "museum_10",
-      "name": "متحف كليوباترا",
-      "kind": "museum",
-      "osm": "node/9659929843"
+      "osm": "way/1238523833",
+      "lonlat": [
+        31.13837,
+        29.975258
+      ]
     },
     {
       "id": "historic_11",
-      "name": "نادى المحامين النهرى",
+      "name": "معبد الوادي لخفرع",
       "kind": "historic",
-      "osm": "node/6123242595"
+      "osm": "way/1238523832",
+      "lonlat": [
+        31.138358,
+        29.974774
+      ]
     },
     {
-      "id": "hospital_12",
-      "name": "مستشفى السلام الدولى",
-      "kind": "hospital",
-      "osm": "way/769964776"
+      "id": "historic_12",
+      "name": "معبد أمنحتب الثاني",
+      "kind": "historic",
+      "osm": "way/1238523831",
+      "lonlat": [
+        31.13811,
+        29.975575
+      ]
     },
     {
-      "id": "hospital_13",
-      "name": "مستشفى السلام;مستشفى السلام الدولى",
-      "kind": "hospital",
-      "osm": "relation/19513748"
+      "id": "historic_13",
+      "name": "لوحة أبي الهول",
+      "kind": "historic",
+      "osm": "node/8285628917",
+      "lonlat": [
+        31.137837,
+        29.975268
+      ]
     },
     {
-      "id": "metro_14",
-      "name": "المنيب",
+      "id": "historic_14",
+      "name": "أبو الهول",
+      "kind": "historic",
+      "osm": "way/540058405",
+      "lonlat": [
+        31.137656,
+        29.975282
+      ]
+    },
+    {
+      "id": "historic_15",
+      "name": "معبد وادي منقرع",
+      "kind": "historic",
+      "osm": "way/510732343",
+      "lonlat": [
+        31.136313,
+        29.972553
+      ]
+    },
+    {
+      "id": "historic_16",
+      "name": "أهرامات الجيزة",
+      "kind": "historic",
+      "osm": "way/73227488",
+      "lonlat": [
+        31.129294,
+        29.972587
+      ]
+    },
+    {
+      "id": "museum_17",
+      "name": "المتحف المصري الكبير",
+      "kind": "museum",
+      "osm": "relation/16783121",
+      "lonlat": [
+        31.119116,
+        29.994537
+      ]
+    },
+    {
+      "id": "bus_station_18",
+      "name": "موقف المنيب (العياط)",
+      "kind": "bus_station",
+      "osm": "node/13326437802",
+      "lonlat": [
+        31.209963,
+        29.986559
+      ]
+    },
+    {
+      "id": "bus_station_19",
+      "name": "موقف المنيب (الصعيد)",
+      "kind": "bus_station",
+      "osm": "node/5070576421",
+      "lonlat": [
+        31.213937,
+        29.986404
+      ]
+    },
+    {
+      "id": "bus_station_20",
+      "name": "موقف المنيب (التجمع الخامس)",
+      "kind": "bus_station",
+      "osm": "node/14128347162",
+      "lonlat": [
+        31.213733,
+        29.985401
+      ]
+    },
+    {
+      "id": "bus_station_21",
+      "name": "موقف المنيب",
+      "kind": "bus_station",
+      "osm": "node/14128640849",
+      "lonlat": [
+        31.212625,
+        29.983803
+      ]
+    },
+    {
+      "id": "government_22",
+      "name": "محافظه الجيزه(سابقآ)",
+      "kind": "government",
+      "osm": "node/11005348827",
+      "lonlat": [
+        31.198996,
+        30.009152
+      ]
+    },
+    {
+      "id": "stadium_23",
+      "name": "ستاد كلية الزراعة",
+      "kind": "stadium",
+      "osm": "way/1222242455",
+      "lonlat": [
+        31.210059,
+        30.015675
+      ]
+    },
+    {
+      "id": "stadium_24",
+      "name": "ملاعب السعيدية",
+      "kind": "stadium",
+      "osm": "way/52255021",
+      "lonlat": [
+        31.208887,
+        30.025272
+      ]
+    },
+    {
+      "id": "university_25",
+      "name": "مركز المؤتمرات",
+      "kind": "university",
+      "osm": "way/38286750",
+      "lonlat": [
+        31.206739,
+        30.030136
+      ]
+    },
+    {
+      "id": "university_26",
+      "name": "كلية الحاسبات والذكاء الاصطناعي",
+      "kind": "university",
+      "osm": "way/180149258",
+      "lonlat": [
+        31.210327,
+        30.030854
+      ]
+    },
+    {
+      "id": "metro_27",
+      "name": "ساقية مكي",
       "kind": "metro",
-      "osm": "node/9160333614"
+      "osm": "node/9160395525",
+      "lonlat": [
+        31.208614,
+        29.995485
+      ]
     },
     {
-      "id": "university_15",
-      "name": "أكاديميه الفنون الجديدة",
-      "kind": "university",
-      "osm": "way/48038932"
+      "id": "metro_28",
+      "name": "أم المصريين",
+      "kind": "metro",
+      "osm": "node/316631605",
+      "lonlat": [
+        31.207964,
+        30.005208
+      ]
     },
     {
-      "id": "university_16",
-      "name": "أكاديمية طيبة",
-      "kind": "university",
-      "osm": "node/4053830323"
+      "id": "metro_29",
+      "name": "جيزة",
+      "kind": "metro",
+      "osm": "node/9162042097",
+      "lonlat": [
+        31.207125,
+        30.01057
+      ]
     },
     {
-      "id": "university_17",
-      "name": "أكاديميه الفنون القديمة",
-      "kind": "university",
-      "osm": "way/48038992"
-    },
-    {
-      "id": "post_18",
-      "name": "مكتب بريد الكنيسة",
-      "kind": "post",
-      "osm": "node/11519307519"
+      "id": "hospital_30",
+      "name": "مستشفى المروة التخصصى",
+      "kind": "hospital",
+      "osm": "node/1939482580",
+      "lonlat": [
+        31.209209,
+        29.997249
+      ]
     }
   ],
   "needs_verification": []

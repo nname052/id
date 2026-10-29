@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 // تركيب موديل GLB حقيقي (توكتوك/تاكسي) على "ريج" عربية اللاعب:
 // - بنكبّره/نصغّره عشان المسافة بين العجل تبقى نفس الفيزياء بالظبط، ونحطه بحيث عجله ييجي على عجل الفيزياء
@@ -341,4 +342,64 @@ export function bakeTrafficVersion(asset, { tuktuk = false, wheelRe = null } = {
     glassMat: new THREE.MeshStandardMaterial({ color: 0x1d262b, transparent: true, opacity: 0.6, roughness: 0.05, depthWrite: false }),
   };
   return asset._traffic;
+}
+
+/**
+ * عربية مرور من موديل حقيقي (GLB) بخاماته وصوره الأصلية — مش ألوان مخبوزة:
+ * القطع بتتدمج حسب الخامة (draw call لكل خامة، كل العربيات من نفس الموديل بتشارك الـ geometry والخامات)،
+ * العجل لوحده عشان يلف، والصاج (الخامة اللي اسمها فيه paint/body) بياخد لون العربية.
+ */
+const WHEEL_RE = /wheel|tire|tyre|rim|rueda|колес/i, PAINT_RE = /paint|body|carpaint|kuzov|кузов/i;
+export function realTrafficCar(asset, color) {
+  if (!asset._real) {
+    const h = asset.holder; h.updateMatrixWorld(true);
+    const byMat = new Map(), wheels = new Map();
+    const box = new THREE.Box3().setFromObject(h);
+    h.traverse((o) => {
+      if (!o.isMesh || !o.visible) return;
+      const g = toFloat(o.geometry).applyMatrix4(o.matrixWorld);
+      for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(k)) g.deleteAttribute(k);
+      if (!g.attributes.normal) g.computeVertexNormals();
+      if (!g.attributes.uv) g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
+      const gi = g.index ? g.toNonIndexed() : g;
+      if (WHEEL_RE.test(o.name) || WHEEL_RE.test(o.material.name || '')) {
+        // العجلة = القطع اللي مراكزها قريبة من ركن (قدام/ورا × يمين/شمال)
+        gi.computeBoundingBox(); const c = gi.boundingBox.getCenter(new THREE.Vector3());
+        const key = `${c.x < 0 ? 'L' : 'R'}${c.z < (box.min.z + box.max.z) / 2 ? 'F' : 'B'}`;
+        if (!wheels.has(key)) wheels.set(key, new Map());
+        const wm = wheels.get(key); if (!wm.has(o.material)) wm.set(o.material, []); wm.get(o.material).push(gi);
+        return;
+      }
+      if (!byMat.has(o.material)) byMat.set(o.material, []);
+      byMat.get(o.material).push(gi);
+    });
+    const parts = [...byMat].map(([mat, gs]) => ({ g: mergeGeometries(gs), mat, paint: PAINT_RE.test(mat.name || '') }));
+    const W = [...wheels].map(([key, m]) => {
+      const ps = [...m].map(([mat, gs]) => ({ g: mergeGeometries(gs), mat }));
+      const bb = new THREE.Box3(); for (const p of ps) { p.g.computeBoundingBox(); bb.union(p.g.boundingBox); }
+      const c = bb.getCenter(new THREE.Vector3());
+      for (const p of ps) p.g.translate(-c.x, -c.y, -c.z); // حوالين محورها عشان تلف
+      return { key, center: c, r: (bb.max.y - bb.min.y) / 2, parts: ps };
+    });
+    asset._real = { parts, wheels: W, size: box.getSize(new THREE.Vector3()), paintMats: new Map() };
+  }
+  const R = asset._real;
+  const body = new THREE.Group(), wrap = new THREE.Group(); wrap.add(body);
+  for (const p of R.parts) {
+    let mat = p.mat;
+    if (p.paint && color !== undefined) { // خامة لكل لون (مشتركة بين العربيات من نفس اللون)
+      const k = String(color); if (!R.paintMats.has(k)) { const m = p.mat.clone(); m.color = new THREE.Color(color); m.map = null; R.paintMats.set(k, m); }
+      mat = R.paintMats.get(k);
+    }
+    const m = new THREE.Mesh(p.g, mat); m.castShadow = true; m.receiveShadow = true;
+    if (mat.transparent) { m.userData.role = 'glass'; m.renderOrder = 2; }
+    body.add(m);
+  }
+  const wheels = R.wheels.map((w) => {
+    const pivot = new THREE.Group(); pivot.position.copy(w.center); body.add(pivot);
+    for (const { g, mat } of w.parts) { const m = new THREE.Mesh(g, mat); m.castShadow = true; pivot.add(m); }
+    return { group: pivot, spin: pivot, front: w.key.endsWith('F') };
+  });
+  const r = R.wheels[0]?.r || 0.3;
+  return { root: wrap, body, wheels, wheelRadius: r, length: R.size.z, width: R.size.x, brake: null, driverSeat: [-0.36, 0.5, -0.12], real: asset.key };
 }

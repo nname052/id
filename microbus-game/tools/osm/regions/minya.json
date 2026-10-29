@@ -23,73 +23,121 @@
       "id": "rail_station_1",
       "name": "المنيا",
       "kind": "rail_station",
-      "osm": "node/1022358058"
+      "osm": "node/1022358058",
+      "lonlat": [
+        30.753486,
+        28.096798
+      ]
     },
     {
       "id": "bus_station_2",
       "name": "موقف الاوتوبيس السريع",
       "kind": "bus_station",
-      "osm": "node/1892460994"
+      "osm": "node/1892460994",
+      "lonlat": [
+        30.757088,
+        28.092928
+      ]
     },
     {
       "id": "bus_station_3",
       "name": "موقف قسطور",
       "kind": "bus_station",
-      "osm": "node/1892460997"
+      "osm": "node/1892460997",
+      "lonlat": [
+        30.755972,
+        28.094462
+      ]
     },
     {
       "id": "hospital_4",
       "name": "مستوصف الجمعية الشرعية",
       "kind": "hospital",
-      "osm": "node/1888411235"
+      "osm": "node/1888411235",
+      "lonlat": [
+        30.762435,
+        28.084191
+      ]
     },
     {
       "id": "hospital_5",
       "name": "بنك الدم الإقليمى",
       "kind": "hospital",
-      "osm": "node/1888411221"
+      "osm": "node/1888411221",
+      "lonlat": [
+        30.764313,
+        28.091271
+      ]
     },
     {
       "id": "hospital_6",
       "name": "مستشفى المبرة",
       "kind": "hospital",
-      "osm": "node/1888451891"
+      "osm": "node/1888451891",
+      "lonlat": [
+        30.759458,
+        28.096534
+      ]
     },
     {
       "id": "museum_7",
       "name": "متحف اخناتون",
       "kind": "museum",
-      "osm": "way/100024722"
+      "osm": "way/100024722",
+      "lonlat": [
+        30.770837,
+        28.095037
+      ]
     },
     {
       "id": "library_8",
       "name": "قصر الثقافة",
       "kind": "library",
-      "osm": "way/1005507346"
+      "osm": "way/1005507346",
+      "lonlat": [
+        30.751735,
+        28.106208
+      ]
     },
     {
       "id": "post_9",
       "name": "مكتب البوستة الرئيسي",
       "kind": "post",
-      "osm": "node/1888338974"
+      "osm": "node/1888338974",
+      "lonlat": [
+        30.758605,
+        28.090306
+      ]
     },
     {
       "id": "post_10",
       "name": "مكتب بريد أرض المولد",
       "kind": "post",
-      "osm": "node/1888257943"
+      "osm": "node/1888257943",
+      "lonlat": [
+        30.764527,
+        28.085573
+      ]
     },
     {
       "id": "park_11",
       "name": "الحديقه الدولية",
       "kind": "park",
-      "osm": "way/100028612"
+      "osm": "way/100028612",
+      "lonlat": [
+        30.767998,
+        28.099076
+      ]
     },
     {
       "id": "park_12",
       "name": "YMCA جمعية الشبان المسيحيين بالمنيا",
       "kind": "park",
-      "osm": "node/5563955318"
+      "osm": "node/5563955318",
+      "lonlat": [
+        30.7511,
+        28.103062
+      ]
     }
   ],
   "needs_verification": []

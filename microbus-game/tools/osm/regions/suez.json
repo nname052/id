@@ -23,43 +23,71 @@
       "id": "stadium_1",
       "name": "ستاد السويس",
       "kind": "stadium",
-      "osm": "way/604978811"
+      "osm": "way/604978811",
+      "lonlat": [
+        32.54262,
+        29.957773
+      ]
     },
     {
       "id": "rail_station_2",
       "name": "السويس",
       "kind": "rail_station",
-      "osm": "node/2555058697"
+      "osm": "node/2555058697",
+      "lonlat": [
+        32.527669,
+        29.989176
+      ]
     },
     {
       "id": "government_3",
       "name": "مبنى محافظة السويس",
       "kind": "government",
-      "osm": "way/1057566535"
+      "osm": "way/1057566535",
+      "lonlat": [
+        32.550709,
+        29.963567
+      ]
     },
     {
       "id": "hospital_4",
       "name": "مستشفى التأمين الصحى الشامل",
       "kind": "hospital",
-      "osm": "way/1057797224"
+      "osm": "way/1057797224",
+      "lonlat": [
+        32.517577,
+        29.969271
+      ]
     },
     {
       "id": "historic_5",
       "name": "حديقة الشهداء",
       "kind": "historic",
-      "osm": "node/4424836797"
+      "osm": "node/4424836797",
+      "lonlat": [
+        32.553772,
+        29.960866
+      ]
     },
     {
       "id": "post_6",
       "name": "بوسطة السويس",
       "kind": "post",
-      "osm": "node/1660401790"
+      "osm": "node/1660401790",
+      "lonlat": [
+        32.555676,
+        29.966087
+      ]
     },
     {
       "id": "park_7",
       "name": "دوار",
       "kind": "park",
-      "osm": "way/1102722155"
+      "osm": "way/1102722155",
+      "lonlat": [
+        32.516548,
+        29.971268
+      ]
     }
   ],
   "needs_verification": []

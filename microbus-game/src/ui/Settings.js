@@ -7,7 +7,7 @@ const KEY = 'egy-microbus-settings-v1';
 export const SCHEMA = [
   { group: 'العربية' },
   { key: 'vehicle', type: 'seg', label: 'بتسوق إيه؟', options: [['microbus', 'ميكروباص'], ['taxi', 'تاكسي'], ['tuktuk', 'توكتوك']], def: 'microbus' },
-  { key: 'livery', type: 'seg', label: 'شكل الميكروباص', options: [['shibin', 'شبين (تركواز)'], ['blue', 'أبيض/أزرق'], ['green', 'أبيض/أخضر'], ['plain', 'أبيض']], def: 'shibin' },
+  { key: 'livery', type: 'seg', label: 'شكل الميكروباص', options: [['city', 'لون المحافظة'], ['shibin', 'شبين (تركواز)'], ['blue', 'أبيض/أزرق'], ['green', 'أبيض/أخضر'], ['plain', 'أبيض']], def: 'city' },
   { group: 'الكاميرا' },
   // زاوية الرؤية بالعرض (مش بالطول): نفس المنظر على شاشة موبايل عريضة وعلى الكمبيوتر
   // (كانت بالطول: 60° على موبايل 2.16:1 = 102° بالعرض = تمطيط على الأطراف)
@@ -48,7 +48,7 @@ export class Settings {
     try {
       const saved = JSON.parse(localStorage.getItem(KEY) || '{}');
       if (saved.fovV !== 3) delete saved.fov; // الافتراضي اتغير في التحديث ده
-      if (saved.livV !== 1) delete saved.livery; // شكل شبين التركواز بقى هو الافتراضي
+      if ((saved.livV || 0) < 2) delete saved.livery; // (v2: الافتراضي بقى "لون المحافظة" — شبين برضه تركواز)
       for (const s of SCHEMA) {
         if (!s.key || saved[s.key] === undefined) continue;
         const v = saved[s.key];
@@ -65,7 +65,7 @@ export class Settings {
   set(k, v) {
     if (this.values[k] === v) return;
     this.values[k] = v;
-    try { localStorage.setItem(KEY, JSON.stringify({ ...this.values, fovV: 3, livV: 1 })); } catch { /* مفيش تخزين */ }
+    try { localStorage.setItem(KEY, JSON.stringify({ ...this.values, fovV: 3, livV: 2 })); } catch { /* مفيش تخزين */ }
     for (const fn of this.listeners) fn(k, v);
     this._sync?.();
   }

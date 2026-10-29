@@ -23,37 +23,61 @@
       "id": "university_1",
       "name": "جامعة كفر الشيخ",
       "kind": "university",
-      "osm": "way/94087086"
+      "osm": "way/94087086",
+      "lonlat": [
+        30.948324,
+        31.098807
+      ]
     },
     {
       "id": "rail_station_2",
       "name": "كفر الشيخ",
       "kind": "rail_station",
-      "osm": "node/1024972031"
+      "osm": "node/1024972031",
+      "lonlat": [
+        30.939161,
+        31.109459
+      ]
     },
     {
       "id": "government_3",
       "name": "ميني المحافظة",
       "kind": "government",
-      "osm": "way/626274507"
+      "osm": "way/626274507",
+      "lonlat": [
+        30.944447,
+        31.107276
+      ]
     },
     {
       "id": "stadium_4",
       "name": "استاد كفر الشيخ",
       "kind": "stadium",
-      "osm": "way/884219850"
+      "osm": "way/884219850",
+      "lonlat": [
+        30.951881,
+        31.109505
+      ]
     },
     {
       "id": "hospital_5",
       "name": "مستشفى العبور",
       "kind": "hospital",
-      "osm": "way/626274508"
+      "osm": "way/626274508",
+      "lonlat": [
+        30.945129,
+        31.108295
+      ]
     },
     {
       "id": "hospital_6",
       "name": "مستشفى كفر الشيخ العام",
       "kind": "hospital",
-      "osm": "node/13620461601"
+      "osm": "node/13620461601",
+      "lonlat": [
+        30.943025,
+        31.116318
+      ]
     }
   ],
   "needs_verification": []

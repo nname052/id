@@ -1070,6 +1070,10 @@ def build_landmarks(cfg, rd, roads, areas, P, REGION):
                 c = g.centroid
                 found = dict(x=r1(c.x), z=r1(c.y), osm=','.join(f"way/{r['id']}" for r in rs[:12]), osm_name=L['osm_name'],
                              length_m=r1(sum(polyline_len(r['xy']) for r in rs)))
+        if not found and L.get('lonlat'):
+            # علاقة OSM (مطار/مجمع): المكان من make_configs (مركز أول حلقة خارجية)
+            x, z = P(*L['lonlat'])
+            found = dict(x=r1(x), z=r1(z), osm=L['osm'], osm_name=L['name'], note='position from relation outer ring (make_configs.py)')
         if found:
             inside = REGION.contains(Point(found['x'], found['z']))
             item.update(found); item['status'] = 'confirmed'; item['inside_region'] = inside

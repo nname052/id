@@ -23,19 +23,31 @@
       "id": "rail_station_1",
       "name": "قنا",
       "kind": "rail_station",
-      "osm": "node/520513717"
+      "osm": "node/520513717",
+      "lonlat": [
+        32.727124,
+        26.162585
+      ]
     },
     {
       "id": "library_2",
       "name": "مكتبه نور الاسلام",
       "kind": "library",
-      "osm": "node/9545731219"
+      "osm": "node/9545731219",
+      "lonlat": [
+        32.713194,
+        26.165229
+      ]
     },
     {
       "id": "hospital_3",
       "name": "مستشفي قنا العام",
       "kind": "hospital",
-      "osm": "way/776123270"
+      "osm": "way/776123270",
+      "lonlat": [
+        32.707113,
+        26.159294
+      ]
     }
   ],
   "needs_verification": []

@@ -23,31 +23,51 @@
       "id": "stadium_1",
       "name": "ملعب سوهاج الرياضي",
       "kind": "stadium",
-      "osm": "way/657282937"
+      "osm": "way/657282937",
+      "lonlat": [
+        31.709104,
+        26.557728
+      ]
     },
     {
       "id": "university_2",
       "name": "جامعة سوهاج",
       "kind": "university",
-      "osm": "way/94175194"
+      "osm": "way/94175194",
+      "lonlat": [
+        31.707929,
+        26.564958
+      ]
     },
     {
       "id": "rail_station_3",
       "name": "سوهاج",
       "kind": "rail_station",
-      "osm": "way/98043721"
+      "osm": "way/98043721",
+      "lonlat": [
+        31.69897,
+        26.55129
+      ]
     },
     {
       "id": "hospital_4",
       "name": "د.عبد الناصر بدوى",
       "kind": "hospital",
-      "osm": "node/4575984694"
+      "osm": "node/4575984694",
+      "lonlat": [
+        31.697857,
+        26.546118
+      ]
     },
     {
       "id": "hospital_5",
       "name": "مستشفى سوهاج للصحة النفسية وعلاج الإدمان",
       "kind": "hospital",
-      "osm": "node/13914690138"
+      "osm": "node/13914690138",
+      "lonlat": [
+        31.692568,
+        26.561093
+      ]
     }
   ],
   "needs_verification": []

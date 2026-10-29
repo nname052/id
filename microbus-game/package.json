@@ -15,6 +15,7 @@
     "trystero": "^0.26.0"
   },
   "devDependencies": {
+    "@gltf-transform/cli": "^4.5.1",
     "vite": "6.0.7"
   }
 }

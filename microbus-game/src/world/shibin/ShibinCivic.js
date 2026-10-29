@@ -171,7 +171,7 @@ export function buildWorship(W, features, group) {
   const inst = {};
   const get = (k) => inst[k] ||= new NearInstancer(k === 'mosque' ? mosqueGeo() : churchGeo(), mat, { R: W.low ? 380 : 520, max: 24, name: k, castShadow: true });
   for (const p of features?.pois || []) {
-    if (p.kind !== 'place_of_worship') continue;
+    if (p.kind !== 'place_of_worship' || W.realMosques?.has(p.osm)) continue;
     const rel = p.tags?.religion;
     if (rel !== 'muslim' && rel !== 'christian') continue;
     const [x, z] = p.p;

@@ -27,6 +27,8 @@ def quadkey(lon, lat, z=9):
 
 
 def bbox(c):
+    if c.get('bbox'):  # المدن الكبيرة: حدودها الأوسع (cities.json) + 600م هامش
+        m = 0.006; w, s, e, n = c['bbox']; return w - m, s - m, e + m, n + m
     dlat = HALF / 111320; dlon = HALF / (111320 * math.cos(math.radians(c['lat'])))
     return c['lon'] - dlon, c['lat'] - dlat, c['lon'] + dlon, c['lat'] + dlat
 

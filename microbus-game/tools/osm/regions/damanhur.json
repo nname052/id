@@ -23,19 +23,31 @@
       "id": "rail_station_1",
       "name": "دمنهور",
       "kind": "rail_station",
-      "osm": "node/1022251311"
+      "osm": "node/1022251311",
+      "lonlat": [
+        30.468469,
+        31.034291
+      ]
     },
     {
       "id": "historic_2",
       "name": "الجندى المجهول",
       "kind": "historic",
-      "osm": "node/2269447673"
+      "osm": "node/2269447673",
+      "lonlat": [
+        30.459772,
+        31.036721
+      ]
     },
     {
       "id": "park_3",
       "name": "حديقة الجمهورية",
       "kind": "park",
-      "osm": "way/1175773204"
+      "osm": "way/1175773204",
+      "lonlat": [
+        30.468188,
+        31.041959
+      ]
     }
   ],
   "needs_verification": []

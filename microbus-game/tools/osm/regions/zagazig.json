@@ -23,91 +23,171 @@
       "id": "rail_station_1",
       "name": "الزقازيق",
       "kind": "rail_station",
-      "osm": "node/1022196175"
+      "osm": "node/1022196175",
+      "lonlat": [
+        31.502011,
+        30.582203
+      ]
     },
     {
       "id": "bus_station_2",
       "name": "موقف فاروق الزراعة",
       "kind": "bus_station",
-      "osm": "node/4597508389"
+      "osm": "node/4597508389",
+      "lonlat": [
+        31.503043,
+        30.581706
+      ]
     },
     {
       "id": "government_3",
       "name": "قصر ثقافة الزقازيق",
       "kind": "government",
-      "osm": "node/6717814711"
+      "osm": "node/6717814711",
+      "lonlat": [
+        31.498185,
+        30.584684
+      ]
     },
     {
       "id": "government_4",
       "name": "مبنى محافظة الشرقية",
       "kind": "government",
-      "osm": "node/6717814710"
+      "osm": "node/6717814710",
+      "lonlat": [
+        31.497453,
+        30.584707
+      ]
     },
     {
       "id": "bus_station_5",
       "name": "موقف المنصورة الجديد",
       "kind": "bus_station",
-      "osm": "node/8952563382"
+      "osm": "node/8952563382",
+      "lonlat": [
+        31.518189,
+        30.589433
+      ]
     },
     {
-      "id": "historic_6",
+      "id": "bus_station_6",
+      "name": "موقف فاروق",
+      "kind": "bus_station",
+      "osm": "node/4886193521",
+      "lonlat": [
+        31.521273,
+        30.585597
+      ]
+    },
+    {
+      "id": "bus_station_7",
+      "name": "موقف سيارات",
+      "kind": "bus_station",
+      "osm": "node/4886193421",
+      "lonlat": [
+        31.522007,
+        30.585782
+      ]
+    },
+    {
+      "id": "historic_8",
       "name": "ساحة ابو خليل",
       "kind": "historic",
-      "osm": "node/6163473285"
+      "osm": "node/6163473285",
+      "lonlat": [
+        31.507054,
+        30.583268
+      ]
     },
     {
-      "id": "historic_7",
+      "id": "historic_9",
       "name": "قصر الثقافه",
       "kind": "historic",
-      "osm": "way/1527315230"
+      "osm": "way/1527315230",
+      "lonlat": [
+        31.497966,
+        30.584317
+      ]
     },
     {
-      "id": "hospital_8",
+      "id": "hospital_10",
       "name": "مستشفى الزقازيق العام",
       "kind": "hospital",
-      "osm": "way/771779533"
-    },
-    {
-      "id": "hospital_9",
-      "name": "مستشفي المبرة",
-      "kind": "hospital",
-      "osm": "node/3966621672"
-    },
-    {
-      "id": "historic_10",
-      "name": "جامع الفتح",
-      "kind": "historic",
-      "osm": "way/121704804"
+      "osm": "way/771779533",
+      "lonlat": [
+        31.509425,
+        30.592807
+      ]
     },
     {
       "id": "hospital_11",
+      "name": "مستشفي المبرة",
+      "kind": "hospital",
+      "osm": "node/3966621672",
+      "lonlat": [
+        31.491537,
+        30.585554
+      ]
+    },
+    {
+      "id": "historic_12",
+      "name": "جامع الفتح",
+      "kind": "historic",
+      "osm": "way/121704804",
+      "lonlat": [
+        31.490989,
+        30.586673
+      ]
+    },
+    {
+      "id": "hospital_13",
       "name": "عيادة المبرة الشاملة",
       "kind": "hospital",
-      "osm": "node/4658648390"
+      "osm": "node/4658648390",
+      "lonlat": [
+        31.490995,
+        30.587214
+      ]
     },
     {
-      "id": "university_12",
+      "id": "university_14",
       "name": "كلية الحاسبات والمعلومات",
       "kind": "university",
-      "osm": "node/5182035023"
+      "osm": "node/5182035023",
+      "lonlat": [
+        31.524187,
+        30.585465
+      ]
     },
     {
-      "id": "post_13",
+      "id": "post_15",
       "name": "بريد الزقازيق ٤٤٥١١",
       "kind": "post",
-      "osm": "node/4127212689"
+      "osm": "node/4127212689",
+      "lonlat": [
+        31.504525,
+        30.588316
+      ]
     },
     {
-      "id": "post_14",
+      "id": "post_16",
       "name": "الشركة الدولية للخدمات البريدية ايجى سيرف فرع الزقازيق",
       "kind": "post",
-      "osm": "node/7082627728"
+      "osm": "node/7082627728",
+      "lonlat": [
+        31.505628,
+        30.580888
+      ]
     },
     {
-      "id": "park_15",
+      "id": "park_17",
       "name": "حديقة حيوان الزقازيق",
       "kind": "park",
-      "osm": "way/771835972"
+      "osm": "way/771835972",
+      "lonlat": [
+        31.495671,
+        30.587822
+      ]
     }
   ],
   "needs_verification": []
