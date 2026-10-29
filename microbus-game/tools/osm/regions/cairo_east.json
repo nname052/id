@@ -1,0 +1,324 @@
+{
+  "id": "cairo_east",
+  "name": "القاهرة — مصر الجديدة ومدينة نصر",
+  "name_en": "Cairo — Heliopolis & Nasr City",
+  "governorate": "القاهرة",
+  "source_pbf": "../data/osm/egypt/cities/cairo_east.osm.pbf",
+  "source_note": "OpenStreetMap Egypt extract (download.openstreetmap.fr, 2026-10-29), cut per city with osmium extract",
+  "origin": {
+    "lat": 30.0915,
+    "lon": 31.3226,
+    "note": "Map centre chosen near Roxy Square, Heliopolis (not an OSM place node)"
+  },
+  "bbox": {
+    "west": 31.29,
+    "south": 30.045,
+    "east": 31.355,
+    "north": 30.105
+  },
+  "tile_size": 400,
+  "stub_outside": 40,
+  "landmarks": [
+    {
+      "id": "rail_station_1",
+      "name": "استاد القاهرة",
+      "kind": "rail_station",
+      "osm": "way/1318994571",
+      "lonlat": [
+        31.317673,
+        30.071591
+      ]
+    },
+    {
+      "id": "rail_station_2",
+      "name": "هشام بركات",
+      "kind": "rail_station",
+      "osm": "way/1318991494",
+      "lonlat": [
+        31.321813,
+        30.063511
+      ]
+    },
+    {
+      "id": "rail_station_3",
+      "name": "جامعة الأزهر",
+      "kind": "rail_station",
+      "osm": "way/1318989136",
+      "lonlat": [
+        31.324771,
+        30.053713
+      ]
+    },
+    {
+      "id": "rail_station_4",
+      "name": "المشير احمد اسماعيل",
+      "kind": "rail_station",
+      "osm": "way/1318986789",
+      "lonlat": [
+        31.346357,
+        30.045469
+      ]
+    },
+    {
+      "id": "stadium_5",
+      "name": "إستاد القاهرة الدولي",
+      "kind": "stadium",
+      "osm": "way/24959847",
+      "lonlat": [
+        31.312182,
+        30.069041
+      ]
+    },
+    {
+      "id": "stadium_6",
+      "name": "ستاد المقاولون العرب",
+      "kind": "stadium",
+      "osm": "way/25465512",
+      "lonlat": [
+        31.296849,
+        30.051069
+      ]
+    },
+    {
+      "id": "historic_7",
+      "name": "قصر رئاسة",
+      "kind": "historic",
+      "osm": "way/33727472",
+      "lonlat": [
+        31.319437,
+        30.088887
+      ]
+    },
+    {
+      "id": "historic_8",
+      "name": "قصر بارون أمبان",
+      "kind": "historic",
+      "osm": "way/24886453",
+      "lonlat": [
+        31.330243,
+        30.086647
+      ]
+    },
+    {
+      "id": "historic_9",
+      "name": "قصر القبة",
+      "kind": "historic",
+      "osm": "way/97567990",
+      "lonlat": [
+        31.3025,
+        30.098866
+      ]
+    },
+    {
+      "id": "historic_10",
+      "name": "بانوراما حرب أوكتوبر",
+      "kind": "historic",
+      "osm": "way/34209128",
+      "lonlat": [
+        31.306851,
+        30.074299
+      ]
+    },
+    {
+      "id": "historic_11",
+      "name": "الجندي المجهول",
+      "kind": "historic",
+      "osm": "way/25049783",
+      "lonlat": [
+        31.313828,
+        30.065496
+      ]
+    },
+    {
+      "id": "hospital_12",
+      "name": "مستشفى العباسية للصحة النفسية",
+      "kind": "hospital",
+      "osm": "way/28828990",
+      "lonlat": [
+        31.29508,
+        30.068501
+      ]
+    },
+    {
+      "id": "hospital_13",
+      "name": "مستشفى الامراض الصدرية بالعباسية",
+      "kind": "hospital",
+      "osm": "way/1470229524",
+      "lonlat": [
+        31.294943,
+        30.057128
+      ]
+    },
+    {
+      "id": "bus_station_14",
+      "name": "موقف الكوربة",
+      "kind": "bus_station",
+      "osm": "way/1536109527",
+      "lonlat": [
+        31.324783,
+        30.093475
+      ]
+    },
+    {
+      "id": "bus_station_15",
+      "name": "موقف روكسي",
+      "kind": "bus_station",
+      "osm": "way/1536109539",
+      "lonlat": [
+        31.315956,
+        30.094925
+      ]
+    },
+    {
+      "id": "bus_station_16",
+      "name": "موقف روكسي (شاؤع القبة)",
+      "kind": "bus_station",
+      "osm": "way/1536109540",
+      "lonlat": [
+        31.314666,
+        30.093433
+      ]
+    },
+    {
+      "id": "bus_station_17",
+      "name": "محطة الحافلات الدولية",
+      "kind": "bus_station",
+      "osm": "way/1124302344",
+      "lonlat": [
+        31.347836,
+        30.089982
+      ]
+    },
+    {
+      "id": "university_18",
+      "name": "كلية العلوم الإسلامية للوافدين الناطقين بغير العربية",
+      "kind": "university",
+      "osm": "node/13449981901",
+      "lonlat": [
+        31.31322,
+        30.061623
+      ]
+    },
+    {
+      "id": "university_19",
+      "name": "مجمع البحوث الإسلامية",
+      "kind": "university",
+      "osm": "way/29906749",
+      "lonlat": [
+        31.325112,
+        30.057739
+      ]
+    },
+    {
+      "id": "university_20",
+      "name": "جامعة الأزهر (فرع البنات)",
+      "kind": "university",
+      "osm": "way/1338243107",
+      "lonlat": [
+        31.322629,
+        30.054537
+      ]
+    },
+    {
+      "id": "library_21",
+      "name": "المجلس البريطانى",
+      "kind": "library",
+      "osm": "node/2501967940",
+      "lonlat": [
+        31.323558,
+        30.095758
+      ]
+    },
+    {
+      "id": "hospital_22",
+      "name": "مستشفي سانت ريتا",
+      "kind": "hospital",
+      "osm": "node/9850700146",
+      "lonlat": [
+        31.326992,
+        30.093916
+      ]
+    },
+    {
+      "id": "museum_23",
+      "name": "متحف جمال عبد الناصر",
+      "kind": "museum",
+      "osm": "node/12204790085",
+      "lonlat": [
+        31.310687,
+        30.086546
+      ]
+    },
+    {
+      "id": "historic_24",
+      "name": "قصر سنان باشا",
+      "kind": "historic",
+      "osm": "way/28847327",
+      "lonlat": [
+        31.317539,
+        30.104783
+      ]
+    },
+    {
+      "id": "historic_25",
+      "name": "مترو بنات",
+      "kind": "historic",
+      "osm": "node/4563408803",
+      "lonlat": [
+        31.308128,
+        30.09041
+      ]
+    },
+    {
+      "id": "library_26",
+      "name": "مكتبة الطفل",
+      "kind": "library",
+      "osm": "way/118616416",
+      "lonlat": [
+        31.335979,
+        30.085537
+      ]
+    },
+    {
+      "id": "historic_27",
+      "name": "قصر الطاهرة",
+      "kind": "historic",
+      "osm": "way/28847265",
+      "lonlat": [
+        31.308429,
+        30.098265
+      ]
+    },
+    {
+      "id": "museum_28",
+      "name": "متحف الطفل",
+      "kind": "museum",
+      "osm": "way/822643170",
+      "lonlat": [
+        31.336927,
+        30.102278
+      ]
+    },
+    {
+      "id": "metro_29",
+      "name": "الاهرام",
+      "kind": "metro",
+      "osm": "node/5194348148",
+      "lonlat": [
+        31.326497,
+        30.091318
+      ]
+    },
+    {
+      "id": "metro_30",
+      "name": "محطة مترو كلية البنات",
+      "kind": "metro",
+      "osm": "node/5007646022",
+      "lonlat": [
+        31.32925,
+        30.084367
+      ]
+    }
+  ],
+  "needs_verification": []
+}

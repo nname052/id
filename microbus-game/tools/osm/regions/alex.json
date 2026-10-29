@@ -13,8 +13,8 @@
   "bbox": {
     "west": 29.872,
     "south": 31.178,
-    "east": 29.962,
-    "north": 31.245
+    "east": 30.025,
+    "north": 31.292
   },
   "tile_size": 400,
   "stub_outside": 40,
@@ -220,7 +220,17 @@
       ]
     },
     {
-      "id": "bus_station_21",
+      "id": "museum_21",
+      "name": "متحف المجوهرات الملكية",
+      "kind": "museum",
+      "osm": "way/397424296",
+      "lonlat": [
+        29.963217,
+        31.240886
+      ]
+    },
+    {
+      "id": "bus_station_22",
       "name": "موقف سعد زغلول",
       "kind": "bus_station",
       "osm": "node/14144118000",
@@ -230,7 +240,7 @@
       ]
     },
     {
-      "id": "bus_station_22",
+      "id": "bus_station_23",
       "name": "موقف الاتوبيس المكيف",
       "kind": "bus_station",
       "osm": "node/14144098354",
@@ -240,7 +250,7 @@
       ]
     },
     {
-      "id": "bus_station_23",
+      "id": "bus_station_24",
       "name": "موقف محطة مصر",
       "kind": "bus_station",
       "osm": "node/14103824147",
@@ -250,7 +260,7 @@
       ]
     },
     {
-      "id": "bus_station_24",
+      "id": "bus_station_25",
       "name": "موقف اتوبيسات محطة مصر",
       "kind": "bus_station",
       "osm": "node/14100179613",
@@ -260,7 +270,7 @@
       ]
     },
     {
-      "id": "university_25",
+      "id": "university_26",
       "name": "جامعة الإسكندرية، مركز علوم الطب",
       "kind": "university",
       "osm": "way/28826289",
@@ -270,7 +280,7 @@
       ]
     },
     {
-      "id": "university_26",
+      "id": "university_27",
       "name": "كلية العلوم",
       "kind": "university",
       "osm": "way/30675448",
@@ -280,7 +290,7 @@
       ]
     },
     {
-      "id": "stadium_27",
+      "id": "stadium_28",
       "name": "ملعب عز الدين يعقوب",
       "kind": "stadium",
       "osm": "node/5878917097",
@@ -290,7 +300,7 @@
       ]
     },
     {
-      "id": "government_28",
+      "id": "government_29",
       "name": "سموحة",
       "kind": "government",
       "osm": "node/11878324669",
@@ -300,23 +310,13 @@
       ]
     },
     {
-      "id": "hospital_29",
+      "id": "hospital_30",
       "name": "مستشفى سهلا الجديدة",
       "kind": "hospital",
       "osm": "node/6796349005",
       "lonlat": [
         29.908555,
         31.191064
-      ]
-    },
-    {
-      "id": "museum_30",
-      "name": "متحف الموزاييك",
-      "kind": "museum",
-      "osm": "way/28825875",
-      "lonlat": [
-        29.919123,
-        31.203399
       ]
     }
   ],

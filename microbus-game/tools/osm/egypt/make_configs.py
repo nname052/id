@@ -95,7 +95,7 @@ def main():
         cfg = dict(id=c['id'], name=c['name'], name_en=c['name_en'], governorate=c['gov'],
                    source_pbf=os.path.relpath(pbf, ROOT),
                    source_note='OpenStreetMap Egypt extract (download.openstreetmap.fr, 2026-10-29), cut per city with osmium extract',
-                   origin=dict(lat=c['lat'], lon=c['lon'], note=f"OSM place=city node '{c['name']}' (city centre)"),
+                   origin=dict(lat=c['lat'], lon=c['lon'], note=c.get('origin_note') or f"OSM place=city node '{c['name']}' (city centre)"),
                    bbox=bb, tile_size=400, stub_outside=40, landmarks=lms, needs_verification=[])
         json.dump(cfg, open(os.path.join(ROOT, 'tools', 'osm', 'regions', c['id'] + '.json'), 'w'), ensure_ascii=False, indent=2)
         print(c['id'], len(lms), [l['kind'] for l in lms], flush=True)
