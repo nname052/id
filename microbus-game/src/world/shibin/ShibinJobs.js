@@ -40,11 +40,13 @@ export function attachJobs(world, findRoute) {
     if (cache) return cache;
     const cands = [], grid = new Map();
     const q = {};
+    // المدن الكبيرة (الجيزة ~39 ألف وصلة): مكان كل 30م على كل الشوارع كان ~17MB ذاكرة → المسافة بتكبر مع حجم الشبكة
+    const STEP = Math.round(30 * Math.max(1, Math.sqrt(G.edges.length / 12000)));
     for (const e of G.edges) {
       if (e.closed || e.elevated || e.noAccess) continue;
       const sw = SIDEWALK[e.cls.replace('_link', '')] || 0;
       if (sw < 1 || e.half < 2.2 || e.length < 30) continue;
-      for (let s = 15; s < e.length - 15; s += 30) {
+      for (let s = 15; s < e.length - 15; s += STEP) {
         edgePoint(e, s, q);
         const rx = -q.dz, rz = q.dx; // يمين اتجاه الوصلة
         for (const side of e.oneway ? [1] : [1, -1]) {
