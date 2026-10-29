@@ -1,0 +1,114 @@
+{
+  "id": "ismailia",
+  "name": "الإسماعيلية",
+  "name_en": "Ismailia",
+  "governorate": "الإسماعيلية",
+  "source_pbf": "../data/osm/egypt/cities/ismailia.osm.pbf",
+  "source_note": "OpenStreetMap Egypt extract (download.openstreetmap.fr, 2026-10-29), cut per city with osmium extract",
+  "origin": {
+    "lat": 30.6043775,
+    "lon": 32.2770825,
+    "note": "OSM place=city node 'الإسماعيلية' (city centre)"
+  },
+  "bbox": {
+    "south": 30.586411,
+    "west": 32.256209,
+    "north": 30.622344,
+    "east": 32.297956
+  },
+  "tile_size": 400,
+  "stub_outside": 40,
+  "landmarks": [
+    {
+      "id": "stadium_1",
+      "name": "ستاد الإسماعيلية",
+      "kind": "stadium",
+      "osm": "way/97203203"
+    },
+    {
+      "id": "university_2",
+      "name": "جامعة قناة السويس",
+      "kind": "university",
+      "osm": "way/97234548"
+    },
+    {
+      "id": "stadium_3",
+      "name": "ستاد هيئة قناة السويس",
+      "kind": "stadium",
+      "osm": "way/664459703"
+    },
+    {
+      "id": "rail_station_4",
+      "name": "الإسماعيلية",
+      "kind": "rail_station",
+      "osm": "node/1018510154"
+    },
+    {
+      "id": "rail_station_5",
+      "name": "محطة القرش",
+      "kind": "rail_station",
+      "osm": "node/1126060881"
+    },
+    {
+      "id": "bus_station_6",
+      "name": "موقف الاسماعيليه",
+      "kind": "bus_station",
+      "osm": "node/4715645587"
+    },
+    {
+      "id": "bus_station_7",
+      "name": "موقف الاتوبيس",
+      "kind": "bus_station",
+      "osm": "way/478336467"
+    },
+    {
+      "id": "university_8",
+      "name": "كلية الاداب",
+      "kind": "university",
+      "osm": "node/11844645733"
+    },
+    {
+      "id": "museum_9",
+      "name": "متحف الاسماعيلية",
+      "kind": "museum",
+      "osm": "way/429911115"
+    },
+    {
+      "id": "museum_10",
+      "name": "متحف السويس القومي",
+      "kind": "museum",
+      "osm": "way/690921437"
+    },
+    {
+      "id": "historic_11",
+      "name": "انجيلية الإسماعيلية",
+      "kind": "historic",
+      "osm": "node/12843841201"
+    },
+    {
+      "id": "hospital_12",
+      "name": "مستشفى الاسماعيلية العام",
+      "kind": "hospital",
+      "osm": "way/97234524"
+    },
+    {
+      "id": "hospital_13",
+      "name": "عيادة الدكتور عبد الحميد صبح",
+      "kind": "hospital",
+      "osm": "node/2722597993"
+    },
+    {
+      "id": "hospital_14",
+      "name": "التامين الصحي",
+      "kind": "hospital",
+      "osm": "way/589912462"
+    },
+    {
+      "id": "post_15",
+      "name": "مكتب بريد الاسماعيليه",
+      "kind": "post",
+      "osm": "way/473969627"
+    }
+  ],
+  "needs_verification": []
+}

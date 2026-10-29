@@ -4,6 +4,7 @@ import { toCreasedNormals } from 'three/addons/utils/BufferGeometryUtils.js';
 import { GeoBuilder } from '../render/GeoBuilder.js';
 import { canvas, tex, makeSeatFabric } from '../render/textures.js';
 import { addBobbleDog } from './CabAccessories.js';
+import { currentMap } from '../world/maps.js';
 
 // =====================================================================
 //  كبائن العربيات (من الصور المرجعية) — كل عربية ليها كابينة مختلفة:
@@ -107,7 +108,7 @@ function drawTaxiCluster(x, W, H, s) {
 }
 
 /** شاشة الخريطة (التاكسي والميكروباص): الخريطة من الميني ماب + عنوان فوق + سطر تحت بلون العربية */
-export function drawNavScreen(x, W, H, s, accent = '#e8711a', title = 'تاكسي شبين', idle = 'مستني راكب') {
+export function drawNavScreen(x, W, H, s, accent = '#e8711a', title = `تاكسي ${currentMap().name}`, idle = 'مستني راكب') {
   x.fillStyle = '#0b0d10'; x.fillRect(0, 0, W, H);
   if (s.mapCanvas && s.mapCanvas.width) {
     try { x.drawImage(s.mapCanvas, 0, 0, s.mapCanvas.width, s.mapCanvas.height, 0, 0, W, H - 40); } catch { /* */ }

@@ -6,9 +6,55 @@
 
 export const REGION_BASE = (id) => `${import.meta.env.BASE_URL}data/${id}/`;
 
+// ===== مدن مضغوطة (tools/osm/egypt/pack_city.py): نفس روابط data/<id>/… بس بتتقري من كام ملف gzip =====
+// base.bin = الملفات اللي مش مربعات، p_<gi>_<gj>.bin = مربعات 7×7. الصفحة على Claude ليها حد لعدد الملفات.
+const packed = new Map();   // base → { dir }
+const raw = new Map();      // ملف → Promise<Uint8Array> (المضغوط بس: ~0.5م.ب للملف)
+const decoded = new Map();  // ملف → Promise<object> — آخر ملفين بس (المفكوك = نصوص المربعات ~2.5م.ب)
+export function usePacks(id) { packed.set(REGION_BASE(id), { dir: `${import.meta.env.BASE_URL}packs/${id}/` }); }
+function fetchRaw(url) {
+  if (!raw.has(url)) {
+    const p = fetch(url).then((r) => { if (!r.ok) throw new Error(`${r.status} ${url}`); return r.arrayBuffer(); }).then((b) => new Uint8Array(b));
+    raw.set(url, p); p.catch(() => raw.delete(url));
+  }
+  return raw.get(url);
+}
+async function readPack(url, keep = false) {
+  if (decoded.has(url)) { const p = decoded.get(url); decoded.delete(url); decoded.set(url, p); return p; } // (LRU)
+  const p = fetchRaw(url).then(async (buf) => {
+    // (لو السيرفر فك الضغط بنفسه: نقراه JSON على طول)
+    if (buf[0] !== 0x1f || buf[1] !== 0x8b) return JSON.parse(new TextDecoder().decode(buf));
+    const s = new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'));
+    return JSON.parse(await new Response(s).text());
+  });
+  decoded.set(url, p);
+  p.catch(() => decoded.delete(url));
+  if (!keep) for (const k of [...decoded.keys()].filter((k) => !k.endsWith('base.bin'))) if (decoded.size > 3) decoded.delete(k);
+  return p;
+}
+async function fromPack(P, rel) {
+  const base = await readPack(P.dir + 'base.bin', true);
+  const m = /^\w+\/t_(-?\d+)_(-?\d+)\.json$/.exec(rel);
+  let obj = base;
+  if (m) {
+    const { group, off } = base.pack;
+    const name = `p_${Math.floor((+m[1] + off) / group)}_${Math.floor((+m[2] + off) / group)}`;
+    if (!base.pack.packs.includes(name)) throw new Error(`404 ${rel}`);
+    obj = await readPack(P.dir + name + '.bin');
+  }
+  if (!(rel in obj)) throw new Error(`404 ${rel}`);
+  const v = obj[rel];
+  return typeof v === 'string' ? JSON.parse(v) : v; // (المربعات متخزنة نص: بتتفك لما تتطلب بس)
+}
+
 const cache = new Map();
 export async function loadJSON(url) {
   if (cache.has(url)) return cache.get(url);
+  for (const [b, P] of packed) if (url.startsWith(b)) {
+    const p = fromPack(P, url.slice(b.length));
+    cache.set(url, p);
+    try { return await p; } catch (e) { cache.delete(url); throw e; }
+  }
   const p = fetch(url).then((r) => {
     if (!r.ok) throw new Error(`${r.status} ${url}`);
     return r.json();

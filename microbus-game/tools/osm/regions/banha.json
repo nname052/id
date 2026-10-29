@@ -1,0 +1,60 @@
+{
+  "id": "banha",
+  "name": "بنها",
+  "name_en": "Banha",
+  "governorate": "القليوبية",
+  "source_pbf": "../data/osm/egypt/cities/banha.osm.pbf",
+  "source_note": "OpenStreetMap Egypt extract (download.openstreetmap.fr, 2026-10-29), cut per city with osmium extract",
+  "origin": {
+    "lat": 30.4624974,
+    "lon": 31.184063,
+    "note": "OSM place=city node 'بنها' (city centre)"
+  },
+  "bbox": {
+    "south": 30.444531,
+    "west": 31.16322,
+    "north": 30.480464,
+    "east": 31.204906
+  },
+  "tile_size": 400,
+  "stub_outside": 40,
+  "landmarks": [
+    {
+      "id": "rail_station_1",
+      "name": "بنها",
+      "kind": "rail_station",
+      "osm": "node/1029624589"
+    },
+    {
+      "id": "university_2",
+      "name": "جامعة بنها",
+      "kind": "university",
+      "osm": "way/771303417"
+    },
+    {
+      "id": "hospital_3",
+      "name": "مستشفى بنها للصحة النفسية وعلاج الإدمان",
+      "kind": "hospital",
+      "osm": "node/13907606661"
+    },
+    {
+      "id": "hospital_4",
+      "name": "مستشفي جامعة بنها",
+      "kind": "hospital",
+      "osm": "way/94125740"
+    },
+    {
+      "id": "hospital_5",
+      "name": "مستشفى الحميات",
+      "kind": "hospital",
+      "osm": "way/1076112442"
+    },
+    {
+      "id": "historic_6",
+      "name": "بطا",
+      "kind": "historic",
+      "osm": "node/4704924490"
+    }
+  ],
+  "needs_verification": []
+}

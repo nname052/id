@@ -1,0 +1,54 @@
+{
+  "id": "damietta",
+  "name": "دمياط",
+  "name_en": "Damietta",
+  "governorate": "دمياط",
+  "source_pbf": "../data/osm/egypt/cities/damietta.osm.pbf",
+  "source_note": "OpenStreetMap Egypt extract (download.openstreetmap.fr, 2026-10-29), cut per city with osmium extract",
+  "origin": {
+    "lat": 31.4167427,
+    "lon": 31.8213657,
+    "note": "OSM place=city node 'دمياط' (city centre)"
+  },
+  "bbox": {
+    "south": 31.398776,
+    "west": 31.800313,
+    "north": 31.434709,
+    "east": 31.842418
+  },
+  "tile_size": 400,
+  "stub_outside": 40,
+  "landmarks": [
+    {
+      "id": "rail_station_1",
+      "name": "دمياط",
+      "kind": "rail_station",
+      "osm": "node/1020478764"
+    },
+    {
+      "id": "bus_station_2",
+      "name": "موقف الاعصر و السنانية",
+      "kind": "bus_station",
+      "osm": "node/4431297491"
+    },
+    {
+      "id": "hospital_3",
+      "name": "مركز كيوان للعلاج الطبيعي والتخسيس",
+      "kind": "hospital",
+      "osm": "node/5734327542"
+    },
+    {
+      "id": "historic_4",
+      "name": "سوق السمك",
+      "kind": "historic",
+      "osm": "node/4431326991"
+    },
+    {
+      "id": "library_5",
+      "name": "مكتبة مصر العامة",
+      "kind": "library",
+      "osm": "node/4431297492"
+    }
+  ],
+  "needs_verification": []
+}

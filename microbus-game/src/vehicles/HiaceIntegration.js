@@ -7,6 +7,7 @@ import { DashScreen, drawVanLCD, drawNavScreen } from './Cockpits.js';
 import { tireGeometry } from './wheel.js';
 import { toCreasedNormals, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import { canvas, tex, makeSeatFabric, makeGauge2, makeShiftGate, tileNoise, heightToNormal, rng } from '../render/textures.js';
+import { currentMap } from '../world/maps.js';
 
 // =====================================================================
 //  دمج موديل GLB حقيقي (Toyota HiAce 2005) كعربية اللاعب:
@@ -457,7 +458,7 @@ function buildHiaceInterior(group, rig, D) {
   group.add(pod);
   K('dashUp').addGeometry(new RoundedBoxGeometry(0.46, 0.36, 0.14, 3, 0.03), podM);
   K('plasticBlack').addGeometry(new RoundedBoxGeometry(0.25, 0.155, 0.014, 2, 0.006), onPod(0, 0.085, 0.004));
-  const nav = new DashScreen(320, 200, (x, W, H, s) => drawNavScreen(x, W, H, s, '#0d8f86', 'ميكروباص شبين', 'مستني ركاب'), { fps: 5, emissive: 0.8 });
+  const nav = new DashScreen(320, 200, (x, W, H, s) => drawNavScreen(x, W, H, s, '#0d8f86', `ميكروباص ${currentMap().name}`, 'مستني ركاب'), { fps: 5, emissive: 0.8 });
   const navMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.224, 0.14), nav.mat);
   navMesh.position.set(0, 0.085, 0.07 + 0.0115); pod.add(navMesh);
   for (const sx of [-1, 1]) {

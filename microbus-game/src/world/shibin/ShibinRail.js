@@ -191,7 +191,7 @@ export class ShibinRail {
       if (L.kind !== 'rail_station' && L.kind !== 'rail_halt') continue;
       const pj = project(this.line, L.x, L.z);
       if (pj.d > 80) continue;
-      this.stations.push({ id: L.id, name: L.name, s: pj.s, main: L.id === 'station_shibin' });
+      this.stations.push({ id: L.id, name: L.name, s: pj.s, main: L.id === W.mainStation?.()?.id });
     }
     this.stations.sort((a, b) => a.s - b.s);
     const st = this.stations.find((s) => s.main);
@@ -245,7 +245,7 @@ export class ShibinRail {
     }
     f.fillStyle = '#11663a'; f.fillRect(312, 128, 400, 46);
     f.fillStyle = '#fff'; f.font = 'bold 34px Cairo, sans-serif'; f.textAlign = 'center'; f.textBaseline = 'middle'; f.direction = 'rtl';
-    f.fillText('محطة شبين الكوم', 512, 152);
+    f.fillText(st.name || 'محطة القطر', 512, 152);
     const ft = tex(fc, { repeat: false, aniso: 4 });
     const bodyM = new THREE.MeshStandardMaterial({ color: 0xe3d3ab, roughness: 0.9 });
     const faceM = new THREE.MeshStandardMaterial({ map: ft, roughness: 0.85 });

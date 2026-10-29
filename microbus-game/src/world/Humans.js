@@ -272,17 +272,19 @@ export function seatedGeometry(geo, { hands = 'lap', knee = -1.55 } = {}) {
     if (bone >= 1 && bone <= 4) {
       const side = bone <= 2 ? -1 : 1;
       const hip = new THREE.Vector3(side * J.hipX, J.hipY, 0), kneeP = new THREE.Vector3(side * J.hipX, J.kneeY, 0);
-      if (bone === 2 || bone === 4) { rotX(v, kneeP, knee); rotXN(w, knee); }
-      rotX(v, hip, 1.5); rotXN(w, 1.5);
+      // (الوش ناحية +z: الدوران الموجب حوالين x بيودّي اللي تحت المفصل لورا — كانت الإشارات معكوسة:
+      //  الفخد والإيدين كانوا رايحين لورا والراكب قاعد وشه لقدام ورجليه وإيديه لورا)
+      if (bone === 2 || bone === 4) { rotX(v, kneeP, -knee); rotXN(w, -knee); }
+      rotX(v, hip, -1.5); rotXN(w, -1.5);
     } else if (bone === 9) {
       // الجلابية وهو قاعد: النص اللي تحت بيتطبّق قدام على الرجلين
       if (v.y < J.hipY) { const t = (J.hipY - v.y); v.y = J.hipY - 0.05 - t * 0.08; v.z += t * 0.95; }
     } else if (bone >= 5 && bone <= 8) {
       const side = bone <= 6 ? -1 : 1;
       const sh = new THREE.Vector3(side * J.shX, J.shY, 0), el = new THREE.Vector3(side * J.shX, J.elY, 0);
-      const elA = hands === 'wheel' ? 0.9 : 1.05, shA = hands === 'wheel' ? 0.75 : 0.32;
-      if (bone === 6 || bone === 8) { rotX(v, el, elA); rotXN(w, elA); }
-      rotX(v, sh, shA); rotXN(w, shA);
+      const elA = hands === 'wheel' ? 0.9 : 0.8, shA = hands === 'wheel' ? 0.75 : 0.3; // (الإيدين على الرجل مش ممدودة لقدام)
+      if (bone === 6 || bone === 8) { rotX(v, el, -elA); rotXN(w, -elA); }
+      rotX(v, sh, -shA); rotXN(w, -shA);
     }
     p.setXYZ(i, v.x, v.y, v.z); n.setXYZ(i, w.x, w.y, w.z);
   }

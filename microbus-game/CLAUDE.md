@@ -4,6 +4,12 @@
 - Vite + three.js 0.170 PWA, code comments in Egyptian Arabic (keep that style).
 - Default map: **real Shibin El Kom** (`src/world/shibin/*`, data in `public/data/shibin`, built from OSM by
   `tools/osm/build_region.py`). The old fictional map was removed (v13): Shibin only.
+- **Other Egyptian cities (v20)**: 26 governorate capitals (`src/world/maps.js`, picker on the start screen, `?map=<id>`).
+  Same code (`ShibinWorld` with `id`), data built by `tools/osm/egypt/build_city.sh <id>` (Egypt PBF from
+  download.openstreetmap.fr → `osmium extract` per city in `../data/osm/egypt/cities`, configs from `make_configs.py`,
+  MS footprints from `fetch_ms.py`) into `../data/cities/<id>` (raw, not in git), then `pack_city.py` → 5 gzip files in
+  `public/packs/<id>/` (the Artifact allows 511 files). `ShibinData.loadJSON` reads packs transparently (`usePacks`).
+  Everything Shibin-specific must stay behind `world.id === 'shibin'` or a landmark lookup (`mainStation()`).
 - Published as a claude.ai Artifact (`dist/index.html` + `files` map). GLB models are base64-inlined in the JS
   (the Artifact host can't serve .glb), the service worker is intentionally disabled.
 
@@ -24,6 +30,7 @@
 
 ## Run / test
 - Dev server: `NOHMR=1 npx vite --port 5173 --strictPort`; build: `npx vite build`; preview: `npx vite preview --port 4173`.
+- Cities smoke test: `node tools/tests/cities.mjs <url> [id ...]` (every map opens, drives, no errors).
 - All tests: `TAIL=3 sh tools/tests/run-all.sh` (Playwright + SwiftShader, ~1.5 h). Run heavy tests one at a time:
   running them in parallel starves the e2e mobile page (20 min timeouts).
 - Do not use `pkill -f <pattern>` in shell commands (it can match the shell itself → exit 144); use `pgrep` + PID.

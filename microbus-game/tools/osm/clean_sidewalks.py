@@ -10,6 +10,7 @@
 وبعدين فتح مورفولوجي خفيف (0.4م) يشيل الشرايح الرفيعة اللي فاضلة. (الأرصفة هنا ~1.2-1.4م عرض: فتح أكبر بيمسحها)
 تشغيل:  python3 tools/osm/clean_sidewalks.py   (بعد build_region.py)
 """
+import shapely
 import glob, json, os
 import numpy as np
 import mapbox_earcut as earcut
@@ -17,7 +18,7 @@ from shapely.geometry import Polygon
 from shapely.ops import unary_union
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-DATA = os.path.join(ROOT, 'public', 'data', 'shibin', 'roads')
+DATA = os.path.join(os.environ.get('DATA_ROOT') or os.path.join(ROOT, 'public', 'data'), os.environ.get('REGION', 'shibin'), 'roads')  # (REGION=alex DATA_ROOT=... لمدينة تانية)
 R = 0.4
 J_EXTRA = 1.2
 
@@ -92,21 +93,15 @@ def main():
         tris = [Polygon([(v[2 * I[k + j]], v[2 * I[k + j] + 1]) for j in range(3)]) for k in range(0, len(I), 3)]
         tris = [t for t in tris if t.is_valid and t.area > 1e-4]
         g = unary_union(tris).buffer(0)
-        near = [cuts[i] for i in tree.query(g)]
-        o = g
-        if near and d.get('asphalt'):
-            A = d['asphalt']; av, ai = A['v'], A['i']
-            ag0 = unary_union([Polygon([(av[2 * ai[k + j]], av[2 * ai[k + j] + 1]) for j in range(3)]) for k in range(0, len(ai), 3)]).buffer(0)
-            # جوه كل دايرة: الرصيف اللي "بين" الشوارع بس (جوه الـ convex hull بتاع أسفلت التقاطع ده) —
-            # الرصيف اللي على الناحية التانية من الشارع المستقيم (تقاطع T) برا الـ hull فبيفضل
-            fill = [c.intersection(ag0.intersection(c).convex_hull) for c in near]
-            fill = unary_union([f for f in fill if not f.is_empty])
-            if not fill.is_empty: o = g.difference(fill)
-        o = o.buffer(-R, join_style='mitre', mitre_limit=4).buffer(R, join_style='mitre', mitre_limit=4)
-        # ماناخدش أي حاجة جديدة برا الرصيف الأصلي (التكبير بأركان حادة ممكن يزوّد سنتيمترات)
-        o = o.intersection(g)
-        # اللي اتشال من الرصيف → أسفلت (التقاطع يبقى متسفلت كله)
-        paved = g.difference(o)
+        try:
+            o, paved = clean_tile(d, g, cuts, tree)
+        except Exception:
+            # (القاهرة: GEOS "non-noded intersection" من رؤوس متكررة) → نفس الحساب بدقة 1سم، وإلا المربع زي ما هو
+            try:
+                g = shapely.set_precision(g, 0.01)
+                o, paved = clean_tile(d, g, cuts, tree, prec=0.01)
+            except Exception as e:
+                print('skip', os.path.basename(f), str(e)[:80]); continue
         if not paved.is_empty and d.get('asphalt'):
             A = d['asphalt']; av, ai = A['v'], A['i']
             ag = unary_union([Polygon([(av[2 * ai[k + j]], av[2 * ai[k + j] + 1]) for j in range(3)]) for k in range(0, len(ai), 3)] + [paved]).buffer(0)
@@ -121,6 +116,26 @@ def main():
             d['sidewalk'] = dict(v=V, i=IX, rings=rings_of(o))
         json.dump(d, open(f, 'w'), ensure_ascii=False, separators=(',', ':'))
     print(f'tiles {n}: sidewalk {before / 1e6:.3f} km2 -> {after / 1e6:.3f} km2 (removed {100 * (1 - after / max(before, 1)):.1f}%)')
+
+
+def clean_tile(d, g, cuts, tree, prec=0.0):
+    """الرصيف اللي جوه التقاطعات → أسفلت. بيرجّع (الرصيف الجديد, اللي اتسفلت)"""
+    near = [cuts[i] for i in tree.query(g)]
+    o = g
+    if near and d.get('asphalt'):
+        A = d['asphalt']; av, ai = A['v'], A['i']
+        ag0 = unary_union([Polygon([(av[2 * ai[k + j]], av[2 * ai[k + j] + 1]) for j in range(3)]) for k in range(0, len(ai), 3)]).buffer(0)
+        if prec: ag0 = shapely.set_precision(ag0, prec)
+        # جوه كل دايرة: الرصيف اللي "بين" الشوارع بس (جوه الـ convex hull بتاع أسفلت التقاطع ده) —
+        # الرصيف اللي على الناحية التانية من الشارع المستقيم (تقاطع T) برا الـ hull فبيفضل
+        fill = [c.intersection(ag0.intersection(c).convex_hull) for c in near]
+        fill = unary_union([f for f in fill if not f.is_empty])
+        if not fill.is_empty: o = g.difference(fill)
+    o = o.buffer(-R, join_style='mitre', mitre_limit=4).buffer(R, join_style='mitre', mitre_limit=4)
+    # ماناخدش أي حاجة جديدة برا الرصيف الأصلي (التكبير بأركان حادة ممكن يزوّد سنتيمترات)
+    o = o.intersection(g)
+    # اللي اتشال من الرصيف → أسفلت (التقاطع يبقى متسفلت كله)
+    return o, g.difference(o)
 
 
 if __name__ == '__main__':

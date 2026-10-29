@@ -1,0 +1,42 @@
+{
+  "id": "kharga",
+  "name": "الخارجة",
+  "name_en": "Kharga",
+  "governorate": "الوادي الجديد",
+  "source_pbf": "../data/osm/egypt/cities/kharga.osm.pbf",
+  "source_note": "OpenStreetMap Egypt extract (download.openstreetmap.fr, 2026-10-29), cut per city with osmium extract",
+  "origin": {
+    "lat": 25.4522583,
+    "lon": 30.5416007,
+    "note": "OSM place=city node 'الخارجة' (city centre)"
+  },
+  "bbox": {
+    "south": 25.434292,
+    "west": 30.521703,
+    "north": 25.470225,
+    "east": 30.561498
+  },
+  "tile_size": 400,
+  "stub_outside": 40,
+  "landmarks": [
+    {
+      "id": "bus_station_1",
+      "name": "موقف القرى",
+      "kind": "bus_station",
+      "osm": "node/4555412592"
+    },
+    {
+      "id": "library_2",
+      "name": "مكتبة بدر",
+      "kind": "library",
+      "osm": "node/4686743689"
+    },
+    {
+      "id": "post_3",
+      "name": "مكتب بريد الخارجة",
+      "kind": "post",
+      "osm": "node/4634543592"
+    }
+  ],
+  "needs_verification": []
+}

@@ -2,3 +2,5 @@ node_modules/
 dist/
 tools/tests/out/
 tools/photos/cache/
+# بصمات Microsoft لكل مدينة (43م.ب، بتتجاب تاني بـ tools/osm/egypt/fetch_ms.py)
+tools/osm/egypt/ms/

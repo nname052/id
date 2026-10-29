@@ -34,6 +34,8 @@ import { MiniMap } from '../ui/MiniMap.js';
 import { setGroundProvider } from '../world/ground.js';
 import { setGraph, findRoute } from '../nav/RoadGraph.js';
 import { ShibinWorld } from '../world/shibin/ShibinWorld.js';
+import { usePacks } from '../world/shibin/ShibinData.js';
+import { currentMap } from '../world/maps.js';
 import { showLinePicker } from '../ui/LinePicker.js';
 import { buildSmallTraffic } from '../vehicles/SmallTraffic.js';
 import { Radio } from '../audio/Radio.js';
@@ -56,7 +58,7 @@ export class Game {
     this.status = status;
     this.started = false;
     // شبين الكوم الحقيقية (OpenStreetMap) — الخريطة الوحيدة
-    this.mapId = 'shibin';
+    this.map = currentMap(); this.mapId = this.map.id;
   }
 
   async init() {
@@ -112,7 +114,8 @@ export class Game {
 
     // ===== شبين الكوم الحقيقية: المربعات بتتحمل حوالين اللاعب، والأرض والـ GPS من نفس البيانات =====
     const t0 = performance.now();
-    this.world = await new ShibinWorld(this.M, { low: this.mobile, tier: this.saverBoot ? 'low' : this.tier }).init(S);
+    if (this.map.packed) usePacks(this.mapId);
+    this.world = await new ShibinWorld(this.M, { id: this.mapId, name: this.map.name, water: this.map.water, assets: this.assets, low: this.mobile, tier: this.saverBoot ? 'low' : this.tier }).init(S);
     this.scene.add(this.world.group);
     this.route = this.world;
     setGroundProvider(this.world);
@@ -250,7 +253,7 @@ export class Game {
     // المرحلة (أ): المربعات القريبة بس (~300 م حوالين البداية) قبل "جاهز" — الباقي بيكمل في الخلفية وانت بتسوق
     // (كانت بتستنى كل المربعات لحد مدى الرؤية كله ~700 م)
     for (let k = 0; k < 400 && (this.world.queue.length || this.world.stats.tilesLoaded < 4 || k < 3); k++) {
-      S('تحميل شوارع شبين حواليك...', 0.9 + Math.min(0.06, k * 0.002));
+      S(`تحميل شوارع ${this.map.name} حواليك...`, 0.9 + Math.min(0.06, k * 0.002));
       this.world.updateVisibility(cam.position, 180);
       this.world.update(0.016);
       await nextFrame();

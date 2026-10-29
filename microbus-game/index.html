@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#141414" />
-  <title>شبين الكوم · ميكروباص مصر</title>
+  <title>ميكروباص مصر</title>
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
   <!-- آيفون: "إضافة للشاشة الرئيسية" → اللعبة بتفتح ملء الشاشة بالعرض من غير شريط سفاري -->
@@ -21,11 +21,16 @@
   <!-- شاشة التحميل / البداية -->
   <div id="start">
     <div class="card">
-      <h1>ميكروباص شبين الكوم</h1>
-      <p class="sub">شبين الكوم · على خريطة حقيقية (OpenStreetMap)</p>
+      <h1 id="title">ميكروباص مصر</h1>
+      <p class="sub" id="subtitle">شبين الكوم · على خريطة حقيقية (OpenStreetMap)</p>
+      <div class="mappick" id="mappick">
+        <svg id="egmap" viewBox="0 0 200 200" aria-label="خريطة مصر — اختار مدينة"></svg>
+        <div class="mappick-side"><label for="mapsel">المدينة</label><select id="mapsel"></select>
+          <small id="mapnote">كل مدينة: وسطها الحقيقي ~4×4 كم من OpenStreetMap</small></div>
+      </div>
       <div id="progress"><div id="bar"></div></div>
       <p id="status">بيتحمّل...</p>
-      <p id="ver" style="opacity:.55;font-size:12px;margin:2px 0 0">نسخة 19</p>
+      <p id="ver" style="opacity:.55;font-size:12px;margin:2px 0 0">نسخة 20</p>
       <p id="ioshint" style="display:none;opacity:.75;font-size:12px;margin:4px 0 0">للعب ملء الشاشة بالعرض على الآيفون: زرار المشاركة ⬆️ ← «إضافة إلى الشاشة الرئيسية» وافتحها من هناك</p>
       <div class="lobby" id="lobby">
         <div class="lobby-row"><label for="pname">اسمك</label><input id="pname" maxlength="16" enterkeyhint="done" placeholder="مثلًا: أسطى محمد" autocomplete="off" /></div>
@@ -52,7 +57,7 @@
         <div><kbd>L</kbd> الكشافات</div>
       </div>
       <p class="hint mobile-hint">على الموبايل: لف التليفون بالعرض، امسك الدركسيون ولفّه بصباعك زي العربية الحقيقية، ودوس البنزين والفرامل باليمين.</p>
-      <p class="hint credit">موديل الميكروباص: 2005 Toyota HiAce — ActsOfDoge (Sketchfab، رخصة Sketchfab Standard — مدمج في اللعبة ومش متاح كملف منفصل) · الخطوط: SIL OFL · بيانات الخريطة: OpenStreetMap (ODbL)</p>
+      <p class="hint credit">موديل الميكروباص: 2005 Toyota HiAce — ActsOfDoge (Sketchfab، رخصة Sketchfab Standard — مدمج في اللعبة ومش متاح كملف منفصل) · كرسي القهوة: Plastic Monobloc Chair — Kuutti Siitonen (Poly Haven، CC0) · الخطوط: SIL OFL · بيانات الخريطة: OpenStreetMap (ODbL)</p>
       <p class="hint">اسحب بالماوس عشان تبص حواليك وتشوف المرايات · يدعم يد التحكم (Gamepad)</p>
     </div>
   </div>

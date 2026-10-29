@@ -1,0 +1,132 @@
+{
+  "id": "alex",
+  "name": "الإسكندرية",
+  "name_en": "Alexandria",
+  "governorate": "الإسكندرية",
+  "source_pbf": "../data/osm/egypt/cities/alex.osm.pbf",
+  "source_note": "OpenStreetMap Egypt extract (download.openstreetmap.fr, 2026-10-29), cut per city with osmium extract",
+  "origin": {
+    "lat": 31.1991806,
+    "lon": 29.8951716,
+    "note": "OSM place=city node 'الإسكندرية' (city centre)"
+  },
+  "bbox": {
+    "south": 31.181214,
+    "west": 29.874168,
+    "north": 31.217147,
+    "east": 29.916176
+  },
+  "tile_size": 400,
+  "stub_outside": 40,
+  "landmarks": [
+    {
+      "id": "rail_station_1",
+      "name": "محطة مصر",
+      "kind": "rail_station",
+      "osm": "node/1125997846"
+    },
+    {
+      "id": "historic_2",
+      "name": "تمثال سعد زغلول",
+      "kind": "historic",
+      "osm": "node/5810401995"
+    },
+    {
+      "id": "museum_3",
+      "name": "متحف كڤافيس",
+      "kind": "museum",
+      "osm": "node/9629067137"
+    },
+    {
+      "id": "historic_4",
+      "name": "محطة الرمل",
+      "kind": "historic",
+      "osm": "node/5433927432"
+    },
+    {
+      "id": "historic_5",
+      "name": "كوم الدكة",
+      "kind": "historic",
+      "osm": "way/28817193"
+    },
+    {
+      "id": "historic_6",
+      "name": "المسرح الروماني",
+      "kind": "historic",
+      "osm": "way/604768231"
+    },
+    {
+      "id": "museum_7",
+      "name": "المتحف اليونانى الرومانى",
+      "kind": "museum",
+      "osm": "way/110658139"
+    },
+    {
+      "id": "museum_8",
+      "name": "مركز القبة السماوية العلمي",
+      "kind": "museum",
+      "osm": "way/157879323"
+    },
+    {
+      "id": "library_9",
+      "name": "مكتبة الإسكندرية",
+      "kind": "library",
+      "osm": "way/28825451"
+    },
+    {
+      "id": "historic_10",
+      "name": "عامود السوارى",
+      "kind": "historic",
+      "osm": "node/1263172956"
+    },
+    {
+      "id": "bus_station_11",
+      "name": "موقف سعد زغلول",
+      "kind": "bus_station",
+      "osm": "node/14144118000"
+    },
+    {
+      "id": "bus_station_12",
+      "name": "موقف الاتوبيس المكيف",
+      "kind": "bus_station",
+      "osm": "node/14144098354"
+    },
+    {
+      "id": "university_13",
+      "name": "جامعة الإسكندرية، مركز علوم الطب",
+      "kind": "university",
+      "osm": "way/28826289"
+    },
+    {
+      "id": "university_14",
+      "name": "كلية العلوم",
+      "kind": "university",
+      "osm": "way/30675448"
+    },
+    {
+      "id": "university_15",
+      "name": "كلية الحقوق",
+      "kind": "university",
+      "osm": "way/97409643"
+    },
+    {
+      "id": "hospital_16",
+      "name": "مستشفى سهلا الجديدة",
+      "kind": "hospital",
+      "osm": "node/6796349005"
+    },
+    {
+      "id": "hospital_17",
+      "name": "مستشفى النقراشي",
+      "kind": "hospital",
+      "osm": "node/4759348722"
+    },
+    {
+      "id": "hospital_18",
+      "name": "مستشفى زمزم",
+      "kind": "hospital",
+      "osm": "node/6572089485"
+    }
+  ],
+  "needs_verification": []
+}

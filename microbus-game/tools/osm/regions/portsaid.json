@@ -1,0 +1,90 @@
+{
+  "id": "portsaid",
+  "name": "بورسعيد",
+  "name_en": "Port Said",
+  "governorate": "بورسعيد",
+  "source_pbf": "../data/osm/egypt/cities/portsaid.osm.pbf",
+  "source_note": "OpenStreetMap Egypt extract (download.openstreetmap.fr, 2026-10-29), cut per city with osmium extract",
+  "origin": {
+    "lat": 31.263235,
+    "lon": 32.305505,
+    "note": "OSM place=city node 'بورسعيد' (city centre)"
+  },
+  "bbox": {
+    "south": 31.245269,
+    "west": 32.284487,
+    "north": 31.281201,
+    "east": 32.326523
+  },
+  "tile_size": 400,
+  "stub_outside": 40,
+  "landmarks": [
+    {
+      "id": "stadium_1",
+      "name": "ستاد النادي المصري",
+      "kind": "stadium",
+      "osm": "way/97518836"
+    },
+    {
+      "id": "university_2",
+      "name": "جامعة بورسعيد",
+      "kind": "university",
+      "osm": "way/1236255538"
+    },
+    {
+      "id": "museum_3",
+      "name": "مسجد التوفيقي",
+      "kind": "museum",
+      "osm": "node/5852588986"
+    },
+    {
+      "id": "museum_4",
+      "name": "متحف بور سعيد الحربي",
+      "kind": "museum",
+      "osm": "node/7181559385"
+    },
+    {
+      "id": "hospital_5",
+      "name": "ال سليمان",
+      "kind": "hospital",
+      "osm": "node/13593159801"
+    },
+    {
+      "id": "historic_6",
+      "name": "مسلة بورفؤاد",
+      "kind": "historic",
+      "osm": "node/13618342305"
+    },
+    {
+      "id": "university_7",
+      "name": "كلية التربية النوعية",
+      "kind": "university",
+      "osm": "node/14200324501"
+    },
+    {
+      "id": "park_8",
+      "name": "المنشية",
+      "kind": "park",
+      "osm": "way/1444277933"
+    },
+    {
+      "id": "park_9",
+      "name": "حديقة الطفل",
+      "kind": "park",
+      "osm": "way/393645131"
+    },
+    {
+      "id": "post_10",
+      "name": "مكتب بريد الامين",
+      "kind": "post",
+      "osm": "node/12272976001"
+    },
+    {
+      "id": "post_11",
+      "name": "مكتب بريد ابو الروس",
+      "kind": "post",
+      "osm": "way/1389245648"
+    }
+  ],
+  "needs_verification": []
+}

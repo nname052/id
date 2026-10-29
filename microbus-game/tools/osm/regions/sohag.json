@@ -1,0 +1,54 @@
+{
+  "id": "sohag",
+  "name": "سوهاج",
+  "name_en": "Sohag",
+  "governorate": "سوهاج",
+  "source_pbf": "../data/osm/egypt/cities/sohag.osm.pbf",
+  "source_note": "OpenStreetMap Egypt extract (download.openstreetmap.fr, 2026-10-29), cut per city with osmium extract",
+  "origin": {
+    "lat": 26.547748,
+    "lon": 31.699263,
+    "note": "OSM place=city node 'سوهاج' (city centre)"
+  },
+  "bbox": {
+    "south": 26.529782,
+    "west": 31.679179,
+    "north": 26.565714,
+    "east": 31.719347
+  },
+  "tile_size": 400,
+  "stub_outside": 40,
+  "landmarks": [
+    {
+      "id": "stadium_1",
+      "name": "ملعب سوهاج الرياضي",
+      "kind": "stadium",
+      "osm": "way/657282937"
+    },
+    {
+      "id": "university_2",
+      "name": "جامعة سوهاج",
+      "kind": "university",
+      "osm": "way/94175194"
+    },
+    {
+      "id": "rail_station_3",
+      "name": "سوهاج",
+      "kind": "rail_station",
+      "osm": "way/98043721"
+    },
+    {
+      "id": "hospital_4",
+      "name": "د.عبد الناصر بدوى",
+      "kind": "hospital",
+      "osm": "node/4575984694"
+    },
+    {
+      "id": "hospital_5",
+      "name": "مستشفى سوهاج للصحة النفسية وعلاج الإدمان",
+      "kind": "hospital",
+      "osm": "node/13914690138"
+    }
+  ],
+  "needs_verification": []
+}

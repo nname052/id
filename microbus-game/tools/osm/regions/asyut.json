@@ -1,0 +1,126 @@
+{
+  "id": "asyut",
+  "name": "أسيوط",
+  "name_en": "Asyut",
+  "governorate": "أسيوط",
+  "source_pbf": "../data/osm/egypt/cities/asyut.osm.pbf",
+  "source_note": "OpenStreetMap Egypt extract (download.openstreetmap.fr, 2026-10-29), cut per city with osmium extract",
+  "origin": {
+    "lat": 27.1832822,
+    "lon": 31.1853836,
+    "note": "OSM place=city node 'أسيوط' (city centre)"
+  },
+  "bbox": {
+    "south": 27.165316,
+    "west": 31.165187,
+    "north": 27.201248,
+    "east": 31.205581
+  },
+  "tile_size": 400,
+  "stub_outside": 40,
+  "landmarks": [
+    {
+      "id": "rail_station_1",
+      "name": "أسيوط",
+      "kind": "rail_station",
+      "osm": "node/520514464"
+    },
+    {
+      "id": "bus_station_2",
+      "name": "محطة قطار أسيوط",
+      "kind": "bus_station",
+      "osm": "node/4723187095"
+    },
+    {
+      "id": "bus_station_3",
+      "name": "موقف الاربعين",
+      "kind": "bus_station",
+      "osm": "node/4552406490"
+    },
+    {
+      "id": "government_4",
+      "name": "مبني محافظة أسيوط",
+      "kind": "government",
+      "osm": "node/5177324711"
+    },
+    {
+      "id": "stadium_5",
+      "name": "ملعب جامعة أسيوط",
+      "kind": "stadium",
+      "osm": "way/94168812"
+    },
+    {
+      "id": "university_6",
+      "name": "جامعة أسيوط",
+      "kind": "university",
+      "osm": "way/94168975"
+    },
+    {
+      "id": "university_7",
+      "name": "كلية العلوم",
+      "kind": "university",
+      "osm": "node/6935686634"
+    },
+    {
+      "id": "university_8",
+      "name": "كلية الزراعة",
+      "kind": "university",
+      "osm": "way/705607178"
+    },
+    {
+      "id": "hospital_9",
+      "name": "مستشفى السلام",
+      "kind": "hospital",
+      "osm": "way/770229565"
+    },
+    {
+      "id": "historic_10",
+      "name": "ارسالية كندا",
+      "kind": "historic",
+      "osm": "node/12600044801"
+    },
+    {
+      "id": "historic_11",
+      "name": "نهضة قداسة اسيوط",
+      "kind": "historic",
+      "osm": "node/12620641001"
+    },
+    {
+      "id": "hospital_12",
+      "name": "مستشفى أسيوط العام",
+      "kind": "hospital",
+      "osm": "node/14078009201"
+    },
+    {
+      "id": "historic_13",
+      "name": "مطعم كمونة",
+      "kind": "historic",
+      "osm": "node/12600044703"
+    },
+    {
+      "id": "hospital_14",
+      "name": "مستشفی الحياة",
+      "kind": "hospital",
+      "osm": "node/4229667099"
+    },
+    {
+      "id": "historic_15",
+      "name": "المدينة الجامعية للطلبة",
+      "kind": "historic",
+      "osm": "node/5427941423"
+    },
+    {
+      "id": "historic_16",
+      "name": "المبني الإداري",
+      "kind": "historic",
+      "osm": "node/5427951523"
+    },
+    {
+      "id": "park_17",
+      "name": "جنينة جمعية الشبان المسلمين",
+      "kind": "park",
+      "osm": "way/1492411667"
+    }
+  ],
+  "needs_verification": []
+}

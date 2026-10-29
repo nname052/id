@@ -82,6 +82,7 @@ class Reader(osmium.SimpleHandler):
         self.ways = {}       # id -> (tags, [(nid, lon, lat)])
         self.nodes = {}      # id -> (tags, lon, lat) للعقد اللي ليها tags مهمة
         self.areas = []      # (kind, tags, [(lon,lat)])
+        self.water_areas = []  # (tags, outer [(lon,lat)], [holes]) من علاقات multipolygon
 
     def node(self, n):
         if not n.tags: return
@@ -92,7 +93,7 @@ class Reader(osmium.SimpleHandler):
 
     def way(self, w):
         t = dict(w.tags)
-        keep = 'highway' in t or 'railway' in t or 'waterway' in t or 'building' in t or t.get('natural') == 'water' or \
+        keep = 'highway' in t or 'railway' in t or 'waterway' in t or 'building' in t or t.get('natural') in ('water', 'coastline') or \
             t.get('landuse') in NO_BUILD_LANDUSE or t.get('leisure') in NO_BUILD_LEISURE or t.get('amenity') in ('university', 'hospital', 'school') or \
             t.get('landuse') in ('residential', 'industrial', 'commercial')
         if not keep: return
@@ -103,6 +104,20 @@ class Reader(osmium.SimpleHandler):
         if len(pts) < 2: return
         if not any(self.ok(p[1], p[2], 0.004) for p in pts): return
         self.ways[w.id] = (t, pts)
+
+    def area(self, a):
+        # مية من علاقات multipolygon (النيل/البحيرات/المرسى): الطرق المقفولة بتتاخد من way() فوق
+        if a.from_way(): return
+        t = dict(a.tags)
+        if not (t.get('natural') == 'water' or t.get('waterway') == 'riverbank' or t.get('landuse') in ('reservoir', 'basin')): return
+        try:
+            for outer in a.outer_rings():
+                ring = [(n.lon, n.lat) for n in outer]
+                if len(ring) < 4 or not any(self.ok(lon, lat, 0.01) for lon, lat in ring[::7] + ring[-1:]): continue
+                holes = [[(n.lon, n.lat) for n in inner] for inner in a.inner_rings(outer)]
+                self.water_areas.append((t, ring, holes))
+        except osmium.InvalidLocationError:
+            return
 
 
 # ===================== المساعدات الهندسية =====================
@@ -486,8 +501,15 @@ def main():
             w = num(t.get('width')) or WATER_W[ww]
             canals.append(dict(way=wid, kind=ww, name=t.get('name'), w=w, pts=xy))
             water_bufs.append(LineString(xy).buffer(w / 2, cap_style='flat', join_style='round', quad_segs=4))
-        elif t.get('natural') == 'water' and pts[0][0] == pts[-1][0] and len(pts) >= 4:
+        elif (t.get('natural') == 'water' or ww == 'riverbank') and pts[0][0] == pts[-1][0] and len(pts) >= 4:
             water_bufs.append(Polygon([P(lon, lat) for _, lon, lat in pts]).buffer(0))
+    # النيل والبحيرات (علاقات multipolygon)
+    for t, ring, holes in rd.water_areas:
+        pg = Polygon([P(lon, lat) for lon, lat in ring], [[P(lon, lat) for lon, lat in h] for h in holes if len(h) >= 4]).buffer(0)
+        if not pg.is_empty: water_bufs.append(pg.intersection(REGION.buffer(STUB + 50)))
+    # البحر: خط الساحل في OSM اتجاهه "اليابسة شمال، البحر يمين" → الوشوش اللي يمين الخط = بحر
+    sea = sea_polygon([[P(lon, lat) for _, lon, lat in pts] for wid, (t, pts) in rd.ways.items() if t.get('natural') == 'coastline'], REGION.buffer(STUB + 50))
+    if not sea.is_empty: water_bufs.append(sea)
     water_all = unary_union(water_bufs).difference(asphalt_all) if water_bufs else Polygon()
     water_all = water_all.intersection(REGION.buffer(STUB))
     side_all = side_all.difference(water_all)
@@ -842,6 +864,27 @@ def gnodes_by_id(gnodes):
     if not _GB:
         for n in gnodes.values(): _GB[n['id']] = n
     return _GB
+
+
+def sea_polygon(coast, area):
+    """وشوش المستطيل اللي على يمين خط الساحل (بإحداثيات x=شرق، z=جنوب: اليمين الجغرافي = cross > 0 هنا)"""
+    from shapely.ops import polygonize
+    lines = [LineString(c) for c in coast if len(c) >= 2]
+    lines = [l for l in lines if l.intersects(area)]
+    if not lines: return Polygon()
+    box_ = Polygon(area.envelope.exterior)
+    faces = list(polygonize(unary_union([box_.exterior] + [l.intersection(box_) for l in lines])))
+    segs = [(c[i], c[i + 1]) for l in lines for c in [list(l.coords)] for i in range(len(c) - 1)]
+    tree = STRtree([LineString(s) for s in segs])
+    out = []
+    for f in faces:
+        rp = f.representative_point()
+        k = tree.nearest(rp)
+        (ax, az), (bx, bz) = segs[k]
+        # نقطة على الوش قريبة من أقرب قطعة: بنقيس الجنب عندها (الوش الكبير ممكن نقطته تبقى بعيدة)
+        cr = (bx - ax) * (rp.y - az) - (bz - az) * (rp.x - ax)
+        if cr > 0: out.append(f)
+    return unary_union(out).intersection(area) if out else Polygon()
 
 
 def generate_buildings(edges, roads, gnodes, asphalt, side, foot, water, rail, excl, real, REGION, t0):

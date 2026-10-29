@@ -1,0 +1,72 @@
+{
+  "id": "faiyum",
+  "name": "الفيوم",
+  "name_en": "Faiyum",
+  "governorate": "الفيوم",
+  "source_pbf": "../data/osm/egypt/cities/faiyum.osm.pbf",
+  "source_note": "OpenStreetMap Egypt extract (download.openstreetmap.fr, 2026-10-29), cut per city with osmium extract",
+  "origin": {
+    "lat": 29.3074076,
+    "lon": 30.8399651,
+    "note": "OSM place=city node 'الفيوم' (city centre)"
+  },
+  "bbox": {
+    "south": 29.289441,
+    "west": 30.819362,
+    "north": 29.325374,
+    "east": 30.860568
+  },
+  "tile_size": 400,
+  "stub_outside": 40,
+  "landmarks": [
+    {
+      "id": "stadium_1",
+      "name": "ستاد الفيوم",
+      "kind": "stadium",
+      "osm": "way/98383713"
+    },
+    {
+      "id": "university_2",
+      "name": "جامعة الفيوم",
+      "kind": "university",
+      "osm": "way/94184915"
+    },
+    {
+      "id": "rail_station_3",
+      "name": "الفيوم",
+      "kind": "rail_station",
+      "osm": "node/1022171353"
+    },
+    {
+      "id": "hospital_4",
+      "name": "مستشفى مصطفى حسن الجامعي لطب وجراحات الاطفال",
+      "kind": "hospital",
+      "osm": "node/14134164664"
+    },
+    {
+      "id": "hospital_5",
+      "name": "مستشفى الفيوم عام",
+      "kind": "hospital",
+      "osm": "node/14134254767"
+    },
+    {
+      "id": "historic_6",
+      "name": "مسلة سنوسرت",
+      "kind": "historic",
+      "osm": "node/14134259987"
+    },
+    {
+      "id": "hospital_7",
+      "name": "مستشفي التامين الصحي بالفيوم",
+      "kind": "hospital",
+      "osm": "node/3966622155"
+    },
+    {
+      "id": "park_8",
+      "name": "الحديقة الدولية",
+      "kind": "park",
+      "osm": "way/94184945"
+    }
+  ],
+  "needs_verification": []
+}

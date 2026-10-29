@@ -1,0 +1,36 @@
+{
+  "id": "arish",
+  "name": "العريش",
+  "name_en": "El Arish",
+  "governorate": "شمال سيناء",
+  "source_pbf": "../data/osm/egypt/cities/arish.osm.pbf",
+  "source_note": "OpenStreetMap Egypt extract (download.openstreetmap.fr, 2026-10-29), cut per city with osmium extract",
+  "origin": {
+    "lat": 31.123641,
+    "lon": 33.7983521,
+    "note": "OSM place=city node 'العريش' (city centre)"
+  },
+  "bbox": {
+    "south": 31.105675,
+    "west": 33.777365,
+    "north": 31.141607,
+    "east": 33.819339
+  },
+  "tile_size": 400,
+  "stub_outside": 40,
+  "landmarks": [
+    {
+      "id": "government_1",
+      "name": "الهلال الأحمر",
+      "kind": "government",
+      "osm": "node/7035253147"
+    },
+    {
+      "id": "hospital_2",
+      "name": "مستشفي العريش العام",
+      "kind": "hospital",
+      "osm": "way/952595678"
+    }
+  ],
+  "needs_verification": []
+}

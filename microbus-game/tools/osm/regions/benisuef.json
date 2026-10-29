@@ -1,0 +1,102 @@
+{
+  "id": "benisuef",
+  "name": "بني سويف",
+  "name_en": "Beni Suef",
+  "governorate": "بني سويف",
+  "source_pbf": "../data/osm/egypt/cities/benisuef.osm.pbf",
+  "source_note": "OpenStreetMap Egypt extract (download.openstreetmap.fr, 2026-10-29), cut per city with osmium extract",
+  "origin": {
+    "lat": 29.0729812,
+    "lon": 31.0982562,
+    "note": "OSM place=city node 'بني سويف' (city centre)"
+  },
+  "bbox": {
+    "south": 29.055015,
+    "west": 31.0777,
+    "north": 29.090947,
+    "east": 31.118812
+  },
+  "tile_size": 400,
+  "stub_outside": 40,
+  "landmarks": [
+    {
+      "id": "university_1",
+      "name": "جامعة بنى سويف",
+      "kind": "university",
+      "osm": "way/97353012"
+    },
+    {
+      "id": "rail_station_2",
+      "name": "بني سويف",
+      "kind": "rail_station",
+      "osm": "node/520515246"
+    },
+    {
+      "id": "museum_3",
+      "name": "متحف بنى سويف",
+      "kind": "museum",
+      "osm": "way/97352936"
+    },
+    {
+      "id": "stadium_4",
+      "name": "ستاد بني سويف الرياضي",
+      "kind": "stadium",
+      "osm": "way/1221714144"
+    },
+    {
+      "id": "university_5",
+      "name": "جامعة بني سويف",
+      "kind": "university",
+      "osm": "node/8218005221"
+    },
+    {
+      "id": "hospital_6",
+      "name": "مستشفى الزهراء",
+      "kind": "hospital",
+      "osm": "way/772374854"
+    },
+    {
+      "id": "historic_7",
+      "name": "ميدان المديرية",
+      "kind": "historic",
+      "osm": "way/774932213"
+    },
+    {
+      "id": "hospital_8",
+      "name": "مستشفى بنى سويف للصحة النفسية وعلاج الإدمان",
+      "kind": "hospital",
+      "osm": "node/13914650873"
+    },
+    {
+      "id": "hospital_9",
+      "name": "مستشفى الجامعة",
+      "kind": "hospital",
+      "osm": "way/775858333"
+    },
+    {
+      "id": "historic_10",
+      "name": "تمثال العبور",
+      "kind": "historic",
+      "osm": "node/4487354494"
+    },
+    {
+      "id": "university_11",
+      "name": "قسم تجارة انجليزى جامعة بنى سويف",
+      "kind": "university",
+      "osm": "node/8218005226"
+    },
+    {
+      "id": "post_12",
+      "name": "مكتب بريد بنى سويف الجديدة",
+      "kind": "post",
+      "osm": "node/4515925291"
+    },
+    {
+      "id": "park_13",
+      "name": "الكورنيش الشرقي",
+      "kind": "park",
+      "osm": "node/11649195633"
+    }
+  ],
+  "needs_verification": []
+}

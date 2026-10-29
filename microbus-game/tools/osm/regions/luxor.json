@@ -1,0 +1,84 @@
+{
+  "id": "luxor",
+  "name": "الأقصر",
+  "name_en": "Luxor",
+  "governorate": "الأقصر",
+  "source_pbf": "../data/osm/egypt/cities/luxor.osm.pbf",
+  "source_note": "OpenStreetMap Egypt extract (download.openstreetmap.fr, 2026-10-29), cut per city with osmium extract",
+  "origin": {
+    "lat": 25.702096,
+    "lon": 32.647186,
+    "note": "OSM place=city node 'الأقصر' (city centre)"
+  },
+  "bbox": {
+    "south": 25.68413,
+    "west": 32.627247,
+    "north": 25.720062,
+    "east": 32.667125
+  },
+  "tile_size": 400,
+  "stub_outside": 40,
+  "landmarks": [
+    {
+      "id": "rail_station_1",
+      "name": "الأقصر",
+      "kind": "rail_station",
+      "osm": "node/1018818485"
+    },
+    {
+      "id": "historic_2",
+      "name": "طريق الكباش",
+      "kind": "historic",
+      "osm": "way/384948047"
+    },
+    {
+      "id": "historic_3",
+      "name": "معبد الأقصر",
+      "kind": "historic",
+      "osm": "way/1079039494"
+    },
+    {
+      "id": "historic_4",
+      "name": "معبد الكرنك",
+      "kind": "historic",
+      "osm": "relation/14358790"
+    },
+    {
+      "id": "historic_5",
+      "name": "فناء الخبيئة",
+      "kind": "historic",
+      "osm": "way/1263302544"
+    },
+    {
+      "id": "historic_6",
+      "name": "الفناء الكبير",
+      "kind": "historic",
+      "osm": "way/1264868522"
+    },
+    {
+      "id": "hospital_7",
+      "name": "مستشفي كليوباترا",
+      "kind": "hospital",
+      "osm": "node/13110393001"
+    },
+    {
+      "id": "hospital_8",
+      "name": "مستشفى الكرنك الدولي",
+      "kind": "hospital",
+      "osm": "way/207309094"
+    },
+    {
+      "id": "library_9",
+      "name": "مكتبة مصر العامة بالأقصر",
+      "kind": "library",
+      "osm": "way/477442397"
+    },
+    {
+      "id": "hospital_10",
+      "name": "مركز الاقصر الطبى",
+      "kind": "hospital",
+      "osm": "way/476938609"
+    }
+  ],
+  "needs_verification": []
+}

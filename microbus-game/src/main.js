@@ -1,6 +1,8 @@
 import { Game } from './core/Game.js';
 import { seatColor } from './net/Multiplayer.js';
 import { PHOTO_SOURCES } from './render/photoAtlas.js';
+import { MAPS, currentMap, switchMap } from './world/maps.js';
+import { drawEgypt } from './ui/EgyptMap.js';
 
 // نقطة البداية
 // آيفون من سفاري (مش من الشاشة الرئيسية): نوضّح إزاي تبقى ملء الشاشة (سفاري مابيسمحش بملء الشاشة للصفحات)
@@ -13,6 +15,17 @@ const statusEl = document.getElementById('status');
 const bar = document.getElementById('bar');
 const go = document.getElementById('go');
 const start = document.getElementById('start');
+
+// ===== اختيار المدينة (قبل ما اللعبة تتبني: التغيير = تحميل الصفحة تاني بالمدينة الجديدة) =====
+{
+  const cur = currentMap();
+  document.getElementById('subtitle').textContent = `${cur.name} · محافظة ${cur.gov} · على خريطة حقيقية (OpenStreetMap)`;
+  document.title = `${cur.name} · ميكروباص مصر`;
+  const sel = document.getElementById('mapsel');
+  sel.innerHTML = MAPS.map((m) => `<option value="${m.id}"${m.id === cur.id ? ' selected' : ''}>${m.name} — ${m.gov}</option>`).join('');
+  sel.addEventListener('change', () => switchMap(sel.value));
+  drawEgypt(document.getElementById('egmap'), MAPS, cur.id, (id) => { if (id !== cur.id) switchMap(id); });
+}
 
 const game = new Game(document.getElementById('app'), (text, p) => {
   statusEl.textContent = text;

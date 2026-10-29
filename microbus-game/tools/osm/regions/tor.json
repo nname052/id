@@ -1,0 +1,23 @@
+{
+  "id": "tor",
+  "name": "الطور",
+  "name_en": "El Tor",
+  "governorate": "جنوب سيناء",
+  "source_pbf": "../data/osm/egypt/cities/tor.osm.pbf",
+  "source_note": "OpenStreetMap Egypt extract (download.openstreetmap.fr, 2026-10-29), cut per city with osmium extract",
+  "origin": {
+    "lat": 28.241667,
+    "lon": 33.623611,
+    "note": "OSM place=city node 'الطور' (city centre)"
+  },
+  "bbox": {
+    "south": 28.223701,
+    "west": 33.603217,
+    "north": 28.259633,
+    "east": 33.644005
+  },
+  "tile_size": 400,
+  "stub_outside": 40,
+  "landmarks": [],
+  "needs_verification": []
+}

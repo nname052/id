@@ -295,3 +295,20 @@ body.touch #racebar { font-size: 12px; padding: 2px 12px; top: calc(76px + env(s
 .radio-url { display: grid; grid-template-columns: 1fr auto; gap: 6px; }
 .radio-url input { min-width: 0; padding: 6px 8px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.2); background: rgba(255, 255, 255, 0.08); color: #fff; font: 13px sans-serif; }
 .radio-url button { padding: 6px 12px; border: 0; border-radius: 8px; background: rgba(255, 255, 255, 0.15); color: #fff; font: 700 13px 'Cairo', sans-serif; cursor: pointer; }
+
+/* ===== اختيار المدينة: خريطة مصر + قايمة ===== */
+.mappick { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 10px auto 0; max-width: 420px; }
+#egmap { width: 132px; height: 132px; flex: none; }
+#egmap .eg-land { fill: rgba(242, 179, 48, 0.13); stroke: rgba(242, 179, 48, 0.55); stroke-width: 1; stroke-linejoin: round; }
+#egmap .eg-city { cursor: pointer; outline: none; }
+#egmap .eg-hit { fill: transparent; }
+#egmap .eg-dot { fill: #e9e4d8; stroke: #141414; stroke-width: 0.8; }
+#egmap .eg-city:hover .eg-dot, #egmap .eg-city:focus-visible .eg-dot { fill: var(--accent); }
+#egmap .eg-city.on .eg-dot { fill: var(--accent); stroke: #fff; stroke-width: 1.2; }
+#egmap .eg-label { fill: var(--fg); font: 700 11px 'Cairo', sans-serif; paint-order: stroke; stroke: #141414; stroke-width: 3px; }
+.mappick-side { display: grid; gap: 4px; text-align: start; min-width: 0; }
+.mappick-side label { font: 700 13px 'Cairo', sans-serif; color: var(--accent); }
+#mapsel { font: 600 15px 'Cairo', sans-serif; padding: 8px 10px; border-radius: 10px; border: 1.5px solid rgba(255, 255, 255, 0.2); background: rgba(255, 255, 255, 0.06); color: var(--fg); max-width: 100%; }
+#mapsel option { background: #1d1d20; color: var(--fg); }
+#mapnote { font-size: 11px; opacity: 0.65; }
+@media (max-height: 520px) { #egmap { width: 96px; height: 96px; } .mappick { margin-top: 6px; } }

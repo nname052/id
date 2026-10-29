@@ -1,0 +1,108 @@
+{
+  "id": "mansoura",
+  "name": "المنصورة",
+  "name_en": "Mansoura",
+  "governorate": "الدقهلية",
+  "source_pbf": "../data/osm/egypt/cities/mansoura.osm.pbf",
+  "source_note": "OpenStreetMap Egypt extract (download.openstreetmap.fr, 2026-10-29), cut per city with osmium extract",
+  "origin": {
+    "lat": 31.037566,
+    "lon": 31.38649,
+    "note": "OSM place=city node 'المنصورة' (city centre)"
+  },
+  "bbox": {
+    "south": 31.0196,
+    "west": 31.365522,
+    "north": 31.055532,
+    "east": 31.407458
+  },
+  "tile_size": 400,
+  "stub_outside": 40,
+  "landmarks": [
+    {
+      "id": "stadium_1",
+      "name": "إستاد المنصوره الرياضي",
+      "kind": "stadium",
+      "osm": "way/614809959"
+    },
+    {
+      "id": "rail_station_2",
+      "name": "المنصورة",
+      "kind": "rail_station",
+      "osm": "node/1019565539"
+    },
+    {
+      "id": "rail_station_3",
+      "name": "طلخا",
+      "kind": "rail_station",
+      "osm": "node/1019599326"
+    },
+    {
+      "id": "library_4",
+      "name": "مكتبة مصر العامة",
+      "kind": "library",
+      "osm": "node/3119540922"
+    },
+    {
+      "id": "bus_station_5",
+      "name": "المحطة الدولية",
+      "kind": "bus_station",
+      "osm": "way/185975505"
+    },
+    {
+      "id": "government_6",
+      "name": "ديوان المحافظة",
+      "kind": "government",
+      "osm": "way/55638051"
+    },
+    {
+      "id": "hospital_7",
+      "name": "المستشفى الدولي",
+      "kind": "hospital",
+      "osm": "way/587301910"
+    },
+    {
+      "id": "hospital_8",
+      "name": "التأمين الصحي",
+      "kind": "hospital",
+      "osm": "node/5900240797"
+    },
+    {
+      "id": "hospital_9",
+      "name": "عيادة أ.د. محمد أبوحجازى لطب المخ والأعصاب Prof.Dr. Mohammad Abu-Hegazy, Neurology Consultant",
+      "kind": "hospital",
+      "osm": "node/4765039480"
+    },
+    {
+      "id": "museum_10",
+      "name": "دار بن لقمان",
+      "kind": "museum",
+      "osm": "way/1437032099"
+    },
+    {
+      "id": "university_11",
+      "name": "كلية الدراسات الاسلامية",
+      "kind": "university",
+      "osm": "node/5587402843"
+    },
+    {
+      "id": "park_12",
+      "name": "موقف بقاس",
+      "kind": "park",
+      "osm": "node/8689048397"
+    },
+    {
+      "id": "park_13",
+      "name": "حديقة قصر ثقافة المنصورة",
+      "kind": "park",
+      "osm": "node/8699415469"
+    },
+    {
+      "id": "post_14",
+      "name": "مكتب بريد المنصورة",
+      "kind": "post",
+      "osm": "node/3119635526"
+    }
+  ],
+  "needs_verification": []
+}

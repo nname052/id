@@ -1,0 +1,42 @@
+{
+  "id": "damanhur",
+  "name": "دمنهور",
+  "name_en": "Damanhur",
+  "governorate": "البحيرة",
+  "source_pbf": "../data/osm/egypt/cities/damanhur.osm.pbf",
+  "source_note": "OpenStreetMap Egypt extract (download.openstreetmap.fr, 2026-10-29), cut per city with osmium extract",
+  "origin": {
+    "lat": 31.0374982,
+    "lon": 30.4710625,
+    "note": "OSM place=city node 'دمنهور' (city centre)"
+  },
+  "bbox": {
+    "south": 31.019532,
+    "west": 30.450094,
+    "north": 31.055464,
+    "east": 30.492031
+  },
+  "tile_size": 400,
+  "stub_outside": 40,
+  "landmarks": [
+    {
+      "id": "rail_station_1",
+      "name": "دمنهور",
+      "kind": "rail_station",
+      "osm": "node/1022251311"
+    },
+    {
+      "id": "historic_2",
+      "name": "الجندى المجهول",
+      "kind": "historic",
+      "osm": "node/2269447673"
+    },
+    {
+      "id": "park_3",
+      "name": "حديقة الجمهورية",
+      "kind": "park",
+      "osm": "way/1175773204"
+    }
+  ],
+  "needs_verification": []
+}

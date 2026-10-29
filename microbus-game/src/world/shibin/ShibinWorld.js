@@ -23,8 +23,8 @@ export const SIDEWALK = { motorway: 0, trunk: 2, primary: 3, secondary: 2.5, ter
 const _v = new THREE.Vector3();
 
 export class ShibinWorld {
-  constructor(M, { id = 'shibin', low = false, tier = 'high' } = {}) {
-    this.M = M; this.id = id; this.low = low; this.tier = tier;
+  constructor(M, { id = 'shibin', name = 'شبين الكوم', low = false, tier = 'high', assets = null, water = null } = {}) {
+    this.M = M; this.id = id; this.name = name; this.assets = assets; this.waterStyle = water; // (موديلات GLB جاهزة: كراسي القهاوي…) this.low = low; this.tier = tier;
     this.base = REGION_BASE(id);
     this.group = new THREE.Group(); this.group.name = `region-${id}`;
     this.tiles = new Map();
@@ -39,7 +39,7 @@ export class ShibinWorld {
   async init(status = () => {}) {
     const t0 = performance.now();
     const B = this.base;
-    status('تحميل خريطة شبين الكوم الحقيقية...', 0.5);
+    status(`تحميل خريطة ${this.name} الحقيقية...`, 0.5);
     const [meta, region, landmarks, graph] = await Promise.all([
       loadJSON(B + 'metadata/metadata.json'), loadJSON(B + 'boundaries/region.json'),
       loadJSON(B + 'landmarks/landmarks.json'), loadJSON(B + 'navigation/graph.json'),
@@ -95,7 +95,9 @@ export class ShibinWorld {
     const DS = THREE.DoubleSide;
     // مية بحر شبين: لونها من صورة حقيقية للترعة (كوبري عمر أفندي — himoz، Commons، FAL): أخضر رمادي غامق،
     // والسما بتنعكس عليها (envMap) + تموّج خفيف بيتحرك (حسابات في الشيدر، من غير صور)
-    const water = new THREE.MeshStandardMaterial({ color: new THREE.Color().setRGB(0.235, 0.298, 0.278, THREE.SRGBColorSpace), roughness: 0.07, metalness: 0, envMapIntensity: 0.9 });
+    // لون المية: ترعة (أخضر رمادي) — البحر في المدن الساحلية أزرق (maps.js: sea) والنيل بينهم
+    const WC = { sea: [0.13, 0.33, 0.45], nile: [0.2, 0.32, 0.33] }[this.waterStyle] || [0.235, 0.298, 0.278];
+    const water = new THREE.MeshStandardMaterial({ color: new THREE.Color().setRGB(...WC, THREE.SRGBColorSpace), roughness: 0.07, metalness: 0, envMapIntensity: 0.9 });
     const WU = (this._waterU = { uWT: { value: 0 } });
     water.onBeforeCompile = (sh) => {
       Object.assign(sh.uniforms, WU);
@@ -1027,10 +1029,16 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
     return { x: p.x + rx * off, z: p.z + rz * off, y: p.y, yaw: Math.atan2(-dx, -dz), edge: p.e };
   }
 
-  /** مكان البداية: جنب محطة القطر (من OSM) على الطريق */
+  /** المحطة الرئيسية (قطر، وإلا موقف) من معالم OSM — شبين: محطة شبين الكوم */
+  mainStation() {
+    const C = this.landmarks.confirmed.filter((l) => l.inside_region !== false);
+    return C.find((l) => l.id === 'station_shibin') || C.find((l) => l.kind === 'rail_station') || C.find((l) => l.kind === 'bus_station') || null;
+  }
+
+  /** مكان البداية: جنب المحطة الرئيسية (من OSM) على الطريق — مدينة من غيرها: وسط البلد */
   spawnPose() {
-    const st = this.landmarks.confirmed.find((l) => l.id === 'station_shibin') || { x: 0, z: 0 };
-    const lp = this.landmarkPoints.find((l) => l.id === 'station_shibin');
+    const st = this.mainStation() || { x: 0, z: 0 };
+    const lp = st.id && this.landmarkPoints.find((l) => l.id === st.id);
     const p = this.roadPose(lp ? lp.rx : st.x, lp ? lp.rz : st.z);
     return p || { x: 0, z: 0, yaw: 0 };
   }

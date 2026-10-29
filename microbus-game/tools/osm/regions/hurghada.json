@@ -1,0 +1,30 @@
+{
+  "id": "hurghada",
+  "name": "الغردقة",
+  "name_en": "Hurghada",
+  "governorate": "البحر الأحمر",
+  "source_pbf": "../data/osm/egypt/cities/hurghada.osm.pbf",
+  "source_note": "OpenStreetMap Egypt extract (download.openstreetmap.fr, 2026-10-29), cut per city with osmium extract",
+  "origin": {
+    "lat": 27.222556,
+    "lon": 33.8307062,
+    "note": "OSM place=city node 'الغردقة' (city centre)"
+  },
+  "bbox": {
+    "south": 27.20459,
+    "west": 33.810502,
+    "north": 27.240522,
+    "east": 33.85091
+  },
+  "tile_size": 400,
+  "stub_outside": 40,
+  "landmarks": [
+    {
+      "id": "hospital_1",
+      "name": "وحده الميناء",
+      "kind": "hospital",
+      "osm": "node/5280869323"
+    }
+  ],
+  "needs_verification": []
+}

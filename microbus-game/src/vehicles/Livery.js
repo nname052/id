@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { canvas, tex } from '../render/textures.js';
+import { currentMap } from '../world/maps.js';
 
 // شكل الميكروباص:
 // - "shibin" (الافتراضي، من صورة ميكروباص شبين الحقيقي): الجسم تركواز، وزوايا تحت قدام وورا صفرا بحرف مايل،
@@ -23,7 +24,7 @@ function textTexture() {
   x.clearRect(0, 0, 2048, 128);
   x.fillStyle = '#fff'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.direction = 'rtl';
   x.font = 'bold 76px Cairo, sans-serif';
-  x.fillText('شبين الكوم  •  داخلي', 1024, 68);
+  x.fillText(`${currentMap().name}  •  داخلي`, 1024, 68);
   _tex = tex(c, { repeat: false });
   _tex.anisotropy = 4;
   return _tex;
@@ -34,7 +35,7 @@ function signTexture() {
   x.fillStyle = '#f7f7f2'; x.beginPath(); x.roundRect(4, 4, 504, 104, 18); x.fill();
   x.fillStyle = '#0f7f77'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.direction = 'rtl';
   x.font = 'bold 74px Cairo, sans-serif';
-  x.fillText('شبين الكوم', 256, 60);
+  x.fillText(currentMap().name, 256, 60);
   const t = tex(c, { repeat: false }); t.anisotropy = 4;
   return t;
 }

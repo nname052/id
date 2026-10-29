@@ -85,7 +85,7 @@ export function attachJobs(world, findRoute) {
     { id: 5, name: 'خط البريد — مستوصف العذراء', color: '#b45309', from: 'post_office', to: 'hospital_eldazra' },
   ].map((d) => ({ ...d, fare: FARE, fareNote: FARE_NOTE, verified: false, source: 'gameplay-approximation (endpoints: OSM landmarks)' }));
   const lines = [];
-  for (const D of LINE_DEFS) {
+  for (const D of world.id === 'shibin' ? LINE_DEFS : autoLines(world)) {
     const a = anchor(D.from), b = anchor(D.to);
     if (!a || !b) continue;
     const r = findRoute(a.x, a.z, b.x, b.z);
@@ -134,3 +134,33 @@ export function attachJobs(world, findRoute) {
   world.policeSpots = spots;
   return world;
 }
+
+// ===== خطوط المدن التانية: من المحطة/الموقف لأماكن حقيقية من OSM (مسار مقترح من اللعبة — verified: false) =====
+// الأجرة 7ج تقريبية (السرفيس جوه المدن بعد زيادة 2026) — بتتعرض كتقريبي زي شبين.
+const COLORS = ['#e8711a', '#2f9e5a', '#7c3aed', '#0e7490', '#b45309', '#be123c'];
+const HUB = ['rail_station', 'bus_station'];
+function autoLines(world) {
+  const L = world.landmarkPoints.filter((l) => l.kind !== 'park');
+  if (L.length < 2) return [];
+  const hubs = L.filter((l) => HUB.includes(l.kind));
+  const from = hubs.length ? hubs : [L[0]];
+  const out = [], used = new Set();
+  // كل خط: من محطة (بالدور) لأبعد معلم مختلف على بعد 1.2–3.2 كم بالشارع
+  for (let k = 0; out.length < 5 && k < from.length * 6; k++) {
+    const a = from[k % from.length];
+    let best = null;
+    for (const b of L) {
+      if (b === a || used.has(b.id) || b.name === a.name) continue;
+      const d = Math.hypot(b.rx - a.rx, b.rz - a.rz);
+      if (d < 900 || d > 3000) continue;
+      const sc = d + (HUB.includes(b.kind) ? -300 : 0) + (b.kind === a.kind ? 400 : 0);
+      if (!best || sc > best.sc) best = { b, sc };
+    }
+    if (!best) continue;
+    used.add(best.b.id);
+    out.push({ id: out.length + 1, name: `خط ${short(a.name)} — ${short(best.b.name)}`, color: COLORS[out.length % COLORS.length], from: a.id, to: best.b.id,
+      fare: 7, fareNote: 'تقريبي', verified: false, source: 'gameplay-approximation (endpoints: OSM landmarks)' });
+  }
+  return out;
+}
+const short = (s) => (s.length > 18 ? s.split(/[،,(]/)[0].trim().slice(0, 18) : s);

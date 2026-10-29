@@ -1,0 +1,132 @@
+{
+  "id": "giza",
+  "name": "الجيزة",
+  "name_en": "Giza",
+  "governorate": "الجيزة",
+  "source_pbf": "../data/osm/egypt/cities/giza.osm.pbf",
+  "source_note": "OpenStreetMap Egypt extract (download.openstreetmap.fr, 2026-10-29), cut per city with osmium extract",
+  "origin": {
+    "lat": 29.9870753,
+    "lon": 31.2118063,
+    "note": "OSM place=city node 'الجيزة' (city centre)"
+  },
+  "bbox": {
+    "south": 29.969109,
+    "west": 31.191063,
+    "north": 30.005042,
+    "east": 31.232549
+  },
+  "tile_size": 400,
+  "stub_outside": 40,
+  "landmarks": [
+    {
+      "id": "historic_1",
+      "name": "القرية الفرعونية",
+      "kind": "historic",
+      "osm": "relation/20053769"
+    },
+    {
+      "id": "museum_2",
+      "name": "المتخف الجيولوجي المصري",
+      "kind": "museum",
+      "osm": "node/432875456"
+    },
+    {
+      "id": "bus_station_3",
+      "name": "موقف المنيب (العياط)",
+      "kind": "bus_station",
+      "osm": "node/13326437802"
+    },
+    {
+      "id": "bus_station_4",
+      "name": "موقف المنيب (الصعيد)",
+      "kind": "bus_station",
+      "osm": "node/5070576421"
+    },
+    {
+      "id": "metro_5",
+      "name": "ساقية مكي",
+      "kind": "metro",
+      "osm": "node/9160395525"
+    },
+    {
+      "id": "historic_6",
+      "name": "نزلة المنيب",
+      "kind": "historic",
+      "osm": "node/13974982701"
+    },
+    {
+      "id": "hospital_7",
+      "name": "مستشفى المروة التخصصى",
+      "kind": "hospital",
+      "osm": "node/1939482580"
+    },
+    {
+      "id": "museum_8",
+      "name": "متحف عبد الناصر",
+      "kind": "museum",
+      "osm": "node/13448197096"
+    },
+    {
+      "id": "historic_9",
+      "name": "مقبرة توت عنخ أمون",
+      "kind": "historic",
+      "osm": "node/13448197095"
+    },
+    {
+      "id": "museum_10",
+      "name": "متحف كليوباترا",
+      "kind": "museum",
+      "osm": "node/9659929843"
+    },
+    {
+      "id": "historic_11",
+      "name": "نادى المحامين النهرى",
+      "kind": "historic",
+      "osm": "node/6123242595"
+    },
+    {
+      "id": "hospital_12",
+      "name": "مستشفى السلام الدولى",
+      "kind": "hospital",
+      "osm": "way/769964776"
+    },
+    {
+      "id": "hospital_13",
+      "name": "مستشفى السلام;مستشفى السلام الدولى",
+      "kind": "hospital",
+      "osm": "relation/19513748"
+    },
+    {
+      "id": "metro_14",
+      "name": "المنيب",
+      "kind": "metro",
+      "osm": "node/9160333614"
+    },
+    {
+      "id": "university_15",
+      "name": "أكاديميه الفنون الجديدة",
+      "kind": "university",
+      "osm": "way/48038932"
+    },
+    {
+      "id": "university_16",
+      "name": "أكاديمية طيبة",
+      "kind": "university",
+      "osm": "node/4053830323"
+    },
+    {
+      "id": "university_17",
+      "name": "أكاديميه الفنون القديمة",
+      "kind": "university",
+      "osm": "way/48038992"
+    },
+    {
+      "id": "post_18",
+      "name": "مكتب بريد الكنيسة",
+      "kind": "post",
+      "osm": "node/11519307519"
+    }
+  ],
+  "needs_verification": []
+}

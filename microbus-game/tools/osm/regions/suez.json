@@ -1,0 +1,66 @@
+{
+  "id": "suez",
+  "name": "السويس",
+  "name_en": "Suez",
+  "governorate": "السويس",
+  "source_pbf": "../data/osm/egypt/cities/suez.osm.pbf",
+  "source_note": "OpenStreetMap Egypt extract (download.openstreetmap.fr, 2026-10-29), cut per city with osmium extract",
+  "origin": {
+    "lat": 29.974498,
+    "lon": 32.537086,
+    "note": "OSM place=city node 'السويس' (city centre)"
+  },
+  "bbox": {
+    "south": 29.956532,
+    "west": 32.516346,
+    "north": 29.992464,
+    "east": 32.557826
+  },
+  "tile_size": 400,
+  "stub_outside": 40,
+  "landmarks": [
+    {
+      "id": "stadium_1",
+      "name": "ستاد السويس",
+      "kind": "stadium",
+      "osm": "way/604978811"
+    },
+    {
+      "id": "rail_station_2",
+      "name": "السويس",
+      "kind": "rail_station",
+      "osm": "node/2555058697"
+    },
+    {
+      "id": "government_3",
+      "name": "مبنى محافظة السويس",
+      "kind": "government",
+      "osm": "way/1057566535"
+    },
+    {
+      "id": "hospital_4",
+      "name": "مستشفى التأمين الصحى الشامل",
+      "kind": "hospital",
+      "osm": "way/1057797224"
+    },
+    {
+      "id": "historic_5",
+      "name": "حديقة الشهداء",
+      "kind": "historic",
+      "osm": "node/4424836797"
+    },
+    {
+      "id": "post_6",
+      "name": "بوسطة السويس",
+      "kind": "post",
+      "osm": "node/1660401790"
+    },
+    {
+      "id": "park_7",
+      "name": "دوار",
+      "kind": "park",
+      "osm": "way/1102722155"
+    }
+  ],
+  "needs_verification": []
+}

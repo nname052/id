@@ -1,0 +1,132 @@
+{
+  "id": "cairo",
+  "name": "القاهرة",
+  "name_en": "Cairo",
+  "governorate": "القاهرة",
+  "source_pbf": "../data/osm/egypt/cities/cairo.osm.pbf",
+  "source_note": "OpenStreetMap Egypt extract (download.openstreetmap.fr, 2026-10-29), cut per city with osmium extract",
+  "origin": {
+    "lat": 30.0443879,
+    "lon": 31.2357257,
+    "note": "OSM place=city node 'القاهرة' (city centre)"
+  },
+  "bbox": {
+    "south": 30.026422,
+    "west": 31.214971,
+    "north": 30.062354,
+    "east": 31.256481
+  },
+  "tile_size": 400,
+  "stub_outside": 40,
+  "landmarks": [
+    {
+      "id": "museum_1",
+      "name": "المتحف المصري",
+      "kind": "museum",
+      "osm": "way/10873198"
+    },
+    {
+      "id": "historic_2",
+      "name": "كوبري قصر النيل",
+      "kind": "historic",
+      "osm": "node/4764007325"
+    },
+    {
+      "id": "historic_3",
+      "name": "برج القاهرة",
+      "kind": "historic",
+      "osm": "way/767933342"
+    },
+    {
+      "id": "historic_4",
+      "name": "قصر عابدين",
+      "kind": "historic",
+      "osm": "way/24942979"
+    },
+    {
+      "id": "museum_5",
+      "name": "متحف الفن الحديث",
+      "kind": "museum",
+      "osm": "way/97229402"
+    },
+    {
+      "id": "museum_6",
+      "name": "متحف محمود مختار",
+      "kind": "museum",
+      "osm": "way/775152514"
+    },
+    {
+      "id": "university_7",
+      "name": "الجامعة الأمريكية بالقاهرة",
+      "kind": "university",
+      "osm": "way/28850198"
+    },
+    {
+      "id": "university_8",
+      "name": "مكتبة الجامعة الأمريكية",
+      "kind": "university",
+      "osm": "way/24942928"
+    },
+    {
+      "id": "bus_station_9",
+      "name": "جو باص التحرير",
+      "kind": "bus_station",
+      "osm": "way/1232410843"
+    },
+    {
+      "id": "bus_station_10",
+      "name": "موقف عبد المنعم رياض",
+      "kind": "bus_station",
+      "osm": "relation/16822065"
+    },
+    {
+      "id": "government_11",
+      "name": "ديوان محافظة القاهرة",
+      "kind": "government",
+      "osm": "way/1465589099"
+    },
+    {
+      "id": "university_12",
+      "name": "كلية الصيدلة",
+      "kind": "university",
+      "osm": "way/1225865580"
+    },
+    {
+      "id": "government_13",
+      "name": "وزارة التعليم العالي",
+      "kind": "government",
+      "osm": "relation/10716370"
+    },
+    {
+      "id": "metro_14",
+      "name": "عرابي",
+      "kind": "metro",
+      "osm": "node/5353485467"
+    },
+    {
+      "id": "metro_15",
+      "name": "باب الشعرية",
+      "kind": "metro",
+      "osm": "node/5194348146"
+    },
+    {
+      "id": "historic_16",
+      "name": "مسلة ميدان التحرير",
+      "kind": "historic",
+      "osm": "node/9175406749"
+    },
+    {
+      "id": "library_17",
+      "name": "مؤسسة اليابانية مكتب القاهرة",
+      "kind": "library",
+      "osm": "node/99200232"
+    },
+    {
+      "id": "historic_18",
+      "name": "تمثال قصر النيل",
+      "kind": "historic",
+      "osm": "node/5112028121"
+    }
+  ],
+  "needs_verification": []
+}

@@ -1,0 +1,42 @@
+{
+  "id": "qena",
+  "name": "قنا",
+  "name_en": "Qena",
+  "governorate": "قنا",
+  "source_pbf": "../data/osm/egypt/cities/qena.osm.pbf",
+  "source_note": "OpenStreetMap Egypt extract (download.openstreetmap.fr, 2026-10-29), cut per city with osmium extract",
+  "origin": {
+    "lat": 26.1593097,
+    "lon": 32.7162855,
+    "note": "OSM place=city node 'قنا' (city centre)"
+  },
+  "bbox": {
+    "south": 26.141343,
+    "west": 32.696269,
+    "north": 26.177276,
+    "east": 32.736302
+  },
+  "tile_size": 400,
+  "stub_outside": 40,
+  "landmarks": [
+    {
+      "id": "rail_station_1",
+      "name": "قنا",
+      "kind": "rail_station",
+      "osm": "node/520513717"
+    },
+    {
+      "id": "library_2",
+      "name": "مكتبه نور الاسلام",
+      "kind": "library",
+      "osm": "node/9545731219"
+    },
+    {
+      "id": "hospital_3",
+      "name": "مستشفي قنا العام",
+      "kind": "hospital",
+      "osm": "way/776123270"
+    }
+  ],
+  "needs_verification": []
+}

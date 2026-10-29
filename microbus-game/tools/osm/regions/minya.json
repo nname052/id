@@ -1,0 +1,96 @@
+{
+  "id": "minya",
+  "name": "المنيا",
+  "name_en": "Minya",
+  "governorate": "المنيا",
+  "source_pbf": "../data/osm/egypt/cities/minya.osm.pbf",
+  "source_note": "OpenStreetMap Egypt extract (download.openstreetmap.fr, 2026-10-29), cut per city with osmium extract",
+  "origin": {
+    "lat": 28.0893325,
+    "lon": 30.7570623,
+    "note": "OSM place=city node 'المنيا' (city centre)"
+  },
+  "bbox": {
+    "south": 28.071366,
+    "west": 30.736697,
+    "north": 28.107299,
+    "east": 30.777427
+  },
+  "tile_size": 400,
+  "stub_outside": 40,
+  "landmarks": [
+    {
+      "id": "rail_station_1",
+      "name": "المنيا",
+      "kind": "rail_station",
+      "osm": "node/1022358058"
+    },
+    {
+      "id": "bus_station_2",
+      "name": "موقف الاوتوبيس السريع",
+      "kind": "bus_station",
+      "osm": "node/1892460994"
+    },
+    {
+      "id": "bus_station_3",
+      "name": "موقف قسطور",
+      "kind": "bus_station",
+      "osm": "node/1892460997"
+    },
+    {
+      "id": "hospital_4",
+      "name": "مستوصف الجمعية الشرعية",
+      "kind": "hospital",
+      "osm": "node/1888411235"
+    },
+    {
+      "id": "hospital_5",
+      "name": "بنك الدم الإقليمى",
+      "kind": "hospital",
+      "osm": "node/1888411221"
+    },
+    {
+      "id": "hospital_6",
+      "name": "مستشفى المبرة",
+      "kind": "hospital",
+      "osm": "node/1888451891"
+    },
+    {
+      "id": "museum_7",
+      "name": "متحف اخناتون",
+      "kind": "museum",
+      "osm": "way/100024722"
+    },
+    {
+      "id": "library_8",
+      "name": "قصر الثقافة",
+      "kind": "library",
+      "osm": "way/1005507346"
+    },
+    {
+      "id": "post_9",
+      "name": "مكتب البوستة الرئيسي",
+      "kind": "post",
+      "osm": "node/1888338974"
+    },
+    {
+      "id": "post_10",
+      "name": "مكتب بريد أرض المولد",
+      "kind": "post",
+      "osm": "node/1888257943"
+    },
+    {
+      "id": "park_11",
+      "name": "الحديقه الدولية",
+      "kind": "park",
+      "osm": "way/100028612"
+    },
+    {
+      "id": "park_12",
+      "name": "YMCA جمعية الشبان المسيحيين بالمنيا",
+      "kind": "park",
+      "osm": "node/5563955318"
+    }
+  ],
+  "needs_verification": []
+}

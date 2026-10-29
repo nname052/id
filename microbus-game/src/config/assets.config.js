@@ -31,6 +31,8 @@ export const MODEL_ASSETS = {
   person_scan: { file: 'person_scan.glb', targetHeight: 1.74, rotationY: 0 },
   // ميكروباصات المرور: نفس موديل الهاي إس (نسخة منفصلة)
   microbus_traffic: { file: 'microbus.glb', targetLength: 4.69, rotationY: 90, trafficHiace: true },
+  // كرسي القهوة البلاستيك الأبيض (Poly Haven "Plastic Monobloc Chair 01" — Kuutti Siitonen، CC0؛ خامة اللون اتصغّرت 256)
+  chair_plastic: { file: 'chair_plastic.glb', targetHeight: 0.82, rotationY: 0 },
   // المشاة (يفضّل يكون فيه أنيميشن اسمه فيه "walk")  →  assets/models/pedestrian.glb
   pedestrian: { file: 'pedestrian.glb', targetHeight: 1.72, rotationY: 0 },
 };

@@ -517,6 +517,57 @@ function grassTex() {
   return (_grass = tex(c));
 }
 
+// ===================== قعدة القهوة (OSM amenity=cafe) =====================
+/** كل قهوة في OSM: كراسي بلاستيك بيضا جنب ترابيزة أو اتنين على الرصيف قدامها (ناحية الشارع) */
+function cafeSeating(W, pois, mobile) {
+  const a = W.assets?.get?.('chair_plastic');
+  if (!a) return null;
+  let src = null;
+  a.holder.updateMatrixWorld(true);
+  a.holder.traverse((o) => { if (o.isMesh && !src) src = o; });
+  if (!src) return null;
+  const geo = src.geometry.clone().applyMatrix4(src.matrixWorld);
+  const mat = src.material.clone(); mat.side = THREE.DoubleSide;
+  const cafes = pois.filter((p) => p.kind === 'cafe');
+  if (!cafes.length) return null;
+  const chairs = new NearInstancer(geo, mat, { R: mobile ? 70 : 110, max: mobile ? 60 : 160, name: 'cafe-chair', castShadow: !mobile });
+  // ترابيزة صاج مدوّرة (رجل واحدة) — نفس خامة الحاجات التانية
+  const tg = mergeGeometries([
+    new THREE.CylinderGeometry(0.33, 0.33, 0.03, 16).translate(0, 0.7, 0),
+    new THREE.CylinderGeometry(0.03, 0.03, 0.7, 6).translate(0, 0.35, 0),
+    new THREE.CylinderGeometry(0.2, 0.22, 0.03, 12).translate(0, 0.015, 0),
+  ]);
+  const tables = new NearInstancer(tg, new THREE.MeshStandardMaterial({ color: 0x9aa3a8, metalness: 0.6, roughness: 0.45 }), { R: mobile ? 70 : 110, max: mobile ? 25 : 60, name: 'cafe-table' });
+  const R = rng(31);
+  for (const p of cafes) {
+    const r = W.nearestRoad(p.p[0], p.p[1], 60);
+    if (!r || r.e.elevated) continue;
+    let nx = -r.dz, nz = r.dx;
+    if ((p.p[0] - r.x) * nx + (p.p[1] - r.z) * nz < 0) { nx = -nx; nz = -nz; }
+    const tx = r.dx, tz = r.dz, nT = 1 + (R() < 0.5 ? 1 : 0);
+    for (let k = 0; k < nT; k++) {
+      // الرصيف المصري ضيق (1.2–3م): الترابيزة على بعد متر من حرف الأسفلت، والكراسي جنبها على طول الرصيف
+      // (يمين وشمال) وشها للترابيزة — والكرسي اللي يطلع برا الرصيف بيتشال لوحده (الفحص تحت)
+      const along = (k - (nT - 1) / 2) * 2.6, off = r.e.half + 1.0;
+      const cx = r.x + nx * off + tx * along, cz = r.z + nz * off + tz * along;
+      tables.add(cx, 0.15, cz, 0);
+      for (const [a, o] of [[-0.68, 0], [0.68, 0], [0, 0.7], [-0.5, 0.65], [0.5, 0.65]].slice(0, 2 + Math.floor(R() * 3))) {
+        const x = cx + tx * a + nx * o, z = cz + tz * a + nz * o;
+        chairs.add(x, 0.15, z, Math.atan2(cx - x, cz - z) + (R() - 0.5) * 0.35);
+      }
+    }
+  }
+  // على الرصيف بس (زي الشجر) — ومش جوه شارع تاني ولا تحت كوبري
+  const ok = (it) => {
+    const Tl = W.tiles.get(W._tkey(Math.floor(it.x / W.TS), Math.floor(it.z / W.TS)));
+    if (!Tl || !Tl.ready) return undefined;
+    if (W._underDeck?.(it.x, it.z)) return false;
+    return Math.abs(W.height(it.x, it.z, 0) - 0.15) < 0.01;
+  };
+  chairs.check = ok; tables.check = ok;
+  return { chairs, tables };
+}
+
 // ===================== يافطات المحلات (OSM) =====================
 const POI_STYLE = {
   cafe: { bg: '#5b3a1e', fg: '#ffe7b0', icon: '☕' }, restaurant: { bg: '#8a1c12', fg: '#fff', icon: '🍽' }, fast_food: { bg: '#c0392b', fg: '#fff', icon: '🍔' },
@@ -525,21 +576,25 @@ const POI_STYLE = {
   place_of_worship: { bg: '#1f5e4a', fg: '#fff', icon: '' }, fuel: { bg: '#0b7a3e', fg: '#fff', icon: '⛽' },
 };
 function poiSigns(W, pois, group, skipNames) {
-  const list = pois.filter((p) => p.name && /[؀-ۿ]/.test(p.name) && !skipNames.has(p.name) && POI_STYLE[p.kind]);
+  let list = pois.filter((p) => p.name && /[؀-ۿ]/.test(p.name) && !skipNames.has(p.name) && POI_STYLE[p.kind]);
   if (!list.length) return 0;
-  const COLS = 4, SW = 512, SH = 128, rows = Math.ceil(list.length / COLS);
+  // المدن الكبيرة (الإسكندرية ~400 يافطة): الأطلس كان بيطلع 13 ألف بكسل طول (الموبايل حده 4096 → بيتصغّر ويتبوّظ):
+  // أكتر من 128 يافطة → خانة نص الحجم، ولحد 512 يافطة (الأقرب لوسط البلد)
+  const big = list.length > 128, k = big ? 0.5 : 1;
+  if (list.length > 512) list = list.sort((a, b) => Math.hypot(a.p[0], a.p[1]) - Math.hypot(b.p[0], b.p[1])).slice(0, 512);
+  const COLS = big ? 8 : 4, SW = 512 * k, SH = 128 * k, rows = Math.ceil(list.length / COLS);
   const c = canvas(SW * COLS, SH * rows), x = c.getContext('2d');
   const G = new GeoBuilder(), poles = new GeoBuilder();
   let n = 0;
   list.forEach((p, i) => {
     const st = POI_STYLE[p.kind], col = i % COLS, row = Math.floor(i / COLS);
     x.fillStyle = st.bg; x.fillRect(col * SW, row * SH, SW, SH);
-    x.strokeStyle = 'rgba(255,255,255,0.6)'; x.lineWidth = 5; x.strokeRect(col * SW + 6, row * SH + 6, SW - 12, SH - 12);
+    x.strokeStyle = 'rgba(255,255,255,0.6)'; x.lineWidth = 5 * k; x.strokeRect(col * SW + 6 * k, row * SH + 6 * k, SW - 12 * k, SH - 12 * k);
     x.fillStyle = st.fg; x.textAlign = 'center'; x.textBaseline = 'middle'; x.direction = 'rtl';
-    let fs = 56; x.font = `bold ${fs}px Cairo, sans-serif`;
+    let fs = 56 * k; x.font = `bold ${fs}px Cairo, sans-serif`;
     const label = `${p.name}`;
-    while (x.measureText(label).width > SW - 40 && fs > 22) { fs -= 4; x.font = `bold ${fs}px Cairo, sans-serif`; }
-    x.fillText(label, col * SW + SW / 2, row * SH + SH / 2 + 4);
+    while (x.measureText(label).width > SW - 40 * k && fs > 22 * k) { fs -= 4 * k; x.font = `bold ${fs}px Cairo, sans-serif`; }
+    x.fillText(label, col * SW + SW / 2, row * SH + SH / 2 + 4 * k);
     // أقرب رصيف للمكان
     const r = W.nearestRoad(p.p[0], p.p[1], 80);
     if (!r || r.e.elevated) return;
@@ -555,8 +610,9 @@ function poiSigns(W, pois, group, skipNames) {
     const w = 2.6, h = 0.65;
     G.setTransform(m);
     // وشين للافتة (للناحيتين)
-    G.quad([-w / 2, -h / 2, 0.05], [w / 2, -h / 2, 0.05], [w / 2, h / 2, 0.05], [-w / 2, h / 2, 0.05], [[u1, v0], [u0, v0], [u0, v1], [u1, v1]]);
-    G.quad([w / 2, -h / 2, -0.05], [-w / 2, -h / 2, -0.05], [-w / 2, h / 2, -0.05], [w / 2, h / 2, -0.05], [[u1, v0], [u0, v0], [u0, v1], [u1, v1]]);
+    // (أول الصورة u0 على شمال اللي باصص للوش — كانت معكوسة فالكلام بيبان زي المراية من الناحيتين)
+    G.quad([-w / 2, -h / 2, 0.05], [w / 2, -h / 2, 0.05], [w / 2, h / 2, 0.05], [-w / 2, h / 2, 0.05], [[u0, v0], [u1, v0], [u1, v1], [u0, v1]]);
+    G.quad([w / 2, -h / 2, -0.05], [-w / 2, -h / 2, -0.05], [-w / 2, h / 2, -0.05], [w / 2, h / 2, -0.05], [[u0, v0], [u1, v0], [u1, v1], [u0, v1]]);
     poles.setColor([0.22, 0.23, 0.24]);
     poles.addGeometry(new THREE.CylinderGeometry(0.05, 0.05, 2.4, 6), T(sx, 1.35, sz));
     poles.addGeometry(new THREE.BoxGeometry(w + 0.1, h + 0.1, 0.08), m);
@@ -615,7 +671,10 @@ export function buildLandmarks(W, features, { mobile = false } = {}) {
   // يافطات المحلات
   const skip = new Set(W.landmarks.confirmed.map((l) => l.name));
   stats.poiSigns = features?.pois ? poiSigns(W, features.pois, group, skip) : 0;
-  const insts = [...new Set([...['rail', 'paving', 'bench', 'kiosk', 'sit0', 'sit1'].map((k) => out[k]), trees])].filter((x) => x?.mesh);
+  // القهاوي اللي في OSM: كراسي بلاستيك (موديل حقيقي CC0) وترابيزات صغيرة على الرصيف قدامها
+  const chair = cafeSeating(W, features?.pois || [], mobile);
+  if (chair) { out.chair = chair.chairs; out.table = chair.tables; stats.cafeChairs = chair.chairs.items.length; }
+  const insts = [...new Set([...['rail', 'paving', 'bench', 'kiosk', 'sit0', 'sit1', 'chair', 'table'].map((k) => out[k]), trees])].filter((x) => x?.mesh);
   for (const it of insts) group.add(it.mesh);
   let t = 0;
   return {

@@ -1,0 +1,60 @@
+{
+  "id": "tanta",
+  "name": "طنطا",
+  "name_en": "Tanta",
+  "governorate": "الغربية",
+  "source_pbf": "../data/osm/egypt/cities/tanta.osm.pbf",
+  "source_note": "OpenStreetMap Egypt extract (download.openstreetmap.fr, 2026-10-29), cut per city with osmium extract",
+  "origin": {
+    "lat": 30.7833666,
+    "lon": 30.9982536,
+    "note": "OSM place=city node 'طنطا' (city centre)"
+  },
+  "bbox": {
+    "south": 30.7654,
+    "west": 30.977341,
+    "north": 30.801333,
+    "east": 31.019166
+  },
+  "tile_size": 400,
+  "stub_outside": 40,
+  "landmarks": [
+    {
+      "id": "university_1",
+      "name": "جامعة طنطا",
+      "kind": "university",
+      "osm": "way/94129784"
+    },
+    {
+      "id": "rail_station_2",
+      "name": "محطة قطار طنطا",
+      "kind": "rail_station",
+      "osm": "node/4723141800"
+    },
+    {
+      "id": "university_3",
+      "name": "كلية التجارة - جامعة طنطا",
+      "kind": "university",
+      "osm": "way/94129733"
+    },
+    {
+      "id": "bus_station_4",
+      "name": "موقف العجيزي طنطا شبين الكوم",
+      "kind": "bus_station",
+      "osm": "node/10048341828"
+    },
+    {
+      "id": "hospital_5",
+      "name": "مستشفى طنطا للصحة النفسية وعلاج الإدمان",
+      "kind": "hospital",
+      "osm": "node/13914231401"
+    },
+    {
+      "id": "park_6",
+      "name": "نادي طنطا الرياضي",
+      "kind": "park",
+      "osm": "way/203400559"
+    }
+  ],
+  "needs_verification": []
+}

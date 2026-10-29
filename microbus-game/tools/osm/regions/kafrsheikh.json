@@ -1,0 +1,60 @@
+{
+  "id": "kafrsheikh",
+  "name": "كفر الشيخ",
+  "name_en": "Kafr El Sheikh",
+  "governorate": "كفر الشيخ",
+  "source_pbf": "../data/osm/egypt/cities/kafrsheikh.osm.pbf",
+  "source_note": "OpenStreetMap Egypt extract (download.openstreetmap.fr, 2026-10-29), cut per city with osmium extract",
+  "origin": {
+    "lat": 31.1089385,
+    "lon": 30.9426981,
+    "note": "OSM place=city node 'كفر الشيخ' (city centre)"
+  },
+  "bbox": {
+    "south": 31.090972,
+    "west": 30.921714,
+    "north": 31.126905,
+    "east": 30.963682
+  },
+  "tile_size": 400,
+  "stub_outside": 40,
+  "landmarks": [
+    {
+      "id": "university_1",
+      "name": "جامعة كفر الشيخ",
+      "kind": "university",
+      "osm": "way/94087086"
+    },
+    {
+      "id": "rail_station_2",
+      "name": "كفر الشيخ",
+      "kind": "rail_station",
+      "osm": "node/1024972031"
+    },
+    {
+      "id": "government_3",
+      "name": "ميني المحافظة",
+      "kind": "government",
+      "osm": "way/626274507"
+    },
+    {
+      "id": "stadium_4",
+      "name": "استاد كفر الشيخ",
+      "kind": "stadium",
+      "osm": "way/884219850"
+    },
+    {
+      "id": "hospital_5",
+      "name": "مستشفى العبور",
+      "kind": "hospital",
+      "osm": "way/626274508"
+    },
+    {
+      "id": "hospital_6",
+      "name": "مستشفى كفر الشيخ العام",
+      "kind": "hospital",
+      "osm": "node/13620461601"
+    }
+  ],
+  "needs_verification": []
+}

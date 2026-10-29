@@ -1,0 +1,72 @@
+{
+  "id": "matruh",
+  "name": "مرسى مطروح",
+  "name_en": "Marsa Matruh",
+  "governorate": "مطروح",
+  "source_pbf": "../data/osm/egypt/cities/matruh.osm.pbf",
+  "source_note": "OpenStreetMap Egypt extract (download.openstreetmap.fr, 2026-10-29), cut per city with osmium extract",
+  "origin": {
+    "lat": 31.3528567,
+    "lon": 27.2395262,
+    "note": "OSM place=city node 'مرسى مطروح' (city centre)"
+  },
+  "bbox": {
+    "south": 31.33489,
+    "west": 27.218488,
+    "north": 31.370823,
+    "east": 27.260564
+  },
+  "tile_size": 400,
+  "stub_outside": 40,
+  "landmarks": [
+    {
+      "id": "rail_station_1",
+      "name": "مرسى مطروح",
+      "kind": "rail_station",
+      "osm": "node/1889476237"
+    },
+    {
+      "id": "library_2",
+      "name": "مكتبة مصر العامة مرسى مطروح",
+      "kind": "library",
+      "osm": "way/639968018"
+    },
+    {
+      "id": "hospital_3",
+      "name": "مستشفى عرابي التخصصي",
+      "kind": "hospital",
+      "osm": "node/6784633286"
+    },
+    {
+      "id": "hospital_4",
+      "name": "مستشفى مطروح العام",
+      "kind": "hospital",
+      "osm": "node/595353701"
+    },
+    {
+      "id": "museum_5",
+      "name": "متحف كهف رومل",
+      "kind": "museum",
+      "osm": "node/595353662"
+    },
+    {
+      "id": "hospital_6",
+      "name": "مستشفى الصدر",
+      "kind": "hospital",
+      "osm": "way/1559332912"
+    },
+    {
+      "id": "historic_7",
+      "name": "شاطئ الغرام",
+      "kind": "historic",
+      "osm": "node/6478964085"
+    },
+    {
+      "id": "post_8",
+      "name": "مكتب بريد الريفيه",
+      "kind": "post",
+      "osm": "node/14184994597"
+    }
+  ],
+  "needs_verification": []
+}

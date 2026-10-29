@@ -1,0 +1,108 @@
+{
+  "id": "aswan",
+  "name": "أسوان",
+  "name_en": "Aswan",
+  "governorate": "أسوان",
+  "source_pbf": "../data/osm/egypt/cities/aswan.osm.pbf",
+  "source_note": "OpenStreetMap Egypt extract (download.openstreetmap.fr, 2026-10-29), cut per city with osmium extract",
+  "origin": {
+    "lat": 24.091071,
+    "lon": 32.897306,
+    "note": "OSM place=city node 'أسوان' (city centre)"
+  },
+  "bbox": {
+    "south": 24.073105,
+    "west": 32.877626,
+    "north": 24.109037,
+    "east": 32.916986
+  },
+  "tile_size": 400,
+  "stub_outside": 40,
+  "landmarks": [
+    {
+      "id": "rail_station_1",
+      "name": "محطة سكة حديد أسوان",
+      "kind": "rail_station",
+      "osm": "node/321239620"
+    },
+    {
+      "id": "historic_2",
+      "name": "كتدرائية الملاك جبريل",
+      "kind": "historic",
+      "osm": "way/326938597"
+    },
+    {
+      "id": "historic_3",
+      "name": "الحديقة النباتية بأسوان",
+      "kind": "historic",
+      "osm": "way/5772319"
+    },
+    {
+      "id": "historic_4",
+      "name": "هرم الفنتين",
+      "kind": "historic",
+      "osm": "way/554848964"
+    },
+    {
+      "id": "museum_5",
+      "name": "متحف النوبة",
+      "kind": "museum",
+      "osm": "way/1128059224"
+    },
+    {
+      "id": "historic_6",
+      "name": "مسلة ناقصةال",
+      "kind": "historic",
+      "osm": "way/243566979"
+    },
+    {
+      "id": "historic_7",
+      "name": "قبر آغا خان",
+      "kind": "historic",
+      "osm": "node/540656368"
+    },
+    {
+      "id": "hospital_8",
+      "name": "مستشفى امراض الصدر",
+      "kind": "hospital",
+      "osm": "way/43157497"
+    },
+    {
+      "id": "hospital_9",
+      "name": "مستشفي مبارك العسكري",
+      "kind": "hospital",
+      "osm": "way/43157366"
+    },
+    {
+      "id": "university_10",
+      "name": "المعهد العالى للخدمة الاجتماعية",
+      "kind": "university",
+      "osm": "way/43157520"
+    },
+    {
+      "id": "university_11",
+      "name": "كلية التربية",
+      "kind": "university",
+      "osm": "way/43157489"
+    },
+    {
+      "id": "post_12",
+      "name": "مكتب بريد أسوان",
+      "kind": "post",
+      "osm": "node/540655484"
+    },
+    {
+      "id": "park_13",
+      "name": "حديقة السلام",
+      "kind": "park",
+      "osm": "way/29205552"
+    },
+    {
+      "id": "park_14",
+      "name": "حديقة بلازا درة النيل",
+      "kind": "park",
+      "osm": "way/29205640"
+    }
+  ],
+  "needs_verification": []
+}

@@ -15,7 +15,7 @@
 import glob, json, math, os
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-DATA = os.path.join(ROOT, 'public', 'data', 'shibin')
+DATA = os.path.join(os.environ.get('DATA_ROOT') or os.path.join(ROOT, 'public', 'data'), os.environ.get('REGION', 'shibin'))  # (REGION=alex DATA_ROOT=... لمدينة تانية)
 MAXG = 0.08
 ITER = 30
 BLEND = 3.0

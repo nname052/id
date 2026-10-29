@@ -112,7 +112,7 @@ export class Multiplayer {
         const r = (v, k = 100) => Math.round(v * k) / k;
         this.room.presence({
           p: [r(ph.x), r(ph.z), r(ph.yaw, 1000), r(ph.heave - ph.spec.cgHeight), r(ph.pitch, 1000), r(ph.roll, 1000), r(ph.steerAngle, 1000), r(ph.forwardSpeed)],
-          br: ph.brake > 0.05 ? 1 : 0, fl: ph.flip.mode ? 1 : 0, kind: g.player.kind, map: 'shibin',
+          br: ph.brake > 0.05 ? 1 : 0, fl: ph.flip.mode ? 1 : 0, kind: g.player.kind, map: g.mapId || 'shibin',
           pax: g.passengers?.count || 0, money: Math.round(g.passengers?.earnings || 0),
         }).catch(() => {});
       }
@@ -127,7 +127,7 @@ export class Multiplayer {
     for (const p of this.others()) {
       const pr = p.presence;
       if (!Array.isArray(pr.p) || pr.p.length < 8) continue;
-      if (pr.map && pr.map !== 'shibin') continue; // (إصدارات قديمة كان فيها خريطة تانية)
+      if ((pr.map || 'shibin') !== (g.mapId || 'shibin')) continue; // (اللاعب اللي في مدينة تانية مش باين هنا)
       seen.add(p.peer);
       let R = this.remotes.get(p.peer);
       const kind = SIZES[pr.kind] ? pr.kind : 'microbus';
