@@ -44,7 +44,12 @@ export const MODEL_ASSETS = {
   car_peugeot504: { file: 'car_peugeot504.glb', targetLength: 4.49, rotationY: 180 },
   pickup_datsun: { file: 'pickup_datsun.glb', targetLength: 4.0, rotationY: 180 },
   pickup_hilux: { file: 'pickup_hilux.glb', targetLength: 5.33, rotationY: 180 },
-  truck_canter: { file: 'truck_canter.glb', targetLength: 6.2, rotationY: 180 },
+  truck_canter: { file: 'truck_canter.glb', targetLength: 6.2, rotationY: 90 },
+  car_corolla_ke80: { file: 'car_corolla_ke80.glb', targetLength: 4.2, rotationY: 180 },
+  car_corolla_e70: { file: 'car_corolla_e70.glb', targetLength: 4.2, rotationY: 0 },
+  pickup_90s: { file: 'pickup_90s.glb', targetLength: 4.7, rotationY: 270 },
+  pickup_toyota: { file: 'pickup_toyota.glb', targetLength: 4.35, rotationY: 180 },
+  bus_karosa: { file: 'bus_karosa.glb', targetLength: 11, rotationY: 90 },
   // المعالم الحقيقية (لو اتحمّلت): المقاس الحقيقي بالمتر
   mon_sphinx: { file: 'mon_sphinx.glb', targetLength: 73, rotationY: 0 },
   mon_cairo_tower: { file: 'mon_cairo_tower.glb', targetHeight: 187, rotationY: 0 },

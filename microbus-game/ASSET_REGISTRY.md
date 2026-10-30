@@ -36,3 +36,13 @@
 | Commons: Ambulance, Cairo.JPG (2012) | CC BY-SA 3.0 | ألوان الإسعاف |
 | Commons: Egypt police car 01 / 03 / 05.jpg | CC BY 4.0 | ألوان الشرطة |
 | Commons: Cairo electric bus at Ramses Square.jpg، Cairo bus with GEM advertising, Ramses Square.jpg | CC BY-SA 4.0 | ألوان أتوبيس النقل العام بالقاهرة |
+
+## اتحمّلت ومستخدمة (v22.3) — من Objaverse (نسخة عامة من Sketchfab بنفس الرخصة، من غير حساب)
+| الموديل | الملف | الفنان | الرخصة | الاستخدام |
+|---|---|---|---|---|
+| Mitsubishi Fuso Canter | assets/models/truck_canter.glb | Raed Almaharmah | CC-BY-4.0 | ميتسوبيشي فوسو كانتر (نقل خفيف "جامبو") ✅ |
+| Toyota Corolla (KE80) | assets/models/car_corolla_ke80.glb | remtromol | CC-BY-4.0 | تويوتا كورولا KE80 (ملاكي قديم منتشر) ✅ |
+| Toyota corolla e70 (1980) | assets/models/car_corolla_e70.glb | ditovirnantio | CC-BY-4.0 | تويوتا كورولا E70 (ملاكي قديم) ✅ |
+| Generic 90s light pickup - Low poly model | assets/models/pickup_90s.glb | Daniel Zhabotinsky | CC-BY-4.0 | بيك أب كابينة واحدة (التسعينات) — ربع نقل ✅ |
+| Toyota Pickup truck | assets/models/pickup_toyota.glb | alban | CC-BY-4.0 | تويوتا بيك أب (هايلكس قديم) — ربع نقل ✅ |
+| Karosa C734 | assets/models/bus_karosa.glb | Jan Bláha | CC-BY-4.0 | أتوبيس (كاروسا C734) — المدن غير القاهرة ✅ |

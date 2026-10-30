@@ -1,1 +1,62 @@
-{}
+{
+ "truck_canter": {
+  "name": "Mitsubishi Fuso Canter",
+  "author": "Raed Almaharmah",
+  "authorUrl": "https://sketchfab.com/raedalmaharmah6",
+  "url": "https://sketchfab.com/3d-models/mitsubishi-fuso-canter-2b58376d6aaf4641adf30d4c9044de74",
+  "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+  "role": "ميتسوبيشي فوسو كانتر (نقل خفيف \"جامبو\")",
+  "via": "Objaverse (allenai/objaverse, Hugging Face)",
+  "fetched": "2026-10-30"
+ },
+ "car_corolla_ke80": {
+  "name": "Toyota Corolla (KE80)",
+  "author": "remtromol",
+  "authorUrl": "https://sketchfab.com/remtromol",
+  "url": "https://sketchfab.com/3d-models/toyota-corolla-ke80-2b30faa611e64177a94a69098d27d1fb",
+  "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+  "role": "تويوتا كورولا KE80 (ملاكي قديم منتشر)",
+  "via": "Objaverse (allenai/objaverse, Hugging Face)",
+  "fetched": "2026-10-30"
+ },
+ "car_corolla_e70": {
+  "name": "Toyota corolla e70 (1980)",
+  "author": "ditovirnantio",
+  "authorUrl": "https://sketchfab.com/ditovirnantio",
+  "url": "https://sketchfab.com/3d-models/toyota-corolla-e70-1980-c4d66d21968c41da89114e2300578bc5",
+  "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+  "role": "تويوتا كورولا E70 (ملاكي قديم)",
+  "via": "Objaverse (allenai/objaverse, Hugging Face)",
+  "fetched": "2026-10-30"
+ },
+ "pickup_90s": {
+  "name": "Generic 90s light pickup - Low poly model",
+  "author": "Daniel Zhabotinsky",
+  "authorUrl": "https://sketchfab.com/DanielZhabotinsky",
+  "url": "https://sketchfab.com/3d-models/generic-90s-light-pickup-low-poly-model-6c48c94be8974dc7a5932f697c0ba68f",
+  "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+  "role": "بيك أب كابينة واحدة (التسعينات) — ربع نقل",
+  "via": "Objaverse (allenai/objaverse, Hugging Face)",
+  "fetched": "2026-10-30"
+ },
+ "pickup_toyota": {
+  "name": "Toyota Pickup truck",
+  "author": "alban",
+  "authorUrl": "https://sketchfab.com/alban",
+  "url": "https://sketchfab.com/3d-models/toyota-pickup-truck-cad83751a295463bbb8b823c11a181ea",
+  "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+  "role": "تويوتا بيك أب (هايلكس قديم) — ربع نقل",
+  "via": "Objaverse (allenai/objaverse, Hugging Face)",
+  "fetched": "2026-10-30"
+ },
+ "bus_karosa": {
+  "name": "Karosa C734",
+  "author": "Jan Bláha",
+  "authorUrl": "https://sketchfab.com/swifterik",
+  "url": "https://sketchfab.com/3d-models/karosa-c734-21262813724e401b88333d381c4626f7",
+  "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+  "role": "أتوبيس (كاروسا C734) — المدن غير القاهرة",
+  "via": "Objaverse (allenai/objaverse, Hugging Face)",
+  "fetched": "2026-10-30"
+ }
+}

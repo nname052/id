@@ -21,8 +21,7 @@ import { canvas, tex } from '../../render/textures.js';
 // (العربيات الإجرائية المربعة والموتوسيكل اتشالوا: كانوا شكلهم غريب — موديلات حقيقية بس)
 const TYPES = ['microbus', 'sedan', 'taxi', 'microbus', 'tuktuk', 'microbus', 'sedan', 'pickup', 'microbus', 'taxi', 'microbus', 'sedan', 'tuktuk', 'pickup', 'moto']; // (ميكروباصات أكتر: ~40% زي شوارع المدن عندنا)
 const SMALL = { tuktuk: { vMul: 0.62, mass: 420 }, moto: { vMul: 0.9, mass: 220 }, pickup: { vMul: 0.9, mass: 1700 }, bus: { vMul: 0.75, mass: 11000 }, truck: { vMul: 0.7, mass: 7000 } }; // (ربع نقل: أبطأ شوية)
-// أتوبيس النقل العام: الخرايط اللي ألوانه فيها متأكدة (القاهرة/الجيزة) — وبيمشي على الشوارع الكبيرة بس
-const BUS_MAPS = new Set(['cairo', 'cairo_east', 'giza']);
+// الأتوبيس والنقل: الشوارع الكبيرة بس
 const BUS_CLS = new Set(['motorway', 'trunk', 'primary', 'secondary', 'tertiary']);
 const SPAWN_MIN = 60; // (نطاق المرور: this.activeR / this.despawnR — أصغر على الموبايل = نفس العدد في مساحة أقل = زحمة أكتر حواليك)
 const CLASS_W = { motorway: 3, trunk: 3, primary: 3, secondary: 2.6, tertiary: 2.2, unclassified: 1.4, residential: 1, living_street: 0.4, service: 0.25, road: 1, track: 0.15 };
@@ -45,7 +44,7 @@ export class ShibinTraffic {
     this.lodNear = 38;
     this.active = count;
     // (نقل خفيف في كل المدن، والأتوبيس في القاهرة/الجيزة)
-    const types = BUS_MAPS.has(world.id) ? [...TYPES, 'bus', 'truck'] : [...TYPES, 'truck'];
+    const types = [...TYPES, 'bus', 'truck']; // (القاهرة/الجيزة: أتوبيس النقل العام بألوانه؛ باقي المدن: موديل الأتوبيس الحقيقي — Game._makeCarBody)
     for (let i = 0; i < count; i++) {
       const type = types[i % types.length];
       const rig = makeCar(type, CAR_COLORS[Math.floor(this.R() * CAR_COLORS.length)]);

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { toCreasedNormals } from 'three/addons/utils/BufferGeometryUtils.js';
 import { MODEL_ASSETS, TEXTURE_ASSETS, AUDIO_ASSETS } from '../config/assets.config.js';
@@ -20,6 +21,7 @@ export class AssetManager {
     this.textures = {};
     this.audio = {};
     this.loader = new GLTFLoader();
+    this.loader.setMeshoptDecoder(MeshoptDecoder); // (الموديلات الحقيقية مضغوطة meshopt: الـ JS أصغر = تحميل أسرع)
     // صفحة الـ Artifact بتمنع fetch لـ blob:/data: → الصور اللي جوه الـ GLB نحملها كـ <img> عادي
     this.loader.register((parser) => {
       parser.textureLoader = new THREE.TextureLoader(parser.options.manager);
