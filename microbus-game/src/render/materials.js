@@ -14,6 +14,21 @@ export function createMaterials() {
   const side = T.makeSidewalk();
   M.sidewalkTop = std({ ...side, roughness: 0.92, vertexColors: true });
   M.sidewalkTop.userData.castShadow = false;
+  // بلاط الرصيف المصري الملون: كل بلاطة (50سم — نفس خطوط الـ normalMap) بلون: أحمر طوبي/أصفر رملي بالتبادل والوسط رمادي،
+  // وحتت قديمة رمادي كلها (كل بلوك 2م بيختار). اللون بيتضرب في صورة الخرسانة الحقيقية فالتراب والبقع فاضلين
+  M.sidewalkTop.onBeforeCompile = (sh) => {
+    sh.fragmentShader = sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+#ifdef USE_MAP
+  {
+    vec2 bq = floor(vMapUv), cq = floor(fract(vMapUv) * 4.0);
+    float h = fract(sin(dot(bq, vec2(12.9898, 78.233))) * 43758.5453);
+    bool mid = (cq.x == 1.0 || cq.x == 2.0) && (cq.y == 1.0 || cq.y == 2.0);
+    vec3 tint = mid ? vec3(0.97) : mod(cq.x + cq.y, 2.0) > 0.5 ? vec3(1.3, 0.76, 0.62) : vec3(1.22, 1.06, 0.74);
+    diffuseColor.rgb *= h < 0.22 ? vec3(1.0) : tint;
+  }
+#endif`);
+  };
+  M.sidewalkTop.customProgramCacheKey = () => 'sidewalk-tiles-1';
   M.curb = std({ map: T.makeCurb(), roughness: 0.85 });
   // الجزيرة اللي في نص الشارع: زرع + حرف ملوّن
   M.median = std({ roughness: 0.95, vertexColors: true });
