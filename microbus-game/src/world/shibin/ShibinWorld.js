@@ -1312,15 +1312,18 @@ function shoreGeo(rings, T, TS, Wd, y) {
 function curbGeo(rings, y0, y1, T, TS, both = false, skip = null) {
   const pos = [], nor = [], uv = [], idx = [];
   for (const r of rings) {
+    let u0 = 0; // (المسافة على طول الحلقة: التقليمة الأبيض/الأسود ماشية متصلة بدل ما تبدأ من الأول عند كل نقطة)
     for (let i = 0; i + 3 < r.length; i += 2) {
       const ax = r[i], az = r[i + 1], bx = r[i + 2], bz = r[i + 3];
+      const L = Math.hypot(bx - ax, bz - az);
+      const ua = u0 / 2; u0 += L;
       if (onTileEdge(ax, az, bx, bz, T, TS) || skip?.(ax, az, bx, bz)) continue;
-      const L = Math.hypot(bx - ax, bz - az); if (L < 0.02) continue;
+      if (L < 0.02) continue;
       const nx = (bz - az) / L, nz = -(bx - ax) / L;
       const k = pos.length / 3;
       pos.push(ax, y0, az, bx, y0, bz, bx, y1, bz, ax, y1, az);
       for (let q = 0; q < 4; q++) nor.push(nx, 0, nz);
-      uv.push(0, 0, L, 0, L, 1, 0, 1);
+      uv.push(ua, 0, ua + L / 2, 0, ua + L / 2, 1, ua, 1);
       idx.push(k, k + 1, k + 2, k, k + 2, k + 3);
       if (both) idx.push(k, k + 2, k + 1, k, k + 3, k + 2);
     }
