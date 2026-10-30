@@ -149,6 +149,39 @@ function busGeo(side) {
   geoCache.set(key, g);
   return g;
 }
+/** نقل خفيف "جامبو" (كابينة فوق الموتور زي الكانتر/الإيسوزو المنتشرين): كابينة + صندوق مقفول أو مفتوح بمشمع. القدام = -z */
+function truckGeo(cab, kind) {
+  const key = 'trk' + cab.join(',') + kind;
+  if (geoCache.has(key)) return geoCache.get(key);
+  const RB = (w, h, d, r = 0.08) => new RoundedBoxGeometry(w, h, d, 2, r);
+  const glass = [0.1, 0.12, 0.14], dark = [0.06, 0.06, 0.07], chrome = [0.6, 0.6, 0.62], lamp = [1, 0.96, 0.82], tail = [0.6, 0.05, 0.04];
+  const W = 2.1, P = [
+    part(new THREE.BoxGeometry(0.9, 0.22, 7.2), dark, M(0, 0.62, 0.3)),                 // الشاسيه
+    part(RB(W, 1.55, 1.7, 0.12), cab, M(0, 1.55, -2.85)),                              // الكابينة
+    part(new THREE.BoxGeometry(W - 0.2, 0.7, 0.05), glass, M(0, 1.85, -3.71)),          // الزجاج القدام
+    part(new THREE.BoxGeometry(0.05, 0.5, 0.8), glass, M(-W / 2 - 0.01, 1.85, -3.05)), part(new THREE.BoxGeometry(0.05, 0.5, 0.8), glass, M(W / 2 + 0.01, 1.85, -3.05)),
+    part(new THREE.BoxGeometry(W - 0.5, 0.3, 0.04), dark, M(0, 1.05, -3.72)),           // الشبكة
+    part(new THREE.BoxGeometry(0.3, 0.15, 0.04), lamp, M(-0.75, 1.0, -3.72)), part(new THREE.BoxGeometry(0.3, 0.15, 0.04), lamp, M(0.75, 1.0, -3.72)),
+    part(new THREE.BoxGeometry(W + 0.05, 0.2, 0.12), chrome, M(0, 0.68, -3.72)),
+    part(new THREE.BoxGeometry(0.08, 0.35, 0.12), dark, M(-W / 2 - 0.2, 2.0, -3.5)), part(new THREE.BoxGeometry(0.08, 0.35, 0.12), dark, M(W / 2 + 0.2, 2.0, -3.5)),
+    part(new THREE.BoxGeometry(0.15, 0.2, 0.04), tail, M(-0.95, 0.85, 3.86)), part(new THREE.BoxGeometry(0.15, 0.2, 0.04), tail, M(0.95, 0.85, 3.86)),
+    wheel(-0.85, 0.45, -2.6, 0.45, 0.28), wheel(0.85, 0.45, -2.6, 0.45, 0.28), wheel(-0.85, 0.45, 2.3, 0.45, 0.32), wheel(0.85, 0.45, 2.3, 0.45, 0.32),
+  ];
+  if (kind === 0) { // صندوق مقفول (ألومنيوم/أبيض)
+    P.push(part(RB(W + 0.1, 2.2, 5.6, 0.05), [0.85, 0.86, 0.87], M(0, 2.0, 1.05)));
+  } else { // صندوق مفتوح جنابه حديد + مشمع فوق الحمولة
+    const side = kind === 1 ? [0.2, 0.35, 0.6] : [0.55, 0.12, 0.1], tarp = kind === 1 ? [0.18, 0.4, 0.22] : [0.7, 0.55, 0.25];
+    P.push(part(new THREE.BoxGeometry(W + 0.05, 0.08, 5.6), dark, M(0, 0.98, 1.05)));
+    for (const s of [-1, 1]) P.push(part(new THREE.BoxGeometry(0.06, 0.75, 5.6), side, M(s * (W / 2), 1.38, 1.05)));
+    P.push(part(new THREE.BoxGeometry(W, 0.75, 0.06), side, M(0, 1.38, 3.83)), part(new THREE.BoxGeometry(W, 0.75, 0.06), side, M(0, 1.38, -1.73)));
+    P.push(part(RB(W - 0.1, 0.9, 5.4, 0.25), tarp, M(0, 1.9, 1.05)));
+  }
+  const g = mergeGeometries(P);
+  geoCache.set(key, g);
+  return g;
+}
+const TRUCK_CABS = [[0.92, 0.92, 0.9], [0.92, 0.92, 0.9], [0.15, 0.3, 0.6], [0.7, 0.1, 0.08]];
+
 const BUS_SIDES = [[0.72, 0.06, 0.07], [0.09, 0.1, 0.14], [0.93, 0.8, 0.06], [0.75, 0.76, 0.78]];
 
 const PICKUP_COLORS = [[0.92, 0.92, 0.9], [0.92, 0.92, 0.9], [0.13, 0.27, 0.55], [0.6, 0.62, 0.64], [0.55, 0.08, 0.07], [0.12, 0.3, 0.2]];
@@ -163,6 +196,13 @@ export function buildSmallTraffic(type, R = Math.random) {
     mesh.castShadow = true; bodyG.add(mesh);
     root.add(contactShadow(2.7, 12.2));
     return { root, body: bodyG, wheels: [], length: 12, width: 2.55, brake: null, wheelRadius: 0.5, driverSeat: [-0.8, 1.05, -5.0] };
+  }
+  if (type === 'truck') {
+    const root = new THREE.Group(), bodyG = new THREE.Group(); root.add(bodyG);
+    const mesh = new THREE.Mesh(truckGeo(TRUCK_CABS[Math.floor(R() * TRUCK_CABS.length)], Math.floor(R() * 3)), material());
+    mesh.castShadow = true; bodyG.add(mesh);
+    root.add(contactShadow(2.3, 7.9));
+    return { root, body: bodyG, wheels: [], length: 7.7, width: 2.25, brake: null, wheelRadius: 0.45, driverSeat: [-0.5, 1.3, -3.0] };
   }
   if (type === 'pickup') {
     const root = new THREE.Group(), bodyG = new THREE.Group(); root.add(bodyG);

@@ -20,7 +20,7 @@ import { canvas, tex } from '../../render/textures.js';
 
 // (العربيات الإجرائية المربعة والموتوسيكل اتشالوا: كانوا شكلهم غريب — موديلات حقيقية بس)
 const TYPES = ['microbus', 'sedan', 'taxi', 'microbus', 'tuktuk', 'microbus', 'sedan', 'pickup', 'microbus', 'taxi', 'microbus', 'sedan', 'tuktuk', 'pickup']; // (ميكروباصات أكتر: ~40% زي شوارع المدن عندنا)
-const SMALL = { tuktuk: { vMul: 0.62, mass: 420 }, moto: { vMul: 0.9, mass: 220 }, pickup: { vMul: 0.9, mass: 1700 }, bus: { vMul: 0.75, mass: 11000 } }; // (ربع نقل: أبطأ شوية)
+const SMALL = { tuktuk: { vMul: 0.62, mass: 420 }, moto: { vMul: 0.9, mass: 220 }, pickup: { vMul: 0.9, mass: 1700 }, bus: { vMul: 0.75, mass: 11000 }, truck: { vMul: 0.7, mass: 7000 } }; // (ربع نقل: أبطأ شوية)
 // أتوبيس النقل العام: الخرايط اللي ألوانه فيها متأكدة (القاهرة/الجيزة) — وبيمشي على الشوارع الكبيرة بس
 const BUS_MAPS = new Set(['cairo', 'cairo_east', 'giza']);
 const BUS_CLS = new Set(['motorway', 'trunk', 'primary', 'secondary', 'tertiary']);
@@ -44,7 +44,8 @@ export class ShibinTraffic {
     this.max = count;
     this.lodNear = 38;
     this.active = count;
-    const types = BUS_MAPS.has(world.id) ? [...TYPES, 'bus'] : TYPES;
+    // (نقل خفيف في كل المدن، والأتوبيس في القاهرة/الجيزة)
+    const types = BUS_MAPS.has(world.id) ? [...TYPES, 'bus', 'truck'] : [...TYPES, 'truck'];
     for (let i = 0; i < count; i++) {
       const type = types[i % types.length];
       const rig = makeCar(type, CAR_COLORS[Math.floor(this.R() * CAR_COLORS.length)]);
@@ -414,7 +415,7 @@ export class ShibinTraffic {
     opts.length = 0;
     for (const e of node.edges) {
       if (e === c.e || !this._allowed(e, node)) continue;
-      if (c.type === 'bus' && !BUS_CLS.has(e.cls.replace('_link', ''))) continue;
+      if ((c.type === 'bus' || c.type === 'truck') && !BUS_CLS.has(e.cls.replace('_link', ''))) continue;
       const dir = e.from === node ? 1 : -1;
       this._at(e, dir, Math.min(6, e.length * 0.5), 0, _b);
       const ox = _b.x - node.x, oz = _b.z - node.z, l = Math.hypot(ox, oz) || 1;
@@ -467,7 +468,7 @@ export class ShibinTraffic {
       if (this._first && d < 25) continue;
       const near = edgesNear(this.graph, px + ux * d, pz + uz * d, 30, this._near || (this._near = []));
       const small = c.type === 'tuktuk' || c.type === 'moto';
-      const cand = near.filter((e) => !e.closed && !e.noAccess && e.length > 12 && (CLASS_W[e.cls.replace('_link', '')] || 0) >= 0.4 && !(c.type === 'tuktuk' && ['primary', 'trunk', 'motorway'].includes(e.cls)) && !(c.type === 'bus' && !BUS_CLS.has(e.cls.replace('_link', ''))));
+      const cand = near.filter((e) => !e.closed && !e.noAccess && e.length > 12 && (CLASS_W[e.cls.replace('_link', '')] || 0) >= 0.4 && !(c.type === 'tuktuk' && ['primary', 'trunk', 'motorway'].includes(e.cls)) && !((c.type === 'bus' || c.type === 'truck') && !BUS_CLS.has(e.cls.replace('_link', ''))));
       void small;
       // الزحمة مش في كل حتة بنفس الدرجة: وسط البلد/المواقف أكتر، الأطراف والغيطان أقل
       const cx0 = px + ux * d, cz0 = pz + uz * d, urban = Math.hypot(cx0, cz0) < 1300 ? 1 : Math.hypot(cx0, cz0) < 2200 ? 0.6 : 0.3;
