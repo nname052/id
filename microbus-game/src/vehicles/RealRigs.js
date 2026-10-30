@@ -30,6 +30,9 @@ export const REAL_KINDS = {
   // بوكس الشرطة (نفس البيك أب): صاج أسود، أبواب بيضا، كشاف أزرق — زي PoliceBox بتاع الكماين (من صور Commons، من غير شعارات)
   police: { r: 0.36, model: 'pickup_90s', paint: 0x14161a, base: PICKUP_SPEC_BASE, cgFrac: 0.45, eyeBack: 0.22, eyeAbove: 0.26, headroom: 0.15, floorBelow: 0.84,
     wheelR: 0.19, wheelTilt: -1.05, reach: 0.42, drop: 0.27, dashDist: 0.58, style: 'car', mode: 'police', label: 'بوكس شرطة', mirrorIn: true, police: true },
+  // الإسعاف: هاي إس (نفس موديل الميكروباص) برتقالي زي عربيات هيئة الإسعاف المصرية + كشاف أزرق و"إسعاف" على الجنبين
+  ambulance: { r: 0.33, model: 'microbus_traffic', paint: 0xe8681c, paintBiggest: true, base: { ...PICKUP_SPEC_BASE, mass: 2300 }, cgFrac: 0.5, eyeBack: 0.35, eyeAbove: 0.22, headroom: 0.18, floorBelow: 0.9,
+    wheelR: 0.2, wheelTilt: -0.8, reach: 0.42, drop: 0.3, dashDist: 0.55, style: 'truck', mode: 'ambulance', label: 'إسعاف', mirrorIn: false, ambulance: true },
   truck: { r: 0.36, model: 'truck_canter', paint: undefined, base: TRUCK_SPEC_BASE, cgFrac: 0.38, eyeBack: 0.62, eyeAbove: 0.25, headroom: 0.2, floorBelow: 0.9,
     wheelR: 0.22, wheelTilt: -0.6, reach: 0.4, drop: 0.36, dashDist: 0.62, style: 'truck', mode: 'free', label: 'نقل', mirrorIn: false },
   bus: { r: 0.5, model: 'bus_karosa', paint: undefined, base: BUS_SPEC_BASE, cgFrac: 0.62, eyeBack: 0.72, eyeAbove: 0.28, headroom: 0.25, floorBelow: 0.93,
@@ -120,7 +123,7 @@ export const CAR_MODELS = {
 export function buildRealRig(kind, assets, opts = {}) {
   let C = REAL_KINDS[kind];
   if (C && kind === 'car' && CAR_MODELS[opts.model]) C = { ...C, model: opts.model, r: CAR_MODELS[opts.model].r, glassEst: !!CAR_MODELS[opts.model].glassEst };
-  if (C && opts.paint !== undefined && !C.police) C = { ...C, paint: opts.paint }; // (لون الجراج — مش للشرطة)
+  if (C && opts.paint !== undefined && !C.police && !C.ambulance) C = { ...C, paint: opts.paint }; // (لون الجراج — مش للشرطة)
   const asset = C && assets?.get(C.model);
   if (!asset) return null;
   // ===== كل مثلثات الموديل (بإحداثياته بعد التحجيم)، متجمعة بالخامة =====
@@ -179,7 +182,7 @@ export function buildRealRig(kind, assets, opts = {}) {
     rig.shell.add(m); bodyMeshes.push(m);
   }
   // موديل خامته كلها صورة واحدة (مفيش خامة صاج منفصلة): لون الجراج بيتضرب في الصورة على أكبر خامة
-  if (!rig.mats.paint && C.paint !== undefined && kind === 'car') {
+  if (!rig.mats.paint && C.paint !== undefined && (kind === 'car' || C.paintBiggest)) {
     const big = bodyMeshes.filter((m) => m.userData.role !== 'glass').sort((a, b) => b.geometry.attributes.position.count - a.geometry.attributes.position.count)[0];
     if (big) { big.material.color = new THREE.Color(C.paint).lerp(new THREE.Color(0xffffff), 0.25); rig.mats.paint = big.material; }
   }
@@ -377,6 +380,7 @@ export function buildRealRig(kind, assets, opts = {}) {
   rig.dims = { HW, frontF: -frontZ, rearF: -rearZ, roofY: bb.max.y };
   rig.kind = kind; rig.real = C.model;
   if (C.police) policeKit(rig, bodyMeshes, bb, HW);
+  if (C.ambulance) ambulanceKit(rig, bb, HW);
   return { rig, spec };
 }
 
@@ -403,5 +407,35 @@ function policeKit(rig, bodyMeshes, bb, HW) {
   const a = new THREE.MeshStandardMaterial({ color: 0x001060, emissive: 0x1a4dff, emissiveIntensity: 0.2, roughness: 0.3 });
   const b = new THREE.MeshStandardMaterial({ color: 0x001060, emissive: 0x1a4dff, emissiveIntensity: 0.2, roughness: 0.3 });
   for (const [m, x] of [[a, -0.25], [b, 0.25]]) { const l = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.1, 0.22), m); l.position.set(x, 0.07, 0); bar.add(l); }
+  rig.policeBar = { a, b, t: 0, on: false };
+}
+
+/** الإسعاف: كشاف أزرق فوق السقف (rig.policeBar — نفس الوميض) + "إسعاف" على الجنبين و AMBULANCE مقلوبة قدام */
+function ambulanceKit(rig, bb, HW) {
+  const H = bb.max.y, L = bb.max.z - bb.min.z;
+  const sign = (text, color, mirror) => {
+    const c = document.createElement('canvas'); c.width = 512; c.height = 128;
+    const x = c.getContext('2d');
+    if (mirror) { x.translate(512, 0); x.scale(-1, 1); }
+    x.fillStyle = color; x.font = 'bold 84px Cairo, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.direction = /[A-Z]/.test(text) ? 'ltr' : 'rtl';
+    x.fillText(text, 256, 68);
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+    return new THREE.MeshBasicMaterial({ map: t, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
+  };
+  const word = sign('إسعاف', '#1d3fc4');
+  for (const sx of [-1, 1]) {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 0.38), word);
+    m.position.set(sx * (HW + 0.012), H * 0.5, bb.min.z + L * 0.55); m.rotation.y = sx * Math.PI / 2; rig.shell.add(m);
+  }
+  // حزام أخضر بترولي تحت حوالين العربية (زي الصور)
+  const band = new THREE.MeshStandardMaterial({ color: 0x03231a, roughness: 0.5, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  for (const sx of [-1, 1]) { const b = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.16, L * 0.86), band); b.position.set(sx * (HW + 0.006), H * 0.33, (bb.min.z + bb.max.z) / 2); rig.shell.add(b); }
+  const front = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.26), sign('AMBULANCE', '#1d3fc4', true));
+  front.position.set(0, H * 0.42, bb.min.z - 0.015); front.rotation.y = Math.PI; rig.shell.add(front);
+  const bar = new THREE.Group(); bar.position.set(0, H + 0.04, bb.min.z + L * 0.25); rig.shell.add(bar);
+  bar.add(new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.05, 0.26), new THREE.MeshStandardMaterial({ color: 0x111214, roughness: 0.5 })));
+  const a = new THREE.MeshStandardMaterial({ color: 0x001060, emissive: 0x1a4dff, emissiveIntensity: 0.2, roughness: 0.3 });
+  const b = new THREE.MeshStandardMaterial({ color: 0x001060, emissive: 0x1a4dff, emissiveIntensity: 0.2, roughness: 0.3 });
+  for (const [m, x] of [[a, -0.27], [b, 0.27]]) { const l = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.12, 0.24), m); l.position.set(x, 0.08, 0); bar.add(l); }
   rig.policeBar = { a, b, t: 0, on: false };
 }

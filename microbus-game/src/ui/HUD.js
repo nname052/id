@@ -61,6 +61,13 @@ export class HUD {
       if (pj?.chase) { a = '🚨 <b>مطاردة</b> <span>عربية خبطت وهربت</span>'; b = `المسافة <b>${pj.dist}م</b> · فاضل ${pj.left}ث${pj.close > 0 ? ` · بتقف ${Math.round(pj.close * 100)}%` : ''}`; }
       else { a = '🚓 <b>دورية</b> <span>بوكس شرطة</span>'; b = 'استنى البلاغ الجاي — لف في المنطقة'; }
     }
+    else if (j.mode === 'free' && j.kind === 'ambulance') {
+      const aj = this.ambJob || {};
+      if (aj.state === 'toCase') { a = '🚑 <b>حالة طوارئ</b> <span>روح للمصاب</span>'; b = `${d || aj.dist + 'م'} · فاضل ${aj.left}ث`; }
+      else if (aj.state === 'load') { a = '🩺 <b>بيشيلوا المصاب</b>'; b = `استنى واقف · ${Math.round((aj.load || 0) * 100)}%`; }
+      else if (aj.state === 'toHosp') { a = `🏥 <b>${esc(aj.hosp || 'المستشفى')}</b>`; b = `${d || aj.dist + 'م'} · فاضل ${aj.left}ث`; }
+      else { a = '🚑 <b>إسعاف</b> <span>جاهز</span>'; b = 'استنى البلاغ الجاي'; }
+    }
     else if (j.mode === 'free') {
       a = `${{ car: '🚗', pickup: '🛻', truck: '🚚' }[j.kind] || '🚗'} <b>سواقة حرة</b> <span>${{ car: 'ملاكي', pickup: 'ربع نقل', truck: 'نقل' }[j.kind] || ''}</span>`;
       b = d ? `المكان اللي اخترته · ${d}` : 'لف في المدينة براحتك';

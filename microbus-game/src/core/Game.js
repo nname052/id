@@ -42,6 +42,7 @@ import { buildSmallTraffic } from '../vehicles/SmallTraffic.js';
 import { Radio } from '../audio/Radio.js';
 import { ShibinTraffic } from '../world/shibin/ShibinTraffic.js';
 import { PoliceMission } from '../gameplay/PoliceMission.js';
+import { AmbulanceMission } from '../gameplay/AmbulanceMission.js';
 import { Cinematic } from '../camera/Cinematic.js';
 import { ShibinCrowd } from '../world/shibin/ShibinCrowd.js';
 import { attachJobs } from '../world/shibin/ShibinJobs.js';
@@ -225,6 +226,7 @@ export class Game {
     // مهمات الشرطة (لما تسوق البوكس) + المشهد القصير اللي قبلها
     this.cine = new Cinematic();
     if (this.traffic) this.policeMission = new PoliceMission({ traffic: this.traffic, audio: this.audio, hud: this.hud, wallet: this.wallet, cine: this.cine });
+    if (this.world && this.crowd) this.ambulanceMission = new AmbulanceMission({ world: this.world, crowd: this.crowd, audio: this.audio, hud: this.hud, wallet: this.wallet, cine: this.cine });
         this.docs = new Docs(this, this.touch ? this.touch.root.querySelector('.t-top') : null);
     this.mp = new Multiplayer(this);
     if (this.traffic) this.traffic.remotePlayers = () => this.mp.positions();
@@ -985,6 +987,7 @@ export class Game {
       // (الدورية بتاعة المرور بتقف وإنت سايق البوكس — الحوادث بقت مهماتك إنت)
       if (this.player.kind !== 'police') this.patrol?.update(dt, ph);
       this.policeMission?.update(dt, ph, this.player);
+      this.ambulanceMission?.update(dt, ph, this.player);
       this.works?.userData.update(dt, ph.x, ph.z);
       this._stationUpdate(dt, ph);
       this.docs.update(dt);
@@ -996,8 +999,9 @@ export class Game {
       if (this._navT <= 0) {
         this._navT = 0.25;
         const pol = this.police.navTarget() || this.incidents.navTarget?.();
-        const pm = this.policeMission?.navTarget();
-        if (this.player.kind === 'police') { this.hud.policeJob = this.policeMission?.jobInfo(); }
+        const pm = this.policeMission?.navTarget() || this.ambulanceMission?.navTarget();
+        if (this.player.kind === 'police') this.hud.policeJob = this.policeMission?.jobInfo();
+        if (this.player.kind === 'ambulance') this.hud.ambJob = this.ambulanceMission?.jobInfo();
         const lowFuel = this.fuel.frac < 0.15 && !this.passengers.trip && !this.passengers.onboard.length;
         this.hud.navOverride = pol ? 'police' : lowFuel ? 'fuel' : null;
         // "اذهب إلى هنا" من الخريطة: بيخلص لما توصل (أو لو ركب زبون/الكمين)

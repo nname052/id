@@ -12,7 +12,7 @@ import { fmtDist } from '../nav/Navigator.js';
 //  - الميكروباص (line): خط ثابت من الموقف الكبير بمحطات لحد آخر الخط، والرجوع بالعكس. الناس بتركب في الموقف والمحطات بس.
 //  - التاكسي/التوكتوك (trip): زبون (أو مجموعة) بيشاور من الرصيف، رايح وجهة واضحة، والأجرة بالمسافة ويدفع وتديله الباقي.
 // الفلوس بتروح المحفظة (Wallet).
-const MODE = { microbus: 'line', taxi: 'trip', tuktuk: 'trip', bus: 'line', car: 'free', pickup: 'free', truck: 'free', police: 'free' }; // (free: سواقة حرة من غير ركاب)
+const MODE = { microbus: 'line', taxi: 'trip', tuktuk: 'trip', bus: 'line', car: 'free', pickup: 'free', truck: 'free', police: 'free', ambulance: 'free' }; // (free: سواقة حرة من غير ركاب)
 // الأماكن اللي ينفع التوكتوك يشتغل فيها (شوارع جوه البلد والقرى، مش الطرق السريعة)
 const TUK_KINDS = new Set(['city', 'residential', 'village', 'agri', 'shibin', 'side']);
 

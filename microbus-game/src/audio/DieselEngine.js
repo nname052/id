@@ -60,6 +60,7 @@ function renderLoop(ctx, rpm, load, seed, P) {
 // أنواع الموتور: ديزل الهاي إس، بنزين التاكسي (من غير طقطقة)، والتوكتوك (سلندر واحد بيزن)
 export const ENGINE_TYPES = {
   microbus: { cyl: 4, rpms: [780, 1400, 2200, 3200, 4200], thump: 52, thumpRpm: 0.018, knock: 1.35, tone: 1, turbo: 1, rattle: 1, rough: 1 },
+  ambulance: { cyl: 4, rpms: [780, 1400, 2200, 3200, 4200], thump: 52, thumpRpm: 0.018, knock: 1.35, tone: 1, turbo: 1, rattle: 1, rough: 1 },
   taxi: { cyl: 4, rpms: [800, 1800, 3000, 4500, 6200], thump: 70, thumpRpm: 0.022, knock: 0.12, tone: 1.5, turbo: 0 },
   car: { cyl: 4, rpms: [800, 1800, 3000, 4500, 6200], thump: 66, thumpRpm: 0.022, knock: 0.1, tone: 1.4, turbo: 0 },
   pickup: { cyl: 4, rpms: [750, 1400, 2200, 3200, 4300], thump: 55, thumpRpm: 0.019, knock: 1.1, tone: 1.05, turbo: 0, rattle: 0.6, rough: 0.8 },
