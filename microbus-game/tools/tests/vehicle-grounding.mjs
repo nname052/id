@@ -5,7 +5,7 @@
 // =====================================================================
 const { chromium } = await import('/opt/node22/lib/node_modules/playwright/index.mjs');
 const BASE = process.argv[2] || 'http://localhost:5173/';
-const MAPS = process.argv.slice(3).length ? process.argv.slice(3) : ['shibin', 'alex_east', 'cairo'];
+const MAPS = process.argv.slice(3).length ? process.argv.slice(3) : ['shibin', 'alexandria', 'cairo'];
 let allBad = 0;
 for (const map of MAPS) {
 const b = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });

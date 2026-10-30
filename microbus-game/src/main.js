@@ -22,9 +22,9 @@ const start = document.getElementById('start');
   document.getElementById('subtitle').textContent = `${cur.name} · محافظة ${cur.gov} · على خريطة حقيقية (OpenStreetMap)`;
   document.title = `${cur.name} · ميكروباص مصر`;
   const sel = document.getElementById('mapsel');
-  sel.innerHTML = MAPS.map((m) => `<option value="${m.id}"${m.id === cur.id ? ' selected' : ''}>${m.name} — ${m.gov}</option>`).join('');
+  sel.innerHTML = MAPS.filter((m) => !m.hidden || m.id === cur.id).map((m) => `<option value="${m.id}"${m.id === cur.id ? ' selected' : ''}>${m.name} — ${m.gov}</option>`).join('');
   sel.addEventListener('change', () => switchMap(sel.value));
-  drawEgypt(document.getElementById('egmap'), MAPS, cur.id, (id) => { if (id !== cur.id) switchMap(id); });
+  drawEgypt(document.getElementById('egmap'), MAPS.filter((m) => !m.hidden), cur.id, (id) => { if (id !== cur.id) switchMap(id); });
 }
 
 const game = new Game(document.getElementById('app'), (text, p) => {

@@ -259,16 +259,13 @@ export function buildMonuments(W, group) {
     // ===== مكتبة الإسكندرية =====
     if (/^مكتبة الإسكندرية$/.test(name)) {
       let r = l.footprint ? 0 : 80; for (const [x, z] of l.footprint || []) r = Math.max(r, Math.hypot(x - l.x, z - l.z));
-      r = Math.min(r, 85);
-      const disc = new THREE.CylinderGeometry(r, r, 2, 48).rotateX(THREE.MathUtils.degToRad(16)).translate(0, 16, 0); // القرص المايل للشمال
-      const drum = new THREE.CylinderGeometry(r * 0.98, r * 0.98, 16, 48, 1, true).translate(0, 8, 0);
-      const rm = new THREE.MeshStandardMaterial({ color: 0x9fb0b8, roughness: 0.35, metalness: 0.4 }); // سقف ألواح زجاج/ألومنيوم
-      const wm = new THREE.MeshStandardMaterial({ color: 0xbfb3a0, roughness: 0.9, side: THREE.DoubleSide }); // حيطة جرانيت عليها حروف
-      const a = new THREE.Mesh(disc, rm), d = new THREE.Mesh(drum, wm);
-      for (const m of [a, d]) { m.position.set(l.x, 0, l.z); add(m, 'bibliotheca'); }
-      W._addCollider({ cx: l.x, cz: l.z, hx: r * 0.7, hz: r * 0.7, angle: 0, restitution: 0.1, kind: 'building' }, null);
-      zone(l.x, l.z, r, r, 0, l.footprint || [[-r, -r], [r, -r], [r, r], [-r, r], [-r, -r]].map(([x, z]) => [l.x + x, l.z + z]));
-      out.push({ name, kind: 'library' });
+      r = Math.min(Math.max(r, 60), 80);
+      bibliotheca(W, group, l.x, l.z, r, add);
+      W._addCollider({ cx: l.x, cz: l.z, hx: r * 0.72, hz: r * 0.72, angle: 0, restitution: 0.1, kind: 'building' }, null);
+      // الساحة والحوض حوالين المبنى فاضيين (زي الحقيقة): مفيش عمارات (حقيقية أو مولّدة) جوه دايرة r+40
+      const R2 = r + 40, ring = Array.from({ length: 33 }, (_, i) => [l.x + Math.cos((i / 32) * Math.PI * 2) * R2, l.z + Math.sin((i / 32) * Math.PI * 2) * R2]);
+      zone(l.x, l.z, R2, R2, 0, ring);
+      out.push({ name, kind: 'library', model: 'detailed' });
     }
   }
   // جامع محمد علي (القلعة): الموديل الحقيقي لو موجود مكان المسجد العام اللي بالكود
@@ -282,6 +279,80 @@ export function buildMonuments(W, group) {
   }
   try { const s = stanleyBridge(W, group); if (s) out.push(s); } catch (e) { console.warn('[stanley]', e); }
   return out;
+}
+
+// =====================================================================
+//  مكتبة الإسكندرية (سنوهيتا 2002) — الشكل المعروف للمبنى:
+//  - أسطوانة قطرها ~160م سقفها قرص مايل ناحية البحر (الشمال): ~32م فوق الأرض من ناحية الجنوب، ونازل تحت الأرض من ناحية البحر
+//  - السقف ألواح زجاج وألومنيوم في شبكة مايلة ("جفون" بتدخّل نور الشمال)
+//  - الحيطة المدورة من الجنوب جرانيت أسوان رمادي محفور عليه حروف من كتابات العالم
+//  - حوض مية حوالين ناحية البحر، و"القبة السماوية" (كورة غامقة) في الساحة اللي قدامها
+// =====================================================================
+function bibTextures() {
+  // السقف: ألواح زجاج أزرق رمادي + إطارات ألومنيوم في شبكة مايلة + "جفون" أغمق
+  const c = canvas(512, 512), x = c.getContext('2d');
+  x.fillStyle = '#9ea5a9'; x.fillRect(0, 0, 512, 512);
+  let s = 11; const R = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
+  for (let i = 0; i < 16; i++) for (let j = 0; j < 16; j++) {
+    const v = 0.85 + R() * 0.3; x.fillStyle = `rgb(${Math.round(138 * v)},${Math.round(150 * v)},${Math.round(158 * v)})`; x.fillRect(i * 32 + 2, j * 32 + 2, 28, 28);
+    if (R() < 0.35) { x.fillStyle = '#3d4a52'; x.beginPath(); x.ellipse(i * 32 + 16, j * 32 + 18, 11, 5, 0, 0, Math.PI * 2); x.fill(); }
+  }
+  x.strokeStyle = '#e4e8ea'; x.lineWidth = 4;
+  for (let k = 0; k <= 16; k++) { x.beginPath(); x.moveTo(k * 32, 0); x.lineTo(k * 32, 512); x.stroke(); x.beginPath(); x.moveTo(0, k * 32); x.lineTo(512, k * 32); x.stroke(); }
+  const roof = tex(c); roof.repeat.set(10, 10); roof.rotation = Math.PI / 4;
+  // الحيطة: جرانيت رمادي + حروف محفورة من كتابات مختلفة
+  const w = canvas(1024, 256), y = w.getContext('2d');
+  y.fillStyle = '#8a8884'; y.fillRect(0, 0, 1024, 256);
+  for (let i = 0; i < 6000; i++) { const v = 110 + R() * 60; y.fillStyle = `rgba(${v},${v},${v - 4},0.35)`; y.fillRect(R() * 1024, R() * 256, 2, 2); }
+  y.strokeStyle = 'rgba(60,60,58,0.35)'; y.lineWidth = 2;
+  for (let k = 0; k < 1024; k += 128) { y.beginPath(); y.moveTo(k, 0); y.lineTo(k, 256); y.stroke(); }
+  for (let k = 0; k < 256; k += 64) { y.beginPath(); y.moveTo(0, k); y.lineTo(1024, k); y.stroke(); }
+  const glyphs = ['ع', 'ب', 'ك', 'A', 'Ω', 'Σ', '字', '文', 'ж', 'א', 'ॐ', 'ㄱ', 'ي', 'R', 'ψ', 'ת', 'क', '書', 'ه', 'Φ'];
+  y.textAlign = 'center'; y.textBaseline = 'middle';
+  for (let i = 0; i < 70; i++) {
+    const g = glyphs[Math.floor(R() * glyphs.length)], sz = 22 + R() * 48;
+    y.font = `${Math.round(sz)}px serif`; y.fillStyle = 'rgba(205,203,196,0.75)'; y.fillText(g, R() * 1024, 20 + R() * 216);
+    y.fillStyle = 'rgba(55,55,52,0.5)'; y.fillText(g, R() * 1024 + 1.5, 20 + R() * 216 + 1.5);
+  }
+  const wall = tex(w); wall.repeat.set(6, 1);
+  return { roof, wall };
+}
+
+function bibliotheca(W, group, cx, cz, r, add) {
+  const T = bibTextures();
+  const sea = { x: 0, z: -1 }; // البحر شمال المكتبة (الخريطة المضغوطة مابتلفّش الاتجاهات)
+  const slope = Math.tan(THREE.MathUtils.degToRad(15.5)), hc = 10.5; // ارتفاع السقف في النص؛ +32م جنوب، تحت الأرض شمال
+  const hAt = (x, z) => hc - ((x * sea.x + z * sea.z)) * slope; // x,z نسبة للمركز
+  // 1) الحيطة: شريط حوالين الدايرة، ارتفاعه لحد السقف المايل (أقل حاجة 0.6م عند البحر = حرف الحوض)
+  const N = 96, wp = [], wu = [], wi = [];
+  for (let i = 0; i <= N; i++) {
+    const a = (i / N) * Math.PI * 2, x = Math.cos(a) * r, z = Math.sin(a) * r, h = Math.max(0.6, hAt(x, z));
+    wp.push(x, -0.5, z, x, h, z); wu.push((i / N) * 6, 0, (i / N) * 6, Math.min(1, h / 32));
+    if (i < N) { const k = i * 2; wi.push(k, k + 1, k + 2, k + 1, k + 3, k + 2); }
+  }
+  const wg = new THREE.BufferGeometry(); wg.setAttribute('position', new THREE.Float32BufferAttribute(wp, 3)); wg.setAttribute('uv', new THREE.Float32BufferAttribute(wu, 2)); wg.setIndex(wi); wg.computeVertexNormals();
+  const wall = new THREE.Mesh(wg, new THREE.MeshStandardMaterial({ map: T.wall, roughness: 0.85, side: THREE.DoubleSide }));
+  wall.position.set(cx, 0, cz); add(wall, 'bibliotheca-wall');
+  // 2) السقف: قرص في المستوى المايل (الجزء اللي تحت الأرض بيتقص على مستوى الحوض)
+  const rg = new THREE.CircleGeometry(r, 64).rotateX(-Math.PI / 2);
+  const P = rg.attributes.position;
+  for (let i = 0; i < P.count; i++) P.setY(i, Math.max(0.55, hAt(P.getX(i), P.getZ(i))));
+  rg.computeVertexNormals();
+  const roof = new THREE.Mesh(rg, new THREE.MeshStandardMaterial({ map: T.roof, roughness: 0.35, metalness: 0.35, envMapIntensity: 0.9 }));
+  roof.position.set(cx, 0.02, cz); add(roof, 'bibliotheca-roof');
+  // 3) حوض المية ناحية البحر (نص حلقة حوالين المبنى)
+  const pool = new THREE.RingGeometry(r + 0.5, r + 14, 64, 1, Math.PI * 0.05, Math.PI * 0.9).rotateX(-Math.PI / 2);
+  const pm = new THREE.Mesh(pool, new THREE.MeshStandardMaterial({ color: 0x3f6f86, roughness: 0.08, metalness: 0.2, polygonOffset: true, polygonOffsetFactor: -2 }));
+  pm.position.set(cx, 0.06, cz); pm.rotation.y = Math.PI; add(pm, 'bibliotheca-pool'); pm.castShadow = false;
+  // 4) القبة السماوية: كورة غامقة على قاعدة، في الساحة الجنوبية الغربية
+  const px = cx - r * 0.55, pz = cz + r * 1.05;
+  const sph = new THREE.Mesh(new THREE.SphereGeometry(9, 32, 20), new THREE.MeshStandardMaterial({ color: 0x2b2d31, roughness: 0.4, metalness: 0.5 }));
+  sph.position.set(px, 9.5, pz); add(sph, 'bibliotheca-planetarium');
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(9.6, 0.35, 8, 48).rotateX(Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x9aa0a6, roughness: 0.4, metalness: 0.6 }));
+  ring.position.set(px, 9.5, pz); add(ring, 'bibliotheca-planetarium-ring');
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(5, 6, 1.2, 24), new THREE.MeshStandardMaterial({ color: 0xbdb7ac, roughness: 0.9 }));
+  base.position.set(px, 0.6, pz); add(base, 'bibliotheca-planetarium-base');
+  W._addCollider({ cx: px, cz: pz, hx: 6, hz: 6, angle: 0, restitution: 0.1, kind: 'building' }, null);
 }
 
 // =====================================================================

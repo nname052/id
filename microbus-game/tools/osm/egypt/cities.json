@@ -280,5 +280,21 @@
   "gov": "جنوب سيناء",
   "lat": 28.241667,
   "lon": 33.623611
+ },
+ {
+  "id": "alexandria",
+  "name": "الإسكندرية — الكورنيش من قايتباي للمنتزه",
+  "name_en": "Alexandria — the Corniche, Qaitbay to Montaza",
+  "gov": "الإسكندرية",
+  "lat": 31.22204,
+  "lon": 29.918677,
+  "bbox": [
+   29.87003,
+   31.18982,
+   29.96735,
+   31.25424
+  ],
+  "origin_note": "Compact map (tools/osm/egypt/compact_city.py): real OSM data with the distances between the main districts shortened along the Corniche",
+  "note": "خريطة مضغوطة: الأحياء المهمة بمقاسها تقريبًا والمسافات اللي بينها متقصّرة (16.9 كم كورنيش ← 6.9 كم)"
  }
 ]

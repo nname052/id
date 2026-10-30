@@ -1,0 +1,324 @@
+{
+  "id": "alexandria",
+  "name": "الإسكندرية — الكورنيش من قايتباي للمنتزه",
+  "name_en": "Alexandria — the Corniche, Qaitbay to Montaza",
+  "governorate": "الإسكندرية",
+  "source_pbf": "../data/osm/egypt/cities/alexandria.osm.pbf",
+  "source_note": "OpenStreetMap Egypt extract (download.openstreetmap.fr, 2026-10-29), cut per city with osmium extract",
+  "origin": {
+    "lat": 31.22204,
+    "lon": 29.918677,
+    "note": "Compact map (tools/osm/egypt/compact_city.py): real OSM data with the distances between the main districts shortened along the Corniche"
+  },
+  "bbox": {
+    "west": 29.87003,
+    "south": 31.18982,
+    "east": 29.96735,
+    "north": 31.25424
+  },
+  "tile_size": 400,
+  "stub_outside": 40,
+  "landmarks": [
+    {
+      "id": "university_1",
+      "name": "كلية الزراعة",
+      "kind": "university",
+      "osm": "way/28825824",
+      "lonlat": [
+        29.907383,
+        31.204553
+      ]
+    },
+    {
+      "id": "rail_station_2",
+      "name": "محطة الرمل الميري",
+      "kind": "rail_station",
+      "osm": "node/3874891889",
+      "lonlat": [
+        29.931147,
+        31.221805
+      ]
+    },
+    {
+      "id": "rail_station_3",
+      "name": "سيدي بشر",
+      "kind": "rail_station",
+      "osm": "node/339078708",
+      "lonlat": [
+        29.933766,
+        31.225462
+      ]
+    },
+    {
+      "id": "rail_station_4",
+      "name": "محطة المنتزة",
+      "kind": "rail_station",
+      "osm": "node/1885009800",
+      "lonlat": [
+        29.940846,
+        31.233798
+      ]
+    },
+    {
+      "id": "museum_5",
+      "name": "متحف المجوهرات الملكية",
+      "kind": "museum",
+      "osm": "way/397424296",
+      "lonlat": [
+        29.919042,
+        31.220663
+      ]
+    },
+    {
+      "id": "hospital_6",
+      "name": "مستشفى مصطفى كامل العسكري",
+      "kind": "hospital",
+      "osm": "way/414971251",
+      "lonlat": [
+        29.906581,
+        31.212491
+      ]
+    },
+    {
+      "id": "historic_7",
+      "name": "سور الإسكندرية القديم",
+      "kind": "historic",
+      "osm": "way/602131244",
+      "lonlat": [
+        29.904825,
+        31.204231
+      ]
+    },
+    {
+      "id": "library_8",
+      "name": "مكتبة الإسكندرية",
+      "kind": "library",
+      "osm": "way/28825451",
+      "lonlat": [
+        29.899022,
+        31.209013
+      ]
+    },
+    {
+      "id": "museum_9",
+      "name": "مركز القبة السماوية العلمي",
+      "kind": "museum",
+      "osm": "way/157879323",
+      "lonlat": [
+        29.898471,
+        31.209481
+      ]
+    },
+    {
+      "id": "museum_10",
+      "name": "متحف الإسكندرية القومي",
+      "kind": "museum",
+      "osm": "way/110658128",
+      "lonlat": [
+        29.904259,
+        31.202997
+      ]
+    },
+    {
+      "id": "historic_11",
+      "name": "محطة الرمل",
+      "kind": "historic",
+      "osm": "node/5433927432",
+      "lonlat": [
+        29.894392,
+        31.204752
+      ]
+    },
+    {
+      "id": "historic_12",
+      "name": "تمثال سعد زغلول",
+      "kind": "historic",
+      "osm": "node/5810401995",
+      "lonlat": [
+        29.893171,
+        31.204338
+      ]
+    },
+    {
+      "id": "historic_13",
+      "name": "كوم الدكة",
+      "kind": "historic",
+      "osm": "way/28817193",
+      "lonlat": [
+        29.897196,
+        31.198574
+      ]
+    },
+    {
+      "id": "museum_14",
+      "name": "متحف كڤافيس",
+      "kind": "museum",
+      "osm": "node/9629067137",
+      "lonlat": [
+        29.894782,
+        31.200982
+      ]
+    },
+    {
+      "id": "historic_15",
+      "name": "قلعة قايتباي",
+      "kind": "historic",
+      "osm": "way/28826432",
+      "lonlat": [
+        29.885574,
+        31.213692
+      ]
+    },
+    {
+      "id": "university_16",
+      "name": "مبنى العمارة والنحت",
+      "kind": "university",
+      "osm": "way/958204522",
+      "lonlat": [
+        29.917917,
+        31.220892
+      ]
+    },
+    {
+      "id": "university_17",
+      "name": "كليه الفنون الجميلة",
+      "kind": "university",
+      "osm": "way/958204521",
+      "lonlat": [
+        29.917579,
+        31.220805
+      ]
+    },
+    {
+      "id": "bus_station_18",
+      "name": "فاكتوريا محطه مصر",
+      "kind": "bus_station",
+      "osm": "node/9187838737",
+      "lonlat": [
+        29.930261,
+        31.224897
+      ]
+    },
+    {
+      "id": "bus_station_19",
+      "name": "فاكتوريا - منشيه",
+      "kind": "bus_station",
+      "osm": "node/9187838738",
+      "lonlat": [
+        29.930266,
+        31.224912
+      ]
+    },
+    {
+      "id": "bus_station_20",
+      "name": "فاكتوريا - مندره",
+      "kind": "bus_station",
+      "osm": "node/9187838741",
+      "lonlat": [
+        29.930318,
+        31.22536
+      ]
+    },
+    {
+      "id": "bus_station_21",
+      "name": "فاكتوريا - سيدى بشر",
+      "kind": "bus_station",
+      "osm": "node/9187838742",
+      "lonlat": [
+        29.930644,
+        31.225014
+      ]
+    },
+    {
+      "id": "historic_22",
+      "name": "قصر الصفا",
+      "kind": "historic",
+      "osm": "node/3893920821",
+      "lonlat": [
+        29.919836,
+        31.2233
+      ]
+    },
+    {
+      "id": "hospital_23",
+      "name": "المسشتفى التخصصي لامراض الجهاز الهضمي والكبد",
+      "kind": "hospital",
+      "osm": "node/9006511017",
+      "lonlat": [
+        29.919868,
+        31.219073
+      ]
+    },
+    {
+      "id": "hospital_24",
+      "name": "مستشفى إبراهيم عبيد التخصصي",
+      "kind": "hospital",
+      "osm": "node/3893917394",
+      "lonlat": [
+        29.914658,
+        31.217939
+      ]
+    },
+    {
+      "id": "museum_25",
+      "name": "متحف محمود سعيد",
+      "kind": "museum",
+      "osm": "node/6416332108",
+      "lonlat": [
+        29.924499,
+        31.22362
+      ]
+    },
+    {
+      "id": "historic_26",
+      "name": "شاطئ 26 يوليو",
+      "kind": "historic",
+      "osm": "node/4319886100",
+      "lonlat": [
+        29.922529,
+        31.228043
+      ]
+    },
+    {
+      "id": "historic_27",
+      "name": "محطة بيتي",
+      "kind": "historic",
+      "osm": "node/5010980222",
+      "lonlat": [
+        29.926623,
+        31.229139
+      ]
+    },
+    {
+      "id": "park_28",
+      "name": "حدائق الشلالات",
+      "kind": "park",
+      "osm": "way/25723236",
+      "lonlat": [
+        29.90456,
+        31.204313
+      ]
+    },
+    {
+      "id": "park_29",
+      "name": "ميدان الخرطوم",
+      "kind": "park",
+      "osm": "way/682100805",
+      "lonlat": [
+        29.899382,
+        31.203824
+      ]
+    },
+    {
+      "id": "post_30",
+      "name": "مكتب بريد سان ستيفانو",
+      "kind": "post",
+      "osm": "node/12714960638",
+      "lonlat": [
+        29.924713,
+        31.227456
+      ]
+    }
+  ],
+  "needs_verification": []
+}

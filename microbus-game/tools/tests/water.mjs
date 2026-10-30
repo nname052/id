@@ -18,7 +18,19 @@ const run = async (map) => {
     for (const T of W.tiles.values()) T.group.traverse((o) => { if (o.name === 'water-shore') { n++; if (!S || o.geometry.attributes.position.count > S.geometry.attributes.position.count) S = o; } });
     const out = { style: W.waterStyle, shoreMeshes: n };
     if (!S) return out;
-    const a = S.geometry.attributes.position, k = Math.floor(a.count / 4) * 2, X = (a.getX(k) + a.getX(k + 1)) / 2, Z = (a.getZ(k) + a.getZ(k + 1)) / 2;
+    // نقطة على شريط الشط باينة من فوق (مش متغطية بمعلم/كوبري) — أول حاجة الشعاع اللي نازل من فوق بيخبطها هي الشريط نفسه
+    const THREE = window.__THREE, rc = new THREE.Raycaster(); let X = 0, Z = 0, found = false;
+    const shores = []; for (const T of W.tiles.values()) T.group.traverse((o) => { if (o.name === 'water-shore') shores.push(o); });
+    for (const Sm of shores.sort((p1, p2) => p2.geometry.attributes.position.count - p1.geometry.attributes.position.count)) {
+      const a = Sm.geometry.attributes.position;
+      for (let k = 0; k + 1 < a.count && !found; k += 2) {
+        const x = (a.getX(k) + a.getX(k + 1)) / 2, z = (a.getZ(k) + a.getZ(k + 1)) / 2;
+        rc.set(new THREE.Vector3(x, 40, z), new THREE.Vector3(0, -1, 0));
+        const h = rc.intersectObjects(g.scene.children, true).find((i) => i.object.visible && i.object.material?.colorWrite !== false && !/water-cut|^ground/.test(i.object.name)); // (القص بتاع المية بيكتب عمق بس)
+        if (h && h.object === Sm) { X = x; Z = z; S = Sm; found = true; }
+      }
+      if (found) break;
+    }
     const c = g.camera; g.cams.mode = 99; c.position.set(X, 30, Z + 0.1); c.lookAt(X, -0.5, Z); c.updateProjectionMatrix();
     const shot = () => { g.renderer.render(g.scene, c); const gl = g.renderer.getContext(); const w = 160, px = new Uint8Array(4 * w * w); gl.readPixels(g.renderer.domElement.width / 2 - w / 2, g.renderer.domElement.height / 2 - w / 2, w, w, gl.RGBA, gl.UNSIGNED_BYTE, px); return px; };
     const diff = (A, B) => { let d = 0; for (let i = 0; i < A.length; i += 4) d += Math.abs(A[i] - B[i]) + Math.abs(A[i + 1] - B[i + 1]) + Math.abs(A[i + 2] - B[i + 2]); return +(d / (A.length / 4)).toFixed(2); };
@@ -26,13 +38,14 @@ const run = async (map) => {
     W._waterU.uWT.value += 2.5; const t1 = shot();
     // رغوة: بكسلات بقت أفتح بكتير (والأحمر كمان — يعني أبيض مش لون المية) من غير الشريط
     const white = (A) => { let m = 0; for (let i = 0; i < A.length; i += 4) if (A[i] - noShore[i] > 45 && A[i] > 120) m++; return m; };
+    out.at = { X: Math.round(X), Z: Math.round(Z), found };
     Object.assign(out, { shoreChangesImage: diff(t0, noShore), movesOverTime: diff(t0, t1), foamPx: white(t0) });
     return out;
   });
   await p.close();
   return r;
 };
-const alex = await run('alex');
+const alex = await run('alexandria'); // (الخريطة المضغوطة — الكورنيش من قايتباي للمنتزه)
 const shibin = await run('shibin');
 await browser.close();
 const checks = {
