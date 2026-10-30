@@ -32,18 +32,19 @@
  },
  {
   "id": "giza",
-  "name": "الجيزة",
-  "name_en": "Giza",
+  "name": "الجيزة — من الأهرامات لشارع الهرم والنيل",
+  "name_en": "Giza — Pyramids, Haram Street and the Nile",
   "gov": "الجيزة",
-  "lat": 29.9870753,
-  "lon": 31.2118063,
+  "lat": 29.985254,
+  "lon": 31.137306,
   "bbox": [
-   31.112,
-   29.968,
-   31.222,
-   30.032
+   31.1109,
+   29.96224,
+   31.16372,
+   30.00827
   ],
-  "note": "الأهرامات وأبو الهول + المتحف المصري الكبير + شارع الهرم وفيصل + جامعة القاهرة"
+  "note": "خريطة مضغوطة: الأهرامات وأبو الهول + شارع الهرم (10.5 كم ← 3.8 كم) + ميدان الجيزة وجامعة القاهرة والنيل",
+  "origin_note": "Compact map (tools/osm/egypt/compact_city.py, compact/giza_compact.json): real OSM data with Haram Street shortened between the Pyramids and Giza Square"
  },
  {
   "id": "alex",

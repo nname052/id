@@ -15,7 +15,7 @@ export const MAPS = [
   { id: 'cairo', name: 'القاهرة', gov: 'القاهرة', lat: 30.0444, lon: 31.2357, water: 'nile', taxi: { body: 0xf4f4f0, accent: 0x111111, style: 'checker', verified: true } },
   // القاهرة الجديدة شوية: خريطة لوحدها (القاهرة الكبيرة كلها في خريطة واحدة = ذاكرة كتير على الموبايل)
   { id: 'cairo_east', name: 'مصر الجديدة ومدينة نصر', gov: 'القاهرة', lat: 30.0915, lon: 31.3226, spawn: { lat: 30.0907, lon: 31.3196, note: 'ميدان روكسي' }, taxi: { body: 0xf4f4f0, accent: 0x111111, style: 'checker', verified: true } },
-  { id: 'giza', name: 'الجيزة', gov: 'الجيزة', lat: 29.9871, lon: 31.2118, spawn: { lat: 29.9905, lon: 31.1395, note: 'أول شارع الهرم عند الأهرامات' }, water: 'nile', ground: 'desert', taxi: { body: 0xf4f4f0, accent: 0x111111, style: 'checker', verified: true } },
+  { id: 'giza', name: 'الجيزة — الأهرامات وشارع الهرم', gov: 'الجيزة', lat: 29.985254, lon: 31.137306, compact: true, spawn: { lat: 29.981507, lon: 31.132665, note: 'أول شارع الهرم عند الأهرامات (الخريطة المضغوطة)' }, water: 'nile', ground: 'desert', taxi: { body: 0xf4f4f0, accent: 0x111111, style: 'checker', verified: true } },
   { id: 'alexandria', name: 'الإسكندرية — الكورنيش', gov: 'الإسكندرية', lat: 31.22204, lon: 29.918677, compact: true, spawn: { lat: 31.2048, lon: 29.89425, note: 'محطة الرمل على الكورنيش (الخريطة المضغوطة)' }, water: 'sea', ground: 'desert', taxi: { body: 0x121212, accent: 0xf2b705, style: 'doors', verified: true } },
   // شرق إسكندرية: خريطة لوحدها (إسكندرية كلها في خريطة واحدة كانت أتقل من الجيزة)
   { id: 'banha', name: 'بنها', gov: 'القليوبية', lat: 30.4625, lon: 31.1841, water: 'nile', taxi: { body: 0xf4f4f0, accent: 0x111111, style: 'checker', verified: false } },

@@ -1,52 +1,52 @@
 {
   "id": "giza",
-  "name": "الجيزة",
-  "name_en": "Giza",
+  "name": "الجيزة — من الأهرامات لشارع الهرم والنيل",
+  "name_en": "Giza — Pyramids, Haram Street and the Nile",
   "governorate": "الجيزة",
   "source_pbf": "../data/osm/egypt/cities/giza.osm.pbf",
   "source_note": "OpenStreetMap Egypt extract (download.openstreetmap.fr, 2026-10-29), cut per city with osmium extract",
   "origin": {
-    "lat": 29.9870753,
-    "lon": 31.2118063,
-    "note": "OSM place=city node 'الجيزة' (city centre)"
+    "lat": 29.985254,
+    "lon": 31.137306,
+    "note": "Compact map (tools/osm/egypt/compact_city.py, compact/giza_compact.json): real OSM data with Haram Street shortened between the Pyramids and Giza Square"
   },
   "bbox": {
-    "west": 31.112,
-    "south": 29.968,
-    "east": 31.222,
-    "north": 30.032
+    "west": 31.1109,
+    "south": 29.96224,
+    "east": 31.16372,
+    "north": 30.00827
   },
   "tile_size": 400,
   "stub_outside": 40,
   "landmarks": [
     {
       "id": "pyramid_1",
-      "name": "هرم خنت كاوس 1",
-      "kind": "pyramid",
-      "osm": "way/73174154",
-      "lonlat": [
-        31.135506,
-        29.973431
-      ]
-    },
-    {
-      "id": "pyramid_2",
       "name": "هرم خوفو",
       "kind": "pyramid",
       "osm": "way/4420397",
       "lonlat": [
-        31.134413,
-        29.979509
+        31.134349,
+        29.979256
       ]
     },
     {
-      "id": "pyramid_3",
+      "id": "pyramid_2",
       "name": "هرم خفرع",
       "kind": "pyramid",
       "osm": "way/4420396",
       "lonlat": [
         31.130268,
         29.976098
+      ]
+    },
+    {
+      "id": "pyramid_3",
+      "name": "هرم خنت كاوس 1",
+      "kind": "pyramid",
+      "osm": "way/73174154",
+      "lonlat": [
+        31.135506,
+        29.973431
       ]
     },
     {
@@ -60,13 +60,13 @@
       ]
     },
     {
-      "id": "university_5",
-      "name": "جامعة القاهرة",
-      "kind": "university",
-      "osm": "relation/15072032",
+      "id": "rail_station_5",
+      "name": "محطة قطار الجيزة",
+      "kind": "rail_station",
+      "osm": "way/1466334348",
       "lonlat": [
-        31.197095,
-        30.027092
+        31.147414,
+        29.987472
       ]
     },
     {
@@ -75,92 +75,12 @@
       "kind": "rail_station",
       "osm": "node/5217365043",
       "lonlat": [
-        31.208251,
-        30.005245
+        31.148008,
+        29.983591
       ]
     },
     {
-      "id": "rail_station_7",
-      "name": "محطة قطار الجيزة",
-      "kind": "rail_station",
-      "osm": "way/1466334348",
-      "lonlat": [
-        31.207908,
-        30.009239
-      ]
-    },
-    {
-      "id": "historic_8",
-      "name": "القرية الفرعونية",
-      "kind": "historic",
-      "osm": "relation/20053769",
-      "lonlat": [
-        31.215274,
-        29.997333
-      ]
-    },
-    {
-      "id": "museum_9",
-      "name": "متحف أحمد شوقي",
-      "kind": "museum",
-      "osm": "way/30065918",
-      "lonlat": [
-        31.217559,
-        30.021424
-      ]
-    },
-    {
-      "id": "historic_10",
-      "name": "معبد أبو الهول",
-      "kind": "historic",
-      "osm": "way/1238523833",
-      "lonlat": [
-        31.13837,
-        29.975258
-      ]
-    },
-    {
-      "id": "historic_11",
-      "name": "معبد الوادي لخفرع",
-      "kind": "historic",
-      "osm": "way/1238523832",
-      "lonlat": [
-        31.138358,
-        29.974774
-      ]
-    },
-    {
-      "id": "historic_12",
-      "name": "معبد أمنحتب الثاني",
-      "kind": "historic",
-      "osm": "way/1238523831",
-      "lonlat": [
-        31.13811,
-        29.975575
-      ]
-    },
-    {
-      "id": "historic_13",
-      "name": "لوحة أبي الهول",
-      "kind": "historic",
-      "osm": "node/8285628917",
-      "lonlat": [
-        31.137837,
-        29.975268
-      ]
-    },
-    {
-      "id": "historic_14",
-      "name": "أبو الهول",
-      "kind": "historic",
-      "osm": "way/540058405",
-      "lonlat": [
-        31.137656,
-        29.975282
-      ]
-    },
-    {
-      "id": "historic_15",
+      "id": "historic_7",
       "name": "معبد وادي منقرع",
       "kind": "historic",
       "osm": "way/510732343",
@@ -170,153 +90,233 @@
       ]
     },
     {
-      "id": "historic_16",
+      "id": "historic_8",
+      "name": "المعبد الجنائزي منقرع",
+      "kind": "historic",
+      "osm": "way/251168393",
+      "lonlat": [
+        31.129228,
+        29.972528
+      ]
+    },
+    {
+      "id": "historic_9",
       "name": "أهرامات الجيزة",
       "kind": "historic",
       "osm": "way/73227488",
       "lonlat": [
-        31.129294,
-        29.972587
+        31.129248,
+        29.972425
       ]
     },
     {
-      "id": "museum_17",
-      "name": "المتحف المصري الكبير",
-      "kind": "museum",
-      "osm": "relation/16783121",
-      "lonlat": [
-        31.119116,
-        29.994537
-      ]
-    },
-    {
-      "id": "bus_station_18",
-      "name": "موقف المنيب (العياط)",
+      "id": "bus_station_10",
+      "name": "موقف هرم مشعل",
       "kind": "bus_station",
-      "osm": "node/13326437802",
+      "osm": "way/1552795672",
       "lonlat": [
-        31.209963,
-        29.986559
+        31.136281,
+        29.983498
       ]
     },
     {
-      "id": "bus_station_19",
-      "name": "موقف المنيب (الصعيد)",
+      "id": "bus_station_11",
+      "name": "محطة حافلات الصغيرة للترعة المريوطية",
       "kind": "bus_station",
-      "osm": "node/5070576421",
+      "osm": "node/4472815135",
       "lonlat": [
-        31.213937,
-        29.986404
+        31.137566,
+        29.982782
       ]
     },
     {
-      "id": "bus_station_20",
-      "name": "موقف المنيب (التجمع الخامس)",
+      "id": "bus_station_12",
+      "name": "موقف 28",
       "kind": "bus_station",
-      "osm": "node/14128347162",
+      "osm": "node/14127998448",
       "lonlat": [
-        31.213733,
-        29.985401
+        31.132077,
+        29.988989
       ]
     },
     {
-      "id": "bus_station_21",
-      "name": "موقف المنيب",
-      "kind": "bus_station",
-      "osm": "node/14128640849",
-      "lonlat": [
-        31.212625,
-        29.983803
-      ]
-    },
-    {
-      "id": "government_22",
+      "id": "government_13",
       "name": "محافظه الجيزه(سابقآ)",
       "kind": "government",
       "osm": "node/11005348827",
       "lonlat": [
-        31.198996,
-        30.009152
+        31.142939,
+        29.989439
       ]
     },
     {
-      "id": "stadium_23",
+      "id": "bus_station_14",
+      "name": "موقف 6 اكتوبر و الشيخ زايد",
+      "kind": "bus_station",
+      "osm": "way/1436679987",
+      "lonlat": [
+        31.14799,
+        29.992526
+      ]
+    },
+    {
+      "id": "stadium_15",
       "name": "ستاد كلية الزراعة",
       "kind": "stadium",
       "osm": "way/1222242455",
       "lonlat": [
-        31.210059,
-        30.015675
+        31.148855,
+        29.993621
       ]
     },
     {
-      "id": "stadium_24",
+      "id": "stadium_16",
       "name": "ملاعب السعيدية",
       "kind": "stadium",
       "osm": "way/52255021",
       "lonlat": [
-        31.208887,
-        30.025272
+        31.147381,
+        30.003129
       ]
     },
     {
-      "id": "university_25",
-      "name": "مركز المؤتمرات",
-      "kind": "university",
-      "osm": "way/38286750",
-      "lonlat": [
-        31.206739,
-        30.030136
-      ]
-    },
-    {
-      "id": "university_26",
-      "name": "كلية الحاسبات والذكاء الاصطناعي",
-      "kind": "university",
-      "osm": "way/180149258",
-      "lonlat": [
-        31.210327,
-        30.030854
-      ]
-    },
-    {
-      "id": "metro_27",
-      "name": "ساقية مكي",
-      "kind": "metro",
-      "osm": "node/9160395525",
-      "lonlat": [
-        31.208614,
-        29.995485
-      ]
-    },
-    {
-      "id": "metro_28",
-      "name": "أم المصريين",
-      "kind": "metro",
-      "osm": "node/316631605",
-      "lonlat": [
-        31.207964,
-        30.005208
-      ]
-    },
-    {
-      "id": "metro_29",
+      "id": "metro_17",
       "name": "جيزة",
       "kind": "metro",
       "osm": "node/9162042097",
       "lonlat": [
-        31.207125,
-        30.01057
+        31.146629,
+        29.988802
       ]
     },
     {
-      "id": "hospital_30",
-      "name": "مستشفى المروة التخصصى",
-      "kind": "hospital",
-      "osm": "node/1939482580",
+      "id": "metro_18",
+      "name": "أم المصريين",
+      "kind": "metro",
+      "osm": "node/316631605",
       "lonlat": [
-        31.209209,
-        29.997249
+        31.147757,
+        29.983571
+      ]
+    },
+    {
+      "id": "metro_19",
+      "name": "فيصل",
+      "kind": "metro",
+      "osm": "node/9162042096",
+      "lonlat": [
+        31.143432,
+        29.995479
+      ]
+    },
+    {
+      "id": "hospital_20",
+      "name": "مستشفى الهرم",
+      "kind": "hospital",
+      "osm": "node/4693001189",
+      "lonlat": [
+        31.137122,
+        29.984521
+      ]
+    },
+    {
+      "id": "historic_21",
+      "name": "توتال",
+      "kind": "historic",
+      "osm": "node/5169177523",
+      "lonlat": [
+        31.13849,
+        29.985456
+      ]
+    },
+    {
+      "id": "hospital_22",
+      "name": "مستشفى الرحاب التخصصي",
+      "kind": "hospital",
+      "osm": "node/9762746673",
+      "lonlat": [
+        31.139216,
+        29.983012
+      ]
+    },
+    {
+      "id": "hospital_23",
+      "name": "مستشفى الحبيب التخصصي",
+      "kind": "hospital",
+      "osm": "node/9651950237",
+      "lonlat": [
+        31.136349,
+        29.988347
+      ]
+    },
+    {
+      "id": "historic_24",
+      "name": "استراحة الملك فاروق بالاهرامات",
+      "kind": "historic",
+      "osm": "way/219797715",
+      "lonlat": [
+        31.135868,
+        29.979801
+      ]
+    },
+    {
+      "id": "historic_25",
+      "name": "مراكب الشمس",
+      "kind": "historic",
+      "osm": "way/219797717",
+      "lonlat": [
+        31.135652,
+        29.9785
+      ]
+    },
+    {
+      "id": "historic_26",
+      "name": "مصاطب",
+      "kind": "historic",
+      "osm": "node/4996759321",
+      "lonlat": [
+        31.135182,
+        29.977517
+      ]
+    },
+    {
+      "id": "historic_27",
+      "name": "المقبرة الغربية",
+      "kind": "historic",
+      "osm": "node/4996759343",
+      "lonlat": [
+        31.130941,
+        29.979714
+      ]
+    },
+    {
+      "id": "library_28",
+      "name": "المكتبة المركزية بكلية الزراعة",
+      "kind": "library",
+      "osm": "way/451331691",
+      "lonlat": [
+        31.149829,
+        29.994956
+      ]
+    },
+    {
+      "id": "library_29",
+      "name": "مكتبة كلية الهندسة",
+      "kind": "library",
+      "osm": "way/322873816",
+      "lonlat": [
+        31.149751,
+        30.003092
+      ]
+    },
+    {
+      "id": "university_30",
+      "name": "المعهد العالي للدراسات المتطورة",
+      "kind": "university",
+      "osm": "node/6797240045",
+      "lonlat": [
+        31.138648,
+        29.984918
       ]
     }
   ],
