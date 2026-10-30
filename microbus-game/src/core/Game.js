@@ -446,7 +446,7 @@ export class Game {
       const real = keys.map((k) => this.assets.get(k)).filter(Boolean);
       if (real.length) {
         this._realPk = ((this._realPk || 0) + 1) % real.length;
-        const car = realTrafficCar(real[this._realPk], opts.parked ? undefined : color);
+        const car = realTrafficCar(real[this._realPk], color) // (المركونة كمان بلون — كانت بلون الموديل الأصلي: أبيض غالبًا);
         car.lights = null;
         return car;
       }
@@ -488,7 +488,7 @@ export class Game {
       const real = (this._realCars ||= ['car_lanos', 'car_verna', 'car_sunny', 'car_corolla_old', 'car_corolla', 'car_fiat128', 'car_peugeot504', 'car_corolla_ke80', 'car_corolla_e70', 'car_lada', 'car_logan', 'car_nexia'].map((k) => this.assets.get(k)).filter(Boolean));
       if (real.length) {
         this._realK = ((this._realK || 0) + 1) % real.length;
-        const car = realTrafficCar(real[this._realK], opts.parked ? undefined : color);
+        const car = realTrafficCar(real[this._realK], color);
         car.lights = null;
         return car;
       }

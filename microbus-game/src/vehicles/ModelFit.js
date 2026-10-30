@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { averageColor } from './TrafficLod.js';
 
 // تركيب موديل GLB حقيقي (توكتوك/تاكسي) على "ريج" عربية اللاعب:
 // - بنكبّره/نصغّره عشان المسافة بين العجل تبقى نفس الفيزياء بالظبط، ونحطه بحيث عجله ييجي على عجل الفيزياء
@@ -457,6 +458,28 @@ export function realTrafficCar(asset, color) {
       for (const p of ps) p.g.translate(-c.x, -c.y, -c.z); // حوالين محورها عشان تلف
       return { key, center: c, r: (bb.max.y - bb.min.y) / 2, parts: ps };
     });
+    // موديل ملاكي/ربع نقل من غير خامة صاج متسمية (لادا، كورولا E70، تويوتا، 404): العربية كانت بتفضل بلونها الأصلي (أبيض غالبًا)
+    // مهما اتطلب لونها → أكبر خامة فاتحة (مش زجاج) = الصاج، وبتتلوّن (الصورة بتفضل: التفاصيل الغامقة بتفضل غامقة)
+    if (!parts.some((p) => p.paint) && /^(car|pickup)_/.test(asset.key || '')) {
+      // الصاج = أكبر خامة (مش زجاج، مش غامقة أوي) مغطية أغلب ارتفاع وطول العربية — غالبًا صورة (atlas) فيها كل حاجة
+      // (المقاس من القطع نفسها: بعض الموديلات فيها حاجة زيادة عالية — تويوتا: صندوق الموديل 4.3م والعربية 1.4م)
+      const PB = new THREE.Box3(); for (const p of parts) { if (p.glass) continue; p.g.computeBoundingBox(); PB.union(p.g.boundingBox); }
+      const H = PB.max.y - PB.min.y, L = PB.max.z - PB.min.z;
+      let best = null;
+      for (const p of parts) {
+        if (p.glass) continue;
+        const c = p.mat.color ? p.mat.color.clone() : new THREE.Color(1, 1, 1), a = averageColor(p.mat.map);
+        if (a) c.multiply(a);
+        c.convertLinearToSRGB();
+        const lum = c.r * 0.3 + c.g * 0.59 + c.b * 0.11;
+        p.g.computeBoundingBox(); const bb = p.g.boundingBox;
+        if (lum < 0.3 || bb.max.y - bb.min.y < H * 0.6 || bb.max.z - bb.min.z < L * 0.7) continue;
+        const n = p.g.attributes.position.count;
+        if (!best || n > best.n) best = { p, n, lum };
+      }
+      // (اللون بيتضرب في الصورة: بنعوّض غمقان الصورة عشان اللون يبان زي المطلوب)
+      if (best) { best.p.paint = 'tint'; best.p.tintGain = Math.min(1.8, 0.75 / Math.max(0.3, best.lum)); }
+    }
     asset._real = { parts, wheels: W, size: box.getSize(new THREE.Vector3()), paintMats: new Map() };
   }
   const R = asset._real;
@@ -464,7 +487,7 @@ export function realTrafficCar(asset, color) {
   for (const p of R.parts) {
     let mat = p.mat;
     if (p.paint && color !== undefined) { // خامة لكل لون (مشتركة بين العربيات من نفس اللون)
-      const k = String(color); if (!R.paintMats.has(k)) { const m = p.mat.clone(); m.color = new THREE.Color(color); m.map = null; R.paintMats.set(k, m); }
+      const k = String(color) + p.paint; if (!R.paintMats.has(k)) { const m = p.mat.clone(); m.color = new THREE.Color(color); if (p.paint === 'tint') m.color.multiplyScalar(p.tintGain || 1); else m.map = null; R.paintMats.set(k, m); }
       mat = R.paintMats.get(k);
     }
     const m = new THREE.Mesh(p.g, mat); m.castShadow = true; m.receiveShadow = true;

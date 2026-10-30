@@ -15,7 +15,7 @@ const _inv = new THREE.Matrix4(), _m = new THREE.Matrix4();
 export const lodStats = { shapes: 0, variants: 0, ms: 0 };
 let lodMat = null;
 
-function averageColor(tex) {
+export function averageColor(tex) {
   if (!tex?.image) return null;
   if (texAvg.has(tex)) return texAvg.get(tex);
   let c = null;

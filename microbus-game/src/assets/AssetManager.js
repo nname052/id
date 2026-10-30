@@ -123,7 +123,8 @@ export class AssetManager {
     holder.add(scene);
     scene.scale.multiplyScalar(scale);
     scene.updateMatrixWorld(true);
-    const b2 = new THREE.Box3().setFromObject(scene);
+    // (precise: من الرؤوس نفسها — صندوق تويوتا البيك أب المتخزن في الملف كان 0–4.3م والعربية الحقيقية 1.6–3م → كانت طايرة 1.6م)
+    const b2 = new THREE.Box3().setFromObject(scene, true);
     const c = b2.getCenter(new THREE.Vector3());
     scene.position.x -= c.x; scene.position.z -= c.z; scene.position.y -= b2.min.y;
     if (cfg.offset) { scene.position.x += cfg.offset[0]; scene.position.y += cfg.offset[1]; scene.position.z += cfg.offset[2]; }
