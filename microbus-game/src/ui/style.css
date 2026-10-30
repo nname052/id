@@ -326,3 +326,10 @@ body.touch #racebar { font-size: 12px; padding: 2px 12px; top: calc(76px + env(s
 #cine .cine-skip { position: absolute; top: calc(13vh - 44px); left: 14px; border: 0; border-radius: 10px; padding: 6px 12px; background: rgba(255, 255, 255, 0.18); color: #fff; font: 800 14px 'Cairo', sans-serif; cursor: pointer; }
 /* وقت المشهد: كل واجهة اللعبة مستخبية (اللعبة نفسها في #app) */
 body.cine-on > :not(#cine):not(#app) { visibility: hidden !important; }
+
+/* ===== نجوم "مطلوب" وقت المطاردة ===== */
+#wanted { position: fixed; z-index: 7; top: calc(64px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%); font-size: 26px; letter-spacing: 3px; background: rgba(14, 14, 16, 0.55); border-radius: 10px; padding: 0 10px; pointer-events: none; animation: wantedPulse 0.9s ease-in-out infinite alternate; }
+#wanted.hidden { display: none; }
+#wanted .w-on { color: #ffcc1a; text-shadow: 0 0 8px rgba(255, 60, 40, 0.8); }
+#wanted .w-off { color: rgba(255, 255, 255, 0.25); }
+@keyframes wantedPulse { from { opacity: 0.75; } to { opacity: 1; } }

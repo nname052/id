@@ -156,6 +156,15 @@ export class HUD {
     if (text) { el.textContent = text; el.classList.toggle('unnamed', !name); }
   }
 
+  /** نجوم "مطلوب" (0 = مستخبية) */
+  setWanted(n) {
+    if (n === this._wanted) return;
+    this._wanted = n;
+    if (!this.wantedEl) { this.wantedEl = document.createElement('div'); this.wantedEl.id = 'wanted'; document.body.appendChild(this.wantedEl); }
+    this.wantedEl.classList.toggle('hidden', !n);
+    this.wantedEl.innerHTML = n ? `<span class="w-on">${'★'.repeat(n)}</span><span class="w-off">${'★'.repeat(3 - n)}</span>` : '';
+  }
+
   setMoney(v) {
     const el = (this.moneyEl ||= document.getElementById('hud-money'));
     if (el) { el.textContent = `${Math.round(v)}`; el.parentElement?.classList.toggle('neg', v < 0); }

@@ -15,6 +15,9 @@ const KEY = 'egy-police-block-v1';
 const FINE = { crash: 300, flip: 500, flee: 1500, checkpoint: 1000, ped: 3000, pedMinor: 600 };
 const MAX_V = 30;          // أقصى سرعة لعربية الشرطة (م/ث ≈ 108 كم/س) — ممكن تهرب منها
 const CHASE_TIME = 60;     // المطاردة دقيقة؛ لو فضلت بعيد عنها لحد ما تخلص = هربت
+// مستوى "مطلوب" (نجوم 1–3): كل نجمة = الشرطة أسرع + المطاردة أطول (+20ث) + الغرامة أكبر.
+// بيبدأ على حسب اللي عملته (حادثة 1، هروب من كمين 2) وبيزيد نجمة كل 20ث هروب والشرطة قريبة منك
+const STAR_V = [0, 30, 33, 36], STAR_UP = 20;
 
 export class Incidents {
   constructor(scene, { hud, wallet, licenses, passengers, audio } = {}) {
@@ -47,7 +50,7 @@ export class Incidents {
   trigger(kind, ph, playerKind) {
     if (this.state !== 'idle' || this._cool > 0) return;
     this.kind = kind; this.vkind = playerKind;
-    this.fine = FINE[kind];
+    this.fine = FINE[kind]; this.stars = 1;
     // 1) الركاب
     const n = this.passengers?.panicExit?.(ph) || 0;
     if (n) this.hud?.toast(`😱 الركاب اتخضوا ونزلوا يجروا (${n}) — من غير أجرة`, 3);
@@ -63,7 +66,7 @@ export class Incidents {
     if (this.state !== 'idle') return false;
     const q = projectToGraph(x, z, 40);
     if (!q) return false;
-    this.kind = 'checkpoint'; this.vkind = playerKind; this.fine = FINE.checkpoint;
+    this.kind = 'checkpoint'; this.vkind = playerKind; this.fine = FINE.checkpoint; this.stars = 2;
     const P = this.p;
     P.x = q.x; P.z = q.z; P.v = 3;
     P.yaw = Math.atan2(-(ph.x - q.x), -(ph.z - q.z));
@@ -113,18 +116,21 @@ export class Incidents {
       this.t += dt;
       this._drive(dt, ph, dist);
       if (dist < 60) this.near = (this.near || 0) + dt; // وقت ما الشرطة وراك على طول
+      // نجمة زيادة كل 20ث هروب والشرطة وراك
+      if (dist < 60 && ph.speed > 4) { this._upT = (this._upT || 0) + dt; if (this._upT > STAR_UP && this.stars < 3) { this._upT = 0; this.stars++; this.fine += 400; this.hud?.toast(`⭐ مطلوب أكتر: ${'★'.repeat(this.stars)} — الشرطة بقت أسرع`, 2.6); } }
+      this.hud?.setWanted?.(this.stars);
       // وقفت على جنب والشرطة قريبة → المخالفة
       this._stopT = dist < 25 && ph.speed < 1 ? (this._stopT || 0) + dt : 0;
       if (this._stopT > 1.5) {
         if (this.near > 15) this._caught();       // كنت بتهرب وبعدين وقفت = اتمسكت
         else { this.state = 'ticket'; this.at = { x: ph.x, z: ph.z }; this._ticketCard(); }
-      } else if (this.t >= CHASE_TIME) {
+      } else if (this.t >= CHASE_TIME + ((this.stars || 1) - 1) * 20) {
         this.hud?.toast('😎 هربت من الشرطة!', 3);
         this._finish();
         return;
       }
       this._noteT = (this._noteT || 0) - dt;
-      if (this._noteT <= 0 && this.state === 'chase') { this._noteT = 15; this.hud?.toast(`🚨 الشرطة وراك — ${Math.ceil(CHASE_TIME - this.t)} ثانية`, 2.2, true); }
+      if (this._noteT <= 0 && this.state === 'chase') { this._noteT = 15; this.hud?.toast(`🚨 الشرطة وراك — ${Math.ceil(CHASE_TIME + ((this.stars || 1) - 1) * 20 - this.t)} ثانية`, 2.2, true); }
     } else if (this.state === 'ticket') {
       P.v = Math.max(0, P.v - dt * 8); this._move(dt);
       // اتحركت قبل ما تدفع → المطاردة بتكمل
@@ -152,13 +158,13 @@ export class Incidents {
       const pts = this.route.pts;
       while (this.ri < pts.length - 1 && Math.hypot(pts[this.ri].x - P.x, pts[this.ri].z - P.z) < 8 + P.v * 0.4) this.ri++;
       tx = pts[this.ri].x; tz = pts[this.ri].z;
-      want = Math.min(MAX_V, Math.max(14, ph.speed * 1.1 + 4));
+      want = Math.min(STAR_V[this.stars || 1], Math.max(14, ph.speed * 1.1 + 4));
     } else {
       // وراك على بعد ~10م بنفس سرعتك تقريبًا (بتهدّي لو قربت أكتر)
       const [fx, fz] = ph.forward;
       tx = ph.x - fx * 10; tz = ph.z - fz * 10;
       const gap = dist - 10;
-      want = Math.max(0, Math.min(MAX_V, ph.speed + gap * 0.8));
+      want = Math.max(0, Math.min(STAR_V[this.stars || 1], ph.speed + gap * 0.8));
     }
     const ang = Math.atan2(-(tx - P.x), -(tz - P.z));
     let d = ang - P.yaw; d = Math.atan2(Math.sin(d), Math.cos(d));
@@ -209,7 +215,7 @@ export class Incidents {
 
   _startChase(fresh) {
     this.state = 'chase'; this._stopT = 0; this._noteT = 15;
-    if (fresh) { this.t = 0; this.near = 0; }
+    if (fresh) { this.t = 0; this.near = 0; this._upT = 0; }
     this.route = null; this._rt = 0;
     if (!fresh) this.hud?.toast('🚨 هربت قبل ما تدفع — المطاردة كملت', 2.5);
   }
@@ -219,7 +225,7 @@ export class Incidents {
     this.licenses?.revoke?.(keys);
     this.blocked = { fine: this.fine + FINE.flee, keys, kind: this.kind };
     try { localStorage.setItem(KEY, JSON.stringify(this.blocked)); } catch { /* */ }
-    this.state = 'blocked';
+    this.state = 'blocked'; this.hud?.setWanted?.(0);
     this.at = null;
     this.audio?.siren?.(false);
     this._blockCard();
@@ -244,7 +250,7 @@ export class Incidents {
   }
 
   _finish() {
-    this.state = 'idle';
+    this.state = 'idle'; this.stars = 0; this.hud?.setWanted?.(0);
     this.onFinish?.();
     this.car.root.visible = false;
     this.p.v = 0;
