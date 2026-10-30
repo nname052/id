@@ -18,7 +18,7 @@ await page.goto(`${BASE}?map=shibin`);
 await page.waitForFunction(() => !document.getElementById('go').disabled);
 await page.click('#go'); await page.waitForTimeout(1500);
 let allPass = !errors.length;
-for (const kind of ['microbus', 'taxi', 'tuktuk']) {
+for (const kind of ['microbus', 'taxi', 'tuktuk', 'bus']) {
   const r = await page.evaluate(async (kind) => {
     const g = game, P = g.passengers, THREE = window.__THREE;
     g.renderer.setAnimationLoop(null);

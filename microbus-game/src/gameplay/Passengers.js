@@ -462,7 +462,13 @@ export class Passengers {
     const g = new GeoBuilder();
     // كل راكب: شكل من الأشكال الجاهزة في وضع القعدة، وشه ناحية قدام العربية (-z)
     const k = this.player.rig.paxScale || 1; // (التاكسي سقفه واطي: الركاب أصغر شوية عشان الراس ماتطلعش من السقف)
-    for (const s of occ) g.addGeometry(seatedHuman(this.variants, s.pax.seed), new THREE.Matrix4().makeRotationY(Math.PI).scale(new THREE.Vector3(k, k, k)).setPosition(s.x, s.y - 0.06, s.z + 0.04));
+    // الرجلين مابيعدّوش أرضية العربية: في الملاكي الكرسي واطي، فالرجل اللي كانت هتنزل تحت الأرضية (وتطلع تحت العربية)
+    // بتتمد لقدام على الأرضية (قعدة العربية الحقيقية)
+    const floor = (this.player.rig.floorY ?? 0.25) + 0.02;
+    for (const s of occ) {
+      const drop = (s.y - 0.06 - floor) / k; // أقصى نزول للرجل تحت مستوى القعدة (بمقاس الشكل)
+      g.addGeometry(legsToFloor(seatedHuman(this.variants, s.pax.seed), drop), new THREE.Matrix4().makeRotationY(Math.PI).scale(new THREE.Vector3(k, k, k)).setPosition(s.x, s.y - 0.06, s.z + 0.04));
+    }
     this.seatedMesh = new THREE.Mesh(g.build(), this.seatedMat);
     this.seatedMesh.castShadow = true;
     this.player.rig.shell.add(this.seatedMesh);
@@ -952,6 +958,24 @@ export class Passengers {
   }
 }
 const _bm = new THREE.Matrix4(), _bc = new THREE.Color();
+
+/** نسخة من الراكب القاعد رجليه مابتنزلش تحت -drop: اللي تحت بيتحرك لقدام بنفس المقدار (الرجل ممدودة على الأرضية).
+ *  قدام الشكل = +z قبل اللف. متخزنة لكل (شكل، drop) */
+const _legs = new Map();
+function legsToFloor(geo, drop) {
+  geo.computeBoundingBox();
+  if (geo.boundingBox.min.y >= -drop - 1e-3) return geo;
+  const key = geo.uuid + '|' + drop.toFixed(2);
+  if (_legs.has(key)) return _legs.get(key);
+  const g = geo.clone(), P = g.attributes.position;
+  for (let i = 0; i < P.count; i++) {
+    const y = P.getY(i);
+    if (y < -drop) { P.setY(i, -drop); P.setZ(i, P.getZ(i) + (-drop - y)); }
+  }
+  P.needsUpdate = true; g.computeVertexNormals();
+  _legs.set(key, g);
+  return g;
+}
 
 /** شكل راكب قاعد (من الأشكال الجاهزة، متخزن) */
 const _seated = new Map();
