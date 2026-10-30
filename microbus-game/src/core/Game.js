@@ -41,6 +41,8 @@ import { showLinePicker } from '../ui/LinePicker.js';
 import { buildSmallTraffic } from '../vehicles/SmallTraffic.js';
 import { Radio } from '../audio/Radio.js';
 import { ShibinTraffic } from '../world/shibin/ShibinTraffic.js';
+import { PoliceMission } from '../gameplay/PoliceMission.js';
+import { Cinematic } from '../camera/Cinematic.js';
 import { ShibinCrowd } from '../world/shibin/ShibinCrowd.js';
 import { attachJobs } from '../world/shibin/ShibinJobs.js';
 import { buildWorks } from '../world/shibin/ShibinWorks.js';
@@ -220,6 +222,9 @@ export class Game {
     this.police.onFlee = (c, x, z) => this.incidents.pursueFrom(x, z, this.player.physics, this.player.kind);
     this.incidents.onFinish = () => this.police.chaseOver();
     if (this.traffic) this.patrol = new Patrol(this.scene, { traffic: this.traffic, audio: this.audio, hud: this.hud, incidents: this.incidents });
+    // مهمات الشرطة (لما تسوق البوكس) + المشهد القصير اللي قبلها
+    this.cine = new Cinematic();
+    if (this.traffic) this.policeMission = new PoliceMission({ traffic: this.traffic, audio: this.audio, hud: this.hud, wallet: this.wallet, cine: this.cine });
         this.docs = new Docs(this, this.touch ? this.touch.root.querySelector('.t-top') : null);
     this.mp = new Multiplayer(this);
     if (this.traffic) this.traffic.remotePlayers = () => this.mp.positions();
@@ -963,6 +968,7 @@ export class Game {
     }
     this.player.syncVisuals(dt, this.acc / FIXED_DT);
     this.cams.update(dt, input);
+    this.cine?.update(dt, this.camera);
     if (this.player.driver) this.player.driver.visible = this.cams.mode !== 0;
     // إيدين السواق على الجادون بتبان من الكابينة بس (من برا الموديل بتاع السواق هو اللي باين)
     if (this.player.rig.hands) this.player.rig.hands.visible = this.cams.mode === 0;
@@ -976,7 +982,9 @@ export class Game {
       this.licenses.update(dt);
       this.police.update(dt, ph, this.player.kind, this.clock.elapsedTime);
       this.incidents.update(dt, ph);
-      this.patrol?.update(dt, ph);
+      // (الدورية بتاعة المرور بتقف وإنت سايق البوكس — الحوادث بقت مهماتك إنت)
+      if (this.player.kind !== 'police') this.patrol?.update(dt, ph);
+      this.policeMission?.update(dt, ph, this.player);
       this.works?.userData.update(dt, ph.x, ph.z);
       this._stationUpdate(dt, ph);
       this.docs.update(dt);
@@ -988,13 +996,15 @@ export class Game {
       if (this._navT <= 0) {
         this._navT = 0.25;
         const pol = this.police.navTarget() || this.incidents.navTarget?.();
+        const pm = this.policeMission?.navTarget();
+        if (this.player.kind === 'police') { this.hud.policeJob = this.policeMission?.jobInfo(); }
         const lowFuel = this.fuel.frac < 0.15 && !this.passengers.trip && !this.passengers.onboard.length;
         this.hud.navOverride = pol ? 'police' : lowFuel ? 'fuel' : null;
         // "اذهب إلى هنا" من الخريطة: بيخلص لما توصل (أو لو ركب زبون/الكمين)
         const ut = this.userTarget;
         if (ut && Math.hypot(ut.x - ph.x, ut.z - ph.z) < 22) { this.hud.toast(`📍 وصلت: ${ut.name}`, 2.4); this.userTarget = null; }
         if (this.userTarget && this.passengers.trip) this.userTarget = null; // زبون التاكسي له الأولوية
-        this.nav.setTarget(pol || this.userTarget || (this.passengers.navTarget(ph)));
+        this.nav.setTarget(pol || pm || this.userTarget || (this.passengers.navTarget(ph)));
         this.hud.setNav(this.nav.info);
         this.hud.setFuel(this.fuel.frac);
         const P = this.player, info = this.nav.info, job = this.passengers.jobInfo();

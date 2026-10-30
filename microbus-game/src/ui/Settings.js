@@ -6,7 +6,7 @@ const KEY = 'egy-microbus-settings-v1';
 // كل إعداد: نوعه (range/seg) وقيمه وقيمته الافتراضية. المجموعات للعرض بس.
 export const SCHEMA = [
   { group: 'العربية' },
-  { key: 'vehicle', type: 'seg', label: 'بتسوق إيه؟', options: [['microbus', 'ميكروباص'], ['taxi', 'تاكسي'], ['tuktuk', 'توكتوك'], ['car', 'ملاكي'], ['pickup', 'ربع نقل'], ['truck', 'نقل'], ['bus', 'أتوبيس']], def: 'microbus' },
+  { key: 'vehicle', type: 'seg', label: 'بتسوق إيه؟', options: [['microbus', 'ميكروباص'], ['taxi', 'تاكسي'], ['tuktuk', 'توكتوك'], ['car', 'ملاكي'], ['pickup', 'ربع نقل'], ['police', 'بوكس شرطة'], ['truck', 'نقل'], ['bus', 'أتوبيس']], def: 'microbus' },
   { key: 'carModel', type: 'seg', label: 'الجراج: العربية الملاكي', options: [['car_logan', 'لوجان'], ['car_lada', 'لادا'], ['car_corolla_ke80', 'كورولا 80'], ['car_corolla_e70', 'كورولا 70']], def: 'car_logan' },
   { key: 'carPaint', type: 'seg', label: 'الجراج: لون الصاج', options: [['silver', 'فضي'], ['white', 'أبيض'], ['black', 'أسود'], ['red', 'أحمر'], ['blue', 'أزرق'], ['beige', 'بيج']], def: 'silver' },
   { key: 'livery', type: 'seg', label: 'شكل الميكروباص', options: [['city', 'لون المحافظة'], ['shibin', 'شبين (تركواز)'], ['blue', 'أبيض/أزرق'], ['green', 'أبيض/أخضر'], ['plain', 'أبيض']], def: 'city' },

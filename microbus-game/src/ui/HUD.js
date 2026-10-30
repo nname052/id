@@ -56,6 +56,11 @@ export class HUD {
     let a, b;
     if (this.navOverride === 'police') { a = '🚨 <b>اركن على جنب</b>'; b = `العلامة الزرقا${d ? ` · ${d}` : ''}`; }
     else if (this.navOverride === 'fuel') { a = '⛽ <b>البنزين قليل</b>'; b = `روح ${'بنزينة الترعة'}${d ? ` · ${d}` : ''}`; }
+    else if (j.mode === 'free' && j.kind === 'police') {
+      const pj = this.policeJob;
+      if (pj?.chase) { a = '🚨 <b>مطاردة</b> <span>عربية خبطت وهربت</span>'; b = `المسافة <b>${pj.dist}م</b> · فاضل ${pj.left}ث${pj.close > 0 ? ` · بتقف ${Math.round(pj.close * 100)}%` : ''}`; }
+      else { a = '🚓 <b>دورية</b> <span>بوكس شرطة</span>'; b = 'استنى البلاغ الجاي — لف في المنطقة'; }
+    }
     else if (j.mode === 'free') {
       a = `${{ car: '🚗', pickup: '🛻', truck: '🚚' }[j.kind] || '🚗'} <b>سواقة حرة</b> <span>${{ car: 'ملاكي', pickup: 'ربع نقل', truck: 'نقل' }[j.kind] || ''}</span>`;
       b = d ? `المكان اللي اخترته · ${d}` : 'لف في المدينة براحتك';

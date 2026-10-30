@@ -314,3 +314,15 @@ body.touch #racebar { font-size: 12px; padding: 2px 12px; top: calc(76px + env(s
 #mapnote { font-size: 11px; opacity: 0.65; }
 @media (max-height: 520px) { #egmap { width: 96px; height: 96px; } .mappick { margin-top: 6px; } }
 .map-back { margin: 6px auto 0; display: block; font: 700 15px "Cairo", sans-serif; padding: 8px 16px; border-radius: 10px; border: 1.5px solid var(--accent); background: transparent; color: var(--accent); cursor: pointer; }
+
+/* ===== مشهد قبل المهمة (Cinematic.js) ===== */
+#cine { position: fixed; inset: 0; z-index: 30; pointer-events: auto; }
+#cine.hidden { display: none; }
+#cine .cine-bar { position: absolute; left: 0; right: 0; height: 13vh; background: #000; }
+#cine .cine-bar.top { top: 0; }
+#cine .cine-bar.bot { bottom: 0; display: grid; place-content: center; text-align: center; direction: rtl; font-family: 'Cairo', sans-serif; color: #fff; }
+#cine .cine-t { font-weight: 900; font-size: clamp(18px, 3.4vh, 30px); }
+#cine .cine-s { opacity: 0.8; font-size: clamp(13px, 2.2vh, 18px); }
+#cine .cine-skip { position: absolute; top: calc(13vh - 44px); left: 14px; border: 0; border-radius: 10px; padding: 6px 12px; background: rgba(255, 255, 255, 0.18); color: #fff; font: 800 14px 'Cairo', sans-serif; cursor: pointer; }
+/* وقت المشهد: كل واجهة اللعبة مستخبية (اللعبة نفسها في #app) */
+body.cine-on > :not(#cine):not(#app) { visibility: hidden !important; }

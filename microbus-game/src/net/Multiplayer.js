@@ -8,8 +8,8 @@ import { groundHeight } from '../world/ground.js';
 // لو الـ room مش متاح (لينك عام، مش مسجّل دخول، أو بنجرب محليًا) اللعبة بتشتغل لوحدها عادي.
 
 export const SEATS = 7;
-const SIZES = { microbus: [0.85, 2.35], taxi: [0.88, 2.22], tuktuk: [0.68, 1.35], car: [0.86, 2.12], pickup: [0.9, 2.35], truck: [1.0, 3.1], bus: [1.25, 5.5] };
-const LABEL_Y = { microbus: 2.75, taxi: 2.05, tuktuk: 2.3, car: 2.0, pickup: 2.2, truck: 3.0, bus: 3.6 };
+const SIZES = { microbus: [0.85, 2.35], taxi: [0.88, 2.22], tuktuk: [0.68, 1.35], car: [0.86, 2.12], pickup: [0.9, 2.35], police: [0.9, 2.35], truck: [1.0, 3.1], bus: [1.25, 5.5] };
+const LABEL_Y = { microbus: 2.75, taxi: 2.05, tuktuk: 2.3, car: 2.0, pickup: 2.2, police: 2.3, truck: 3.0, bus: 3.6 };
 const SEND_HZ = 12;
 const DELAY = 0.15; // بنرسم العربيات التانية متأخرة 150 مللي: بين موقعين حقيقيين وصلوا (مفيش رعشة بين الرسايل)
 // لون لكل رقم (فوق العربية وعلى الخريطة)
@@ -253,7 +253,7 @@ export class Multiplayer {
       if (Math.abs(x - box.cx) > 8 || Math.abs(z - box.cz) > 8) continue;
       const [hx, hz] = SIZES[R.kind];
       // صندوق ثابت لكل لاعب بيتحدّث مكانه (مفيش objects جديدة كل خطوة فيزيا)
-      const col = (R.col ||= { hx, hz, mass: { tuktuk: 450, taxi: 1200, car: 1100, pickup: 1550, truck: 4300, bus: 11500 }[R.kind] || 2300, restitution: 0.2, kind: 'car' });
+      const col = (R.col ||= { hx, hz, mass: { tuktuk: 450, taxi: 1200, car: 1100, pickup: 1550, police: 1550, truck: 4300, bus: 11500 }[R.kind] || 2300, restitution: 0.2, kind: 'car' });
       col.cx = x; col.cz = z; col.angle = yaw; col.vx = -Math.sin(yaw) * v; col.vz = -Math.cos(yaw) * v;
       out.push(col);
     }

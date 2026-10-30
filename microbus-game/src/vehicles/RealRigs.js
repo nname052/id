@@ -27,6 +27,9 @@ export const REAL_KINDS = {
     wheelR: 0.185, wheelTilt: -1.12, reach: 0.42, drop: 0.25, dashDist: 0.6, style: 'car', mode: 'free', label: 'ملاكي', mirrorIn: true },
   pickup: { r: 0.36, model: 'pickup_90s', paint: 0xe9e7e0, base: PICKUP_SPEC_BASE, cgFrac: 0.45, eyeBack: 0.22, eyeAbove: 0.26, headroom: 0.15, floorBelow: 0.84,
     wheelR: 0.19, wheelTilt: -1.05, reach: 0.42, drop: 0.27, dashDist: 0.58, style: 'car', mode: 'free', label: 'ربع نقل', mirrorIn: true },
+  // بوكس الشرطة (نفس البيك أب): صاج أسود، أبواب بيضا، كشاف أزرق — زي PoliceBox بتاع الكماين (من صور Commons، من غير شعارات)
+  police: { r: 0.36, model: 'pickup_90s', paint: 0x14161a, base: PICKUP_SPEC_BASE, cgFrac: 0.45, eyeBack: 0.22, eyeAbove: 0.26, headroom: 0.15, floorBelow: 0.84,
+    wheelR: 0.19, wheelTilt: -1.05, reach: 0.42, drop: 0.27, dashDist: 0.58, style: 'car', mode: 'police', label: 'بوكس شرطة', mirrorIn: true, police: true },
   truck: { r: 0.36, model: 'truck_canter', paint: undefined, base: TRUCK_SPEC_BASE, cgFrac: 0.38, eyeBack: 0.62, eyeAbove: 0.25, headroom: 0.2, floorBelow: 0.9,
     wheelR: 0.22, wheelTilt: -0.6, reach: 0.4, drop: 0.36, dashDist: 0.62, style: 'truck', mode: 'free', label: 'نقل', mirrorIn: false },
   bus: { r: 0.5, model: 'bus_karosa', paint: undefined, base: BUS_SPEC_BASE, cgFrac: 0.62, eyeBack: 0.72, eyeAbove: 0.28, headroom: 0.25, floorBelow: 0.93,
@@ -117,7 +120,7 @@ export const CAR_MODELS = {
 export function buildRealRig(kind, assets, opts = {}) {
   let C = REAL_KINDS[kind];
   if (C && kind === 'car' && CAR_MODELS[opts.model]) C = { ...C, model: opts.model, r: CAR_MODELS[opts.model].r, glassEst: !!CAR_MODELS[opts.model].glassEst };
-  if (C && opts.paint !== undefined) C = { ...C, paint: opts.paint };
+  if (C && opts.paint !== undefined && !C.police) C = { ...C, paint: opts.paint }; // (لون الجراج — مش للشرطة)
   const asset = C && assets?.get(C.model);
   if (!asset) return null;
   // ===== كل مثلثات الموديل (بإحداثياته بعد التحجيم)، متجمعة بالخامة =====
@@ -373,5 +376,32 @@ export function buildRealRig(kind, assets, opts = {}) {
   const sh = contactShadow(HW * 2 + 0.3, rearZ - frontZ + 0.4); sh.position.z = (rearZ + frontZ) / 2; rig.root.add(sh); rig.contactShadow = sh;
   rig.dims = { HW, frontF: -frontZ, rearF: -rearZ, roofY: bb.max.y };
   rig.kind = kind; rig.real = C.model;
+  if (C.police) policeKit(rig, bodyMeshes, bb, HW);
   return { rig, spec };
+}
+
+/** أبواب الكابينة البيضا + الكشاف الأزرق فوق السقف (rig.policeBar بيتنوّر من مهمة الشرطة) */
+function policeKit(rig, bodyMeshes, bb, HW) {
+  const H = bb.max.y, v = new THREE.Vector3();
+  // الكابينة = الجزء اللي قريب من السقف (من رءوس الموديل نفسه)
+  let z0 = Infinity, z1 = -Infinity;
+  for (const m of bodyMeshes) {
+    if (m.userData.role === 'glass') continue;
+    const P = m.geometry.attributes.position;
+    for (let i = 0; i < P.count; i += 3) { v.fromBufferAttribute(P, i); if (v.y > H * 0.88) { z0 = Math.min(z0, v.z); z1 = Math.max(z1, v.z); } }
+  }
+  if (!(z1 > z0)) { z0 = bb.min.z + (bb.max.z - bb.min.z) * 0.3; z1 = z0 + 1.0; }
+  z0 -= 0.25; z1 += 0.05;
+  const white = new THREE.MeshStandardMaterial({ color: 0xeeeeea, roughness: 0.45, metalness: 0.1, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  for (const sx of [-1, 1]) {
+    const d = new THREE.Mesh(new THREE.BoxGeometry(0.012, H * 0.28, z1 - z0), white);
+    d.position.set(sx * (HW - 0.02), H * 0.46, (z0 + z1) / 2); rig.shell.add(d);
+  }
+  const bar = new THREE.Group(); bar.position.set(0, H + 0.04, (z0 + z1) / 2 + 0.1); rig.shell.add(bar);
+  const base = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.05, 0.24), new THREE.MeshStandardMaterial({ color: 0x111214, roughness: 0.5 }));
+  bar.add(base);
+  const a = new THREE.MeshStandardMaterial({ color: 0x001060, emissive: 0x1a4dff, emissiveIntensity: 0.2, roughness: 0.3 });
+  const b = new THREE.MeshStandardMaterial({ color: 0x001060, emissive: 0x1a4dff, emissiveIntensity: 0.2, roughness: 0.3 });
+  for (const [m, x] of [[a, -0.25], [b, 0.25]]) { const l = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.1, 0.22), m); l.position.set(x, 0.07, 0); bar.add(l); }
+  rig.policeBar = { a, b, t: 0, on: false };
 }

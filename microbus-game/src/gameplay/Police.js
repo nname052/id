@@ -200,7 +200,7 @@ export class Police {
       if (!c.on || c.cool > 0) continue;
       const along = dx * c.q.dx + dz * c.q.dz, lat = dx * c.q.rx + dz * c.q.rz;
       const onRoad = Math.abs(lat) < c.q.half + 2;
-      if (c.state === 'idle' && d < 85 && onRoad) {
+      if (c.state === 'idle' && d < 85 && onRoad && kind !== 'police') { // (البوكس بتاعك مابيتوقفش في الكمين)
         // داخل على الكمين؟ (رايح ناحيته)
         const toward = -(ph.forward[0] * dx + ph.forward[1] * dz) / Math.max(1, d) > 0.5;
         if (toward) { c.state = 'signal'; c.dir = Math.sign(along) || 1; c.stopT = 0; this.active = c; this.hud?.toast('🚓 كمين! هدّي واقف عند الظابط', 3); }
