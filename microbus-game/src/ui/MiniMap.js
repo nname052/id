@@ -18,7 +18,7 @@ export class MiniMap {
     this.cv = el.querySelector('canvas');
     this.ctx = this.cv.getContext('2d');
     // الصغيرة: دوسة = تفتح الكبيرة. الكبيرة: سحب = تحريك، عجلة/قرصة/أزرار = زوم، دوسة على مكان = "اذهب إلى هنا"
-    el.insertAdjacentHTML('beforeend', '<div class="mm-ui"><button class="mm-close" aria-label="قفل">✕</button><div class="mm-zoom"><button data-z="1.5" aria-label="تكبير">+</button><button data-z="0.667" aria-label="تصغير">−</button><button data-z="me" aria-label="مكاني">◎</button></div><div class="mm-panel hidden"><div class="mm-pname"></div><div class="mm-pbtns"><button class="mm-go">🧭 اذهب إلى هنا</button><button class="mm-cancel">إلغاء</button></div></div></div>');
+    el.insertAdjacentHTML('beforeend', '<div class="mm-ui"><button class="mm-close" aria-label="قفل">✕</button><div class="mm-zoom"><button data-z="1.5" aria-label="تكبير">+</button><button data-z="0.667" aria-label="تصغير">−</button><button data-z="me" aria-label="مكاني">◎</button></div><div class="mm-panel hidden"><div class="mm-pname"></div><div class="mm-pbtns"><button class="mm-go">🧭 اذهب إلى هنا</button><button class="mm-tp">📍 انتقل فورًا</button><button class="mm-cancel">إلغاء</button></div></div></div>');
     this.ui = el.querySelector('.mm-ui');
     this.panel = el.querySelector('.mm-panel');
     this.ui.addEventListener('pointerdown', (e) => e.stopPropagation());
@@ -29,6 +29,7 @@ export class MiniMap {
       this._t = 0;
     }));
     this.ui.querySelector('.mm-go').onclick = () => { if (this.sel) this.game.setUserTarget?.(this.sel); this.sel = null; this.panel.classList.add('hidden'); this.toggle(); };
+    this.ui.querySelector('.mm-tp').onclick = () => { const t = this.sel; this.sel = null; this.panel.classList.add('hidden'); if (t && this.game.teleportTo?.(t)) this.toggle(); };
     this.ui.querySelector('.mm-cancel').onclick = () => { this.sel = null; this.panel.classList.add('hidden'); this._t = 0; };
     this.view = { cx: 0, cz: 0, zoom: 1 };
     this._ptrs = new Map();

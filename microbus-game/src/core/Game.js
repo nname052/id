@@ -537,6 +537,22 @@ export class Game {
     if (t) this.hud.toast(`🧭 الـ GPS: ${t.name}`, 2.2);
   }
 
+  /** انتقال فوري لمكان على الخريطة (زرار "انتقل فورًا"): على أقرب شارع، في الحارة اليمين، والعربية واقفة */
+  teleportTo(t) {
+    const W = this.world, ph = this.player?.physics;
+    if (!W || !ph || !t) return false;
+    if (this.passengers.onboard?.length) { this.hud.toast('نزّل الركاب الأول قبل الانتقال', 2.4); return false; }
+    const pose = W.roadPose(t.x, t.z);
+    if (!pose || Math.hypot(pose.x - t.x, pose.z - t.z) > 80) { this.hud.toast('مفيش شارع قريب من المكان ده', 2.2); return false; }
+    ph.reset(pose.x, pose.z, pose.yaw);
+    this.player._savePrev();
+    W.updateVisibility?.({ x: pose.x, z: pose.z }, this.viewDist || 560);
+    this.cams.snap = true;
+    this.userTarget = null; this._navT = 0;
+    this.hud.toast(`📍 إنت دلوقتي عند: ${t.name}`, 2.4);
+    return true;
+  }
+
   /** بداية الوردية: العربية في أول محطة الخط (الموقف) واقفة في العلامة، والباب ناحية الرصيف */
   startLineShift() {
     const P = this.passengers, st = P.lineStops?.[0], ph = this.player.physics;

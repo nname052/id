@@ -282,9 +282,10 @@ body.touch #racebar { font-size: 12px; padding: 2px 12px; top: calc(76px + env(s
 #minimap .mm-panel { position: absolute; left: 50%; bottom: 36px; transform: translateX(-50%); width: min(320px, 86%); background: rgba(16, 16, 20, 0.92); border: 1px solid rgba(124, 58, 237, 0.7); border-radius: 12px; padding: 8px 10px; color: #fff; direction: rtl; font-family: 'Cairo', sans-serif; display: grid; gap: 6px; }
 #minimap .mm-panel.hidden { display: none; }
 #minimap .mm-pname { font-weight: 800; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#minimap .mm-pbtns { display: grid; grid-template-columns: 2fr 1fr; gap: 6px; }
+#minimap .mm-pbtns { display: grid; grid-template-columns: 1.4fr 1.4fr 1fr; gap: 6px; }
 #minimap .mm-pbtns button { font: 800 14px 'Cairo', sans-serif; padding: 6px; border: 0; border-radius: 9px; cursor: pointer; }
 #minimap .mm-go { background: #7c3aed; color: #fff; }
+#minimap .mm-tp { background: #0e7490; color: #fff; }
 #minimap .mm-cancel { background: rgba(255, 255, 255, 0.15); color: #fff; }
 
 /* ===== الراديو في الإعدادات ===== */
