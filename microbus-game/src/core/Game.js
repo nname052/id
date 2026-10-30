@@ -43,6 +43,7 @@ import { Radio } from '../audio/Radio.js';
 import { ShibinTraffic } from '../world/shibin/ShibinTraffic.js';
 import { PoliceMission } from '../gameplay/PoliceMission.js';
 import { AmbulanceMission } from '../gameplay/AmbulanceMission.js';
+import { Intercity } from '../gameplay/Intercity.js';
 import { Cinematic } from '../camera/Cinematic.js';
 import { ShibinCrowd } from '../world/shibin/ShibinCrowd.js';
 import { attachJobs } from '../world/shibin/ShibinJobs.js';
@@ -226,6 +227,7 @@ export class Game {
     // مهمات الشرطة (لما تسوق البوكس) + المشهد القصير اللي قبلها
     this.cine = new Cinematic();
     if (this.traffic) this.policeMission = new PoliceMission({ traffic: this.traffic, audio: this.audio, hud: this.hud, wallet: this.wallet, cine: this.cine });
+    if (this.world) this.intercity = new Intercity({ world: this.world, hud: this.hud, wallet: this.wallet, passengers: this.passengers });
     if (this.world && this.crowd) this.ambulanceMission = new AmbulanceMission({ world: this.world, crowd: this.crowd, audio: this.audio, hud: this.hud, wallet: this.wallet, cine: this.cine });
         this.docs = new Docs(this, this.touch ? this.touch.root.querySelector('.t-top') : null);
     this.mp = new Multiplayer(this);
@@ -988,6 +990,7 @@ export class Game {
       if (this.player.kind !== 'police') this.patrol?.update(dt, ph);
       this.policeMission?.update(dt, ph, this.player);
       this.ambulanceMission?.update(dt, ph, this.player);
+      if (!this.incidents.busy) this.intercity?.update(dt, ph, this.player.kind);
       this.works?.userData.update(dt, ph.x, ph.z);
       this._stationUpdate(dt, ph);
       this.docs.update(dt);
