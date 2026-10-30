@@ -212,33 +212,45 @@ export class CameraSystem {
       _e.set((p.rig.eyePitch ?? -0.2) + this.look.pitch, this.look.yaw + steerLook, 0, 'YXZ');
       cam.quaternion.copy(_q).multiply(_q3.setFromEuler(_e));
     } else if (id === 'chase') {
-      cam.fov = 60; cam.near = 0.1;
-      const yaw = ph.yaw;
+      // ورا العربية وفوقها. كله من مكان العربية المرسوم (interpolated) مش من الفيزيا الخام —
+      // الفرق بينهم كان بيبان رعشة. المكان نفسه مربوط بالعربية من غير تأخير (التأخير كان بيخلي الكاميرا
+      // تتأخر ~2م على 70 كم/س فالعربية تبان صغيرة وبعيدة)؛ اللي بيتنعّم: الاتجاه والارتفاع والمسافة بس
+      cam.fov = 58; cam.near = 0.1;
+      const yaw = root.rotation.y;
       if (this.snap) this.chaseYaw = yaw;
       let diff = yaw - this.chaseYaw;
       diff = Math.atan2(Math.sin(diff), Math.cos(diff));
-      this.chaseYaw += diff * Math.min(1, dt * 3.2);
-      // المسافة على قد العربية (التوكتوك أقرب من الميكروباص) × زووم اللاعب
+      this.chaseYaw += diff * Math.min(1, dt * 4);
+      // المسافة على قد العربية × زووم اللاعب — ثابتة (مفيش بُعد مع السرعة)
       const z = this.zoom.chase, size = ph.spec.halfLength * 2;
-      const dist = (size + 3.4) * z + Math.min(ph.speed, 20) * 0.08;
-      const height = (ph.spec.roofHeight ?? 2) * 0.65 + 1.9 * (0.55 + 0.45 * z);
+      const want = (size * 0.8 + 2.6) * z;
+      const height = (ph.spec.roofHeight ?? 2) * 0.55 + 1.35 * (0.6 + 0.4 * z);
       const camYaw = this.chaseYaw + this.look.yaw;
-      const baseY = ph.heave - ph.spec.cgHeight;
-      const target = _v.set(root.position.x + Math.sin(camYaw) * dist, baseY + height + this.look.pitch * 3, root.position.z + Math.cos(camYaw) * dist);
+      // ارتفاع الجسم المرسوم، متنعّم شوية (المساعدين بيهزّوا الجسم مش الكاميرا كلها)
+      const bodyY = p.rig.body.position.y - ph.spec.cgHeight;
+      if (this.snap || this._chaseY === undefined) this._chaseY = bodyY;
+      this._chaseY += (bodyY - this._chaseY) * Math.min(1, dt * 7);
+      const baseY = this._chaseY;
+      const sx = Math.sin(camYaw), sz = Math.cos(camYaw);
+      const target = _v.set(root.position.x + sx * want, baseY + height + this.look.pitch * 3, root.position.z + sz * want);
       target.y = Math.max(target.y, baseY + 0.9); // مايبقاش تحت مستوى العربية
       this._avoidWalls(root.position.x, root.position.z, target);
-      if (this.snap) this.chasePos.copy(target); else this.chasePos.lerp(target, Math.min(1, dt * 9));
+      // المسافة بعد تفادي الحيطان: بتقرّب بسرعة وبترجع براحة (من غير نط)
+      const d = Math.hypot(target.x - root.position.x, target.z - root.position.z);
+      if (this.snap || this._chaseD === undefined) this._chaseD = d;
+      this._chaseD += (d - this._chaseD) * Math.min(1, dt * (d < this._chaseD ? 14 : 3));
+      this.chasePos.set(root.position.x + sx * this._chaseD, target.y, root.position.z + sz * this._chaseD);
       cam.position.copy(this.chasePos);
-      const fwd = ph.forward;
-      cam.lookAt(root.position.x + fwd[0] * 2.5, baseY + 1.4, root.position.z + fwd[1] * 2.5);
+      const fx = -Math.sin(yaw), fz = -Math.cos(yaw);
+      cam.lookAt(root.position.x + fx * 2.2, baseY + (ph.spec.roofHeight ?? 2) * 0.6, root.position.z + fz * 2.2);
     } else {
       // حرة 360°: بتلف حوالين العربية بالسحب (ماوس/صباع) أو العصاية اليمين، وبتقرّب/تبعد بالعجلة أو بصباعين
       cam.fov = 55; cam.near = 0.1;
       const o = this.orbit;
       if (this.attract) this._orbitBy(dt * 0.12, 0);
-      const baseY = ph.heave - ph.spec.cgHeight;
+      const baseY = p.rig.body.position.y - ph.spec.cgHeight;
       const size = ph.spec.halfLength * 2, dist = (size * 0.9 + 3.2) * this.zoom.orbit;
-      const yaw = ph.yaw + Math.PI + o.yaw, cp = Math.cos(o.pitch);
+      const yaw = root.rotation.y + Math.PI + o.yaw, cp = Math.cos(o.pitch);
       const focusY = baseY + (ph.spec.roofHeight ?? 2) * 0.45;
       const target = _v.set(root.position.x + Math.sin(yaw) * cp * dist, focusY + Math.sin(o.pitch) * dist, root.position.z + Math.cos(yaw) * cp * dist);
       // ماتدخلش جوه مبنى، وماتنزلش تحت الأرض

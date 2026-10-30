@@ -1,0 +1,35 @@
+// =====================================================================
+//  عربيات المرور والمركونة لازقة في الأرض: أوطى نقطة في كل عربية باينة على بعد ≤ 25سم من الأرض تحتها
+//  (كان العجل في موديلين بيلف حوالين مركز غلط → العربية تبان طايرة أو نصها في الأرض).
+//   node tools/tests/vehicle-grounding.mjs [baseUrl] [map ...]
+// =====================================================================
+const { chromium } = await import('/opt/node22/lib/node_modules/playwright/index.mjs');
+const BASE = process.argv[2] || 'http://localhost:5173/';
+const MAPS = process.argv.slice(3).length ? process.argv.slice(3) : ['shibin', 'alex_east', 'cairo'];
+let allBad = 0;
+for (const map of MAPS) {
+const b = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+const p = await b.newPage({ viewport: { width: 400, height: 300 } }); p.setDefaultTimeout(900000);
+await p.goto(`${BASE}?map=${map}`); await p.waitForFunction(() => !document.getElementById('go').disabled);
+await p.evaluate(() => document.getElementById('go').click()); await p.waitForTimeout(2000);
+const r = await p.evaluate(async () => {
+  const g = game; for (let i = 0; i < 6; i++) g.debugSim(1, { throttle: 0.4 });
+  const T = g.traffic, out = [];
+  const box = (o) => { let mn = Infinity, mx = -Infinity; o.traverse((m) => { if (!m.isMesh || !m.visible) return; m.geometry.computeBoundingBox(); const bb = m.geometry.boundingBox.clone().applyMatrix4(m.matrixWorld); mn = Math.min(mn, bb.min.y); mx = Math.max(mx, bb.max.y); }); return { min: mn, max: mx }; };
+  const list = [...(T.cars || []).map((c) => ({ c, kind: 'traffic' })), ...(T.parked || []).map((c) => ({ c, kind: 'parked' }))];
+  for (const { c, kind } of list) {
+    const root = c.rig?.root; if (!root || !root.visible || !root.parent) continue;
+    root.updateMatrixWorld(true); const bx = box(root);
+    if (!isFinite(bx.min)) continue;
+    const gy = g.world.height(root.position.x, root.position.z, root.position.y); // (الكباري: سطح الكوبري عند ارتفاع العربية)
+    out.push({ kind, type: c.type, real: c.rig?.real, gap: +(bx.min - gy).toFixed(2), h: +(bx.max - bx.min).toFixed(2), y: +root.position.y.toFixed(2) });
+  }
+  const bad = out.filter((o) => Math.abs(o.gap) > 0.25);
+  return { n: out.length, bad: bad.slice(0, 20) };
+});
+console.log(map, JSON.stringify(r));
+allBad += r.bad.length + (r.n < 10 ? 1 : 0);
+await b.close();
+}
+console.log(allBad ? 'FAIL vehicle-grounding' : 'PASS vehicle-grounding');
+process.exit(allBad ? 1 : 0);

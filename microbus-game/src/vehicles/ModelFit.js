@@ -373,6 +373,12 @@ export function realTrafficCar(asset, color) {
       if (!byMat.has(o.material)) byMat.set(o.material, []);
       byMat.get(o.material).push(gi);
     });
+    // لازم 4 عجلات منفصلة (شمال/يمين × قدام/ورا)؛ غير كده (العجل كله في حتة واحدة متجمعة) بتفضل ثابتة في الجسم —
+    // لو لفّت حوالين مركز غلط بتطلع فوق وتحت العربية (كان بيبان كأن العربية طايرة/نصها في الأرض)
+    if (wheels.size < 4) {
+      for (const m of wheels.values()) for (const [mat, gs] of m) { if (!byMat.has(mat)) byMat.set(mat, []); byMat.get(mat).push(...gs); }
+      wheels.clear();
+    }
     const parts = [...byMat].map(([mat, gs]) => ({ g: mergeGeometries(gs), mat, paint: PAINT_RE.test(mat.name || '') }));
     const W = [...wheels].map(([key, m]) => {
       const ps = [...m].map(([mat, gs]) => ({ g: mergeGeometries(gs), mat }));
