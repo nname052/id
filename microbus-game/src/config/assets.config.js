@@ -37,6 +37,14 @@ export const MODEL_ASSETS = {
   car_verna: { file: 'car_verna.glb', targetLength: 4.37, rotationY: 180 },
   car_sunny: { file: 'car_sunny.glb', targetLength: 4.34, rotationY: 180 },
   tuktuk_real: { file: 'tuktuk_real.glb', targetLength: 2.65, rotationY: 180 },
+  // (بتتحمّل بـ tools/models/sketchfab.mjs — الاتجاه rotationY بيتأكد بعد التحميل)
+  car_corolla_old: { file: 'car_corolla_old.glb', targetLength: 4.27, rotationY: 180 },
+  car_corolla: { file: 'car_corolla.glb', targetLength: 4.62, rotationY: 180 },
+  car_fiat128: { file: 'car_fiat128.glb', targetLength: 3.84, rotationY: 180 },
+  car_peugeot504: { file: 'car_peugeot504.glb', targetLength: 4.49, rotationY: 180 },
+  pickup_datsun: { file: 'pickup_datsun.glb', targetLength: 4.0, rotationY: 180 },
+  pickup_hilux: { file: 'pickup_hilux.glb', targetLength: 5.33, rotationY: 180 },
+  truck_canter: { file: 'truck_canter.glb', targetLength: 6.2, rotationY: 180 },
   // المعالم الحقيقية (لو اتحمّلت): المقاس الحقيقي بالمتر
   mon_sphinx: { file: 'mon_sphinx.glb', targetLength: 73, rotationY: 0 },
   mon_cairo_tower: { file: 'mon_cairo_tower.glb', targetHeight: 187, rotationY: 0 },

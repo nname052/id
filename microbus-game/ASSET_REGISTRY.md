@@ -16,7 +16,14 @@
 | نيسان صني N16 | (car_sunny.glb) | Sketchfab uid 6f4866d9… | CC BY | ⏳ مش متحمّل |
 | توكتوك باجاج | (tuktuk_real.glb) | Sketchfab uid 5775d012… | CC BY | ⏳ مش متحمّل |
 | أبو الهول / برج القاهرة / جامع محمد علي | (mon_*.glb) | Sketchfab | CC BY | ⏳ مش متحمّلين (بدايل مبنية بالكود شغالة) |
-| فيات 128 / بيجو 504 / HiAce أجيال تانية / عربيات شرطة وإسعاف مصرية | — | لسه مالقيتش موديل CC0/CC BY واقعي | — | ❌ |
+| تويوتا كورولا (الجيل السابع) | (car_corolla_old.glb) | Sketchfab uid 43a413ae… (BHP3D) | CC BY | ⏳ اتشاف + جاهز للتحميل (محتاج توكن) |
+| تويوتا كورولا 2014 | (car_corolla.glb) | Sketchfab uid 36f95efb… (armoredwave) | CC BY | ⏳ |
+| فيات 128 | (car_fiat128.glb) | Sketchfab uid cea87e69… (arielandrade1611) | CC BY | ⏳ (موديل من غير خامات: بيتلوّن في اللعبة) |
+| بيجو 504 (1968) | (car_peugeot504.glb) | Sketchfab uid cc25e4d5… (tonielpro520) | CC BY | ⏳ (من غير خامات) |
+| داتسون B20 ربع نقل | (pickup_datsun.glb) | Sketchfab uid 47ddb200… (thcyrax) | CC BY | ⏳ |
+| تويوتا هايلكس 2022 | (pickup_hilux.glb) | Sketchfab uid 82bd37c5… (BHP3D) | CC BY | ⏳ (980 ألف مثلث → بيتبسّط لـ 20 ألف) |
+| ميتسوبيشي فوسو كانتر | (truck_canter.glb) | Sketchfab uid 2b58376d… (raedalmaharmah6) | CC BY | ⏳ |
+| مرفوض (شكل كرتوني) | — | Grab3D (كل العربيات ستايل لعبة)، Poly Haven (مفيش عربيات)، Sketchfab: Peugeot 504 Break / Generic Town Bus | — | ❌ |
 | بيانات الخرايط | public/packs/* | OSM (ODbL) + Microsoft Building Footprints (ODbL) | ODbL | ✅ |
 | المطبات | features.json `bumps` | OSM traffic_calming (ODbL) + مستنتجة | ODbL | ✅ |
 

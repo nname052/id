@@ -21,6 +21,14 @@ export const MODELS = [
   { key: 'car_lanos', uid: '537cf27c1f354cd79c4d990759d2da4c', role: 'شيفروليه لانوس (مرور)', tris: 15000, length: 4.24 },
   { key: 'car_verna', uid: '132840063af24357900df22baeefe5fb', role: 'هيونداي فيرنا/أكسنت (مرور)', tris: 15000, length: 4.37 },
   { key: 'car_sunny', uid: '6f4866d9cfe24dc7a0a60a4214f18d2c', role: 'نيسان صني N16 (مرور/تاكسي)', tris: 15000, length: 4.34 },
+  // (2026-10-30) عربيات مصر التانية + ربع نقل + نقل خفيف — اتشافت صورها واترفض اللي شكله كرتوني (Peugeot 504 Break، Town Bus)
+  { key: 'car_corolla_old', uid: '43a413ae205a4ea6b29700cb8cf4ea95', role: 'تويوتا كورولا (الجيل السابع) — ملاكي/تاكسي قديم', tris: 15000, length: 4.27 },
+  { key: 'car_corolla', uid: '36f95efb0585464cae43a25a3b3392e8', role: 'تويوتا كورولا 2014 (E180) — ملاكي', tris: 20000, length: 4.62 },
+  { key: 'car_fiat128', uid: 'cea87e69e09c45c7ba8e66cb1d95ec75', role: 'فيات 128 (نصر 128) — ملاكي قديم', tris: 15000, length: 3.84 },
+  { key: 'car_peugeot504', uid: 'cc25e4d5a33a402e81ab764be6a0f61e', role: 'بيجو 504 (1968) — ملاكي/بيجو أجرة', tris: 18000, length: 4.49 },
+  { key: 'pickup_datsun', uid: '47ddb2004dfe4d4ebeca59fc2200ad39', role: 'داتسون صني B20 ربع نقل', tris: 8000, length: 4.0 },
+  { key: 'pickup_hilux', uid: '82bd37c5065040098fb0b86e07fcb959', role: 'تويوتا هايلكس 2022 (بيك أب دبل كابينة)', tris: 20000, length: 5.33 },
+  { key: 'truck_canter', uid: '2b58376d6aaf4641adf30d4c9044de74', role: 'ميتسوبيشي فوسو كانتر (نقل خفيف "جامبو")', tris: 20000, length: 6.2 },
   // المعالم (فوتوجرامتري/موديلات حقيقية) — بتاخد مكان الشكل المبني بالكود في Monuments.js لو موجودة
   { key: 'mon_sphinx', uid: 'f169dbe7974648babe327179091e0ee3', role: 'أبو الهول (الجيزة)', tris: 30000 },
   { key: 'mon_cairo_tower', uid: 'ef1d34efdcb54d22a3b3a0748b1eca0d', role: 'برج القاهرة', tris: 25000 },

@@ -421,6 +421,17 @@ export class Game {
   }
 
   _makeCarBody(type, color, opts = {}) {
+    // موديلات حقيقية (Sketchfab CC BY) لو اتحمّلت: الربع نقل والنقل الخفيف — غير كده الشكل الإجرائي
+    if ((type === 'pickup' || type === 'truck') && this.tier !== 'low') {
+      const keys = type === 'pickup' ? ['pickup_datsun', 'pickup_hilux'] : ['truck_canter'];
+      const real = keys.map((k) => this.assets.get(k)).filter(Boolean);
+      if (real.length) {
+        this._realPk = ((this._realPk || 0) + 1) % real.length;
+        const car = realTrafficCar(real[this._realPk], opts.parked ? undefined : color);
+        car.lights = null;
+        return car;
+      }
+    }
     if (type === 'pickup' || type === 'bus' || type === 'truck' || type === 'moto') return buildSmallTraffic(type);
     if (type === 'tuktuk' || type === 'moto') {
       // التوكتوك: نفس موديل التوكتوك الحقيقي (مخبوز خفيف) بدل الشكل الإجرائي المربع
@@ -448,7 +459,7 @@ export class Game {
     // الملاكي: موديلات عربيات حقيقية منتشرة في مصر لو موجودة (لانوس/فيرنا/صني — tools/models/sketchfab.mjs)،
     // بخاماتها الأصلية ولون الصاج بتاع العربية. التاكسي بيفضل السيدان بألوان تاكسي المحافظة
     if (type === 'sedan' && this.tier !== 'low') { // (الجودة الواطية: السيدان الإجرائي — draw calls أقل)
-      const real = (this._realCars ||= ['car_lanos', 'car_verna', 'car_sunny'].map((k) => this.assets.get(k)).filter(Boolean));
+      const real = (this._realCars ||= ['car_lanos', 'car_verna', 'car_sunny', 'car_corolla_old', 'car_corolla', 'car_fiat128', 'car_peugeot504'].map((k) => this.assets.get(k)).filter(Boolean));
       if (real.length) {
         this._realK = ((this._realK || 0) + 1) % real.length;
         const car = realTrafficCar(real[this._realK], opts.parked ? undefined : color);
