@@ -51,9 +51,9 @@ export class ShibinTraffic {
       rig.root.visible = false;
       skipHidden(rig.root);
       scene.add(rig.root);
-      const lod = makeLodMesh(rig.root);
-      if (lod) scene.add(lod);
-      this.cars.push({ lod,
+      // (النسخة الخفيفة LOD بتتعمل لما العربية تبعد أول مرة بس — _show — مش وقت التحميل:
+      //  على الجودة العادية lodNear كبير فمش بتتعمل خالص، وكان تبسيطها بياخد ~4ث من التحميل)
+      this.cars.push({ lod: undefined,
         rig, type, on: false, off: false, len: rig.length || 4.4, width: rig.width || 1.8, mass: SMALL[type]?.mass || (type === 'microbus' ? 2400 : 1250),
         e: null, dir: 1, s: 0, v: 0, acc: 0, vMul: (SMALL[type]?.vMul || 1) * (0.85 + this.R() * 0.3), lane: 0, next: null, turn: null, hold: null,
         x: 0, y: 0, z: 0, yaw: 0, spin: 0, bumped: 0, kox: 0, koz: 0, honk: 3 + this.R() * 5, waitPlayer: 0, visible: false, stuck: 0,
@@ -68,10 +68,8 @@ export class ShibinTraffic {
       skipHidden(rig.root);
       rig.root.traverse((o) => { if (o.isMesh) o.castShadow = false; });
       scene.add(rig.root);
-      const lod = makeLodMesh(rig.root);
-      if (lod) scene.add(lod);
       const len = type === 'microbus' ? 4.9 : rig.length || 4.4, width = type === 'microbus' ? 1.9 : rig.width || 1.8;
-      this.parked.push({ lod, rig, type, on: false, len, width, x: 0, y: 0, z: 0, yaw: 0,
+      this.parked.push({ lod: undefined, rig, type, on: false, len, width, x: 0, y: 0, z: 0, yaw: 0,
         col: { cx: 0, cz: 0, hx: width / 2, hz: len / 2, angle: 0, mass: 2200, restitution: 0.12, vx: 0, vz: 0, kind: 'car' } });
     }
   }
@@ -291,9 +289,17 @@ export class ShibinTraffic {
     c.laneHome = best; c.lcCd = 8; c.laneChanges = (c.laneChanges || 0) + 1;
   }
 
+  /** النسخة الخفيفة (LOD) بتاعة عربية — بتتعمل أول مرة تلزم بس */
+  ensureLod(o) {
+    if (o.lod === undefined) { o.lod = makeLodMesh(o.rig.root); if (o.lod) this.scene.add(o.lod); }
+    return o.lod;
+  }
+
   /** القريب = العربية الكاملة، الأبعد = نسخة مخبوزة (draw call واحد) — بهامش عشان مايترعشش عند الحد */
   _show(o, vis, d2) {
-    const R = this.lodNear, useLod = !!o.lod && vis && d2 > (o._useLod ? (R - 5) * (R - 5) : R * R);
+    const R = this.lodNear;
+    if (o.lod === undefined && vis && d2 > R * R) this.ensureLod(o);
+    const useLod = !!o.lod && vis && d2 > (o._useLod ? (R - 5) * (R - 5) : R * R);
     o._useLod = useLod;
     o.rig.root.visible = vis && !useLod;
     if (o.lod) {

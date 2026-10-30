@@ -39,8 +39,10 @@ export class AssetManager {
       const url = this.url('models', cfg.file);
       if (!url) this.report.push(`○ ${cfg.file}: مش موجود → Placeholder إجرائي`);
       if (!url) { this.status[key] = { ok: false, error: `${cfg.file} not in build` }; continue; }
+      const t0 = performance.now();
       jobs.push(this._loadGLB(url).then((gltf) => {
         this.models[key] = this._wrap(key, cfg, gltf);
+        (this.timing ||= {})[key] = Math.round(performance.now() - t0);
         this.status[key] = { ok: true };
         this.report.push(`✓ ${cfg.file}`);
       }).catch((e) => {

@@ -77,7 +77,9 @@ export class Game {
 
     S('البحث عن موديلات وخامات إضافية...', 0.1);
     this.assets = new AssetManager();
+    const tA = performance.now();
     await this.assets.loadAll();
+    this._assetsMs = Math.round(performance.now() - tA);
 
     // ===== الرندر =====
     // مستوى الجودة بيتحدد قبل إنشاء الرندر (الـ MSAA ونوع الضل مينفعش يتغيروا بعد كده)
@@ -130,7 +132,7 @@ export class Game {
     this.findRoute = findRoute; // (للاختبارات والقياس: حساب مسار على شبكة الطرق من الـ Console)
     PlayerVehicle.world = this.world;
     this.lights = { update() {}, state: () => 'green' }; // (مفيش إشارات مرور مرسومة)
-    this.loadInfo = { worldMs: Math.round(performance.now() - t0) };
+    this.loadInfo = { assetsMs: this._assetsMs, worldMs: Math.round(performance.now() - t0) };
 
     S('تجهيز الميكروباص...', 0.72);
     await nextFrame();
@@ -155,12 +157,15 @@ export class Game {
 
     S('المرور والمشاة...', 0.82);
     await nextFrame();
+    // (أوقات مراحل التحميل — loadInfo.stages، لاختبار سرعة التحميل)
+    const tS = performance.now(), mark = (k) => { (this._stages ||= {})[k] = Math.round(performance.now() - tS); };
     this.traffic = new ShibinTraffic(this.scene, (type, color, o) => this._makeCar(type, color, o), this.audio, this.world, { count: this.saverBoot ? 14 : this.tier === 'low' ? 20 : this.mobile ? 42 : 84, parked: this.tier === 'low' ? 14 : this.mobile ? 28 : 48 });
+    mark('traffic');
     this.traffic.viewDist = this.mobile ? 150 : 190;
     if (this.mobile) { this.traffic.activeR = 195; this.traffic.despawnR = 240; }
     this.crowdBase = this.tier === 'low' ? 80 : this.mobile ? 105 : 240; // (المدينة كانت فاضية: ناس أكتر بكتير)
     this.crowd = new ShibinCrowd(this.scene, this.world, { count: this.crowdBase });
-    this.crowd.traffic = this.traffic; this.traffic.crowd = this.crowd;
+    this.crowd.traffic = this.traffic; this.traffic.crowd = this.crowd; mark('crowd');
     // المرايات مش بترسم هالات/بقع نور الأعمدة (ديكور)
     PlayerVehicle.mirrorHide = [this.world.lamps?.glow, this.world.lamps?.pools].filter(Boolean);
     this.traffic.lodNear = this.tier === 'low' ? 90 : 1e5; // كل العربيات اللي باينة بكامل جودتها (النسخة الخفيفة للجودة الواطية بس)
@@ -195,7 +200,7 @@ export class Game {
     this.wallet = new Wallet(this.hud);
     this.nav = new Navigator();
     this.passengers = new Passengers(this.scene, this.player, { hud: this.hud, audio: this.audio, settings: this.settings, wallet: this.wallet, world: this.world });
-    this.passengers._updateHud();
+    this.passengers._updateHud(); mark('passengers');
     this.hud.setMoney(this.wallet.balance);
     this.hud.onSwitchLine = () => this.openLinePicker();
     // البنزين (تانك لكل عربية) + الرخص وأيام اللعبة + البنزينة + كماين المرور + لوحة المحفظة والرخص
@@ -207,6 +212,7 @@ export class Game {
     this.world.nearReserved = (x, z, r) =>
       this.passengers.stops.some((st) => (st.mx ?? st.x) - x < r + 8 && x - (st.mx ?? st.x) < r + 8 && Math.hypot((st.mx ?? st.x) - x, (st.mz ?? st.z) - z) < r + 8) ||
       (this.world.policeSpots || []).some((sp) => Math.hypot(sp.q.x - x, sp.q.z - z) < r + 40);
+    mark('police');
     this.incidents = new Incidents(this.scene, { hud: this.hud, wallet: this.wallet, licenses: this.licenses, passengers: this.passengers, audio: this.audio });
     // حوادث المشاة + الإسعاف (شبين)
     if (this.crowd?.extras) {
@@ -223,6 +229,7 @@ export class Game {
     // هروب من كمين → مطاردة من مكان عربية الكمين على شبكة الطرق
     this.police.onFlee = (c, x, z) => this.incidents.pursueFrom(x, z, this.player.physics, this.player.kind);
     this.incidents.onFinish = () => this.police.chaseOver();
+    mark('emergency');
     if (this.traffic) this.patrol = new Patrol(this.scene, { traffic: this.traffic, audio: this.audio, hud: this.hud, incidents: this.incidents });
     // مهمات الشرطة (لما تسوق البوكس) + المشهد القصير اللي قبلها
     this.cine = new Cinematic();
@@ -232,7 +239,8 @@ export class Game {
         this.docs = new Docs(this, this.touch ? this.touch.root.querySelector('.t-top') : null);
     this.mp = new Multiplayer(this);
     if (this.traffic) this.traffic.remotePlayers = () => this.mp.positions();
-    this.minimap = new MiniMap(this);
+    mark('missions');
+    this.minimap = new MiniMap(this); mark('minimap');
     this.settings.onChange((k, v) => this._applySetting(k, v));
     if (this.player.damage) this.player.damage.onBreak = () => this.audio.glass();
     this.cams.mode = 2; this.cams.attract = true; // ورا شاشة البداية: الكاميرا الحرة بتلف حوالين العربية
@@ -275,7 +283,7 @@ export class Game {
     await nextFrame();
     await this.precompile([this.scene], true, (f) => S('تجهيز الشيدرز...', 0.97 + f * 0.025));
     try { this._applyPostFX(); } catch (e) { console.warn('[postfx]', e); this.postfx = null; }
-    { renderer.render(this.scene, this.camera); this.loadInfo.readyMs = Math.round(performance.now() - this._initT0); }
+    { renderer.render(this.scene, this.camera); this.loadInfo.readyMs = Math.round(performance.now() - this._initT0); this.loadInfo.stages = this._stages; }
     this.clock = new THREE.Clock();
     this.acc = 0;
     this.lampTimer = 0;

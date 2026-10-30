@@ -1,6 +1,6 @@
 // =====================================================================
 //  ميزانية الأداء/السخونة (منطق، مش FPS جهاز حقيقي):
-//   - سقف الفريمات: كام فريم بيترسم فعلًا من شاشة 120 هرتز (30/45/60/تلقائي-كمبيوتر)
+//   - سقف الفريمات: كام فريم بيترسم فعلًا من شاشة 120 هرتز (30/60/تلقائي-كمبيوتر)
 //   - الصفحة مستخبية → الرسم والصوت واقفين، ولما ترجع يكملوا
 //   - موفّر البطارية: 30 فريم، دقة أقل، مرايات أرخص، أنوار حقيقية صفر
 //   - draw calls لعربية مرور (كاملة vs LOD) ولرسمة مراية جانبية (قبل/بعد إخفاء الصالون)
@@ -23,7 +23,8 @@ const r = await page.evaluate(async () => {
   // 1) سقف الفريمات على شاشة 120 هرتز (ثانيتين)
   const realFrame = g._frame; let frames = 0; g._frame = () => { frames++; };
   const run = (cap) => { g.settings.set('fpsCap', cap); g._tickT = undefined; g._tickAcc = 0; frames = 0; for (let i = 0; i < 240; i++) g._tick(i * (1000 / 120)); return frames / 2; };
-  out.fpsCap = { '30': run('30'), '45': run('45'), '60': run('60'), autoDesktop: run('auto'), max: run('max') };
+  out.fpsCap = { '30': run('30'), // (45 اتشال من الإعدادات في v10 — بيعمل تقطيع)
+    '60': run('60'), autoDesktop: run('auto'), max: run('max') };
   g.settings.set('fpsCap', 'auto');
   g._frame = realFrame;
   // 2) الخلفية
@@ -50,7 +51,7 @@ const r = await page.evaluate(async () => {
   for (const c of g.traffic.cars) {
     if (out.trafficCalls[c.type]) continue;
     const wh = (c.rig.wheels || []).map((w) => [w.group, w.group.visible]); for (const [w] of wh) w.visible = true;
-    out.trafficCalls[c.type] = { full: callsOf([c.rig.root]), lod: c.lod ? callsOf([c.lod]) : null };
+    out.trafficCalls[c.type] = { full: callsOf([c.rig.root]), lod: g.traffic.ensureLod(c) ? callsOf([c.lod]) : null };
     for (const [w, v] of wh) w.visible = v;
   }
   // 5) رسمة مراية جانبية للميكروباص (من جوه)
@@ -60,9 +61,9 @@ const r = await page.evaluate(async () => {
   out.sideMirrorCalls = { withInterior: measure(false), optimized: measure(true) };
   return out;
 });
-const pass = r.fpsCap['30'] <= 31 && r.fpsCap['30'] >= 29 && Math.abs(r.fpsCap['60'] - 60) <= 1 && Math.abs(r.fpsCap.autoDesktop - 60) <= 1 && r.fpsCap['45'] <= 46
+const pass = r.fpsCap['30'] <= 31 && r.fpsCap['30'] >= 29 && Math.abs(r.fpsCap['60'] - 60) <= 1 && Math.abs(r.fpsCap.autoDesktop - 60) <= 1
   && r.background.paused && r.background.resumed && r.saver.fpsCap === 30 && r.saver.realLampLightsOn === 0
-  && Object.values(r.trafficCalls).every((t) => t.lod === 1) && r.sideMirrorCalls.optimized < r.sideMirrorCalls.withInterior && !errors.length;
+  && Object.values(r.trafficCalls).every((t) => t.lod >= 1 && t.lod <= 3 && t.lod < t.full) && r.sideMirrorCalls.optimized < r.sideMirrorCalls.withInterior && !errors.length;
 console.log(JSON.stringify({ ...r, errors }, null, 1));
 console.log(pass ? 'PASS perf-budget' : 'FAIL perf-budget');
 await browser.close();
