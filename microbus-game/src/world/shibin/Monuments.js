@@ -280,7 +280,113 @@ export function buildMonuments(W, group) {
       (W.realMosques ||= new Set()).add(p.osm);
     }
   }
+  try { const s = stanleyBridge(W, group); if (s) out.push(s); } catch (e) { console.warn('[stanley]', e); }
   return out;
+}
+
+// =====================================================================
+//  كوبري ستانلي (إسكندرية) — مكانه واتجاهه وعرضه من OSM (الاتجاهين "كوبري ستانلي"، 296م فوق بُق خليج ستانلي).
+//  الشكل من صور Wikimedia Commons (CC BY-SA 4.0: "Stanley Bridge, Alexandria, Jan. 2019-1/2"، "Aug. 2020"، "May 2023"):
+//  - 4 أبراج (اتنين على كل جنب، على طرفي البحر اللي في النص): جسم مربع كريمي بحشوات طوب أحمر وشبابيك مقوّسة،
+//    وفوق "كشك" مفتوح بأعمدة وسقف هرمي أحمر بارز
+//  - بلاسترادا (درابزين) بيضا، وأعمدة نور كتير على الجنبين، وعلى كل رجل كوبري عمود أبيض بفانوس
+//  - رجول عريضة بيضا على وش المية تحت الكوبري
+// =====================================================================
+function stanleyBridge(W, group) {
+  const E = (W.graph?.edges || []).filter((e) => /كوبر[يى] ستانل[يى]/.test(e.name || '') && e.length > 100);
+  if (!E.length) return null;
+  // محور الكوبري: من أول نقطة لآخر نقطة (متوسط الاتجاهين)
+  const P0 = { x: 0, z: 0 }, P1 = { x: 0, z: 0 };
+  let dir = null;
+  for (const e of E) {
+    const a = e.pts[0], b = e.pts[e.pts.length - 1];
+    let [s, f] = [a, b];
+    if (dir && (b.x - a.x) * dir[0] + (b.z - a.z) * dir[1] < 0) [s, f] = [b, a];
+    if (!dir) { const l = Math.hypot(b.x - a.x, b.z - a.z); dir = [(b.x - a.x) / l, (b.z - a.z) / l]; }
+    P0.x += s.x / E.length; P0.z += s.z / E.length; P1.x += f.x / E.length; P1.z += f.z / E.length;
+  }
+  const L = Math.hypot(P1.x - P0.x, P1.z - P0.z), ux = (P1.x - P0.x) / L, uz = (P1.z - P0.z) / L, nx = -uz, nz = ux;
+  // العرض: بين الاتجاهين + نص عرض كل واحد + رصيف 2.5م
+  let off = 0; for (const e of E) { const m = e.pts[Math.floor(e.pts.length / 2)]; off = Math.max(off, Math.abs((m.x - P0.x) * nx + (m.z - P0.z) * nz) + e.half); }
+  const HW = off + 2.6, cx = (P0.x + P1.x) / 2, cz = (P0.z + P1.z) / 2, ang = Math.atan2(ux, uz);
+  const deckY = (s) => W.height(P0.x + ux * s, P0.z + uz * s, 0);
+  const at = (s, o, y = 0) => new THREE.Vector3(P0.x + ux * s + nx * o, y, P0.z + uz * s + nz * o);
+  const cream = new THREE.MeshStandardMaterial({ color: 0xe9dcc2, roughness: 0.8 });
+  const brick = new THREE.MeshStandardMaterial({ color: 0xa8553a, roughness: 0.85 });
+  const roof = new THREE.MeshStandardMaterial({ color: 0xb54a32, roughness: 0.7 });
+  const white = new THREE.MeshStandardMaterial({ color: 0xf1efe8, roughness: 0.6 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x2a2c2f, roughness: 0.6, metalness: 0.4 });
+  const B = { cream: [], brick: [], roof: [], white: [], dark: [] };
+  const box = (k, w, h, d, p, rotY = ang) => B[k].push(new THREE.BoxGeometry(w, h, d).rotateY(rotY).translate(p.x, p.y, p.z));
+  const cyl = (k, r0, r1, h, p, seg = 8) => B[k].push(new THREE.CylinderGeometry(r0, r1, h, seg).translate(p.x, p.y, p.z));
+  // ===== الأبراج: اتنين على كل جنب، على طرفي البحر اللي في النص (±20م من نص الكوبري) =====
+  const TS = 4.6, TH = 15;
+  for (const s of [L / 2 - 20, L / 2 + 20]) for (const sd of [-1, 1]) {
+    const o = sd * (HW + TS / 2 - 0.6), y0 = deckY(s), c = at(s, o);
+    box('cream', TS, TH, TS, c.clone().setY(y0 + TH / 2));
+    // حشوات الطوب (على الأربع وشوش) + شباك مقوّس غامق في كل حشوة
+    for (const [fo, fu] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const q = c.clone().add(new THREE.Vector3(nx * fo * (TS / 2 + 0.02) + ux * fu * (TS / 2 + 0.02), 0, nz * fo * (TS / 2 + 0.02) + uz * fu * (TS / 2 + 0.02)));
+      const rot = fo ? ang : ang + Math.PI / 2;
+      box('brick', 2.6, TH - 4.5, 0.06, q.clone().setY(y0 + 2.2 + (TH - 4.5) / 2), rot);
+      box('dark', 0.9, 2.2, 0.08, q.clone().setY(y0 + TH - 4.2), rot);
+      box('dark', 0.7, 1.6, 0.08, q.clone().setY(y0 + 4.5), rot);
+    }
+    // الكشك اللي فوق: أرضية بارزة + 4 أعمدة في الأركان + سقف هرمي أحمر بارز + شوشة
+    box('white', TS + 1.0, 0.5, TS + 1.0, c.clone().setY(y0 + TH + 0.25));
+    for (const a of [-1, 1]) for (const b of [-1, 1]) {
+      const q = c.clone().add(new THREE.Vector3((nx * a + ux * b) * (TS / 2 - 0.2), 0, (nz * a + uz * b) * (TS / 2 - 0.2)));
+      box('cream', 0.55, 3.2, 0.55, q.setY(y0 + TH + 0.5 + 1.6));
+    }
+    box('white', TS + 0.4, 0.4, TS + 0.4, c.clone().setY(y0 + TH + 3.9));
+    B.roof.push(new THREE.ConeGeometry((TS + 2.2) * 0.71, 2.4, 4, 1).rotateY(Math.PI / 4 + ang).translate(c.x, y0 + TH + 5.3, c.z));
+    cyl('white', 0.08, 0.14, 1.4, c.clone().setY(y0 + TH + 7.0));
+  }
+  // ===== الرجول + عمود الفانوس الأبيض على كل رجل (كل ~42م) =====
+  const nSp = Math.max(3, Math.round(L / 42));
+  for (let i = 1; i < nSp; i++) {
+    const s = (L * i) / nSp, y0 = deckY(s);
+    for (const sd of [-1, 1]) {
+      const c = at(s, sd * (HW - 0.1));
+      box('white', 1.3, 3.0, 1.3, c.clone().setY(y0 + 1.5));
+      box('white', 1.7, 0.3, 1.7, c.clone().setY(y0 + 3.1));
+      box('dark', 0.5, 0.7, 0.5, c.clone().setY(y0 + 3.6));
+    }
+    // الرجل نفسها على وش المية (أعرض من الكوبري)
+    box('white', 5, 1.6, HW * 2 + 3, at(s, 0, y0 - 1.3));
+  }
+  // ===== الدرابزين الأبيض (عمدان + كوبستة) + أعمدة النور المزدوجة كل 14م =====
+  for (const sd of [-1, 1]) {
+    const o = sd * (HW - 0.1);
+    for (let s = 0; s <= L; s += 2.4) box('white', 0.22, 0.9, 0.22, at(s, o, deckY(s) + 0.45));
+    for (let s = 0; s < L; s += 12) {
+      const s1 = Math.min(L, s + 12), y = (deckY(s) + deckY(s1)) / 2;
+      B.white.push(new THREE.BoxGeometry(0.35, 0.16, s1 - s).rotateY(ang).translate(...at((s + s1) / 2, o, y + 0.98).toArray()));
+      B.white.push(new THREE.BoxGeometry(0.3, 0.12, s1 - s).rotateY(ang).translate(...at((s + s1) / 2, o, y + 0.12).toArray()));
+    }
+    for (let s = 7; s < L; s += 14) {
+      const c = at(s, sd * (HW - 0.5)), y0 = deckY(s);
+      cyl('dark', 0.07, 0.11, 6.5, c.clone().setY(y0 + 3.25));
+      box('dark', 1.2, 0.06, 0.06, c.clone().setY(y0 + 6.3), ang + Math.PI / 2);
+      for (const k of [-0.55, 0.55]) B.white.push(new THREE.SphereGeometry(0.2, 8, 6).translate(c.x + ux * k, y0 + 6.1, c.z + uz * k));
+    }
+    // واجهة الكوبري من برا (الكمرة اللي تحت الدرابزين) نازلة للمية
+    B.cream.push(new THREE.BoxGeometry(0.4, 1.3, L).rotateY(ang).translate(...at(L / 2, sd * (HW + 0.15), deckY(L / 2) - 0.55).toArray()));
+  }
+  const g = new THREE.Group(); g.name = 'stanley-bridge';
+  const M = { cream, brick, roof, white, dark };
+  for (const [k, list] of Object.entries(B)) {
+    if (!list.length) continue;
+    const m = new THREE.Mesh(mergeGeometries(list.map((q) => (q.index ? q.toNonIndexed() : q))), M[k]);
+    m.castShadow = k !== 'dark'; m.receiveShadow = true; g.add(m);
+  }
+  group.add(g);
+  // الأبراج حواجز (العربية ماتعدّيش جواها)
+  for (const s of [L / 2 - 20, L / 2 + 20]) for (const sd of [-1, 1]) {
+    const c = at(s, sd * (HW + TS / 2 - 0.6));
+    W._addCollider?.({ cx: c.x, cz: c.z, hx: TS / 2, hz: TS / 2, angle: ang, restitution: 0.1, kind: 'building' }, null);
+  }
+  return { name: 'كوبري ستانلي', kind: 'bridge', length: Math.round(L), towers: 4, cx: Math.round(cx), cz: Math.round(cz) };
 }
 
 /** خامة جسم برج القاهرة: شبكة خرسانة (فتحات معينات زي زهرة اللوتس) */

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { VehiclePhysics, MICROBUS_SPEC, TAXI_SPEC_BASE, TUKTUK_SPEC_BASE } from '../physics/VehiclePhysics.js';
 import { buildTaxiRig, buildTuktukRig } from './PlayerRigs.js';
+import { buildRealRig, REAL_KINDS } from './RealRigs.js';
 import { buildMicrobus } from './MicrobusModel.js';
 import { analyzeVehicle, specFromModel, integrateHiace } from './HiaceIntegration.js';
 import { Damage } from './Damage.js';
@@ -37,7 +38,14 @@ export class PlayerVehicle {
     this.gearVis = new THREE.Vector2();
     this.hbVis = 0;
     this.glbSteering = null;
-    if (this.kind === 'taxi' || this.kind === 'tuktuk') {
+    // ملاكي/ربع نقل/نقل/أتوبيس: من الموديل الحقيقي (لو مش متحمّل: تاكسي بداله)
+    const real = REAL_KINDS[this.kind] ? buildRealRig(this.kind, assets) : null;
+    if (REAL_KINDS[this.kind] && !real) this.kind = 'taxi';
+    if (real) {
+      this.physics = new VehiclePhysics(real.spec, groundHeight);
+      this.rig = real.rig;
+      scene.add(this.rig.root);
+    } else if (this.kind === 'taxi' || this.kind === 'tuktuk') {
       const spec = { ...MICROBUS_SPEC, ...(this.kind === 'taxi' ? TAXI_SPEC_BASE : TUKTUK_SPEC_BASE) };
       this.physics = new VehiclePhysics(spec, groundHeight);
       this.rig = this.kind === 'taxi' ? buildTaxiRig(spec, assets) : buildTuktukRig(spec, assets);

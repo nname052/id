@@ -6,7 +6,7 @@ const KEY = 'egy-microbus-settings-v1';
 // كل إعداد: نوعه (range/seg) وقيمه وقيمته الافتراضية. المجموعات للعرض بس.
 export const SCHEMA = [
   { group: 'العربية' },
-  { key: 'vehicle', type: 'seg', label: 'بتسوق إيه؟', options: [['microbus', 'ميكروباص'], ['taxi', 'تاكسي'], ['tuktuk', 'توكتوك']], def: 'microbus' },
+  { key: 'vehicle', type: 'seg', label: 'بتسوق إيه؟', options: [['microbus', 'ميكروباص'], ['taxi', 'تاكسي'], ['tuktuk', 'توكتوك'], ['car', 'ملاكي'], ['pickup', 'ربع نقل'], ['truck', 'نقل'], ['bus', 'أتوبيس']], def: 'microbus' },
   { key: 'livery', type: 'seg', label: 'شكل الميكروباص', options: [['city', 'لون المحافظة'], ['shibin', 'شبين (تركواز)'], ['blue', 'أبيض/أزرق'], ['green', 'أبيض/أخضر'], ['plain', 'أبيض']], def: 'city' },
   { group: 'الكاميرا' },
   // زاوية الرؤية بالعرض (مش بالطول): نفس المنظر على شاشة موبايل عريضة وعلى الكمبيوتر

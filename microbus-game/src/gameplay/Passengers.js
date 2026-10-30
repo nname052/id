@@ -12,7 +12,7 @@ import { fmtDist } from '../nav/Navigator.js';
 //  - الميكروباص (line): خط ثابت من الموقف الكبير بمحطات لحد آخر الخط، والرجوع بالعكس. الناس بتركب في الموقف والمحطات بس.
 //  - التاكسي/التوكتوك (trip): زبون (أو مجموعة) بيشاور من الرصيف، رايح وجهة واضحة، والأجرة بالمسافة ويدفع وتديله الباقي.
 // الفلوس بتروح المحفظة (Wallet).
-const MODE = { microbus: 'line', taxi: 'trip', tuktuk: 'trip' };
+const MODE = { microbus: 'line', taxi: 'trip', tuktuk: 'trip', bus: 'line', car: 'free', pickup: 'free', truck: 'free' }; // (free: سواقة حرة من غير ركاب)
 // الأماكن اللي ينفع التوكتوك يشتغل فيها (شوارع جوه البلد والقرى، مش الطرق السريعة)
 const TUK_KINDS = new Set(['city', 'residential', 'village', 'agri', 'shibin', 'side']);
 
@@ -86,6 +86,7 @@ export class Passengers {
     this.onboard = [];
     for (const w of this.walkers) if ((w.state === 'toDoor' || w.state === 'enter')) w.state = 'return';
     this.mode = MODE[player.kind] || 'line';
+    if (this.mode === 'free') for (const w of [...this.walkers]) this._release(w);
     this._resetJob();
     this._updateHud();
   }
@@ -224,6 +225,7 @@ export class Passengers {
 
   /** وجهة الـ GPS */
   navTarget(ph) {
+    if (this.mode === 'free') return null;
     if (this.mode === 'line') {
       const st = this.nextStop;
       return st ? { x: st.mx, z: st.mz, name: st.name } : null;
@@ -241,6 +243,7 @@ export class Passengers {
 
   /** بيانات لوحة الشغل في الـ HUD */
   jobInfo() {
+    if (this.mode === 'free') return { mode: 'free', kind: this.player.kind };
     if (this.mode === 'line') {
       const L = this.line, st = this.nextStop, last = this.lineStops[this.lineStops.length - 1];
       return { mode: 'line', title: L ? L.name : '', color: L?.color, to: last?.name || '', next: st?.name || '', pax: this.onboard.length, cap: this.capacity, fare: L?.fare, canSwitch: !this.onboard.length };
@@ -600,6 +603,7 @@ export class Passengers {
 
   // ===== الحلقة الأساسية =====
   update(dt, ph) {
+    if (this.mode === 'free') return;
     const rig = this.player.rig, door = rig.slidingDoor;
     const vx = ph.x, vz = ph.z;
     const still = ph.speed < 0.45;

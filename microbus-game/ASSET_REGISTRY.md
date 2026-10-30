@@ -64,3 +64,11 @@
 - الشكل من صور Commons "Egypt police car 01.jpg" و"06.jpg" (CC BY 4.0): صاج أسود، أبواب الكابينة بيضا، صندوق متغطي أسود، كشاف أزرق. من غير كتابة/شعار.
 - الجسم: pickup_90s (Daniel Zhabotinsky، CC-BY-4.0) متلوّن — `src/vehicles/PoliceBox.js`. في الكماين: كمين أيوه وكمين لأ (الباقي سيدان الشرطة).
 
+## مراجع شكل كوبري ستانلي (v23) — صور مش متحطة في اللعبة، اتشافت بس عشان الشكل
+| الصورة | الفنان | الرخصة |
+|---|---|---|
+| Stanley Bridge, Alexandria, Jan. 2019-1.jpg / -2.jpg | (Commons user Шуфутинский) | CC BY-SA 4.0 |
+| Stanley Bridge, Alexandria, Aug. 2020.jpg | (Commons user Yousef…) | CC BY-SA 4.0 |
+| Stanley Bridge, Alexandria, May 2023.jpg | (Commons user Fady…) | CC BY-SA 4.0 |
+| Stanley Bridge 4K.jpg | (Commons user Mizo…) | CC BY 4.0 |
+

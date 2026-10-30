@@ -61,6 +61,10 @@ function renderLoop(ctx, rpm, load, seed, P) {
 export const ENGINE_TYPES = {
   microbus: { cyl: 4, rpms: [780, 1400, 2200, 3200, 4200], thump: 52, thumpRpm: 0.018, knock: 1.35, tone: 1, turbo: 1, rattle: 1, rough: 1 },
   taxi: { cyl: 4, rpms: [800, 1800, 3000, 4500, 6200], thump: 70, thumpRpm: 0.022, knock: 0.12, tone: 1.5, turbo: 0 },
+  car: { cyl: 4, rpms: [800, 1800, 3000, 4500, 6200], thump: 66, thumpRpm: 0.022, knock: 0.1, tone: 1.4, turbo: 0 },
+  pickup: { cyl: 4, rpms: [750, 1400, 2200, 3200, 4300], thump: 55, thumpRpm: 0.019, knock: 1.1, tone: 1.05, turbo: 0, rattle: 0.6, rough: 0.8 },
+  truck: { cyl: 4, rpms: [650, 1200, 1900, 2700, 3400], thump: 44, thumpRpm: 0.016, knock: 1.5, tone: 0.82, turbo: 1, rattle: 1, rough: 1.1 },
+  bus: { cyl: 6, rpms: [620, 1000, 1500, 2000, 2450], thump: 38, thumpRpm: 0.014, knock: 1.2, tone: 0.66, turbo: 1, rattle: 0.8, rough: 0.9 },
   tuktuk: { cyl: 1, rpms: [1450, 3000, 4600, 6200, 7800], thump: 95, thumpRpm: 0.03, knock: 0.55, tone: 2.2, turbo: 0, rattle: 0.7, rough: 0.6 },
 };
 

@@ -81,6 +81,45 @@ export const MICROBUS_SPEC = {
   boxOffset: -0.085,
 };
 
+// ===== عربيات اللاعب من الموديلات الحقيقية (RealRigs.js): المقاس (فرق العجل، العرض، نص القطر) بيتاخد من الموديل نفسه =====
+// ملاكي (رينو لوجان 1.6 بنزين)
+export const CAR_SPEC_BASE = { ...TAXI_SPEC_BASE, mass: 1090, inertiaYaw: 1750, inertiaPitch: 1650, inertiaRoll: 440, dragCoef: 0.48 };
+// ربع نقل (بيك أب ديزل 2.5، فاضي)
+export const PICKUP_SPEC_BASE = {
+  ...TAXI_SPEC_BASE,
+  mass: 1550, inertiaYaw: 2700, inertiaPitch: 2500, inertiaRoll: 620, cgHeight: 0.66,
+  springK: 36000, damperBump: 2700, damperRebound: 3600, maxCompression: 0.14,
+  tireMu: 0.95, dragCoef: 0.72, brakeForce: 14500, handbrakeForce: 5000, maxSteer: 0.6, steeringRatio: 17,
+  gears: [4.0, 2.2, 1.4, 1.0, 0.8], reverseRatio: 3.8, finalDrive: 4.1, drivetrainEff: 0.86,
+  idleRpm: 750, maxRpm: 4300, shiftTime: 0.32, shift: [2100, 3700, 1200],
+  torqueCurve: [[600, 120], [1200, 175], [2000, 200], [2800, 192], [3600, 165], [4400, 120]],
+  antiRollK: 21000, antiRollC: 2100,
+};
+// نقل خفيف (ميتسوبيشي كانتر 3.9 ديزل، نص حمولة) — كابينة فوق الموتور
+export const TRUCK_SPEC_BASE = {
+  ...MICROBUS_SPEC,
+  mass: 4300, inertiaYaw: 13500, inertiaPitch: 12500, inertiaRoll: 2900, cgHeight: 1.0,
+  springK: 95000, damperBump: 6200, damperRebound: 8200, maxCompression: 0.15,
+  tireMu: 0.9, slideMu: 0.68, rollingResistance: 0.018, dragCoef: 1.35,
+  brakeForce: 32000, brakeBiasFront: 0.58, handbrakeForce: 11000, maxSteer: 0.6, steeringRatio: 20,
+  gears: [5.3, 3.0, 1.75, 1.0, 0.76], reverseRatio: 5.0, finalDrive: 4.9, drivetrainEff: 0.86,
+  idleRpm: 650, maxRpm: 3400, shiftTime: 0.45, shift: [1700, 3000, 1000],
+  torqueCurve: [[500, 200], [1000, 320], [1600, 370], [2200, 360], [2800, 320], [3400, 240]],
+  antiRollK: 52000, antiRollC: 5200,
+};
+// أتوبيس (كاروسا 11م، ديزل 6 سلندر، نص ركاب)
+export const BUS_SPEC_BASE = {
+  ...MICROBUS_SPEC,
+  mass: 11500, inertiaYaw: 118000, inertiaPitch: 112000, inertiaRoll: 15500, cgHeight: 1.15,
+  springK: 230000, damperBump: 16000, damperRebound: 21000, maxCompression: 0.14,
+  tireMu: 0.85, slideMu: 0.65, rollingResistance: 0.012, dragCoef: 2.7,
+  brakeForce: 85000, brakeBiasFront: 0.55, handbrakeForce: 30000, maxSteer: 0.62, steeringRatio: 22,
+  gears: [6.0, 3.4, 1.95, 1.3, 1.0, 0.8], reverseRatio: 5.6, finalDrive: 5.1, drivetrainEff: 0.86,
+  idleRpm: 620, maxRpm: 2400, shiftTime: 0.55, shift: [1300, 2150, 800],
+  torqueCurve: [[500, 650], [900, 980], [1300, 1080], [1700, 1040], [2100, 900], [2450, 650]],
+  antiRollK: 140000, antiRollC: 14000,
+};
+
 const G = 9.81;
 // شدّة أكتر من الأرقام الحقيقية (اللعبة كانت بتحس العربية بطيئة/رخمة): ×1.3 على عزم كل العربيات
 const PUNCH = 1.3;

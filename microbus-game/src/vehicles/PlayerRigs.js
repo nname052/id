@@ -27,7 +27,7 @@ function baseRig(spec) {
 }
 
 /** باب وهمي للركاب (التاكسي/التوكتوك مفيهمش باب جرار): بيتفتح بسرعة عشان الركوب يمشي */
-function fakeDoor(center) {
+export function fakeDoor(center) {
   return {
     group: null, open: 0, target: 0, center,
     update(dt) { this.open += Math.sign(this.target - this.open) * Math.min(Math.abs(this.target - this.open), dt * 4); },
@@ -51,7 +51,7 @@ function clipTris(g, test) {
   g.computeBoundingSphere();
 }
 
-function mirrorFace(w, h) {
+export function mirrorFace(w, h) {
   const holder = new THREE.Group();
   const face = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: 0x223344 }));
   holder.add(face);

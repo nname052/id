@@ -60,7 +60,7 @@ export class DashScreen {
 
 function roundRectPath(x, a, b, w, h, r) { x.beginPath(); x.roundRect(a, b, w, h, r); }
 
-function mats(body = 0xa9a7a1) {
+export function mats(body = 0xa9a7a1) {
   return {
     dashTop: new THREE.MeshStandardMaterial({ color: 0x232529, roughness: 0.82 }),
     dashLow: new THREE.MeshStandardMaterial({ color: 0x8e8e8b, roughness: 0.7 }),
