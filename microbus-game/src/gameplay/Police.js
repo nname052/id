@@ -6,6 +6,7 @@
 // =====================================================================
 import * as THREE from 'three';
 import { buildSedan } from '../vehicles/SedanModel.js';
+import { buildPoliceBox } from '../vehicles/PoliceBox.js';
 import { groundHeight } from '../world/ground.js';
 import { GeoBuilder } from '../render/GeoBuilder.js';
 import { canvas, tex } from '../render/textures.js';
@@ -72,7 +73,7 @@ function officer() {
 
 export class Police {
   /** spots: أماكن الكماين. كل واحد {name, q:{x,z,dx,dz,rx,rz,half}} */
-  constructor(scene, { hud, wallet, licenses, spots = [] } = {}) {
+  constructor(scene, { hud, wallet, licenses, spots = [], assets = null } = {}) {
     this.hud = hud; this.wallet = wallet; this.licenses = licenses;
     this.cps = [];
     const signMat = new THREE.MeshStandardMaterial({ map: signTexture(), roughness: 0.6 });
@@ -84,8 +85,8 @@ export class Police {
       const y0 = groundHeight(q.x, q.z);
       const at = (along, side) => [q.x + q.dx * along + q.rx * side, q.z + q.dz * along + q.rz * side];
       const yaw = Math.atan2(q.dx, q.dz);
-      // عربية الشرطة راكنة على الجنب (مايلة شوية)
-      const car = buildSedan({ livery: 'police', lod: 1, seeThrough: false });
+      // عربية الشرطة راكنة على الجنب (مايلة شوية): كمين ورا كمين "بوكس" (بيك أب الشرطة) لو موديله موجود
+      const car = (this.cps.length % 2 === 1 && buildPoliceBox(assets)) || buildSedan({ livery: 'police', lod: 1, seeThrough: false });
       const [cx, cz] = at(-9, road + 1.6);
       car.root.position.set(cx, groundHeight(cx, cz), cz);
       car.root.rotation.y = yaw + Math.PI + 0.25;

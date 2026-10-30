@@ -197,7 +197,7 @@ export class Game {
     this.fuel = new FuelSystem({ hud: this.hud, wallet: this.wallet });
     this.fuel.attach(this.player);
     this.licenses = new Licenses({ wallet: this.wallet, hud: this.hud });
-    this.police = new Police(this.scene, { hud: this.hud, wallet: this.wallet, licenses: this.licenses, spots: this.world.policeSpots });
+    this.police = new Police(this.scene, { hud: this.hud, wallet: this.wallet, licenses: this.licenses, spots: this.world.policeSpots, assets: this.tier !== 'low' ? this.assets : null });
     // أماكن محجوزة (محطات ركوب + كماين): مفيش عربيات مركونة فيها
     this.world.nearReserved = (x, z, r) =>
       this.passengers.stops.some((st) => (st.mx ?? st.x) - x < r + 8 && x - (st.mx ?? st.x) < r + 8 && Math.hypot((st.mx ?? st.x) - x, (st.mz ?? st.z) - z) < r + 8) ||
