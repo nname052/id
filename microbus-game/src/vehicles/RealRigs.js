@@ -27,9 +27,9 @@ export const REAL_KINDS = {
     wheelR: 0.185, wheelTilt: -1.12, reach: 0.42, drop: 0.25, dashDist: 0.6, style: 'car', mode: 'free', label: 'ملاكي', mirrorIn: true },
   pickup: { r: 0.36, model: 'pickup_90s', paint: 0xe9e7e0, base: PICKUP_SPEC_BASE, cgFrac: 0.45, eyeBack: 0.22, eyeAbove: 0.26, headroom: 0.15, floorBelow: 0.84,
     wheelR: 0.19, wheelTilt: -1.05, reach: 0.42, drop: 0.27, dashDist: 0.58, style: 'car', mode: 'free', label: 'ربع نقل', mirrorIn: true },
-  truck: { r: 0.36, model: 'truck_canter', paint: undefined, base: TRUCK_SPEC_BASE, cgFrac: 0.38, eyeBack: 0.62, eyeAbove: 0.5, headroom: 0.2, floorBelow: 1.15,
+  truck: { r: 0.36, model: 'truck_canter', paint: undefined, base: TRUCK_SPEC_BASE, cgFrac: 0.38, eyeBack: 0.62, eyeAbove: 0.25, headroom: 0.2, floorBelow: 0.9,
     wheelR: 0.22, wheelTilt: -0.6, reach: 0.4, drop: 0.36, dashDist: 0.62, style: 'truck', mode: 'free', label: 'نقل', mirrorIn: false },
-  bus: { r: 0.5, model: 'bus_karosa', paint: undefined, base: BUS_SPEC_BASE, cgFrac: 0.62, eyeBack: 0.72, eyeAbove: 0.55, headroom: 0.25, floorBelow: 1.2,
+  bus: { r: 0.5, model: 'bus_karosa', paint: undefined, base: BUS_SPEC_BASE, cgFrac: 0.62, eyeBack: 0.72, eyeAbove: 0.28, headroom: 0.25, floorBelow: 0.93,
     wheelR: 0.25, wheelTilt: -0.45, reach: 0.42, drop: 0.38, dashDist: 0.75, style: 'bus', mode: 'line', label: 'أتوبيس', mirrorIn: false },
 };
 
@@ -235,6 +235,16 @@ export function buildRealRig(kind, assets, opts = {}) {
   // جوه الموديل في منطقة السواق والكرسي اللي جنبه بيتشال (تابلوه/دركسيون/كراسي الموديل)
   const cut = new THREE.Box3(new THREE.Vector3(-cabHW + 0.16, floorY + 0.03, ws.zAtMin + 0.03), new THREE.Vector3(cabHW - 0.16, ws.yMin + 0.4, eye.z + 0.45));
   for (const m of bodyMeshes) if (m.userData.role !== 'glass') { const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry; m.geometry = clipBox(g, cut); }
+  // الأتوبيس: كسوة الموديل من جوه (bake_inside) بتقفل شباك السواق → بنشيلها في حتة الشباك اللي على شماله
+  if (C.style === 'bus') {
+    const win = new THREE.Box3(new THREE.Vector3(-HW - 0.1, eye.y - 0.45, ws.zAtMin), new THREE.Vector3(-cabHW + 0.25, ws.yMax, eye.z + 0.9));
+    for (const m of bodyMeshes) if (/inside/i.test(m.material.name || '')) m.geometry = clipBox(m.geometry.index ? m.geometry.toNonIndexed() : m.geometry, win);
+    // والموديل نفسه شباك السواق فيه مرسوم على الصورة بس (صاج مقفول): بنفتح شباك حقيقي في الجنب + زجاج خفيف وإطار غامق
+    const wy0 = eye.y - 0.32, wy1 = Math.min(ws.yMax - 0.05, eye.y + 0.42), wz0 = ws.zAtMin + 0.2, wz1 = eye.z + 0.55;
+    const hole = new THREE.Box3(new THREE.Vector3(-HW - 0.2, wy0, wz0), new THREE.Vector3(-HW + 0.2, wy1, wz1));
+    for (const m of bodyMeshes) if (m.userData.role !== 'glass') m.geometry = clipBox(m.geometry.index ? m.geometry.toNonIndexed() : m.geometry, hole);
+    rig.busWindow = { x: -HW + 0.03, y0: wy0, y1: wy1, z0: wz0, z1: wz1 };
+  }
   // ===== الكابينة =====
   const M = cockpitMats(C.paint ?? 0x9a9a96);
   const g = new THREE.Group(); g.name = `${kind}-cockpit`; rig.shell.add(g);
@@ -302,14 +312,22 @@ export function buildRealRig(kind, assets, opts = {}) {
   }
   // موديل من غير زجاج (الشبابيك فاضية): إطار الزجاج الأمامي (العواميد + الحلق اللي فوق وتحت) + زجاج خفيف
   if (noGlass && !C.glassEst) {
-    const fm = new THREE.MeshStandardMaterial({ color: 0xe6e6e2, roughness: 0.5 });
+    const fm = new THREE.MeshStandardMaterial({ color: 0x3a3b3e, roughness: 0.7 }); // (كان أبيض: عمود عريض فاتح في وش السواق)
     const zb = ws.zAtMin + 0.02, zt = ws.zAtMax + 0.02, xs = HW - 0.06;
-    for (const sx of [-1, 1]) g.add(beam([sx * xs, ws.yMin, zb], [sx * xs, ws.yMax, zt], 0.09, 0.07, fm));
+    for (const sx of [-1, 1]) g.add(beam([sx * xs, ws.yMin, zb], [sx * xs, ws.yMax, zt], 0.06, 0.05, fm));
     g.add(beam([-xs, ws.yMax + 0.04, zt], [xs, ws.yMax + 0.04, zt], 0.1, 0.07, fm));
     g.add(beam([-xs, ws.yMin - 0.02, zb], [xs, ws.yMin - 0.02, zb], 0.07, 0.06, fm));
     const glass = new THREE.Mesh(new THREE.PlaneGeometry(xs * 2, Math.hypot(ws.yMax - ws.yMin, zt - zb)), new THREE.MeshStandardMaterial({ color: 0x9fb3bb, transparent: true, opacity: 0.16, roughness: 0.05, depthWrite: false, side: THREE.DoubleSide }));
     glass.position.set(0, (ws.yMin + ws.yMax) / 2, (zb + zt) / 2); glass.rotation.x = -Math.atan2(zt - zb, ws.yMax - ws.yMin); glass.userData.role = 'glass'; glass.renderOrder = 2;
     g.add(glass);
+  }
+  if (rig.busWindow) {
+    const bw = rig.busWindow, fm2 = new THREE.MeshStandardMaterial({ color: 0x232427, roughness: 0.6 });
+    const gl = new THREE.Mesh(new THREE.PlaneGeometry(bw.z1 - bw.z0, bw.y1 - bw.y0), new THREE.MeshStandardMaterial({ color: 0x9fb3bb, transparent: true, opacity: 0.18, roughness: 0.05, depthWrite: false, side: THREE.DoubleSide }));
+    gl.position.set(bw.x, (bw.y0 + bw.y1) / 2, (bw.z0 + bw.z1) / 2); gl.rotation.y = Math.PI / 2; gl.userData.role = 'glass'; gl.renderOrder = 2; g.add(gl);
+    for (const [y, z, h, d] of [[bw.y0, (bw.z0 + bw.z1) / 2, 0.05, bw.z1 - bw.z0 + 0.05], [bw.y1, (bw.z0 + bw.z1) / 2, 0.05, bw.z1 - bw.z0 + 0.05], [(bw.y0 + bw.y1) / 2, bw.z0, bw.y1 - bw.y0, 0.05], [(bw.y0 + bw.y1) / 2, bw.z1, bw.y1 - bw.y0, 0.05]]) {
+      add(new THREE.BoxGeometry(0.14, h, d), fm2, M4(bw.x, y, z));
+    }
   }
   // الشماسات + بطانة السقف فوق السواق
   const roofIn = Math.min(bb.max.y - 0.07, ws.yMax + 0.05);
