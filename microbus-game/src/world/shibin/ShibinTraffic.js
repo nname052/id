@@ -19,8 +19,8 @@ import { findRoute } from '../../nav/RoadGraph.js';
 import { canvas, tex } from '../../render/textures.js';
 
 // (العربيات الإجرائية المربعة والموتوسيكل اتشالوا: كانوا شكلهم غريب — موديلات حقيقية بس)
-const TYPES = ['microbus', 'sedan', 'taxi', 'microbus', 'tuktuk', 'microbus', 'sedan', 'microbus', 'taxi', 'microbus', 'sedan', 'tuktuk']; // (ميكروباصات أكتر: ~40% زي شوارع المدن عندنا)
-const SMALL = { tuktuk: { vMul: 0.62, mass: 420 }, moto: { vMul: 0.9, mass: 220 } };
+const TYPES = ['microbus', 'sedan', 'taxi', 'microbus', 'tuktuk', 'microbus', 'sedan', 'pickup', 'microbus', 'taxi', 'microbus', 'sedan', 'tuktuk', 'pickup']; // (ميكروباصات أكتر: ~40% زي شوارع المدن عندنا)
+const SMALL = { tuktuk: { vMul: 0.62, mass: 420 }, moto: { vMul: 0.9, mass: 220 }, pickup: { vMul: 0.9, mass: 1700 } }; // (ربع نقل: أبطأ شوية)
 const SPAWN_MIN = 60; // (نطاق المرور: this.activeR / this.despawnR — أصغر على الموبايل = نفس العدد في مساحة أقل = زحمة أكتر حواليك)
 const CLASS_W = { motorway: 3, trunk: 3, primary: 3, secondary: 2.6, tertiary: 2.2, unclassified: 1.4, residential: 1, living_street: 0.4, service: 0.25, road: 1, track: 0.15 };
 const _a = {}, _b = {};
@@ -56,7 +56,7 @@ export class ShibinTraffic {
       });
     }
     // عربيات مركونة على جنب الشارع (نسخة مخبوزة خفيفة، ثابتة) — بس في الشوارع اللي فيها مكان جنب حارة المرور
-    const PT = ['sedan', 'microbus', 'taxi', 'sedan', 'microbus', 'sedan'];
+    const PT = ['sedan', 'microbus', 'taxi', 'sedan', 'microbus', 'sedan', 'pickup'];
     for (let i = 0; i < parked; i++) {
       const type = PT[i % PT.length];
       const rig = makeCar(type, CAR_COLORS[Math.floor(this.R() * CAR_COLORS.length)], { parked: true });

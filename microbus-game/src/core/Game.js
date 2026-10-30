@@ -421,6 +421,7 @@ export class Game {
   }
 
   _makeCarBody(type, color, opts = {}) {
+    if (type === 'pickup') return buildSmallTraffic('pickup');
     if (type === 'tuktuk' || type === 'moto') {
       // التوكتوك: نفس موديل التوكتوك الحقيقي (مخبوز خفيف) بدل الشكل الإجرائي المربع
       const a = this.assets.get('tuktuk_model');
