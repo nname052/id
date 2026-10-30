@@ -10,7 +10,7 @@ import { REGION_BASE, loadJSON, releaseBase, dropCache, buildGraph, edgePoint, e
 import { StreetKit } from './ShibinStreetKit.js';
 import { ShibinRail } from './ShibinRail.js';
 import { styledRealBuilding, buildWorship } from './ShibinCivic.js';
-import { buildingMaterial, buildTileBuildings, buildRealBuilding, tileKitItems, kitGeometries } from './ShibinBuildings.js';
+import { buildingMaterial, buildTileBuildings, buildRealBuilding, tileKitItems, kitGeometries, setCityPalette } from './ShibinBuildings.js';
 import { canvas, tex } from '../../render/textures.js';
 import { ShibinLamps } from './ShibinLamps.js';
 import { SpeedBumps } from './SpeedBumps.js';
@@ -26,7 +26,7 @@ const _v = new THREE.Vector3();
 
 export class ShibinWorld {
   constructor(M, { id = 'shibin', name = 'شبين الكوم', low = false, tier = 'high', assets = null, water = null, spawn = null, ground = null } = {}) {
-    this.M = M; this.id = id; this.name = name; this.assets = assets; this.waterStyle = water; this.spawnLL = spawn; this.groundStyle = ground; this.low = low; this.tier = tier;
+    this.M = M; this.id = id; setCityPalette(id); this.name = name; this.assets = assets; this.waterStyle = water; this.spawnLL = spawn; this.groundStyle = ground; this.low = low; this.tier = tier;
     // (assets: موديلات GLB جاهزة — كراسي القهاوي…)
     this.base = REGION_BASE(id);
     this.group = new THREE.Group(); this.group.name = `region-${id}`;

@@ -9,11 +9,19 @@ import * as THREE from 'three';
 
 const GF = 3.6, FH = 3.0, PARAPET = 0.9;
 
-// ألوان المحارة المصرية (بيج/كريمي/وردي فاتح/أصفر باهت/رمادي) + الطوب
-const TINTS = [
-  [1.0, 0.97, 0.95], [0.98, 0.95, 0.92], [0.96, 0.93, 0.9], // طوب (لون الطوب من الأطلس)
-  [0.86, 0.72, 0.52], [0.9, 0.8, 0.62], [0.86, 0.66, 0.58], [0.88, 0.78, 0.5], [0.74, 0.72, 0.68],
-];
+// ألوان المحارة المصرية (بيج/كريمي/وردي فاتح/أصفر باهت/رمادي) + الطوب — والإسكندرية (والمدن الساحلية) ليها ألوانها
+// (أصفر أوكر، كريمي، خوخي، أزرق سماوي باهت، أبيض مكسور) بدل الرمادي — المدينة تبان مبهجة مش باهتة
+const BRICK = [[1.0, 0.97, 0.95], [0.98, 0.95, 0.92], [0.96, 0.93, 0.9]]; // (لون الطوب من الأطلس)
+const PALETTES = {
+  default: [...BRICK, [0.86, 0.72, 0.52], [0.9, 0.8, 0.62], [0.86, 0.66, 0.58], [0.88, 0.78, 0.5], [0.8, 0.62, 0.5], [0.82, 0.78, 0.66]],
+  coast: [BRICK[0], [0.95, 0.84, 0.6], [0.98, 0.9, 0.76], [0.94, 0.78, 0.66], [0.78, 0.86, 0.9], [0.93, 0.92, 0.88], [0.9, 0.75, 0.5], [0.86, 0.9, 0.84], [0.97, 0.86, 0.72]],
+};
+let TINTS = PALETTES.default;
+const COAST = new Set(['alexandria', 'portsaid', 'damietta', 'matruh', 'hurghada', 'arish', 'ismailia', 'suez']);
+/** ألوان العمارات حسب المدينة (بتتنادي مرة وقت بناء العالم) */
+export function setCityPalette(id) { TINTS = COAST.has(id) ? PALETTES.coast : PALETTES.default; }
+/** لون لمبنى حسب رقم (للمباني الحقيقية من OSM) */
+export function tintFor(k) { const t = TINTS[3 + (Math.abs(Math.floor(k)) % (TINTS.length - 3))] || TINTS[0]; return t; }
 
 let _geo = null;
 /** صندوق وحدة (من غير قاع): x,z من -0.5 لـ 0.5 و y من 0 لـ 1. aFace: 0 قدام(+z) 1 ورا 2 يمين(+x) 3 شمال 4 سطح */
@@ -221,7 +229,7 @@ export function buildTileBuildings(list, mat) {
 export function buildRealBuilding(b, mat) {
   const h = GF + Math.max(1, b.floors) * FH;
   const pos = [], nor = [], col = [], idx = [];
-  const tint = [0.64, 0.58, 0.49];
+  const r0 = b.rings?.[0] || [0, 0], tb = tintFor(r0[0] * 7 + r0[1] * 13), tint = [tb[0] * 0.78, tb[1] * 0.78, tb[2] * 0.78];
   for (const ring of b.rings) {
     for (let i = 0; i + 3 < ring.length; i += 2) {
       const ax = ring[i], az = ring[i + 1], bx = ring[i + 2], bz = ring[i + 3];
