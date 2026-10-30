@@ -1,0 +1,324 @@
+{
+  "id": "alex_east",
+  "name": "شرق الإسكندرية — سيدي جابر للمنتزه",
+  "name_en": "East Alexandria — Sidi Gaber to Montaza",
+  "governorate": "الإسكندرية",
+  "source_pbf": "../data/osm/egypt/cities/alex_east.osm.pbf",
+  "source_note": "OpenStreetMap Egypt extract (download.openstreetmap.fr, 2026-10-29), cut per city with osmium extract",
+  "origin": {
+    "lat": 31.245,
+    "lon": 29.975,
+    "note": "Map centre chosen on the eastern Corniche between Sidi Gaber and Montaza (not an OSM place node)"
+  },
+  "bbox": {
+    "west": 29.94,
+    "south": 31.205,
+    "east": 30.03,
+    "north": 31.294
+  },
+  "tile_size": 400,
+  "stub_outside": 40,
+  "landmarks": [
+    {
+      "id": "rail_station_1",
+      "name": "محطة الرمل الميري",
+      "kind": "rail_station",
+      "osm": "node/3874891889",
+      "lonlat": [
+        29.976774,
+        31.242995
+      ]
+    },
+    {
+      "id": "rail_station_2",
+      "name": "سيدي بشر",
+      "kind": "rail_station",
+      "osm": "node/339078708",
+      "lonlat": [
+        29.994049,
+        31.257069
+      ]
+    },
+    {
+      "id": "rail_station_3",
+      "name": "محطة قطار سيدى جابر",
+      "kind": "rail_station",
+      "osm": "node/3605745439",
+      "lonlat": [
+        29.942465,
+        31.218991
+      ]
+    },
+    {
+      "id": "rail_station_4",
+      "name": "محطة المنتزة",
+      "kind": "rail_station",
+      "osm": "node/1885009800",
+      "lonlat": [
+        30.021429,
+        31.28295
+      ]
+    },
+    {
+      "id": "museum_5",
+      "name": "متحف المجوهرات الملكية",
+      "kind": "museum",
+      "osm": "way/397424296",
+      "lonlat": [
+        29.963217,
+        31.240886
+      ]
+    },
+    {
+      "id": "hospital_6",
+      "name": "مستشفى مصطفى كامل العسكري",
+      "kind": "hospital",
+      "osm": "way/414971251",
+      "lonlat": [
+        29.940855,
+        31.225919
+      ]
+    },
+    {
+      "id": "bus_station_7",
+      "name": "فاكتوريا محطه مصر",
+      "kind": "bus_station",
+      "osm": "node/9187838737",
+      "lonlat": [
+        29.978757,
+        31.248031
+      ]
+    },
+    {
+      "id": "bus_station_8",
+      "name": "فاكتوريا - منشيه",
+      "kind": "bus_station",
+      "osm": "node/9187838738",
+      "lonlat": [
+        29.978827,
+        31.24809
+      ]
+    },
+    {
+      "id": "bus_station_9",
+      "name": "فاكتوريا - مندره",
+      "kind": "bus_station",
+      "osm": "node/9187838741",
+      "lonlat": [
+        29.980387,
+        31.249575
+      ]
+    },
+    {
+      "id": "bus_station_10",
+      "name": "فاكتوريا - سيدى بشر",
+      "kind": "bus_station",
+      "osm": "node/9187838742",
+      "lonlat": [
+        29.980722,
+        31.249235
+      ]
+    },
+    {
+      "id": "university_11",
+      "name": "مبنى العمارة والنحت",
+      "kind": "university",
+      "osm": "way/958204522",
+      "lonlat": [
+        29.961994,
+        31.241048
+      ]
+    },
+    {
+      "id": "university_12",
+      "name": "كليه الفنون الجميلة",
+      "kind": "university",
+      "osm": "way/958204521",
+      "lonlat": [
+        29.96161,
+        31.240929
+      ]
+    },
+    {
+      "id": "university_13",
+      "name": "الأكاديمية العربية للعلوم والتكنولوجيا والنقل البحري",
+      "kind": "university",
+      "osm": "node/1179095077",
+      "lonlat": [
+        29.99823,
+        31.265473
+      ]
+    },
+    {
+      "id": "government_14",
+      "name": "سموحة",
+      "kind": "government",
+      "osm": "node/11878324669",
+      "lonlat": [
+        29.942181,
+        31.215679
+      ]
+    },
+    {
+      "id": "hospital_15",
+      "name": "مستشفى لوران",
+      "kind": "hospital",
+      "osm": "node/6372854086",
+      "lonlat": [
+        29.973631,
+        31.247892
+      ]
+    },
+    {
+      "id": "hospital_16",
+      "name": "مستشفى الثغر التخصصي",
+      "kind": "hospital",
+      "osm": "way/772340572",
+      "lonlat": [
+        29.979979,
+        31.246462
+      ]
+    },
+    {
+      "id": "museum_17",
+      "name": "متحف محمود سعيد",
+      "kind": "museum",
+      "osm": "node/6416332108",
+      "lonlat": [
+        29.969578,
+        31.24445
+      ]
+    },
+    {
+      "id": "historic_18",
+      "name": "محطة بيتي",
+      "kind": "historic",
+      "osm": "node/5010980222",
+      "lonlat": [
+        29.976038,
+        31.253065
+      ]
+    },
+    {
+      "id": "historic_19",
+      "name": "شاطئ 26 يوليو",
+      "kind": "historic",
+      "osm": "node/4319886100",
+      "lonlat": [
+        29.967831,
+        31.249019
+      ]
+    },
+    {
+      "id": "historic_20",
+      "name": "قصر الصفا",
+      "kind": "historic",
+      "osm": "node/3893920821",
+      "lonlat": [
+        29.964365,
+        31.243766
+      ]
+    },
+    {
+      "id": "historic_21",
+      "name": "منزلي اسماعيل اسكندرية",
+      "kind": "historic",
+      "osm": "node/5010068922",
+      "lonlat": [
+        29.97865,
+        31.256146
+      ]
+    },
+    {
+      "id": "historic_22",
+      "name": "قصر سباهي باشا",
+      "kind": "historic",
+      "osm": "node/14111750705",
+      "lonlat": [
+        29.950371,
+        31.233754
+      ]
+    },
+    {
+      "id": "historic_23",
+      "name": "قصر الامير عبد الله الصباح",
+      "kind": "historic",
+      "osm": "node/14097448505",
+      "lonlat": [
+        29.94886,
+        31.231934
+      ]
+    },
+    {
+      "id": "historic_24",
+      "name": "نقابة الصيادلة",
+      "kind": "historic",
+      "osm": "way/477671933",
+      "lonlat": [
+        29.944739,
+        31.211849
+      ]
+    },
+    {
+      "id": "historic_25",
+      "name": "طاحونة المندرة الاثرية",
+      "kind": "historic",
+      "osm": "node/14077424381",
+      "lonlat": [
+        30.010362,
+        31.279734
+      ]
+    },
+    {
+      "id": "museum_26",
+      "name": "متحف التاريخ الطبيعي",
+      "kind": "museum",
+      "osm": "node/13629828784",
+      "lonlat": [
+        29.943708,
+        31.205476
+      ]
+    },
+    {
+      "id": "post_27",
+      "name": "مكتب بريد سان ستيفانو",
+      "kind": "post",
+      "osm": "node/12714960638",
+      "lonlat": [
+        29.970199,
+        31.248553
+      ]
+    },
+    {
+      "id": "post_28",
+      "name": "مكتب بريد النقراشي",
+      "kind": "post",
+      "osm": "node/6087059488",
+      "lonlat": [
+        29.980675,
+        31.24911
+      ]
+    },
+    {
+      "id": "park_29",
+      "name": "حديقة اللنبى",
+      "kind": "park",
+      "osm": "way/30661043",
+      "lonlat": [
+        29.95547,
+        31.225294
+      ]
+    },
+    {
+      "id": "park_30",
+      "name": "عزبة زكي مختار",
+      "kind": "park",
+      "osm": "node/769129539",
+      "lonlat": [
+        30.015386,
+        31.233072
+      ]
+    }
+  ],
+  "needs_verification": []
+}
