@@ -642,7 +642,15 @@ export class ShibinTraffic {
         if (w.spin) w.spin.rotation.x = -c.spin;
         if (w.group.position.z < 0) { w.group.rotation.order = 'YXZ'; w.group.rotation.y = c._steer || 0; }
       }
-      if (r.body) { r.body.rotation.x = c.acc * 0.006; r.body.rotation.z = Math.max(-0.05, Math.min(0.05, (c._yr || 0) * c.v * 0.012)); }
+      if (r.body) {
+        // الجسم على مساعدين (زنبرك + مخمّد): بيغطس في الفرامل ويرفع في البنزين ويميل في اللفة، وبيرجع بهزة صغيرة —
+        // مش زاوية بتتنقل فجأة. الأتوبيس/النقل أتقل وأبطأ في الحركة
+        const heavy = c.type === 'bus' || c.type === 'truck' ? 0.55 : 1, k = 55 * heavy, cd = 2 * Math.sqrt(k) * 0.45, h = Math.min(dt, 0.05);
+        const tp = Math.max(-0.045, Math.min(0.045, c.acc * 0.0065)), tr = Math.max(-0.05, Math.min(0.05, (c._yr || 0) * c.v * 0.012));
+        c._bpv = (c._bpv || 0) + (k * (tp - (c._bp || 0)) - cd * (c._bpv || 0)) * h; c._bp = (c._bp || 0) + c._bpv * h;
+        c._brv = (c._brv || 0) + (k * (tr - (c._br || 0)) - cd * (c._brv || 0)) * h; c._br = (c._br || 0) + c._brv * h;
+        r.body.rotation.x = c._bp; r.body.rotation.z = c._br;
+      }
       if (r.brake) r.brake.emissiveIntensity = c.acc < -0.6 || c.v < 0.3 ? 3.5 : this.night ? 1.0 : 0.15;
     }
   }

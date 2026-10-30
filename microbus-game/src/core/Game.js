@@ -988,7 +988,8 @@ export class Game {
       }
       this.nav.update(dt, ph);
     }
-    this.env.update(this.player.rig.root.position);
+    // (الشمس بتتحرك بس في فريم رسم خريطة الضل — تحت)
+    this.env.update(this.player.rig.root.position, (((this._shadowTick || 0) + 1) % (this.shadowEvery || 1)) === 0);
 
     // أقرب أعمدة نور بالليل
     this.lampTimer -= dt;

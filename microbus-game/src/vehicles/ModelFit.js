@@ -21,6 +21,65 @@ export function toFloat(geo) {
   return out;
 }
 
+
+// ===================== العجل من الشكل نفسه (للموديلات اللي العجل فيها مخبوز في الجسم) =====================
+/** نسخة فيها المثلثات دي بس (أول رأس في كل مثلث، geometry مش indexed) */
+export function pickTris(g, list) {
+  const out = new THREE.BufferGeometry();
+  for (const name of Object.keys(g.attributes)) {
+    const A = g.attributes[name], sz = A.itemSize, arr = new Float32Array(list.length * 3 * sz);
+    let o = 0;
+    for (const i of list) for (let j = 0; j < 3 * sz; j++) arr[o++] = A.array[i * sz + j];
+    out.setAttribute(name, new THREE.BufferAttribute(arr, sz));
+  }
+  return out;
+}
+
+/** أوطى نقط في الموديل = الكاوتش لامس الأرض → 4 أماكن عجل (شمال/يمين × أول/آخر محور).
+ *  parts: [{g, glass}] بإحداثيات الموديل. بيرجّع { minY, W: [{id, front, x, z, hw}] (FL, FR, RL, RR) } أو null */
+export function findWheelsGeo(parts) {
+  let minY = Infinity;
+  for (const p of parts) if (!p.glass) { const P = p.g.attributes.position; for (let i = 0; i < P.count; i++) minY = Math.min(minY, P.getY(i)); }
+  const touch = [];
+  for (const p of parts) if (!p.glass) { const P = p.g.attributes.position; for (let i = 0; i < P.count; i++) if (P.getY(i) < minY + 0.035) touch.push([P.getX(i), P.getZ(i)]); }
+  if (touch.length < 8) return null;
+  touch.sort((u, v) => u[1] - v[1]);
+  const axles = [[touch[0]]];
+  for (let i = 1; i < touch.length; i++) { if (touch[i][1] - touch[i - 1][1] > 0.6) axles.push([]); axles[axles.length - 1].push(touch[i]); }
+  if (axles.length < 2) return null;
+  const xMid = touch.reduce((s, q) => s + q[0], 0) / touch.length;
+  const ax = (A) => {
+    const L = A.filter((q) => q[0] < xMid), R = A.filter((q) => q[0] >= xMid);
+    const side = (S) => { const xs = S.map((q) => q[0]), zs = S.map((q) => q[1]); return { x: (Math.min(...xs) + Math.max(...xs)) / 2, hw: (Math.max(...xs) - Math.min(...xs)) / 2 + 0.03, z: (Math.min(...zs) + Math.max(...zs)) / 2 }; };
+    return L.length && R.length ? { L: side(L), R: side(R) } : null;
+  };
+  const front = ax(axles[0]), rear = ax(axles[axles.length - 1]);
+  if (!front || !rear) return null;
+  // لازم يبقوا متماثلين (شمال/يمين على نفس البعد ونفس المحور) — غير كده الأوطى نقط مش العجل (رفرف/طين/حاجة مدلدلة)
+  for (const A of [front, rear]) if (Math.abs((A.L.x - xMid) + (A.R.x - xMid)) > 0.25 || Math.abs(A.L.z - A.R.z) > 0.3 || A.R.x - A.L.x < 0.9) return null;
+  return { minY, W: [['FL', front.L, true], ['FR', front.R, true], ['RL', rear.L, false], ['RR', rear.R, false]].map(([id, s, fr]) => ({ id, front: fr, x: s.x, z: s.z, hw: s.hw })) };
+}
+
+/** المثلثات اللي جوه أسطوانة كل عجلة (مركزها y = yC، نص قطرها r) بتتشال من الجسم وتتحط في w.parts متسنترة على نص العجلة */
+export function cutWheels(parts, W, r, yC) {
+  for (const w of W) w.parts = [];
+  for (const p of parts) {
+    if (p.glass) continue;
+    const P = p.g.attributes.position, take = W.map(() => []), keep = [];
+    for (let i = 0; i < P.count; i += 3) {
+      let wi = -1;
+      for (let k = 0; k < W.length && wi < 0; k++) {
+        const w = W[k]; let ok = true;
+        for (let j = 0; j < 3 && ok; j++) ok = Math.abs(P.getX(i + j) - w.x) < w.hw + 0.06 && Math.hypot(P.getY(i + j) - yC, P.getZ(i + j) - w.z) < r * 1.04;
+        if (ok) wi = k;
+      }
+      (wi < 0 ? keep : take[wi]).push(i);
+    }
+    W.forEach((w, k) => { if (take[k].length) w.parts.push({ g: pickTris(p.g, take[k]).translate(-w.x, -yC, -w.z), mat: p.mat }); });
+    if (keep.length * 3 !== P.count) p.g = pickTris(p.g, keep);
+  }
+}
+
 /** كل مثلثات العجل (في إحداثيات الموديل) مع مركز كل مثلث */
 function collectWheelTris(root, re) {
   const parts = [];
@@ -362,7 +421,7 @@ export function realTrafficCar(asset, color) {
       if (!g.attributes.normal) g.computeVertexNormals();
       if (!g.attributes.uv) g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
       const gi = g.index ? g.toNonIndexed() : g;
-      if (WHEEL_RE.test(o.name) || WHEEL_RE.test(o.material.name || '')) {
+      if ((WHEEL_RE.test(o.name) || WHEEL_RE.test(o.material.name || '')) && !/steer|руль/i.test(o.name)) { // (الدركسيون اسمه فيه wheel برضه)
         // العجلة = القطع اللي مراكزها قريبة من ركن (قدام/ورا × يمين/شمال)
         gi.computeBoundingBox(); const c = gi.boundingBox.getCenter(new THREE.Vector3());
         const key = `${c.x < 0 ? 'L' : 'R'}${c.z < (box.min.z + box.max.z) / 2 ? 'F' : 'B'}`;
@@ -379,8 +438,19 @@ export function realTrafficCar(asset, color) {
       for (const m of wheels.values()) for (const [mat, gs] of m) { if (!byMat.has(mat)) byMat.set(mat, []); byMat.get(mat).push(...gs); }
       wheels.clear();
     }
-    const parts = [...byMat].map(([mat, gs]) => ({ g: mergeGeometries(gs), mat, paint: PAINT_RE.test(mat.name || '') }));
-    const W = [...wheels].map(([key, m]) => {
+    const parts = [...byMat].map(([mat, gs]) => ({ g: mergeGeometries(gs), mat, paint: PAINT_RE.test(mat.name || ''), glass: (mat.transparent && mat.opacity < 0.6) || /glass|window/i.test(mat.name || '') }));
+    // العجل مخبوز في الجسم: بنلاقيه من الشكل (أوطى نقط) ونفصله عشان يلف — من غير كده العربية بتتزحلق كتلة واحدة
+    let geoW = null;
+    if (!wheels.size) {
+      const F = findWheelsGeo(parts);
+      if (F) {
+        const len = box.max.z - box.min.z, r = asset.cfg?.wheelR ?? Math.max(0.27, Math.min(0.52, len * 0.068));
+        cutWheels(parts, F.W, r, F.minY + r);
+        geoW = F.W.filter((w) => w.parts.length).map((w) => ({ key: `${w.x < (F.W[0].x + F.W[1].x) / 2 ? 'L' : 'R'}${w.front ? 'F' : 'B'}`, center: new THREE.Vector3(w.x, F.minY + r, w.z), r, parts: w.parts.map((q) => ({ g: mergeGeometries([q.g]), mat: q.mat })) }));
+        if (geoW.length < 4) { for (const w of geoW) for (const q of w.parts) parts.push({ g: q.g.clone().translate(w.center.x, w.center.y, w.center.z), mat: q.mat, paint: false }); geoW = null; }
+      }
+    }
+    const W = geoW || [...wheels].map(([key, m]) => {
       const ps = [...m].map(([mat, gs]) => ({ g: mergeGeometries(gs), mat }));
       const bb = new THREE.Box3(); for (const p of ps) { p.g.computeBoundingBox(); bb.union(p.g.boundingBox); }
       const c = bb.getCenter(new THREE.Vector3());

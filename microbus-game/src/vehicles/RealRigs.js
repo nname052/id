@@ -8,7 +8,7 @@
 // =====================================================================
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { toFloat } from './ModelFit.js';
+import { toFloat, findWheelsGeo, cutWheels } from './ModelFit.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { contactShadow } from './CarModels.js';
 import { mats as cockpitMats, extrudeAcross, DashScreen, beam } from './Cockpits.js';
@@ -41,18 +41,6 @@ function baseRig(spec) {
 }
 
 const PAINT_RE = /paint|body|carpaint|kuzov|кузов/i;
-
-/** نسخة فيها المثلثات دي بس (أول رأس في كل مثلث) */
-function pickTris(g, list) {
-  const out = new THREE.BufferGeometry();
-  for (const name of Object.keys(g.attributes)) {
-    const A = g.attributes[name], sz = A.itemSize, arr = new Float32Array(list.length * 3 * sz);
-    let o = 0;
-    for (const i of list) for (let j = 0; j < 3 * sz; j++) arr[o++] = A.array[i * sz + j];
-    out.setAttribute(name, new THREE.BufferAttribute(arr, sz));
-  }
-  return out;
-}
 
 /** يمسح المثلثات اللي مركزها جوه الصندوق (geometry مش indexed) */
 function clipBox(g, box) {
@@ -122,48 +110,19 @@ export function buildRealRig(kind, assets, opts = {}) {
     byMat.get(o.material).push(g);
   });
   let parts = [...byMat].map(([mat, gs]) => ({ g: mergeGeometries(gs), mat, glass: (mat.transparent && mat.opacity < 0.6) || /glass|window|стекл/i.test(mat.name || '') })); // (الفوانيس شفافة شوية بس مش زجاج)
-  // ===== العجل من الشكل نفسه (أغلب الموديلات العجل فيها مخبوز في الجسم): =====
-  //  أوطى نقط في الموديل = الكاوتش لامس الأرض → 4 مجموعات (شمال/يمين × قدام/ورا)، ومركز العجلة فوقها بنص القطر
-  let minY = Infinity;
-  for (const p of parts) if (!p.glass) { const P = p.g.attributes.position; for (let i = 0; i < P.count; i++) minY = Math.min(minY, P.getY(i)); }
-  const touch = [];
-  for (const p of parts) if (!p.glass) { const P = p.g.attributes.position; for (let i = 0; i < P.count; i++) if (P.getY(i) < minY + 0.035) touch.push([P.getX(i), P.getZ(i)]); }
-  if (touch.length < 8) return null;
-  touch.sort((u, v) => u[1] - v[1]);
-  const axles = [[touch[0]]];
-  for (let i = 1; i < touch.length; i++) { if (touch[i][1] - touch[i - 1][1] > 0.6) axles.push([]); axles[axles.length - 1].push(touch[i]); }
-  if (axles.length < 2) return null;
-  const ax = (A) => {
-    const L = A.filter((q) => q[0] < 0), R = A.filter((q) => q[0] >= 0);
-    const side = (S) => { const xs = S.map((q) => q[0]), zs = S.map((q) => q[1]); return { x: (Math.min(...xs) + Math.max(...xs)) / 2, hw: (Math.max(...xs) - Math.min(...xs)) / 2 + 0.03, z: (Math.min(...zs) + Math.max(...zs)) / 2 }; };
-    return L.length && R.length ? { L: side(L), R: side(R) } : null;
-  };
-  const front = ax(axles[0]), rear = ax(axles[axles.length - 1]);
-  if (!front || !rear) return null;
-  const r = C.r, wheelY = minY + r;
-  const zF = (front.L.z + front.R.z) / 2, zR = (rear.L.z + rear.R.z) / 2, xMid = (front.L.x + front.R.x) / 2;
-  const track = front.R.x - front.L.x;
+  // ===== العجل من الشكل نفسه (أغلب الموديلات العجل فيها مخبوز في الجسم — ModelFit.findWheelsGeo) =====
+  const F = findWheelsGeo(parts);
+  if (!F) return null;
+  const [FL, FR, RL, RR] = F.W, minY = F.minY, r = C.r;
+  const zF = (FL.z + FR.z) / 2, zR = (RL.z + RR.z) / 2, xMid = (FL.x + FR.x) / 2;
+  const track = FR.x - FL.x;
   const wheelBase = zR - zF, cgToFront = wheelBase * C.cgFrac;
   // من إحداثيات الموديل → الـ shell (الأرض y=0، مركز الثقل z=0، القدام -z)
   const off = new THREE.Vector3(-xMid, -minY, -zF - cgToFront);
   for (const p of parts) p.g.translate(off.x, off.y, off.z);
   // المثلثات اللي جوه أسطوانة كل عجلة → بتتشال من الجسم وتبقى العجلة اللي بتلف
-  const W4 = [['FL', front.L, true], ['FR', front.R, true], ['RL', rear.L, false], ['RR', rear.R, false]].map(([id, s, fr]) => ({ id, front: fr, x: s.x + off.x, z: s.z + off.z, hw: s.hw, parts: [] }));
-  for (const p of parts) {
-    if (p.glass) continue;
-    const P = p.g.attributes.position, take = W4.map(() => []), keep = [];
-    for (let i = 0; i < P.count; i += 3) {
-      let wi = -1;
-      for (let k = 0; k < 4 && wi < 0; k++) {
-        const w = W4[k]; let ok = true;
-        for (let j = 0; j < 3 && ok; j++) ok = Math.abs(P.getX(i + j) - w.x) < w.hw + 0.06 && Math.hypot(P.getY(i + j) - r, P.getZ(i + j) - w.z) < r * 1.04;
-        if (ok) wi = k;
-      }
-      (wi < 0 ? keep : take[wi]).push(i);
-    }
-    W4.forEach((w, k) => { if (take[k].length) w.parts.push({ g: pickTris(p.g, take[k]).translate(-w.x, -r, -w.z), mat: p.mat }); });
-    if (keep.length * 3 !== P.count) p.g = pickTris(p.g, keep);
-  }
+  const W4 = F.W.map((w) => ({ ...w, x: w.x + off.x, z: w.z + off.z }));
+  cutWheels(parts, W4, r, r);
   const bb = new THREE.Box3();
   for (const p of parts) { p.g.computeBoundingBox(); bb.union(p.g.boundingBox); }
   const HW = Math.max(-bb.min.x, bb.max.x), frontZ = bb.min.z, rearZ = bb.max.z;

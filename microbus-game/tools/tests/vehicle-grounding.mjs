@@ -14,18 +14,20 @@ await p.goto(`${BASE}?map=${map}`); await p.waitForFunction(() => !document.getE
 await p.evaluate(() => document.getElementById('go').click()); await p.waitForTimeout(2000);
 const r = await p.evaluate(async () => {
   const g = game; for (let i = 0; i < 6; i++) g.debugSim(1, { throttle: 0.4 });
+  g.traffic.lodNear = 25; g.traffic.update(0.05, g.player, g.camera.position); // (نجبر البعيدة تبقى LOD عشان تتفحص هي كمان)
   const T = g.traffic, out = [];
   const box = (o) => { let mn = Infinity, mx = -Infinity; o.traverse((m) => { if (!m.isMesh || !m.visible) return; m.geometry.computeBoundingBox(); const bb = m.geometry.boundingBox.clone().applyMatrix4(m.matrixWorld); mn = Math.min(mn, bb.min.y); mx = Math.max(mx, bb.max.y); }); return { min: mn, max: mx }; };
   const list = [...(T.cars || []).map((c) => ({ c, kind: 'traffic' })), ...(T.parked || []).map((c) => ({ c, kind: 'parked' }))];
   for (const { c, kind } of list) {
-    const root = c.rig?.root; if (!root || !root.visible || !root.parent) continue;
+    // النسخة الخفيفة (LOD) اللي بتترسم للعربيات البعيدة لو هي اللي باينة
+    const root = c.lod?.visible ? c.lod : c.rig?.root; if (!root || !root.visible || !root.parent) continue;
     root.updateMatrixWorld(true); const bx = box(root);
     if (!isFinite(bx.min)) continue;
     const gy = g.world.height(root.position.x, root.position.z, root.position.y); // (الكباري: سطح الكوبري عند ارتفاع العربية)
-    out.push({ kind, type: c.type, real: c.rig?.real, gap: +(bx.min - gy).toFixed(2), h: +(bx.max - bx.min).toFixed(2), y: +root.position.y.toFixed(2) });
+    out.push({ kind: kind + (root === c.lod ? '-lod' : ''), type: c.type, real: c.rig?.real, gap: +(bx.min - gy).toFixed(2), h: +(bx.max - bx.min).toFixed(2), y: +root.position.y.toFixed(2) });
   }
   const bad = out.filter((o) => Math.abs(o.gap) > 0.25);
-  return { n: out.length, bad: bad.slice(0, 20) };
+  return { n: out.length, lod: out.filter((o) => o.kind.endsWith('-lod')).length, bad: bad.slice(0, 20) };
 });
 console.log(map, JSON.stringify(r));
 allBad += r.bad.length + (r.n < 10 ? 1 : 0);

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+const _d = new THREE.Vector3(), _r = new THREE.Vector3(), _u = new THREE.Vector3(), _f = new THREE.Vector3();
 import { Sky } from 'three/addons/objects/Sky.js';
 
 // السماء + الشمس + الضباب + إضاءة البيئة (IBL)
@@ -137,14 +138,25 @@ export class Environment {
   }
 
   /** الضل بيتبع اللاعب عشان دقته تفضل عالية */
-  update(focus) {
-    const d = 120;
-    this.sun.position.set(focus.x + this.sunDir.x * d, focus.y + this.sunDir.y * d, focus.z + this.sunDir.z * d);
-    this.sun.target.position.copy(focus);
+  /** moveShadow: الشمس (= كاميرا الضل) بتتحرك بس في الفريم اللي خريطة الضل بتترسم فيه — لو اتحركت والخريطة قديمة
+   *  كل الضلال بتتزحلق (ضل العربية بيبان متأخر/طاير ورا العربية في الجودة الأقل) */
+  update(focus, moveShadow = true) {
+    if (moveShadow) this._placeSun(focus);
     // السما (صندوق 4كم) بتمشي مع العربية: المدن الكبيرة (الجيزة/إسكندرية) أبعد من 2كم عن نقطة الأصل — السما كانت بتبان سودا
     this.sky.position.set(focus.x, 0, focus.z);
     if (this.stars && this.stars.visible) { this.stars.position.copy(focus); this.moon.position.copy(focus).addScaledVector(this.sunDir, 1600); }
-    // تثبيت الضل على بكسلات الـ shadow map لتقليل الرعشة
+  }
+
+  /** مكان الشمس متثبّت على بكسلات خريطة الضل (texel snapping): الضل مابيرعشش/يزحف على حروفه والعربية ماشية */
+  _placeSun(focus) {
+    const d = 120, S = this.sun.shadow, C = S.camera, texel = (C.right - C.left) / S.mapSize.x;
+    const dir = _d.copy(this.sunDir).normalize();
+    const r = _r.set(0, 1, 0).cross(dir); if (r.lengthSq() < 1e-6) r.set(1, 0, 0); r.normalize();
+    const u = _u.crossVectors(dir, r);
+    const a = focus.x * r.x + focus.y * r.y + focus.z * r.z, b = focus.x * u.x + focus.y * u.y + focus.z * u.z;
+    const f = _f.copy(focus).addScaledVector(r, Math.round(a / texel) * texel - a).addScaledVector(u, Math.round(b / texel) * texel - b);
+    this.sun.position.copy(f).addScaledVector(dir, d);
+    this.sun.target.position.copy(f);
     this.sun.target.updateMatrixWorld();
   }
 }
