@@ -52,8 +52,8 @@ function tuktukGeo(body) {
   geoCache.set(key, g);
   return g;
 }
-function motoGeo(body) {
-  const key = 'moto' + body.join(',');
+function motoGeo(body, box = 0) {
+  const key = 'moto' + body.join(',') + box;
   if (geoCache.has(key)) return geoCache.get(key);
   const dark = [0.07, 0.07, 0.08], chrome = [0.6, 0.6, 0.62];
   const g = mergeGeometries([
@@ -64,6 +64,8 @@ function motoGeo(body) {
     part(new THREE.BoxGeometry(0.62, 0.04, 0.04), dark, M(0, 0.96, -0.5)),            // الجادون
     part(new THREE.BoxGeometry(0.2, 0.2, 0.3), dark, M(0, 0.4, 0.05)),               // الموتور
     part(new THREE.SphereGeometry(0.08, 6, 4), [1, 0.95, 0.75], M(0, 0.86, -0.66)),
+    // موتوسيكل توصيل: صندوق ورا (لون عادي، من غير أي علامة تجارية)
+    ...(box ? [part(new THREE.BoxGeometry(0.42, 0.4, 0.4), box === 1 ? [0.75, 0.1, 0.08] : [0.1, 0.25, 0.6], M(0, 1.08, 0.5))] : []),
   ]);
   geoCache.set(key, g);
   return g;
@@ -215,7 +217,7 @@ export function buildSmallTraffic(type, R = Math.random) {
   const body = (tuk ? TUK_COLORS : MOTO_COLORS)[Math.floor(R() * 4)];
   const root = new THREE.Group(), bodyG = new THREE.Group();
   root.add(bodyG);
-  const mesh = new THREE.Mesh(tuk ? tuktukGeo(body) : motoGeo(body), material());
+  const mesh = new THREE.Mesh(tuk ? tuktukGeo(body) : motoGeo(body, R() < 0.5 ? 1 + Math.floor(R() * 2) : 0), material());
   mesh.castShadow = true; bodyG.add(mesh);
   root.add(contactShadow(tuk ? 1.4 : 0.6, tuk ? 2.6 : 1.8));
   return {

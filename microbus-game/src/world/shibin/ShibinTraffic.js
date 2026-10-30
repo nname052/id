@@ -19,7 +19,7 @@ import { findRoute } from '../../nav/RoadGraph.js';
 import { canvas, tex } from '../../render/textures.js';
 
 // (العربيات الإجرائية المربعة والموتوسيكل اتشالوا: كانوا شكلهم غريب — موديلات حقيقية بس)
-const TYPES = ['microbus', 'sedan', 'taxi', 'microbus', 'tuktuk', 'microbus', 'sedan', 'pickup', 'microbus', 'taxi', 'microbus', 'sedan', 'tuktuk', 'pickup']; // (ميكروباصات أكتر: ~40% زي شوارع المدن عندنا)
+const TYPES = ['microbus', 'sedan', 'taxi', 'microbus', 'tuktuk', 'microbus', 'sedan', 'pickup', 'microbus', 'taxi', 'microbus', 'sedan', 'tuktuk', 'pickup', 'moto']; // (ميكروباصات أكتر: ~40% زي شوارع المدن عندنا)
 const SMALL = { tuktuk: { vMul: 0.62, mass: 420 }, moto: { vMul: 0.9, mass: 220 }, pickup: { vMul: 0.9, mass: 1700 }, bus: { vMul: 0.75, mass: 11000 }, truck: { vMul: 0.7, mass: 7000 } }; // (ربع نقل: أبطأ شوية)
 // أتوبيس النقل العام: الخرايط اللي ألوانه فيها متأكدة (القاهرة/الجيزة) — وبيمشي على الشوارع الكبيرة بس
 const BUS_MAPS = new Set(['cairo', 'cairo_east', 'giza']);
