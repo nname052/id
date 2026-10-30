@@ -67,8 +67,9 @@
 ## مراجع شكل كوبري ستانلي (v23) — صور مش متحطة في اللعبة، اتشافت بس عشان الشكل
 | الصورة | الفنان | الرخصة |
 |---|---|---|
-| Stanley Bridge, Alexandria, Jan. 2019-1.jpg / -2.jpg | (Commons user Шуфутинский) | CC BY-SA 4.0 |
-| Stanley Bridge, Alexandria, Aug. 2020.jpg | (Commons user Yousef…) | CC BY-SA 4.0 |
-| Stanley Bridge, Alexandria, May 2023.jpg | (Commons user Fady…) | CC BY-SA 4.0 |
-| Stanley Bridge 4K.jpg | (Commons user Mizo…) | CC BY 4.0 |
+| Stanley Bridge, Alexandria, Aug. 2020.jpg | Youssef Mihceal | CC BY-SA 4.0 |
+| Stanley Bridge, Alexandria, Jan. 2019-1.jpg | Шухрат Саъдиев | CC BY-SA 4.0 |
+| Stanley Bridge, Alexandria, Jan. 2019-2.jpg | Шухрат Саъдиев | CC BY-SA 4.0 |
+| Stanley Bridge, Alexandria, May 2023.jpg | Fady Ashraf97 | CC BY-SA 4.0 |
+| Stanley Bridge 4K.jpg | MizoWNA | CC BY 4.0 |
 

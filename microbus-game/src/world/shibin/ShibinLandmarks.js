@@ -568,6 +568,67 @@ function cafeSeating(W, pois, mobile) {
   return { chairs, tables };
 }
 
+// ===================== قهاوي كورنيش البحر =====================
+/** على طريق الكورنيش (OSM: "طريق الجيش" / "كورنيش"): كل 70–140م قعدة على رصيف البحر —
+ *  ترابيزات بكراسي بلاستيك وشمسيات، وأحيانًا كشك، وناس قاعدة. ناحية البحر بتتعرف وقت ما المربع يتحمّل
+ *  (لو على بعد 12–45م في الاتجاه ده فيه مية) — الناحية التانية بتتشال. مش متسجّلة كأماكن حقيقية (من غير أسامي). */
+function seaCafes(W, out, chair, mobile) {
+  const E = W.graph.edges.filter((e) => /طريق الجيش|كورنيش/.test(e.name || '') && !e.elevated && e.length > 30);
+  if (!E.length) return 0;
+  const R = rng(777), q = {};
+  const umbGeo = mergeGeometries([
+    new THREE.CylinderGeometry(0.03, 0.03, 2.3, 6).translate(0, 1.15, 0),
+    new THREE.ConeGeometry(1.35, 0.45, 8, 1, true).translate(0, 2.3, 0),
+    new THREE.CylinderGeometry(0.25, 0.3, 0.12, 8).translate(0, 0.06, 0),
+  ].map((g) => g.toNonIndexed()));
+  const umbMat = new THREE.MeshStandardMaterial({ roughness: 0.85, side: THREE.DoubleSide });
+  const umb = new NearInstancer(umbGeo, umbMat, { R: mobile ? 90 : 140, max: mobile ? 30 : 70, name: 'cafe-umbrella', colors: true, castShadow: !mobile });
+  out.umbrella = umb;
+  const UC = [[0.86, 0.12, 0.1], [0.12, 0.35, 0.72], [0.95, 0.95, 0.92], [0.98, 0.72, 0.08], [0.1, 0.55, 0.3]].map((c) => new THREE.Color().setRGB(...c, THREE.SRGBColorSpace).toArray());
+  const seaSide = (it) => {
+    for (const d of [12, 22, 32, 45]) { const h = W.height(it.x + it.sx * d, it.z + it.sz * d, 0); if (h < -0.4) return true; }
+    return false;
+  };
+  const tileReady = (x, z) => { const Tl = W.tiles.get(W._tkey(Math.floor(x / W.TS), Math.floor(z / W.TS))); return !!(Tl && Tl.ready); };
+  const okSea = (it) => {
+    if (!tileReady(it.x, it.z) || !tileReady(it.x + it.sx * 45, it.z + it.sz * 45)) return undefined;
+    if (W._underDeck?.(it.x, it.z)) return false;
+    const r = W.nearestRoad(it.x, it.z, 30); if (r && r.d < r.e.half + 0.6) return false;
+    const h = W.height(it.x, it.z, 0); if (h < -0.05 || h > 0.2) return false;
+    it.y = h + (it.dy || 0);
+    return seaSide(it);
+  };
+  const wrap = (inst) => { if (!inst) return; const prev = inst.check; inst.check = (it) => (it.sea ? okSea(it) : prev ? prev(it) : true); };
+  for (const k of ['kiosk', 'sit0', 'sit1']) wrap(out[k]);
+  wrap(chair.chairs); wrap(chair.tables); umb.check = okSea;
+  const mark = (it, sx, sz, dy = 0) => { if (it) { it.sea = true; it.sx = sx; it.sz = sz; it.dy = dy; } return it; };
+  let n = 0;
+  for (const e of E) {
+    for (let s = 20 + R() * 60; s < e.length - 10; s += 70 + R() * 70) {
+      edgePoint(e, s, q);
+      for (const sd of [1, -1]) {
+        const nx = -q.dz * sd, nz = q.dx * sd, nT = 3 + Math.floor(R() * 3);
+        for (let k = 0; k < nT; k++) {
+          const along = (k - (nT - 1) / 2) * 3.2, off = e.half + 3.2 + (k % 2) * 1.6;
+          const cx = q.x + nx * off + q.dx * along, cz = q.z + nz * off + q.dz * along;
+          mark(chair.tables.add(cx, 0.15, cz, 0), nx, nz);
+          mark(umb.add(cx, 0.15, cz, R() * 6.28, 1, 1, undefined, { color: UC[Math.floor(R() * UC.length)] }), nx, nz);
+          const nc = 2 + Math.floor(R() * 3);
+          for (let c = 0; c < nc; c++) {
+            const a = (c / nc) * 6.28 + R() * 0.5, x = cx + Math.cos(a) * 0.72, z = cz + Math.sin(a) * 0.72, yaw = Math.atan2(cx - x, cz - z);
+            mark(chair.chairs.add(x, 0.15, z, yaw), nx, nz);
+            // ناس قاعدة (مش كل الكراسي)
+            if (R() < 0.45) { const S = R() < 0.5 || !out.sit1 ? out.sit0 : out.sit1; mark(S.add(x, 0.47, z, yaw, 0.95), nx, nz, 0.32); }
+          }
+        }
+        if (R() < 0.4) { const kx = q.x + nx * (e.half + 2.2) + q.dx * (nT * 1.8 + 2), kz = q.z + nz * (e.half + 2.2) + q.dz * (nT * 1.8 + 2); mark(out.kiosk.add(kx, 0.04, kz, Math.atan2(-nx, -nz)), nx, nz, 0.04); }
+        n++;
+      }
+    }
+  }
+  return n;
+}
+
 // ===================== يافطات المحلات (OSM) =====================
 const POI_STYLE = {
   cafe: { bg: '#5b3a1e', fg: '#ffe7b0', icon: '☕' }, restaurant: { bg: '#8a1c12', fg: '#fff', icon: '🍽' }, fast_food: { bg: '#c0392b', fg: '#fff', icon: '🍔' },
@@ -674,7 +735,9 @@ export function buildLandmarks(W, features, { mobile = false } = {}) {
   // القهاوي اللي في OSM: كراسي بلاستيك (موديل حقيقي CC0) وترابيزات صغيرة على الرصيف قدامها
   const chair = cafeSeating(W, features?.pois || [], mobile);
   if (chair) { out.chair = chair.chairs; out.table = chair.tables; stats.cafeChairs = chair.chairs.items.length; }
-  const insts = [...new Set([...['rail', 'paving', 'bench', 'kiosk', 'sit0', 'sit1', 'chair', 'table'].map((k) => out[k]), trees])].filter((x) => x?.mesh);
+  // كورنيش البحر (إسكندرية وأي مدينة على البحر): قعدات قهاوي على رصيف البحر — مولّدة (من غير أسامي)، زي العمارات المولّدة
+  if (W.waterStyle === 'sea' && chair) stats.seaCafes = seaCafes(W, out, chair, mobile);
+  const insts = [...new Set([...['rail', 'paving', 'bench', 'kiosk', 'sit0', 'sit1', 'chair', 'table', 'umbrella'].map((k) => out[k]), trees])].filter((x) => x?.mesh);
   for (const it of insts) group.add(it.mesh);
   let t = 0;
   return {
