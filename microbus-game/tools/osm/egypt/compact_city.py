@@ -101,7 +101,13 @@ def main(cfg_path):
         def __init__(s): super().__init__(); s.nodes = {}; s.ways = {}
         def node(s, n): s.nodes[n.id] = (n.location.lon, n.location.lat)
         def way(s, w): s.ways[w.id] = (dict(w.tags), [n.ref for n in w.nodes])
-    h = P1(); h.apply_file(src)
+        def relation(s, r):
+            tg = dict(r.tags)
+            # مساحات المية (النيل علاقة multipolygon من طرق من غير تاجات): أعضاؤها بيتسابوا كاملين وإلا الحلقة بتتقطع
+            if tg.get('natural') == 'water' or tg.get('waterway') == 'riverbank' or tg.get('water') in ('river', 'lake'):
+                for m in r.members:
+                    if m.type == 'w': s.water_members.add(m.ref)
+    h = P1(); h.water_members = set(); h.apply_file(src)
     ids = np.array(list(h.nodes.keys())); ll = np.array([h.nodes[i] for i in ids])
     xy = np.stack(tr.transform(ll[:, 0], ll[:, 1]), 1)
     new, t, n = W.apply(xy)
@@ -142,6 +148,7 @@ def main(cfg_path):
         if nat == 'coastline':  # (البحر بيتكتب جاهز كمساحة مية تحت — خط الساحل المتقصّر ممكن يقطع نفسه)
             stats['coast'] += 1
             continue
+        if wid in h.water_members: continue  # (المية بتتكتب كمساحات جاهزة تحت)
         if not inband[js].any(): continue
         tm = float(np.median(t[js])); sc = W.scale(tm)
         if 'building' in tags or ('building:part' in tags):
@@ -194,6 +201,33 @@ def main(cfg_path):
             if not q.is_empty and q.area > 2000: sea_out.append(q.simplify(1.5))
     print('sea parts out', len(sea_out), 'km2', round(sum(q.area for q in sea_out) / 1e6, 2))
 
+    # ===== المية الداخلية (النيل/الترع العريضة/البحيرات): المساحة كاملة من OSM (علاقات multipolygon)، متقصوصة على الشريط، ومتضغطة =====
+    from shapely.geometry import Polygon as SP
+    class WA(osmium.SimpleHandler):
+        def __init__(s): super().__init__(); s.polys = []
+        def area(s, a):
+            tg = a.tags
+            if not (tg.get('natural') == 'water' or tg.get('waterway') == 'riverbank' or tg.get('water') in ('river', 'lake')): return
+            for outer in a.outer_rings():
+                ring = [tr.transform(n.lon, n.lat) for n in outer]
+                holes = [[tr.transform(n.lon, n.lat) for n in inner] for inner in a.inner_rings(outer)]
+                try: pg = SP(ring, [hh for hh in holes if len(hh) >= 4]).buffer(0)
+                except Exception: continue
+                if not pg.is_empty: s.polys.append(pg)
+    wa = WA(); wa.apply_file(src, locations=True)
+    inland = unary_union(wa.polys).intersection(area.buffer(0)) if wa.polys else Polygon()
+    # (بس اللي جوه الشريط حوالين المحور + هامش — اللي برّه لو اتضغط بيتمد غلط)
+    band_poly = LineString(W.P).buffer(max(abs(nlo), abs(nhi)) + 150, cap_style='flat')
+    inland = inland.intersection(band_poly)
+    for pg in (getattr(inland, 'geoms', None) or [inland]):
+        if pg.is_empty or pg.area < 1500: continue
+        ring = np.array(pg.exterior.segmentize(12).coords)
+        warped, _, _ = W.apply(ring)
+        poly = Polygon(warped).buffer(0)
+        for q in (getattr(poly, 'geoms', None) or [poly]):
+            if not q.is_empty and q.area > 1500: sea_out.append(q.simplify(1.2))
+    print('inland water km2 (original in band)', round(inland.area / 1e6, 2), 'parts total', len(sea_out))
+
     # ===== 2) الكتابة =====
     if os.path.exists(dst): os.remove(dst)
     wr = osmium.SimpleWriter(dst)
@@ -212,6 +246,8 @@ def main(cfg_path):
         def way(s, w):
             if w.id in keep_way: wr.add_way(w)
         def relation(s, r):
+            tg = dict(r.tags)
+            if tg.get('natural') == 'water' or tg.get('waterway') == 'riverbank' or tg.get('water') in ('river', 'lake'): return
             if any(m.type == 'w' and m.ref in keep_way for m in r.members): wr.add_relation(r)
     # مساحات البحر الجاهزة (natural=water + water=sea) — نقط وطرق جديدة.
     # النقط لازم تتكتب قبل أي طريق (اللي بيقرا الملف بيحتاج مكان النقطة قبل ما يوصل للطريق)
@@ -225,7 +261,7 @@ def main(cfg_path):
         sea_ways.append(refs + [refs[0]])
     P2().apply_file(src)
     for k, refs in enumerate(sea_ways):
-        wr.add_way(osmium.osm.mutable.Way(id=90_000_000_000 + k, nodes=refs, tags={'natural': 'water', 'water': 'sea', 'note': 'compact_city: sea'}))
+        wr.add_way(osmium.osm.mutable.Way(id=90_000_000_000 + k, nodes=refs, tags={'natural': 'water', 'note': 'compact_city: water area (sea/river)'}))
     wr.close()
     P = np.array(list(outxy.values()))
     lo = inv.transform(P[:, 0].min(), P[:, 1].min()); hi = inv.transform(P[:, 0].max(), P[:, 1].max())

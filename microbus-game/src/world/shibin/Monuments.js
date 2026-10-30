@@ -238,17 +238,45 @@ export function buildMonuments(W, group) {
       const b = obb(l.footprint); if (!b) continue;
       const P = [], ang = -b.ang;
       // السور الخارجي على حدود المضلع (12م) + البرج الأوسط (17م، 30×30) بأبراج مدورة في الأركان
-      const fp = l.footprint;
+      const fp = l.footprint, D = []; // D: حاجات غامقة (شبابيك/مزاغل/البوابة)
+      // شرّافات (merlons) على طول حرف حيطة من a لـ b على ارتفاع y
+      const merlons = (ax, az, bx, bz, y, out) => {
+        const Lw = Math.hypot(bx - ax, bz - az), n = Math.floor(Lw / 2.2), yaw = Math.atan2(bx - ax, bz - az);
+        for (let k = 0; k < n; k++) { const u = (k + 0.5) / n; out.push(new THREE.BoxGeometry(1.3, 1.2, 1.0).rotateY(yaw).translate(ax + (bx - ax) * u, y + 0.6, az + (bz - az) * u)); }
+      };
+      const ringMerlons = (x, z, r, y, out) => { const n = Math.max(6, Math.round((2 * Math.PI * r) / 2.2)); for (let k = 0; k < n; k++) { const a = (k / n) * Math.PI * 2; out.push(new THREE.BoxGeometry(1.0, 1.1, 0.8).rotateY(-a).translate(x + Math.cos(a) * r, y + 0.55, z + Math.sin(a) * r)); } };
+      // السور الخارجي (11م) بشرّافات + أبراج مدورة في كل ركن (14م)
       for (let i = 0; i < fp.length - 1; i++) {
         const [ax, az] = fp[i], [bx, bz] = fp[i + 1], Lw = Math.hypot(bx - ax, bz - az); if (Lw < 0.5) continue;
-        const wg = new THREE.BoxGeometry(2.4, 11, Lw + 1.2).rotateY(Math.atan2(bx - ax, bz - az)).translate((ax + bx) / 2 - l.x, 5.5, (az + bz) / 2 - l.z);
-        P.push(wg);
+        const ox = -l.x, oz = -l.z;
+        P.push(new THREE.BoxGeometry(2.4, 11, Lw + 1.2).rotateY(Math.atan2(bx - ax, bz - az)).translate((ax + bx) / 2 + ox, 5.5, (az + bz) / 2 + oz));
+        merlons(ax + ox, az + oz, bx + ox, bz + oz, 11, P);
+        if (Lw > 6) {
+          P.push(new THREE.CylinderGeometry(3.6, 4.2, 14, 16).translate(ax + ox, 7, az + oz));
+          ringMerlons(ax + ox, az + oz, 3.3, 14, P);
+          // مزاغل (فتحات رفيعة) في البرج
+          for (let k = 0; k < 4; k++) { const a = k * Math.PI / 2 + 0.4; D.push(new THREE.BoxGeometry(0.35, 1.6, 0.3).rotateY(-a).translate(ax + ox + Math.cos(a) * 4.0, 8, az + oz + Math.sin(a) * 4.0)); }
+        }
       }
-      const keep = Math.min(30, b.hw, b.hd) * 0.9;
-      const K = [new THREE.BoxGeometry(keep, 17, keep).translate(0, 8.5, 0)];
-      for (const sx of [-1, 1]) for (const sz of [-1, 1]) K.push(new THREE.CylinderGeometry(3.4, 3.6, 19, 14).translate(sx * keep / 2, 9.5, sz * keep / 2));
-      K.push(new THREE.CylinderGeometry(1.3, 1.5, 9, 8).translate(0, 21.5, 0)); // المئذنة الصغيرة فوق
+      const keep = Math.min(30, b.hw, b.hd) * 0.9, kh = keep / 2;
+      // البرج الأوسط: كتلة 17م + دور فوق أصغر شوية، أبراج نص دايرة في الأركان أعلى منه، شرّافات، شبابيك مقوّسة، والمئذنة
+      const K = [new THREE.BoxGeometry(keep, 17, keep).translate(0, 8.5, 0), new THREE.BoxGeometry(keep * 0.55, 4, keep * 0.55).translate(0, 19, 0)];
+      for (const [x0, z0, x1, z1] of [[-kh, -kh, kh, -kh], [kh, -kh, kh, kh], [kh, kh, -kh, kh], [-kh, kh, -kh, -kh]]) merlons(x0, z0, x1, z1, 17, K);
+      for (const sx of [-1, 1]) for (const sz of [-1, 1]) { K.push(new THREE.CylinderGeometry(3.4, 3.6, 20, 16).translate(sx * kh, 10, sz * kh)); ringMerlons(sx * kh, sz * kh, 3.1, 20, K); }
+      // المئذنة: قاعدة مربعة ← بدن مثمن ← شرفة ← رأس مدبب
+      K.push(new THREE.BoxGeometry(3, 3, 3).translate(0, 22.5, 0), new THREE.CylinderGeometry(1.2, 1.3, 7, 8).translate(0, 27.5, 0), new THREE.CylinderGeometry(1.8, 1.8, 0.5, 8).translate(0, 31, 0), new THREE.CylinderGeometry(0.8, 1.0, 3, 8).translate(0, 32.8, 0), new THREE.ConeGeometry(0.9, 2.2, 8).translate(0, 35.4, 0));
+      const KD = [];
+      for (let f = 0; f < 4; f++) {
+        const a = f * Math.PI / 2, nx = Math.sin(a), nz = Math.cos(a), tx = Math.cos(a), tz = -Math.sin(a);
+        for (const row of [7, 12.5]) for (const u of [-0.25, 0, 0.25]) KD.push(new THREE.BoxGeometry(1.3, 2.2, 0.3).rotateY(a).translate(nx * (kh + 0.05) + tx * u * keep, row, nz * (kh + 0.05) + tz * u * keep));
+      }
+      // البوابة المقوّسة في السور (أقرب حيطة لنص القلعة من ناحية البر = أول ضلع)
+      { const [ax, az] = fp[0], [bx, bz] = fp[1], mx = (ax + bx) / 2 - l.x, mz = (az + bz) / 2 - l.z, yaw = Math.atan2(bx - ax, bz - az);
+        D.push(new THREE.BoxGeometry(2.6, 5.5, 4.2).rotateY(yaw).translate(mx, 2.75, mz), new THREE.CylinderGeometry(2.1, 2.1, 2.6, 12, 1, false, 0, Math.PI).rotateZ(Math.PI / 2).rotateY(yaw).translate(mx, 5.5, mz)); }
       const keepG = mergeGeometries(K.map((q) => q.toNonIndexed())).rotateY(ang).translate(b.cx - l.x, 0, b.cz - l.z);
+      const darkG = mergeGeometries([...D.map((q) => q.toNonIndexed()), mergeGeometries(KD.map((q) => q.toNonIndexed())).rotateY(ang).translate(b.cx - l.x, 0, b.cz - l.z)]);
+      const md = new THREE.Mesh(darkG, new THREE.MeshStandardMaterial({ color: 0x2a2520, roughness: 0.9 }));
+      md.position.set(l.x, 0, l.z); add(md, 'qaitbay-openings');
       const m1 = new THREE.Mesh(worldUV(mergeGeometries(P.map((q) => q.toNonIndexed()).concat([keepG])), 6.4), stone);
       m1.position.set(l.x, 0, l.z); add(m1, 'qaitbay');
       W._addCollider({ cx: b.cx, cz: b.cz, hx: keep / 2 + 3, hz: keep / 2 + 3, angle: ang, restitution: 0.1, kind: 'building' }, null);
