@@ -660,6 +660,79 @@ function seaCafes(W, out, chair, mobile) {
   return n;
 }
 
+// ===================== بياعين الشارع (عربيات خشب) =====================
+/** عربية بياع (الطول على محور x): صندوق خشب على عجلتين ورجلين، وفوقها حاجة حسب النوع + شمسية/مظلة ملونة */
+function vendorCartGeo(kind) {
+  const wood = [0.55, 0.36, 0.2], dark = [0.16, 0.15, 0.14];
+  const parts = [
+    colored(new THREE.BoxGeometry(1.7, 0.42, 0.85), wood, T(0, 0.78, 0)),
+    colored(new THREE.BoxGeometry(1.74, 0.05, 0.89), [0.42, 0.27, 0.15], T(0, 1.0, 0)),
+    colored(new THREE.CylinderGeometry(0.32, 0.32, 0.06, 14).rotateX(Math.PI / 2), dark, T(0.35, 0.32, 0.47)),
+    colored(new THREE.CylinderGeometry(0.32, 0.32, 0.06, 14).rotateX(Math.PI / 2), dark, T(0.35, 0.32, -0.47)),
+    colored(new THREE.BoxGeometry(0.06, 0.6, 0.06), dark, T(-0.75, 0.3, 0.35)),
+    colored(new THREE.BoxGeometry(0.06, 0.6, 0.06), dark, T(-0.75, 0.3, -0.35)),
+    colored(new THREE.BoxGeometry(0.5, 0.04, 0.04), dark, T(-1.08, 0.9, 0.3)), // الدراعات
+    colored(new THREE.BoxGeometry(0.5, 0.04, 0.04), dark, T(-1.08, 0.9, -0.3)),
+  ];
+  const pole = (x, z, h) => colored(new THREE.CylinderGeometry(0.02, 0.02, h, 5), [0.6, 0.6, 0.6], T(x, 1.0 + h / 2, z));
+  if (kind === 'foul') {
+    // قدرة الفول النحاس + صفايح الطعمية والعيش
+    parts.push(colored(new THREE.CylinderGeometry(0.26, 0.22, 0.5, 14), [0.72, 0.45, 0.2], T(0.35, 1.27, 0)));
+    parts.push(colored(new THREE.CylinderGeometry(0.1, 0.1, 0.06, 10), [0.4, 0.25, 0.12], T(0.35, 1.55, 0)));
+    parts.push(colored(new THREE.BoxGeometry(0.6, 0.05, 0.45), [0.85, 0.75, 0.5], T(-0.35, 1.05, 0)));
+    for (const sx of [-0.8, 0.8]) for (const sz of [-0.4, 0.4]) parts.push(pole(sx, sz, 1.1));
+    parts.push(colored(new THREE.BoxGeometry(1.9, 0.04, 1.1), [0.92, 0.88, 0.75], T(0, 2.12, 0))); // مظلة قماش
+  } else if (kind === 'fruit') {
+    // هرم فاكهة ملونة (برتقال/طماطم/موز)
+    const C = [[0.95, 0.55, 0.08], [0.82, 0.12, 0.08], [0.95, 0.85, 0.2], [0.35, 0.6, 0.15]];
+    for (let i = 0; i < 4; i++) parts.push(colored(new THREE.BoxGeometry(0.4, 0.14, 0.7 - i * 0.12), C[i], T(-0.6 + i * 0.4, 1.09 + (i % 2) * 0.05, 0)));
+    for (const sx of [-0.8, 0.8]) for (const sz of [-0.4, 0.4]) parts.push(pole(sx, sz, 1.05));
+    parts.push(colored(new THREE.BoxGeometry(1.95, 0.04, 1.15), [0.15, 0.45, 0.7], T(0, 2.07, 0)));
+  } else {
+    // بطاطا: فرن صاج أسود بمدخنة
+    parts.push(colored(new THREE.BoxGeometry(0.9, 0.5, 0.6), [0.12, 0.12, 0.12], T(0.2, 1.28, 0)));
+    parts.push(colored(new THREE.CylinderGeometry(0.06, 0.06, 0.9, 8), [0.1, 0.1, 0.1], T(0.5, 1.95, 0.1)));
+    parts.push(colored(new THREE.BoxGeometry(0.5, 0.06, 0.5), [0.55, 0.32, 0.18], T(-0.5, 1.06, 0)));
+  }
+  return mergeGeometries(parts);
+}
+
+/** بياعين على أرصفة الشوارع الرئيسية (مولّدين من غير أسامي، زي العمارات المولّدة): كل 120–220م عربية + بياع واقف جنبها */
+function streetVendors(W, mobile) {
+  const KINDS = ['foul', 'fruit', 'potato'];
+  const R = rng(4242), q = {};
+  const carts = KINDS.map((k) => new NearInstancer(vendorCartGeo(k), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8 }), { R: mobile ? 90 : 140, max: mobile ? 8 : 18, name: `vendor-${k}`, castShadow: !mobile }));
+  const V = humanVariants(3, 909, true);
+  const men = [0, 1, 2].map((i) => new NearInstancer(V[i].geo, humanStaticMaterial(), { R: mobile ? 80 : 120, max: mobile ? 8 : 16, name: `vendor-man${i}` }));
+  const ok = (it) => {
+    const Tl = W.tiles.get(W._tkey(Math.floor(it.x / W.TS), Math.floor(it.z / W.TS)));
+    if (!Tl || !Tl.ready) return undefined;
+    if (W._underDeck?.(it.x, it.z)) return false;
+    // العربية كلها لازم على الرصيف (الطرفين)، والراجل كمان
+    for (const [ax, az] of it.pts) if (Math.abs(W.height(ax, az, 0) - 0.15) > 0.01) return false;
+    return true;
+  };
+  for (const c of carts) c.check = ok;
+  for (const m of men) m.check = ok;
+  const MAJ = new Set(['primary', 'secondary', 'tertiary']);
+  let n = 0;
+  for (const e of W.graph.edges) {
+    if (e.closed || e.elevated || !MAJ.has(e.cls) || e.length < 60) continue;
+    for (let s = 30 + R() * 90; s < e.length - 25; s += 120 + R() * 100) {
+      edgePoint(e, s, q);
+      const sd = R() < 0.5 ? 1 : -1, nx = -q.dz * sd, nz = q.dx * sd, off = e.half + 0.9;
+      const cx = q.x + nx * off, cz = q.z + nz * off, k = Math.floor(R() * 3);
+      const pts = [[cx + q.dx * 0.9, cz + q.dz * 0.9], [cx - q.dx * 0.9, cz - q.dz * 0.9], [cx + nx * 0.45, cz + nz * 0.45]];
+      const it = carts[k].add(cx, 0.15, cz, Math.atan2(-q.dz, q.dx)); it.pts = pts;
+      // البياع: جنب طرف العربية (مش مستخبي وراها)، وشه للشارع
+      const mx = cx + nx * 0.5 + q.dx * 1.35, mz = cz + nz * 0.5 + q.dz * 1.35;
+      const m = men[Math.floor(R() * 3)].add(mx, 0.15, mz, Math.atan2(-nx, -nz)); m.pts = [...pts, [mx, mz]];
+      n++;
+    }
+  }
+  return { carts, men, n };
+}
+
 // ===================== يافطات المحلات (OSM) =====================
 const POI_STYLE = {
   cafe: { bg: '#5b3a1e', fg: '#ffe7b0', icon: '☕' }, restaurant: { bg: '#8a1c12', fg: '#fff', icon: '🍽' }, fast_food: { bg: '#c0392b', fg: '#fff', icon: '🍔' },
@@ -768,7 +841,9 @@ export function buildLandmarks(W, features, { mobile = false } = {}) {
   if (chair) { out.chair = chair.chairs; out.table = chair.tables; stats.cafeChairs = chair.chairs.items.length; }
   // كورنيش البحر (إسكندرية وأي مدينة على البحر): قعدات قهاوي على رصيف البحر — مولّدة (من غير أسامي)، زي العمارات المولّدة
   if (W.waterStyle === 'sea' && chair) stats.seaCafes = seaCafes(W, out, chair, mobile);
-  const insts = [...new Set([...['rail', 'paving', 'bench', 'kiosk', 'sit0', 'sit1', 'chair', 'table', 'umbrella', 'palm'].map((k) => out[k]), trees])].filter((x) => x?.mesh);
+  // بياعين الشارع على الشوارع الرئيسية
+  const vend = streetVendors(W, mobile); stats.vendors = vend.n;
+  const insts = [...new Set([...['rail', 'paving', 'bench', 'kiosk', 'sit0', 'sit1', 'chair', 'table', 'umbrella', 'palm'].map((k) => out[k]), trees, ...vend.carts, ...vend.men])].filter((x) => x?.mesh);
   for (const it of insts) group.add(it.mesh);
   let t = 0;
   return {
