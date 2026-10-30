@@ -46,3 +46,9 @@
 | Generic 90s light pickup - Low poly model | assets/models/pickup_90s.glb | Daniel Zhabotinsky | CC-BY-4.0 | بيك أب كابينة واحدة (التسعينات) — ربع نقل ✅ |
 | Toyota Pickup truck | assets/models/pickup_toyota.glb | alban | CC-BY-4.0 | تويوتا بيك أب (هايلكس قديم) — ربع نقل ✅ |
 | Karosa C734 | assets/models/bus_karosa.glb | Jan Bláha | CC-BY-4.0 | أتوبيس (كاروسا C734) — المدن غير القاهرة ✅ |
+| VAZ 2101 | assets/models/car_lada.glb | Javkal | CC-BY-4.0 | لادا 2101 (ملاكي قديم منتشر) ✅ |
+| Renault Logan 2004 | assets/models/car_logan.glb | Denis Petrushin | CC-BY-4.0 | رينو لوجان 2004 (ملاكي/تاكسي منتشر) ✅ |
+| Daewoo - Nexia\Cielo | assets/models/car_nexia.glb | sMoKi | CC-BY-4.0 | دايو سييلو/نيكسيا (ملاكي منتشر) ✅ |
+| Peugeot 404 Pick-up | assets/models/pickup_p404.glb | Mohamed Fsili | CC-BY-4.0 | بيجو 404 بيك أب — ربع نقل ✅ |
+| Peugeot 504 (3d_engineer) | — | CC-BY-4.0 | ❌ اترفض: الخامات اتبوظت بعد التبسيط (481k مثلث) |
+| Autorickshaw1 (IanWhittaker) | — | CC-BY-4.0 | ❌ مش محتاجينه: التوكتوك الحالي موديل حقيقي أصلاً |

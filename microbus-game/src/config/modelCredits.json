@@ -58,5 +58,45 @@
   "role": "أتوبيس (كاروسا C734) — المدن غير القاهرة",
   "via": "Objaverse (allenai/objaverse, Hugging Face)",
   "fetched": "2026-10-30"
+ },
+ "car_lada": {
+  "name": "VAZ 2101",
+  "author": "Javkal",
+  "authorUrl": "https://sketchfab.com/Javkal",
+  "url": "https://sketchfab.com/3d-models/vaz-2101-95d34f63b5b14e2197fd41383776e031",
+  "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+  "role": "لادا 2101 (ملاكي قديم منتشر)",
+  "via": "Objaverse (allenai/objaverse, Hugging Face)",
+  "fetched": "2026-10-30"
+ },
+ "car_logan": {
+  "name": "Renault Logan 2004",
+  "author": "Denis Petrushin",
+  "authorUrl": "https://sketchfab.com/goooddenis",
+  "url": "https://sketchfab.com/3d-models/renault-logan-2004-e4f9463f6e004b90bb977d12f6375b9c",
+  "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+  "role": "رينو لوجان 2004 (ملاكي/تاكسي منتشر)",
+  "via": "Objaverse (allenai/objaverse, Hugging Face)",
+  "fetched": "2026-10-30"
+ },
+ "car_nexia": {
+  "name": "Daewoo - Nexia\\Cielo",
+  "author": "sMoKi",
+  "authorUrl": "https://sketchfab.com/SevKa",
+  "url": "https://sketchfab.com/3d-models/daewoo-nexiacielo-90006f59fd594d2b95f1469f651491f1",
+  "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+  "role": "دايو سييلو/نيكسيا (ملاكي منتشر)",
+  "via": "Objaverse (allenai/objaverse, Hugging Face)",
+  "fetched": "2026-10-30"
+ },
+ "pickup_p404": {
+  "name": "Peugeot 404 Pick-up",
+  "author": "Mohamed Fsili",
+  "authorUrl": "https://sketchfab.com/medraphc",
+  "url": "https://sketchfab.com/3d-models/peugeot-404-pick-up-1a4b4cfdad074045aad63afae4c1e8c7",
+  "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+  "role": "بيجو 404 بيك أب — ربع نقل",
+  "via": "Objaverse (allenai/objaverse, Hugging Face)",
+  "fetched": "2026-10-30"
  }
 }

@@ -21,6 +21,10 @@ export const MODELS = [
   { key: 'car_corolla_e70', path: 'glbs/000-066/c4d66d21968c41da89114e2300578bc5.glb', role: 'تويوتا كورولا E70 (ملاكي قديم)', tris: 18000, err: 0.03 },
   { key: 'pickup_90s', path: 'glbs/000-089/6c48c94be8974dc7a5932f697c0ba68f.glb', role: 'بيك أب كابينة واحدة (التسعينات) — ربع نقل', tris: 16000, tex: 256 },
   { key: 'pickup_toyota', path: 'glbs/000-103/cad83751a295463bbb8b823c11a181ea.glb', role: 'تويوتا بيك أب (هايلكس قديم) — ربع نقل', tris: 18000, err: 0.03 },
+  { key: 'car_lada', path: 'glbs/000-001/95d34f63b5b14e2197fd41383776e031.glb', role: 'لادا 2101 (ملاكي قديم منتشر)', tris: 12000 },
+  { key: 'car_logan', path: 'glbs/000-128/e4f9463f6e004b90bb977d12f6375b9c.glb', role: 'رينو لوجان 2004 (ملاكي/تاكسي منتشر)', tris: 18000, err: 0.03 },
+  { key: 'car_nexia', path: 'glbs/000-028/90006f59fd594d2b95f1469f651491f1.glb', role: 'دايو سييلو/نيكسيا (ملاكي منتشر)', tris: 18000, err: 0.03 },
+  { key: 'pickup_p404', path: 'glbs/000-015/1a4b4cfdad074045aad63afae4c1e8c7.glb', role: 'بيجو 404 بيك أب — ربع نقل', tris: 16000 },
   { key: 'bus_karosa', path: 'glbs/000-106/21262813724e401b88333d381c4626f7.glb', role: 'أتوبيس (كاروسا C734) — المدن غير القاهرة', tris: 16000 },
 ];
 

@@ -48,6 +48,10 @@ export const MODEL_ASSETS = {
   car_corolla_ke80: { file: 'car_corolla_ke80.glb', targetLength: 4.2, rotationY: 180 },
   car_corolla_e70: { file: 'car_corolla_e70.glb', targetLength: 4.2, rotationY: 0 },
   pickup_90s: { file: 'pickup_90s.glb', targetLength: 4.7, rotationY: 270 },
+  car_lada: { file: 'car_lada.glb', targetLength: 4.05, rotationY: 0 },
+  car_logan: { file: 'car_logan.glb', targetLength: 4.25, rotationY: 180 },
+  car_nexia: { file: 'car_nexia.glb', targetLength: 4.25, rotationY: 180 },
+  pickup_p404: { file: 'pickup_p404.glb', targetLength: 4.4, rotationY: 180 },
   pickup_toyota: { file: 'pickup_toyota.glb', targetLength: 4.35, rotationY: 180 },
   bus_karosa: { file: 'bus_karosa.glb', targetLength: 11, rotationY: 90 },
   // المعالم الحقيقية (لو اتحمّلت): المقاس الحقيقي بالمتر
