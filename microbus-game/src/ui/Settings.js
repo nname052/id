@@ -7,6 +7,8 @@ const KEY = 'egy-microbus-settings-v1';
 export const SCHEMA = [
   { group: 'العربية' },
   { key: 'vehicle', type: 'seg', label: 'بتسوق إيه؟', options: [['microbus', 'ميكروباص'], ['taxi', 'تاكسي'], ['tuktuk', 'توكتوك'], ['car', 'ملاكي'], ['pickup', 'ربع نقل'], ['truck', 'نقل'], ['bus', 'أتوبيس']], def: 'microbus' },
+  { key: 'carModel', type: 'seg', label: 'الجراج: العربية الملاكي', options: [['car_logan', 'لوجان'], ['car_lada', 'لادا'], ['car_corolla_ke80', 'كورولا 80'], ['car_corolla_e70', 'كورولا 70']], def: 'car_logan' },
+  { key: 'carPaint', type: 'seg', label: 'الجراج: لون الصاج', options: [['silver', 'فضي'], ['white', 'أبيض'], ['black', 'أسود'], ['red', 'أحمر'], ['blue', 'أزرق'], ['beige', 'بيج']], def: 'silver' },
   { key: 'livery', type: 'seg', label: 'شكل الميكروباص', options: [['city', 'لون المحافظة'], ['shibin', 'شبين (تركواز)'], ['blue', 'أبيض/أزرق'], ['green', 'أبيض/أخضر'], ['plain', 'أبيض']], def: 'city' },
   { group: 'الكاميرا' },
   // زاوية الرؤية بالعرض (مش بالطول): نفس المنظر على شاشة موبايل عريضة وعلى الكمبيوتر
@@ -22,6 +24,7 @@ export const SCHEMA = [
   { group: 'الجرافيكس' },
   { key: 'graphics', type: 'seg', label: 'الجودة', options: [['auto', 'تلقائي'], ['saver', 'موفّر البطارية'], ['low', 'واطية'], ['med', 'متوسطة'], ['high', 'عالية'], ['ultra', 'ألترا']], def: 'auto' },
   { key: 'fpsCap', type: 'seg', label: 'سقف الفريمات (أقل = الموبايل يسخن أقل)', options: [['auto', 'تلقائي'], ['30', '30'], ['60', '60'], ['max', 'أقصى']], def: 'auto' },
+  { key: 'postfx', type: 'seg', label: 'مؤثرات سينمائية (ضل الأركان + لمعة الأنوار + ألوان)', options: [['auto', 'تلقائي'], ['on', 'شغالة'], ['off', 'مقفولة']], def: 'auto' },
   { key: 'shadows', type: 'seg', label: 'الضل', options: [['on', 'شغال'], ['off', 'مقفول']], def: 'on' },
   { key: 'mirrorQuality', type: 'seg', label: 'جودة المرايات', options: [['low', 'واطية'], ['med', 'متوسطة'], ['high', 'عالية']], def: 'auto-device' },
   { group: 'الوقت والإضاءة' },

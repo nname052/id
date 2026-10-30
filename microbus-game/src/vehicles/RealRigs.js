@@ -94,9 +94,20 @@ function drawDials(x, W, H, s) {
   x.fillStyle = '#ffd34d'; x.font = `bold ${Math.round(H * 0.13)}px sans-serif`; x.fillText(s.gear, W * 0.5, H * 0.5);
 }
 
-/** null لو الموديل مش موجود */
-export function buildRealRig(kind, assets) {
-  const C = REAL_KINDS[kind], asset = C && assets?.get(C.model);
+// موديلات الملاكي اللي تتختار من الجراج (نص قطر الكاوتش الحقيقي لكل واحدة)
+export const CAR_MODELS = {
+  car_logan: { r: 0.29, label: 'رينو لوجان' },
+  car_lada: { r: 0.28, label: 'لادا 2101' },
+  car_corolla_ke80: { r: 0.28, label: 'كورولا 80' },
+  car_corolla_e70: { r: 0.28, label: 'كورولا 70' },
+};
+
+/** null لو الموديل مش موجود. opts.model / opts.paint: موديل الملاكي ولون الصاج (من الجراج) */
+export function buildRealRig(kind, assets, opts = {}) {
+  let C = REAL_KINDS[kind];
+  if (C && kind === 'car' && CAR_MODELS[opts.model]) C = { ...C, model: opts.model, r: CAR_MODELS[opts.model].r, glassEst: !!CAR_MODELS[opts.model].glassEst };
+  if (C && opts.paint !== undefined) C = { ...C, paint: opts.paint };
+  const asset = C && assets?.get(C.model);
   if (!asset) return null;
   // ===== كل مثلثات الموديل (بإحداثياته بعد التحجيم)، متجمعة بالخامة =====
   const h = asset.holder; h.updateMatrixWorld(true);
@@ -179,6 +190,11 @@ export function buildRealRig(kind, assets) {
     m.receiveShadow = true;
     rig.shell.add(m); bodyMeshes.push(m);
   }
+  // موديل خامته كلها صورة واحدة (مفيش خامة صاج منفصلة): لون الجراج بيتضرب في الصورة على أكبر خامة
+  if (!rig.mats.paint && C.paint !== undefined && kind === 'car') {
+    const big = bodyMeshes.filter((m) => m.userData.role !== 'glass').sort((a, b) => b.geometry.attributes.position.count - a.geometry.attributes.position.count)[0];
+    if (big) { big.material.color = new THREE.Color(C.paint).lerp(new THREE.Color(0xffffff), 0.25); rig.mats.paint = big.material; }
+  }
   // ===== العجل: بنفس ترتيب عجل الفيزياء (FL, FR, RL, RR) =====
   rig.wheels = W4.map((w) => {
     const group = new THREE.Group(), spin = new THREE.Group(); group.add(spin);
@@ -205,6 +221,7 @@ export function buildRealRig(kind, assets) {
         // (الفوانيس زجاج برضه بس تحت: الزجاج الأمامي فوق نص ارتفاع العربية تقريبًا)
         if (cz > zMid || cy < bb.max.y * (C.style === 'car' ? 0.48 : 0.42) || Math.abs(n.y) > 0.9 || Math.abs(cx) > HW * 0.75) continue;
         if (n.z > -0.45) continue; // وشه لقدام (الزجاج الخلفي وشه لورا)
+        if (C.style === 'car' && Math.abs(n.y) < 0.3) continue; // زجاج الملاكي مايل لورا (الفوانيس رأسية)
         cand.push(v.map((p) => [p.y, p.z]));
       }
     }
@@ -216,6 +233,7 @@ export function buildRealRig(kind, assets) {
     }
   }
   // (موديل من غير زجاج متعلّم: تقدير من نسب الجسم)
+  if (C.glassEst) ws = null;
   const noGlass = !ws || ws.yMax - ws.yMin < 0.2;
   if (noGlass) {
     const H = bb.max.y;
@@ -298,7 +316,7 @@ export function buildRealRig(kind, assets) {
     rig.slidingDoor = fakeDoor(new THREE.Vector3(HW, floorY + 0.5, seatZ));
   }
   // موديل من غير زجاج (الشبابيك فاضية): إطار الزجاج الأمامي (العواميد + الحلق اللي فوق وتحت) + زجاج خفيف
-  if (noGlass) {
+  if (noGlass && !C.glassEst) {
     const fm = new THREE.MeshStandardMaterial({ color: 0xe6e6e2, roughness: 0.5 });
     const zb = ws.zAtMin + 0.02, zt = ws.zAtMax + 0.02, xs = HW - 0.06;
     for (const sx of [-1, 1]) g.add(beam([sx * xs, ws.yMin, zb], [sx * xs, ws.yMax, zt], 0.09, 0.07, fm));

@@ -15,6 +15,7 @@ import { surfaceAt } from '../world/ground.js';
 import { CameraSystem, CAMERA_MODES } from '../camera/CameraSystem.js';
 import { AudioSystem } from '../audio/AudioSystem.js';
 import { AssetManager, applyTextureOverrides } from '../assets/AssetManager.js';
+import { PostFX } from '../render/PostFX.js';
 import { Input } from './Input.js';
 import { HUD } from '../ui/HUD.js';
 import { Diagnostics } from '../ui/Diagnostics.js';
@@ -264,6 +265,7 @@ export class Game {
     S('تجهيز الشيدرز...', 0.97);
     await nextFrame();
     await this.precompile([this.scene], true, (f) => S('تجهيز الشيدرز...', 0.97 + f * 0.025));
+    try { this._applyPostFX(); } catch (e) { console.warn('[postfx]', e); this.postfx = null; }
     { renderer.render(this.scene, this.camera); this.loadInfo.readyMs = Math.round(performance.now() - this._initT0); }
     this.clock = new THREE.Clock();
     this.acc = 0;
@@ -677,6 +679,7 @@ export class Game {
     this.camera.aspect = window.innerWidth / window.innerHeight;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(window.innerWidth, window.innerHeight);
+    if (this.postfx) { this.postfx.setPixelRatio(this.renderer.getPixelRatio()); this.postfx.setSize(window.innerWidth, window.innerHeight); }
     this.mirrorInsets?.resize(window.innerWidth, window.innerHeight);
   }
 
@@ -692,6 +695,7 @@ export class Game {
     this._applyTrafficDensity();
     const night = !!p.night;
     this._night = night || p.elevation < 8;
+    this.postfx?.setNight(this._night);
     this.player.setNight(night || p.elevation < 8);
     this.traffic?.setNight(night || p.elevation < 8);
     this.world?.setNight(night || p.elevation < 8);
@@ -728,7 +732,7 @@ export class Game {
     this.player.rig.root.removeFromParent();
     let next = this.vehicles[kind];
     if (!next) {
-      next = this.vehicles[kind] = new PlayerVehicle(this.scene, this.assets, { lowPower: this.mobile, kind });
+      next = this.vehicles[kind] = new PlayerVehicle(this.scene, this.assets, { lowPower: this.mobile, kind, ...this._garage() });
       next.lowPower = this.mobile;
       this._applyLivery(next, this.settings.get('livery'));
     } else this.scene.add(next.rig.root);
@@ -751,6 +755,31 @@ export class Game {
     next.syncVisuals(0.016, 1);
     if (next.damage) next.damage.onBreak = () => this.audio.glass();
     this.onVehicleChange?.(kind);
+  }
+
+  /** اختيار الجراج (الملاكي: الموديل واللون) */
+  _garage() {
+    const PAINT = { silver: 0xb9bdc0, white: 0xeeeeea, black: 0x16181b, red: 0x9c1b1b, blue: 0x1d3f7a, beige: 0xcbb68e };
+    return { model: this.settings?.get('carModel') || 'car_logan', paint: PAINT[this.settings?.get('carPaint')] ?? PAINT.silver };
+  }
+
+  /** الجراج اتغيّر: الملاكي بتتبني من جديد (ولو انت سايقها بتتبدّل في نفس المكان) */
+  _rebuildCar() {
+    const cur = this.player?.kind === 'car';
+    if (this.vehicles?.car) { if (!cur) this.vehicles.car.dispose(); delete this.vehicles.car; }
+    if (this.insets) delete this.insets.car; // (المرايات اللي على حرف الشاشة متربطة بالعربية القديمة)
+    if (cur) { const keep = this.player; this.player = { kind: 'none', rig: keep.rig, physics: keep.physics }; this.setVehicle('car'); keep.dispose(); }
+  }
+
+  /** المؤثرات السينمائية (PostFX.js): تلقائي = الكمبيوتر على الجودة العالية/الألترا بس */
+  _applyPostFX() {
+    const v = this.settings?.get('postfx') || 'auto', g = this.settings?.get('graphics') || 'auto';
+    const on = v === 'on' || (v === 'auto' && !this.mobile && !this.saverBoot && (this.tier === 'high' || g === 'high' || g === 'ultra'));
+    if (on && !this.postfx) {
+      this.postfx = new PostFX(this.renderer, this.scene, this.camera, { ao: !this.mobile });
+      this.postfx.setSize(window.innerWidth, window.innerHeight);
+      this.postfx.setNight(!!this._night);
+    } else if (!on && this.postfx) { this.postfx.dispose(); this.postfx = null; }
   }
 
   _applyLivery(P, v) {
@@ -830,6 +859,8 @@ export class Game {
         else { q.level = this.mobile ? (this.ios ? 1 : 2) : 0; q.cooldown = 2; this._applyQuality(q.level, this.fps || 0); }
         break;
       }
+      case 'postfx': this._applyPostFX(); break;
+      case 'carModel': case 'carPaint': this._rebuildCar(); break;
       case 'shadows': this._applyQuality(this._q?.level || 0, this.fps || 0); break;
       case 'timeOfDay': if (this.env.presetName !== v) this.env.setPreset(v); break;
       case 'headlights':
@@ -995,7 +1026,7 @@ export class Game {
     this._shadowTick = ((this._shadowTick || 0) + 1) % (this.shadowEvery || 1);
     sm.autoUpdate = false;
     if (this._shadowTick === 0) sm.needsUpdate = true;
-    this.renderer.render(this.scene, this.camera);
+    if (this.postfx) this.postfx.render(dt); else this.renderer.render(this.scene, this.camera);
     if (this.mirrorInsets.update(this.camera, inside && this.started)) this.mirrorInsets.render(this.renderer);
   }
 }

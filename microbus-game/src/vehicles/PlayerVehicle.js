@@ -39,7 +39,7 @@ export class PlayerVehicle {
     this.hbVis = 0;
     this.glbSteering = null;
     // ملاكي/ربع نقل/نقل/أتوبيس: من الموديل الحقيقي (لو مش متحمّل: تاكسي بداله)
-    const real = REAL_KINDS[this.kind] ? buildRealRig(this.kind, assets) : null;
+    const real = REAL_KINDS[this.kind] ? buildRealRig(this.kind, assets, { model: opts.model, paint: opts.paint }) : null;
     if (REAL_KINDS[this.kind] && !real) this.kind = 'taxi';
     if (real) {
       this.physics = new VehiclePhysics(real.spec, groundHeight);

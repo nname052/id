@@ -132,6 +132,30 @@ function treeGeo(R) {
   }
   return mergeGeometries(parts);
 }
+/** نخلة (بلح): جذع طويل بيضيق لفوق بحلقات + سعف نازل (كل سعفة شريط متني) + سباطة بلح */
+function palmGeo() {
+  const parts = [], H = 7.5;
+  for (let i = 0; i < 6; i++) {
+    const y0 = (i / 6) * H, h = H / 6, r0 = 0.24 - i * 0.018, r1 = r0 - 0.018;
+    parts.push(colored(new THREE.CylinderGeometry(r1, r0, h, 7, 1, true), i % 2 ? [0.42, 0.34, 0.25] : [0.37, 0.3, 0.22], T(0, y0 + h / 2, 0)));
+  }
+  const N = 12;
+  for (let k = 0; k < N; k++) {
+    const a = (k / N) * Math.PI * 2 + (k % 2) * 0.2, L = 2.6 + (k % 3) * 0.35, droop = 0.55 + (k % 2) * 0.35;
+    // سعفة: شريط من 4 حتت كل واحدة مايلة لتحت أكتر من اللي قبلها
+    const g = new THREE.BufferGeometry(), pos = [];
+    const seg = 4, w = 0.42;
+    for (let s = 0; s < seg; s++) {
+      const u0 = s / seg, u1 = (s + 1) / seg;
+      const P = (u, side) => { const r = u * L, y = H + 0.15 + Math.sin(u * 1.4) * 0.5 - u * u * droop * 2.2, ww = w * Math.sin(Math.PI * Math.min(1, u * 1.15 + 0.08)); return [Math.cos(a) * r - Math.sin(a) * ww * side, y, Math.sin(a) * r + Math.cos(a) * ww * side]; };
+      pos.push(...P(u0, -1), ...P(u1, -1), ...P(u1, 1), ...P(u0, -1), ...P(u1, 1), ...P(u0, 1));
+    }
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.computeVertexNormals();
+    parts.push(colored(g, k % 3 === 0 ? [0.24, 0.36, 0.13] : [0.2, 0.42, 0.15]));
+  }
+  parts.push(colored(new THREE.SphereGeometry(0.32, 6, 5), [0.55, 0.32, 0.12], T(0.18, H - 0.3, 0.1)));
+  return mergeGeometries(parts);
+}
 function benchGeo() {
   const wood = [0.42, 0.28, 0.16], iron = [0.16, 0.16, 0.17];
   return mergeGeometries([
@@ -584,6 +608,9 @@ function seaCafes(W, out, chair, mobile) {
   const umbMat = new THREE.MeshStandardMaterial({ roughness: 0.85, side: THREE.DoubleSide });
   const umb = new NearInstancer(umbGeo, umbMat, { R: mobile ? 90 : 140, max: mobile ? 30 : 70, name: 'cafe-umbrella', colors: true, castShadow: !mobile });
   out.umbrella = umb;
+  // نخل على رصيف البحر (على طول الكورنيش كل ~16م)
+  const palms = new NearInstancer(palmGeo(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, side: THREE.DoubleSide }), { R: mobile ? 160 : 240, max: mobile ? 50 : 110, name: 'corniche-palm', castShadow: !mobile });
+  out.palm = palms;
   const UC = [[0.86, 0.12, 0.1], [0.12, 0.35, 0.72], [0.95, 0.95, 0.92], [0.98, 0.72, 0.08], [0.1, 0.55, 0.3]].map((c) => new THREE.Color().setRGB(...c, THREE.SRGBColorSpace).toArray());
   const seaSide = (it) => {
     for (const d of [12, 22, 32, 45]) { const h = W.height(it.x + it.sx * d, it.z + it.sz * d, 0); if (h < -0.4) return true; }
@@ -600,10 +627,14 @@ function seaCafes(W, out, chair, mobile) {
   };
   const wrap = (inst) => { if (!inst) return; const prev = inst.check; inst.check = (it) => (it.sea ? okSea(it) : prev ? prev(it) : true); };
   for (const k of ['kiosk', 'sit0', 'sit1']) wrap(out[k]);
-  wrap(chair.chairs); wrap(chair.tables); umb.check = okSea;
+  wrap(chair.chairs); wrap(chair.tables); umb.check = okSea; palms.check = okSea;
   const mark = (it, sx, sz, dy = 0) => { if (it) { it.sea = true; it.sx = sx; it.sz = sz; it.dy = dy; } return it; };
   let n = 0;
   for (const e of E) {
+    for (let s = 6; s < e.length - 4; s += 14 + R() * 5) {
+      edgePoint(e, s, q);
+      for (const sd of [1, -1]) { const nx = -q.dz * sd, nz = q.dx * sd; mark(palms.add(q.x + nx * (e.half + 1.3), 0, q.z + nz * (e.half + 1.3), R() * 6.28, 0.85 + R() * 0.3), nx, nz); }
+    }
     for (let s = 20 + R() * 60; s < e.length - 10; s += 70 + R() * 70) {
       edgePoint(e, s, q);
       for (const sd of [1, -1]) {
@@ -737,7 +768,7 @@ export function buildLandmarks(W, features, { mobile = false } = {}) {
   if (chair) { out.chair = chair.chairs; out.table = chair.tables; stats.cafeChairs = chair.chairs.items.length; }
   // كورنيش البحر (إسكندرية وأي مدينة على البحر): قعدات قهاوي على رصيف البحر — مولّدة (من غير أسامي)، زي العمارات المولّدة
   if (W.waterStyle === 'sea' && chair) stats.seaCafes = seaCafes(W, out, chair, mobile);
-  const insts = [...new Set([...['rail', 'paving', 'bench', 'kiosk', 'sit0', 'sit1', 'chair', 'table', 'umbrella'].map((k) => out[k]), trees])].filter((x) => x?.mesh);
+  const insts = [...new Set([...['rail', 'paving', 'bench', 'kiosk', 'sit0', 'sit1', 'chair', 'table', 'umbrella', 'palm'].map((k) => out[k]), trees])].filter((x) => x?.mesh);
   for (const it of insts) group.add(it.mesh);
   let t = 0;
   return {
