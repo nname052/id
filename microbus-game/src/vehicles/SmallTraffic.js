@@ -120,12 +120,50 @@ function pickupGeo(body, load) {
   geoCache.set(key, g);
   return g;
 }
+/** أتوبيس النقل العام بالقاهرة (الجديد، 12م أرضيته واطية): قدام وورا أصفر وحزام أخضر تحت (من صور Commons:
+ *  "Cairo electric bus at Ramses Square.jpg" و"Cairo bus with GEM advertising, Ramses Square.jpg"، CC BY-SA 4.0 — للألوان بس)
+ *  والجنب غالبًا متغطي إعلان (لون واحد هنا). القدام = -z */
+function busGeo(side) {
+  const key = 'bus' + side.join(',');
+  if (geoCache.has(key)) return geoCache.get(key);
+  const yellow = [0.93, 0.8, 0.06], green = [0.18, 0.62, 0.2], glass = [0.08, 0.1, 0.12], dark = [0.05, 0.05, 0.06], roof = [0.82, 0.83, 0.84], led = [1, 0.45, 0.05], lamp = [1, 0.96, 0.82];
+  const RB = (w, h, d, r = 0.12) => new RoundedBoxGeometry(w, h, d, 2, r);
+  const L = 11.9, W = 2.5, P = [
+    part(RB(W, 2.75, L, 0.16), side, M(0, 1.72, 0)),                                  // الجسم (الجنب: إعلان/لون)
+    part(RB(W + 0.02, 2.7, 0.9, 0.16), yellow, M(0, 1.72, -L / 2 + 0.42)),            // الوش أصفر
+    part(RB(W + 0.02, 2.7, 0.7, 0.16), yellow, M(0, 1.72, L / 2 - 0.32)),             // الضهر أصفر
+    part(new THREE.BoxGeometry(W + 0.04, 0.32, L - 0.2), green, M(0, 0.52, 0)),        // الحزام الأخضر تحت
+    part(new THREE.BoxGeometry(W + 0.03, 1.0, L - 1.9), glass, M(0, 2.12, 0.1)),       // شبابيك الجنب
+    part(new THREE.BoxGeometry(W - 0.25, 1.55, 0.05), glass, M(0, 1.95, -L / 2 - 0.01)), // الزجاج القدام
+    part(new THREE.BoxGeometry(W - 0.6, 0.9, 0.05), glass, M(0, 2.25, L / 2 + 0.01)),   // الزجاج الورّاني
+    part(new THREE.BoxGeometry(1.7, 0.22, 0.06), led, M(0, 2.9, -L / 2 - 0.02)),        // لوحة الخط (LED)
+    part(new THREE.BoxGeometry(0.06, 2.2, 1.15), glass, M(W / 2 + 0.02, 1.5, -L / 2 + 1.5)), // الباب القدام (يمين)
+    part(new THREE.BoxGeometry(0.06, 2.2, 1.25), glass, M(W / 2 + 0.02, 1.5, 0.6)),          // الباب النص
+    part(RB(1.8, 0.32, 3.2, 0.1), roof, M(0, 3.24, -1.2)),                                // تكييف السقف
+    part(new THREE.BoxGeometry(0.34, 0.16, 0.05), lamp, M(-0.9, 0.85, -L / 2 - 0.02)), part(new THREE.BoxGeometry(0.34, 0.16, 0.05), lamp, M(0.9, 0.85, -L / 2 - 0.02)),
+    part(new THREE.BoxGeometry(W + 0.06, 0.2, 0.12), dark, M(0, 0.42, -L / 2 - 0.03)), part(new THREE.BoxGeometry(W + 0.06, 0.2, 0.12), dark, M(0, 0.42, L / 2 + 0.03)),
+    part(new THREE.BoxGeometry(0.08, 0.2, 0.3), dark, M(-W / 2 - 0.18, 2.4, -L / 2 + 0.1)), part(new THREE.BoxGeometry(0.08, 0.2, 0.3), dark, M(W / 2 + 0.18, 2.4, -L / 2 + 0.1)), // المرايات
+    wheel(-1.05, 0.5, -L / 2 + 2.6, 0.5, 0.3), wheel(1.05, 0.5, -L / 2 + 2.6, 0.5, 0.3), wheel(-1.05, 0.5, L / 2 - 3.2, 0.5, 0.3), wheel(1.05, 0.5, L / 2 - 3.2, 0.5, 0.3),
+  ];
+  const g = mergeGeometries(P);
+  geoCache.set(key, g);
+  return g;
+}
+const BUS_SIDES = [[0.72, 0.06, 0.07], [0.09, 0.1, 0.14], [0.93, 0.8, 0.06], [0.75, 0.76, 0.78]];
+
 const PICKUP_COLORS = [[0.92, 0.92, 0.9], [0.92, 0.92, 0.9], [0.13, 0.27, 0.55], [0.6, 0.62, 0.64], [0.55, 0.08, 0.07], [0.12, 0.3, 0.2]];
 
 const TUK_COLORS = [[0.06, 0.06, 0.07], [0.75, 0.6, 0.08], [0.55, 0.08, 0.08], [0.1, 0.35, 0.2]];
 const MOTO_COLORS = [[0.1, 0.1, 0.12], [0.6, 0.06, 0.06], [0.08, 0.2, 0.5], [0.75, 0.75, 0.74]];
 
 export function buildSmallTraffic(type, R = Math.random) {
+  if (type === 'bus') {
+    const root = new THREE.Group(), bodyG = new THREE.Group(); root.add(bodyG);
+    const mesh = new THREE.Mesh(busGeo(BUS_SIDES[Math.floor(R() * BUS_SIDES.length)]), material());
+    mesh.castShadow = true; bodyG.add(mesh);
+    root.add(contactShadow(2.7, 12.2));
+    return { root, body: bodyG, wheels: [], length: 12, width: 2.55, brake: null, wheelRadius: 0.5, driverSeat: [-0.8, 1.05, -5.0] };
+  }
   if (type === 'pickup') {
     const root = new THREE.Group(), bodyG = new THREE.Group(); root.add(bodyG);
     const mesh = new THREE.Mesh(pickupGeo(PICKUP_COLORS[Math.floor(R() * PICKUP_COLORS.length)], Math.floor(R() * 4)), material());

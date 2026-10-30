@@ -28,3 +28,4 @@
 | Commons: Ambulance in Egypt 02.jpg (2024) | CC BY 4.0 | ألوان الإسعاف |
 | Commons: Ambulance, Cairo.JPG (2012) | CC BY-SA 3.0 | ألوان الإسعاف |
 | Commons: Egypt police car 01 / 03 / 05.jpg | CC BY 4.0 | ألوان الشرطة |
+| Commons: Cairo electric bus at Ramses Square.jpg، Cairo bus with GEM advertising, Ramses Square.jpg | CC BY-SA 4.0 | ألوان أتوبيس النقل العام بالقاهرة |
