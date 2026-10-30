@@ -41,6 +41,29 @@ function baseRig(spec) {
 }
 
 const PAINT_RE = /paint|body|carpaint|kuzov|кузов/i;
+// كاميرا كرسي السواق شغالة؟ (CameraSystem بيظبطه). الصاج الخارجي من جوه (الوش الخلفي للمثلثات) بيترسم رمادي غامق
+// زي كسوة العواميد والأبواب بدل لون العربية المكسّر — ومن برا مفيش أي تغيير
+export const COCKPIT_VIEW = { value: 0 };
+function insideTrim(mat) {
+  if (mat.userData.insideTrim) return;
+  mat.userData.insideTrim = true;
+  const prev = mat.onBeforeCompile;
+  mat.onBeforeCompile = (sh, r) => {
+    prev?.call(mat, sh, r);
+    sh.uniforms.uCockpitView = COCKPIT_VIEW;
+    // (والعواميد اللي مثلثاتها متلفّة لجوه: أي صاج أقرب من 90سم لعين السواق = جوه الكابينة)
+    // لازم كمان نشيل المعدني والورنيش (clearcoat) — من غيرهم الصاج الغامق كان بيعكس السما وبيفضل باين فضي
+    sh.fragmentShader = 'uniform float uCockpitView;\n' + sh.fragmentShader
+      .replace('#include <color_fragment>', `#include <color_fragment>
+  bool inTrim = uCockpitView > 0.5 && (!gl_FrontFacing || length(vViewPosition) < 0.9);
+  if (inTrim) diffuseColor.rgb = vec3(0.075, 0.075, 0.08);`)
+      .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\n  if (inTrim) metalnessFactor = 0.0;')
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n  if (inTrim) roughnessFactor = 0.85;')
+      .replace('#include <lights_physical_fragment>', '#include <lights_physical_fragment>\n#ifdef USE_CLEARCOAT\n  if (inTrim) material.clearcoat = 0.0;\n#endif');
+  };
+  const key = mat.customProgramCacheKey?.bind(mat);
+  mat.customProgramCacheKey = () => (key ? key() : '') + '|insideTrim';
+}
 
 /** يمسح المثلثات اللي مركزها جوه الصندوق (geometry مش indexed) */
 function clipBox(g, box) {
@@ -136,6 +159,8 @@ export function buildRealRig(kind, assets, opts = {}) {
   const ownMat = (m) => {
     if (!own.has(m)) {
       const c = m.clone(); c.side = THREE.DoubleSide;
+      // خامة الصالون (جوه العربية — "Salon" بالروسي) في بعض الموديلات بيضا ومن غير صورة: كسوة رمادي غامق زي الحقيقة
+      if (/salon|interior|inter_/i.test(m.name || '')) c.color.multiplyScalar(0.22);
       if (C.paint !== undefined && PAINT_RE.test(m.name || '')) { c.color = new THREE.Color(C.paint); c.map = null; rig.mats.paint = c; }
       own.set(m, c);
     }
@@ -145,6 +170,7 @@ export function buildRealRig(kind, assets, opts = {}) {
   for (const p of parts) {
     if (!p.g.attributes.position.count) continue;
     const m = new THREE.Mesh(p.g, ownMat(p.mat));
+    if (!p.glass) insideTrim(m.material);
     if (p.glass) { m.userData.role = 'glass'; m.renderOrder = 2; const gm = m.material; gm.depthWrite = false; if (!gm.transparent || gm.opacity > 0.5) { gm.transparent = true; gm.opacity = 0.28; gm.map = null; gm.color.set(0x8fa3ad); gm.roughness = 0.05; } } else m.castShadow = true;
     m.receiveShadow = true;
     rig.shell.add(m); bodyMeshes.push(m);

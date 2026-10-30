@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { groundHeight } from '../world/ground.js';
+import { COCKPIT_VIEW } from '../vehicles/RealRigs.js';
 
 // 3 كاميرات بس: كرسي السواق / ورا العربية / حرة 360° حوالين العربية. زرار واحد (C / الزرار اللي على الشاشة) بيلف عليهم
 // واللي اخترته آخر مرة بيتحفظ
@@ -152,6 +153,7 @@ export class CameraSystem {
   /** look: دخل الجيم باد (العصاية اليمين) */
   update(dt, input) {
     if (this.mode === 99) return; // كاميرا حرة للتجربة
+    COCKPIT_VIEW.value = this.modeId === 'cockpit' ? 1 : 0; // (الصاج من جوه بيترسم كسوة غامقة — RealRigs)
     const p = this.player;
     const ph = p.physics;
     const cam = this.camera;
