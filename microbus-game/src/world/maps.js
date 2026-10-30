@@ -17,6 +17,8 @@ export const MAPS = [
   { id: 'cairo_east', name: 'مصر الجديدة ومدينة نصر', gov: 'القاهرة', lat: 30.0915, lon: 31.3226, spawn: { lat: 30.0907, lon: 31.3196, note: 'ميدان روكسي' }, taxi: { body: 0xf4f4f0, accent: 0x111111, style: 'checker', verified: true } },
   { id: 'giza', name: 'الجيزة', gov: 'الجيزة', lat: 29.9871, lon: 31.2118, spawn: { lat: 29.9905, lon: 31.1395, note: 'أول شارع الهرم عند الأهرامات' }, water: 'nile', ground: 'desert', taxi: { body: 0xf4f4f0, accent: 0x111111, style: 'checker', verified: true } },
   { id: 'alex', name: 'الإسكندرية', gov: 'الإسكندرية', lat: 31.1992, lon: 29.8952, spawn: { lat: 31.2016, lon: 29.9002, note: 'محطة الرمل على الكورنيش' }, water: 'sea', ground: 'desert', taxi: { body: 0x121212, accent: 0xf2b705, style: 'doors', verified: true } },
+  // شرق إسكندرية: خريطة لوحدها (إسكندرية كلها في خريطة واحدة كانت أتقل من الجيزة)
+  { id: 'alex_east', name: 'شرق الإسكندرية — سيدي جابر للمنتزه', gov: 'الإسكندرية', lat: 31.245, lon: 29.975, water: 'sea', ground: 'desert', taxi: { body: 0x121212, accent: 0xf2b705, style: 'doors', verified: true } },
   { id: 'banha', name: 'بنها', gov: 'القليوبية', lat: 30.4625, lon: 31.1841, water: 'nile', taxi: { body: 0xf4f4f0, accent: 0x111111, style: 'checker', verified: false } },
   { id: 'portsaid', name: 'بورسعيد', gov: 'بورسعيد', lat: 31.2632, lon: 32.3055, water: 'sea', ground: 'desert', taxi: { body: 0xf4f4f0, accent: 0x1f4fa3, style: 'band', verified: true } },
   { id: 'suez', name: 'السويس', gov: 'السويس', lat: 29.9745, lon: 32.5371, water: 'sea', ground: 'desert', taxi: { body: 0xf4f4f0, accent: 0x111111, style: 'checker', verified: false } },
