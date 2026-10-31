@@ -6,7 +6,7 @@
 const PW = process.env.PLAYWRIGHT || '/opt/node22/lib/node_modules/playwright/index.mjs';
 const { chromium } = await import(PW);
 const BASE = process.argv[2] || 'http://localhost:5173/';
-const MAP = process.argv[3] || 'giza';
+const MAP = process.argv[3] || 'cairo'; // (v40: مطب شارع جامعة القاهرة بقى برّه الجيزة الصغيرة — القاهرة فيها 4 مطبات OSM)
 const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 const p = await browser.newPage({ viewport: { width: 640, height: 360 } });
 p.setDefaultTimeout(1200000);
@@ -16,19 +16,20 @@ await p.waitForFunction(() => !document.getElementById('go').disabled);
 await p.evaluate(() => document.getElementById('go').click()); await p.waitForTimeout(1500);
 await p.evaluate(() => document.querySelector('#linepick .lp-close')?.click());
 const res = await p.evaluate(async () => {
-  const g = game, W = g.world, B = W.bumps;
+  const g = game, W = g.world, B = W.bumps, LEAD = 25; // (الشوارع في الخرايط الصغيرة أقصر: 25م قبل المطب كفاية للسرعة)
   g.renderer.setAnimationLoop(null);
   const out = { total: B?.list.length || 0, osm: B?.list.filter((b) => b.src === 0).length || 0, onEdges: B?.list.filter((b) => b.edge).length || 0, mesh: !!B?.mesh?.parent };
   const settle = async (x, z) => { for (let k = 0; k < 300; k++) { W.updateVisibility({ x, z }, 560); W.update(0.05); if (!W.queue.length && k > 6) break; await new Promise((r) => setTimeout(r, 5)); } };
   // مطب حقيقي عادي على شارع مستقيم كفاية
-  const cand = B.list.filter((b) => b.src === 0 && b.kind === 0 && b.edge && !b.edge.elevated && b.edge.length > 80 && !/motorway|trunk/.test(b.edge.cls));
+  // (مطب OSM الأول، ولو مفيش على شارع مستقيم كفاية: أي مطب عادي — الاختبار بيقيس الفيزيا فوق المطب)
+  const cand = B.list.filter((b) => b.kind === 0 && b.edge && !b.edge.elevated && b.edge.length > 45 && !/motorway|trunk/.test(b.edge.cls)).sort((x, y) => x.src - y.src);
   const { edgePoint } = await import('/src/world/shibin/ShibinData.js');
   let pick = null;
   for (const b of cand) {
     const sb = b.edge.bumps.find((s) => Math.abs(edgePoint(b.edge, s).x - b.x) < 1 && Math.abs(edgePoint(b.edge, s).z - b.z) < 1);
-    if (sb === undefined || sb < 45 || b.edge.length - sb < 25) continue;
+    if (sb === undefined || sb < LEAD + 5 || b.edge.length - sb < 15) continue;
     // الجزء قبله مستقيم (± 12°)
-    const a = edgePoint(b.edge, sb - 40), c = edgePoint(b.edge, sb);
+    const a = edgePoint(b.edge, sb - LEAD), c = edgePoint(b.edge, sb);
     if (Math.abs(a.dx * c.dx + a.dz * c.dz) < 0.97) continue;
     pick = { b, sb }; break;
   }
@@ -39,7 +40,7 @@ const res = await p.evaluate(async () => {
   out.where = { x: b.x, z: b.z, street: e.name || null, cls: e.cls };
   const drive = async (kmh, withBump) => {
     const save = W.bumps; if (!withBump) W.bumps = null;
-    const ph = g.player.physics, s0 = edgePoint(e, sb - 40);
+    const ph = g.player.physics, s0 = edgePoint(e, sb - LEAD);
     W.refY = 0; ph.reset(s0.x, s0.z, Math.atan2(-s0.dx, -s0.dz)); g.player._savePrev();
     for (let k = 0; k < 60; k++) g.debugSim(1 / 60, { handbrake: 1 });
     const v = kmh / 3.6; ph.vx = -Math.sin(ph.yaw) * v; ph.vz = -Math.cos(ph.yaw) * v;
@@ -59,7 +60,7 @@ const res = await p.evaluate(async () => {
       if (ph.flip.mode) flips++;
       g.cams.mode = 0; g.cams.update(1 / 60); cy0.push(g.camera.position.y);
       const along = (ph.x - b.x) * b.dx + (ph.z - b.z) * b.dz;
-      if (Math.abs(along) > 12 && (ph.x - s0.x) * s0.dx + (ph.z - s0.z) * s0.dz > 52) break;
+      if (Math.abs(along) > 12 && (ph.x - s0.x) * s0.dx + (ph.z - s0.z) * s0.dz > LEAD + 12) break;
     }
     let jerk = 0; for (let i = 2; i < cy0.length; i++) jerk = Math.max(jerk, Math.abs(cy0[i] - 2 * cy0[i - 1] + cy0[i - 2]));
     W.bumps = save;

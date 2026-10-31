@@ -7,7 +7,9 @@ const p = await b.newPage({ viewport: { width: 800, height: 450 } }); p.setDefau
 const errs = []; p.on('pageerror', (e) => errs.push(e.message));
 await p.goto(`${BASE}?map=shibin`); await p.waitForFunction(() => !document.getElementById('go').disabled);
 await p.evaluate(() => document.getElementById('go').click()); await p.waitForTimeout(2000);
-await p.evaluate(() => { document.querySelector('#linepick .lp-close')?.click(); game.setVehicle('ambulance'); game.ambulanceMission.state = 'wait'; game.ambulanceMission._next = 1e9; });
+await p.evaluate(async () => { document.querySelector('#linepick .lp-close')?.click(); await game.setVehicle('ambulance'); game.ambulanceMission.state = 'wait'; game.ambulanceMission._next = 1e9; });
+// (setVehicle async: لازم العربية تكون اتبدلت قبل الزرار — غير كده G بيتقرا والعربية لسه الميكروباص)
+await p.waitForFunction(() => game.player.kind === 'ambulance'); await p.waitForTimeout(500);
 await p.keyboard.press('KeyG');
 const r = await p.evaluate(async () => {
   const g = game, T = g.traffic, ph = g.player.physics; g.renderer.setAnimationLoop(null);
