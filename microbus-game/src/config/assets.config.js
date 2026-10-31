@@ -46,14 +46,14 @@ export const MODEL_ASSETS = {
   pickup_hilux: { file: 'pickup_hilux.glb', targetLength: 5.33, rotationY: 180 },
   truck_canter: { file: 'truck_canter.glb', targetLength: 6.2, rotationY: 90, wheelR: 0.36 },
   car_corolla_ke80: { file: 'car_corolla_ke80.glb', targetLength: 4.2, rotationY: 180, wheelR: 0.28 },
-  car_corolla_e70: { file: 'car_corolla_e70.glb', targetLength: 4.2, rotationY: 0, wheelR: 0.28 },
+  car_corolla_e70: { file: 'car_corolla_e70.glb', targetLength: 4.2, targetWidth: 1.82, rotationY: 0, wheelR: 0.28 }, // E70: عرض الجسم 1.61م (الموديل كان 1.69)
   pickup_90s: { file: 'pickup_90s.glb', targetLength: 4.7, rotationY: 270 },
   car_lada: { file: 'car_lada.glb', targetLength: 4.05, rotationY: 0, wheelR: 0.28 },
   car_logan: { file: 'car_logan.glb', targetLength: 4.25, rotationY: 180, wheelR: 0.29 },
-  car_nexia: { file: 'car_nexia.glb', targetLength: 4.25, rotationY: 180, wheelR: 0.29 },
+  car_nexia: { file: 'car_nexia.glb', targetLength: 4.42, targetWidth: 1.86, rotationY: 180, wheelR: 0.29 }, // دايو نكسيا: 4.48 × 1.66 × 1.39 م (الطول بين الطول والارتفاع الحقيقيين — الموديل نسبته مختلفة)
   pickup_p404: { file: 'pickup_p404.glb', targetLength: 4.4, rotationY: 180, wheelR: 0.33 },
   pickup_toyota: { file: 'pickup_toyota.glb', targetLength: 4.35, rotationY: 180, wheelR: 0.33 },
-  bus_karosa: { file: 'bus_karosa.glb', targetLength: 11, rotationY: 90, wheelR: 0.5 },
+  bus_karosa: { file: 'bus_karosa.glb', targetLength: 11, targetWidth: 2.52, rotationY: 90, wheelR: 0.5 }, // كاروسا B932: 11.05 × 2.50 م (الموديل كان 2.84 عرض)
   // المعالم الحقيقية (لو اتحمّلت): المقاس الحقيقي بالمتر
   mon_sphinx: { file: 'mon_sphinx.glb', targetLength: 73, rotationY: 0 },
   mon_cairo_tower: { file: 'mon_cairo_tower.glb', targetHeight: 187, rotationY: 0 },

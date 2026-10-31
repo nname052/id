@@ -12,7 +12,7 @@ export const TAXI_SPEC_BASE = {
   wheelBase: 2.64, cgToFront: 1.25, track: 1.44, wheelRadius: 0.315, // نص قطر كاوتش موديل الـ Seal بعد التحجيم (عشان العجلة متغطسش في الأرض)
   springK: 27000, damperBump: 2100, damperRebound: 2800, maxCompression: 0.12,
   tireMu: 1.0, tireB: 8.5, tireC: 1.45, rearLatGrip: 1.0, slideMu: 0.75, rollingResistance: 0.013,
-  dragCoef: 0.53, brakeForce: 11500, brakeBiasFront: 0.65, handbrakeForce: 4200, // شيال السقف + سيدان قديمة
+  dragCoef: 0.53, brakeForce: 9800, brakeBiasFront: 0.65, handbrakeForce: 4200, // شيال السقف + سيدان قديمة
   maxSteer: 0.6, steeringRatio: 15,
   gears: [3.45, 1.95, 1.35, 1.0, 0.82], reverseRatio: 3.4, finalDrive: 4.1, drivetrainEff: 0.88,
   idleRpm: 800, maxRpm: 6300, shiftTime: 0.3, shift: [2600, 5800, 1500],
@@ -29,7 +29,7 @@ export const TUKTUK_SPEC_BASE = {
   steerFollow: 20, steerRate: 13, steerFade: 0.013, steerMin: 0.2,
   springK: 9500, damperBump: 750, damperRebound: 1000, maxCompression: 0.09,
   tireMu: 0.84, tireB: 7, tireC: 1.4, rearLatGrip: 1.0, slideMu: 0.64, rollingResistance: 0.02,
-  dragCoef: 0.5, brakeForce: 2900, brakeBiasFront: 0.45, handbrakeForce: 1500,
+  dragCoef: 0.5, brakeForce: 2300, brakeBiasFront: 0.45, handbrakeForce: 1500,
   maxSteer: 0.72, steeringRatio: 1.35, // جادون (handlebar) مش دركسيون: ±56 درجة
   gears: [3.1, 1.95, 1.35, 0.98], reverseRatio: 3.2, finalDrive: 10.5, drivetrainEff: 0.85,
   idleRpm: 1450, maxRpm: 7800, shiftTime: 0.25, shift: [3600, 7100, 2600],
@@ -83,7 +83,12 @@ export const MICROBUS_SPEC = {
 
 // ===== عربيات اللاعب من الموديلات الحقيقية (RealRigs.js): المقاس (فرق العجل، العرض، نص القطر) بيتاخد من الموديل نفسه =====
 // ملاكي (رينو لوجان 1.6 بنزين)
-export const CAR_SPEC_BASE = { ...TAXI_SPEC_BASE, mass: 1090, inertiaYaw: 1750, inertiaPitch: 1650, inertiaRoll: 440, dragCoef: 0.48 };
+export const CAR_SPEC_BASE = {
+  ...TAXI_SPEC_BASE, mass: 1090, inertiaYaw: 1750, inertiaPitch: 1650, inertiaRoll: 440, dragCoef: 0.43, brakeForce: 9000,
+  // موتور K7M 1.6 8 صمامات: 87 حصان، 128 نيوتن.متر عند 3000 (0→100 ≈ 11.5ث، أقصى سرعة ≈ 175)
+  gears: [3.73, 2.05, 1.32, 0.97, 0.76], finalDrive: 4.21, maxRpm: 5800, shift: [2600, 5400, 1500],
+  torqueCurve: [[700, 82], [1500, 108], [2500, 124], [3000, 128], [4000, 124], [5000, 114], [5800, 98]],
+};
 // ربع نقل (بيك أب ديزل 2.5، فاضي)
 export const PICKUP_SPEC_BASE = {
   ...TAXI_SPEC_BASE,
@@ -99,6 +104,7 @@ export const PICKUP_SPEC_BASE = {
 export const TRUCK_SPEC_BASE = {
   ...MICROBUS_SPEC,
   mass: 4300, inertiaYaw: 13500, inertiaPitch: 12500, inertiaRoll: 2900, cgHeight: 1.0,
+  tireK: 480000, wheelMass: 95, tireDamp: 2200, // كاوتش نقل خفيف
   springK: 95000, damperBump: 6200, damperRebound: 8200, maxCompression: 0.15,
   tireMu: 0.9, slideMu: 0.68, rollingResistance: 0.018, dragCoef: 1.35,
   brakeForce: 32000, brakeBiasFront: 0.58, handbrakeForce: 11000, maxSteer: 0.6, steeringRatio: 20,
@@ -111,18 +117,20 @@ export const TRUCK_SPEC_BASE = {
 export const BUS_SPEC_BASE = {
   ...MICROBUS_SPEC,
   mass: 11500, inertiaYaw: 118000, inertiaPitch: 112000, inertiaRoll: 15500, cgHeight: 1.15,
+  tireK: 1100000, wheelMass: 190, tireDamp: 4200, // كاوتش أتوبيس 22.5 بوصة: أنشف ~5 مرات (بالـ 230 ألف كان بيقعد على الجنط وبيشيل نص الوزن بس → فرامل ضعيفة)
   springK: 230000, damperBump: 16000, damperRebound: 21000, maxCompression: 0.14,
   tireMu: 0.85, slideMu: 0.65, rollingResistance: 0.012, dragCoef: 2.7,
-  brakeForce: 85000, brakeBiasFront: 0.55, handbrakeForce: 30000, maxSteer: 0.62, steeringRatio: 22,
-  gears: [6.0, 3.4, 1.95, 1.3, 1.0, 0.8], reverseRatio: 5.6, finalDrive: 5.1, drivetrainEff: 0.86,
+  brakeForce: 75000, brakeBiasFront: 0.55, handbrakeForce: 30000, maxSteer: 0.62, steeringRatio: 22,
+  gears: [6.0, 3.4, 1.95, 1.3, 1.0], reverseRatio: 5.6, finalDrive: 5.1, drivetrainEff: 0.86,
   idleRpm: 620, maxRpm: 2400, shiftTime: 0.55, shift: [1300, 2150, 800],
   torqueCurve: [[500, 650], [900, 980], [1300, 1080], [1700, 1040], [2100, 900], [2450, 650]],
   antiRollK: 140000, antiRollC: 14000,
 };
 
 const G = 9.81;
-// شدّة أكتر من الأرقام الحقيقية (اللعبة كانت بتحس العربية بطيئة/رخمة): ×1.3 على عزم كل العربيات
-const PUNCH = 1.3;
+// (v41) العزم = الرقم الحقيقي بالظبط (كان ×1.3 "عشان تحس بيها" → كل العربيات أسرع من الحقيقة ~30%).
+// المرجع: 0→100 والسرعة القصوى ومسافة الفرامل لكل عربية في tools/tests/vehicle-reality.mjs
+const PUNCH = 1.0;
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const lerp = (a, b, t) => a + (b - a) * t;
 
@@ -161,7 +169,7 @@ export class VehiclePhysics {
     }));
     for (const w of this.wheels) {
       // طول السوستة الحر بحيث يكون الميكروباص في حالة اتزان على الأرض المستوية
-      w.restLength = s.cgHeight - s.wheelRadius + w.staticLoad / s.springK + w.staticLoad / TIRE_K;
+      w.restLength = s.cgHeight - s.wheelRadius + w.staticLoad / s.springK + w.staticLoad / (s.tireK || TIRE_K);
     }
     this.reset(0, 0, 0);
   }
@@ -355,7 +363,7 @@ export class VehiclePhysics {
       const attachY = this.heave + w.rf * this.pitch + w.rx * this.roll;
       // العجلة ليها كتلة وكاوتش مرن (quarter-car): الخبطة بتتمص في الكاوتش والعجلة قبل ما توصل للجسم
       const top = w.ground + s.wheelRadius;
-      if (w.y === undefined) { w.y = top - w.staticLoad / TIRE_K; w.vy = 0; w.compression = w.restLength - (attachY - w.y); }
+      if (w.y === undefined) { w.y = top - w.staticLoad / (s.tireK || TIRE_K); w.vy = 0; w.compression = w.restLength - (attachY - w.y); }
       const length = attachY - w.y;
       const c = w.restLength - length;
       const cv = (c - w.compression) / dt;
@@ -371,8 +379,8 @@ export class VehiclePhysics {
         f = Math.max(0, f);
       }
       const tc = top - w.y; // انضغاط الكاوتش
-      const ft = tc > 0 ? Math.max(0, TIRE_K * tc + TIRE_C * -w.vy) : 0;
-      w.vy += ((ft - f) / WHEEL_M - G) * dt;
+      const ft = tc > 0 ? Math.max(0, (s.tireK || TIRE_K) * tc + (s.tireDamp || TIRE_C) * -w.vy) : 0;
+      w.vy += ((ft - f) / (s.wheelMass || WHEEL_M) - G) * dt;
       w.y += w.vy * dt;
       // الكاوتش ميتنضغطش أكتر من 7سم (الجنط) والعجلة متتدلاش أكتر من حدها
       if (w.y < top - 0.07) { w.y = top - 0.07; w.vy = Math.max(w.vy, 0); }

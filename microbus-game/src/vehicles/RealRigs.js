@@ -14,7 +14,7 @@ import { contactShadow } from './CarModels.js';
 import { mats as cockpitMats, extrudeAcross, DashScreen, beam } from './Cockpits.js';
 import { mirrorFace, fakeDoor } from './PlayerRigs.js';
 import { addBobbleDog } from './CabAccessories.js';
-import { CAR_SPEC_BASE, PICKUP_SPEC_BASE, TRUCK_SPEC_BASE, BUS_SPEC_BASE } from '../physics/VehiclePhysics.js';
+import { CAR_SPEC_BASE, PICKUP_SPEC_BASE, TRUCK_SPEC_BASE, BUS_SPEC_BASE, MICROBUS_SPEC } from '../physics/VehiclePhysics.js';
 
 const M4 = (x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0) => new THREE.Matrix4().compose(
   new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz, 'YXZ')), new THREE.Vector3(1, 1, 1));
@@ -31,7 +31,7 @@ export const REAL_KINDS = {
   police: { r: 0.36, model: 'pickup_90s', paint: 0x14161a, base: PICKUP_SPEC_BASE, cgFrac: 0.45, eyeBack: 0.22, eyeAbove: 0.26, headroom: 0.15, floorBelow: 0.84,
     wheelR: 0.19, wheelTilt: -1.05, reach: 0.42, drop: 0.27, dashDist: 0.58, style: 'car', mode: 'police', label: 'بوكس شرطة', mirrorIn: true, police: true },
   // الإسعاف: هاي إس (نفس موديل الميكروباص) برتقالي زي عربيات هيئة الإسعاف المصرية + كشاف أزرق و"إسعاف" على الجنبين
-  ambulance: { r: 0.33, model: 'microbus_traffic', paint: 0xe8681c, paintBiggest: true, base: { ...PICKUP_SPEC_BASE, mass: 2300 }, cgFrac: 0.5, eyeBack: 0.35, eyeAbove: 0.22, headroom: 0.18, floorBelow: 0.9,
+  ambulance: { r: 0.33, model: 'microbus_traffic', paint: 0xe8681c, paintBiggest: true, base: { ...MICROBUS_SPEC, mass: 2400, inertiaYaw: 5000, inertiaPitch: 4700, inertiaRoll: 1250, cgHeight: 0.9 }, cgFrac: 0.5, eyeBack: 0.35, eyeAbove: 0.22, headroom: 0.18, floorBelow: 0.9,
     wheelR: 0.2, wheelTilt: -0.8, reach: 0.42, drop: 0.3, dashDist: 0.55, style: 'truck', mode: 'ambulance', label: 'إسعاف', mirrorIn: false, ambulance: true },
   truck: { r: 0.36, model: 'truck_canter', paint: undefined, base: TRUCK_SPEC_BASE, cgFrac: 0.38, eyeBack: 0.62, eyeAbove: 0.25, headroom: 0.2, floorBelow: 0.9,
     wheelR: 0.22, wheelTilt: -0.6, reach: 0.4, drop: 0.36, dashDist: 0.62, style: 'truck', mode: 'free', label: 'نقل', mirrorIn: false },
@@ -155,9 +155,16 @@ export function buildRealRig(kind, assets, opts = {}) {
   const bb = new THREE.Box3();
   for (const p of parts) { p.g.computeBoundingBox(); bb.union(p.g.boundingBox); }
   const HW = Math.max(-bb.min.x, bb.max.x), frontZ = bb.min.z, rearZ = bb.max.z;
+  // عرض الجسم نفسه (من غير المرايات): أعرض نقطة في الجزء الورّاني من العربية (55%–95% من الطول)
+  // — صندوق التصادم والإسعاف كانوا بياخدوا العرض بالمرايات (أعرض من الحقيقة 20–45 سم)
+  let HWb = 0;
+  { const z0 = frontZ + (rearZ - frontZ) * 0.55, z1 = frontZ + (rearZ - frontZ) * 0.95;
+    for (const p of parts) { if (p.glass) continue; const a = p.g.attributes.position;
+      for (let i = 0; i < a.count; i++) { const z = a.getZ(i); if (z > z0 && z < z1) HWb = Math.max(HWb, Math.abs(a.getX(i))); } } }
+  if (!(HWb > HW * 0.6)) HWb = HW;
   const spec = {
     ...C.base, wheelBase, cgToFront, track, wheelRadius: r,
-    halfWidth: HW - 0.02, halfLength: (rearZ - frontZ) / 2, boxOffset: -(rearZ + frontZ) / 2, roofHeight: bb.max.y,
+    halfWidth: HWb - 0.01, halfLength: (rearZ - frontZ) / 2, boxOffset: -(rearZ + frontZ) / 2, roofHeight: bb.max.y,
   };
   const rig = baseRig(spec);
   // ===== الجسم: خامات خاصة باللاعب (من الناحيتين)، والصاج بلون العربية =====
@@ -386,7 +393,7 @@ export function buildRealRig(kind, assets, opts = {}) {
   rig.dims = { HW, frontF: -frontZ, rearF: -rearZ, roofY: bb.max.y };
   rig.kind = kind; rig.real = C.model;
   if (C.police) policeKit(rig, bodyMeshes, bb, HW);
-  if (C.ambulance) ambulanceKit(rig, bb, HW);
+  if (C.ambulance) ambulanceKit(rig, bb, HWb);
   return { rig, spec };
 }
 
@@ -448,7 +455,10 @@ function ambulanceKit(rig, bb, HW) {
     const m = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 0.42), word);
     m.position.set(sx * (HW + 0.024), H * 0.78, (RZ0 + RZ1) / 2 + 0.1); m.rotation.y = sx * Math.PI / 2; rig.shell.add(m);
   }
-  { const m = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.3), word); m.position.set(0, H * 0.82, bb.max.z + 0.025); rig.shell.add(m); }
+  { const m = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.27), word); m.position.set(0, H * 0.6, bb.max.z + 0.025); rig.shell.add(m); }
+  // شباكين مصنفرين في البابين اللي ورا (زي الحقيقة: المريض مايتشافش من برّه)
+  { const frost = new THREE.MeshStandardMaterial({ color: 0xd9e2e6, roughness: 0.25, metalness: 0.1, emissive: 0x20262a, emissiveIntensity: 0.15 });
+    for (const sx of [-1, 1]) boxM(Math.min(0.62, HW - 0.2), 0.42, 0.012, frost, sx * (HW * 0.5), H * 0.86, bb.max.z + 0.03); }
   // حزام أخضر بترولي تحت حوالين العربية (زي الصور)
   const band = new THREE.MeshStandardMaterial({ color: 0x03231a, roughness: 0.5, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
   for (const sx of [-1, 1]) { const b = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.1, RZ1 - RZ0 - 0.1), band); b.position.set(sx * (HW + 0.022), H * 0.56, (RZ0 + RZ1) / 2 + 0.05); rig.shell.add(b); } // (شريط أخضر على جناب الصندوق)

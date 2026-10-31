@@ -122,6 +122,13 @@ export class AssetManager {
     const holder = new THREE.Group();
     holder.add(scene);
     scene.scale.multiplyScalar(scale);
+    // targetWidth: العرض الحقيقي لو الموديل أعرض/أضيق من العربية الحقيقية (بنمط على محور العرض بس —
+    // ده محور الكاوتش نفسه، فالعجل مابيبقاش بيضاوي). المحور المحلي بيتبدّل لو الموديل ملفوف 90°
+    if (cfg.targetWidth) {
+      const wWorld = size.x < size.z ? 'x' : 'z', rot = (((cfg.rotationY || 0) % 180) + 180) % 180;
+      const ax = Math.abs(rot - 90) < 1 ? (wWorld === 'x' ? 'z' : 'x') : wWorld;
+      scene.scale[ax] *= cfg.targetWidth / (Math.min(size.x, size.z) * scale);
+    }
     scene.updateMatrixWorld(true);
     // (precise: من الرؤوس نفسها — صندوق تويوتا البيك أب المتخزن في الملف كان 0–4.3م والعربية الحقيقية 1.6–3م → كانت طايرة 1.6م)
     const b2 = new THREE.Box3().setFromObject(scene, true);
