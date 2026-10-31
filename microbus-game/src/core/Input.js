@@ -38,7 +38,7 @@ export class Input {
       lookX: (k.has('KeyE') ? 1 : 0) - (k.has('KeyQ') ? 1 : 0),
       lookY: 0,
       analog: false,
-      actions: { lights: this.consume('KeyL'), camera: this.consume('KeyC'), reset: this.consume('KeyR'), time: this.consume('KeyT'), help: this.consume('KeyI') || this.consume('F1'), mute: this.consume('KeyM'), fps: this.consume('KeyF') },
+      actions: { lights: this.consume('KeyL'), camera: this.consume('KeyC'), reset: this.consume('KeyR'), time: this.consume('KeyT'), help: this.consume('KeyI') || this.consume('F1'), mute: this.consume('KeyM'), fps: this.consume('KeyF'), siren: this.consume('KeyG') },
     };
     this.pressed.clear();
     // تحكم اللمس (موبايل)

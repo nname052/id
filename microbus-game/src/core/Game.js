@@ -219,7 +219,13 @@ export class Game {
     if (this.crowd?.extras) {
       this.emergency = new Emergency(this.scene, { world: this.world, crowd: this.crowd, traffic: this.traffic, makeBody: (t) => this._makeCarBody(t, 0xffffff, {}), audio: this.audio, hud: this.hud });
       this.traffic.extraStops = () => { const a = this.emergency.stopZones, b = this.patrol?.stopZones; return b?.length ? [...a, ...b] : a; };
-      this.traffic.extraSlows = () => { const a = this.police?.slowZones || [], b = this.emergency?.slowZones || []; return b.length ? [...a, ...b] : a; };
+      this.traffic.extraSlows = () => {
+        const a = this.police?.slowZones || [], b = this.emergency?.slowZones || [], out = b.length ? [...a, ...b] : [...a];
+        // عربيتك بالسارينة: اللي قدامك في نفس الاتجاه بيهدّي ويركن على جنب لحد ما تعدي
+        const P = this.player, ph = P?.physics;
+        if (P?.sirenOn && ph) { const [fx, fz] = ph.forward; out.push({ x: ph.x + fx * 30, z: ph.z + fz * 30, r: 38, v: 3.5, yield: { fx, fz } }); }
+        return out;
+      };
       this.crowd.onHit = (p, severe, v) => {
         this.audio?.thump?.(Math.min(1, v / 12));
         this.hud?.toast(severe ? '⚠️ خبطت حد جامد! — الإسعاف والشرطة جايين' : '⚠️ خبطت واحد ماشي — الإسعاف جاية له، والشرطة جاية', 3);
@@ -998,6 +1004,17 @@ export class Game {
       this.incidents.update(dt, ph);
       // (الدورية بتاعة المرور بتقف وإنت سايق البوكس — الحوادث بقت مهماتك إنت)
       if (this.player.kind !== 'police') this.patrol?.update(dt, ph);
+      // السارينة (الإسعاف/البوكس): بإيدك (G / الزرار) أو لوحدها وقت المهمة. بتشغّل الصوت والكشاف، والمرور بيفسح
+      {
+        const k = this.player.kind, em = k === 'police' || k === 'ambulance';
+        const PM = this.policeMission, AM = this.ambulanceMission;
+        const auto = (k === 'police' && PM?.state === 'chase') || (k === 'ambulance' && (AM?.state === 'toCase' || AM?.state === 'toHosp'));
+        const on = em && (this._sirenManual ?? auto);
+        if (!em) this._sirenManual = undefined;
+        this.player.sirenOn = on;
+        this.audio.playerSiren?.(on, k === 'police' ? 'police' : 'ambulance');
+        document.body.classList.toggle('emergency', em); document.body.classList.toggle('siren-on', !!on);
+      }
       this.policeMission?.update(dt, ph, this.player);
       this.ambulanceMission?.update(dt, ph, this.player);
       if (!this.incidents.busy) this.intercity?.update(dt, ph, this.player.kind);
@@ -1056,6 +1073,11 @@ export class Game {
     this._adaptQuality(dt);
     const inside = this.cams.modeId === 'cockpit';
     // الكلاكس: اللي قدامك بيستجيب (يسرّع/يفسحلك حارة/الميكروباص يخلّص تحميل)، واللي بيعدّي الشارع بيستعجل
+    if (input.actions?.siren) {
+      const k = this.player.kind;
+      if (k === 'police' || k === 'ambulance') { this._sirenManual = !this.player.sirenOn; this.hud.toast(this._sirenManual ? '🚨 السارينة شغالة — العربيات هتفسحلك' : 'السارينة اتقفلت', 1.8); }
+      else this.hud.toast('السارينة في الإسعاف والبوكس بس', 1.6);
+    }
     if (input.horn) { this._hornT = (this._hornT || 0) - dt; if (this._hornT <= 0) { this._hornT = 0.6; this.traffic.honked?.(this.player.physics); this.crowd?.honked?.(this.player.physics); } } else this._hornT = 0;
     this.audio.update(dt, { player: this.player, camera: this.camera, traffic: this.traffic, inside, horn: input.horn, passengers: this.passengers?.count, crowd: this.crowd });
     this.hud.update(dt, ph, this.lights);

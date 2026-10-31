@@ -333,3 +333,8 @@ body.cine-on > :not(#cine):not(#app) { visibility: hidden !important; }
 #wanted .w-on { color: #ffcc1a; text-shadow: 0 0 8px rgba(255, 60, 40, 0.8); }
 #wanted .w-off { color: rgba(255, 255, 255, 0.25); }
 @keyframes wantedPulse { from { opacity: 0.75; } to { opacity: 1; } }
+
+/* زرار السارينة: بيظهر في الإسعاف والبوكس بس */
+.t-siren { display: none; }
+body.emergency .t-siren { display: inline-flex; }
+body.siren-on .t-siren { background: rgba(30, 80, 255, 0.75) !important; }

@@ -17,8 +17,7 @@ export class AmbulanceMission {
   update(dt, ph, player) {
     const on = player?.kind === 'ambulance';
     if (!on) { if (this.state !== 'off') { this._clear(); this.state = 'off'; } return; }
-    const run = this.state === 'toCase' || this.state === 'toHosp';
-    this._lights(dt, player.rig.policeBar, run || this.state === 'load');
+    this._lights(dt, player.rig.policeBar, !!player.sirenOn || this.state === 'load');
     if (this.state === 'off') { this.state = 'wait'; this._next = 4; this.hud?.toast('🚑 إنت في الإسعاف — استنى البلاغ', 2.6); return; }
     if (this.state === 'wait') { this._next -= dt; if (this._next <= 0) this._dispatch(ph); return; }
     this.t += dt;
@@ -26,14 +25,14 @@ export class AmbulanceMission {
     if (this.state === 'toCase') {
       const C = this.case, d = Math.hypot(C.x - ph.x, C.z - ph.z);
       this.dist = d;
-      if (d < 12 && Math.abs(ph.speed) < 1) { this.state = 'load'; this._lt = 0; this.audio?.siren?.(false); this.hud?.toast('🩺 المسعفين بيشيلوا المصاب — استنى', 2.5); }
+      if (d < 12 && Math.abs(ph.speed) < 1) { this.state = 'load'; this._lt = 0;  this.hud?.toast('🩺 المسعفين بيشيلوا المصاب — استنى', 2.5); }
     } else if (this.state === 'load') {
-      if (Math.abs(ph.speed) > 1.5) { this.state = 'toCase'; this.audio?.siren?.(true); this.hud?.toast('✋ استنى لحد ما يركبوه', 2); return; }
+      if (Math.abs(ph.speed) > 1.5) { this.state = 'toCase';  this.hud?.toast('✋ استنى لحد ما يركبوه', 2); return; }
       this._lt += dt;
       if (this._lt >= LOAD_T) {
         this._removeExtras();
         this.hosp = this._hospital(ph);
-        this.state = 'toHosp'; this.audio?.siren?.(true);
+        this.state = 'toHosp'; 
         this.hud?.toast(`🏥 على ${this.hosp.name} بسرعة`, 2.8);
       }
     } else if (this.state === 'toHosp') {
@@ -72,7 +71,7 @@ export class AmbulanceMission {
     ] : [];
     this.crowd?.extras.push(...this.extras);
     this.state = 'toCase'; this.dispatched++;
-    this.audio?.siren?.(true);
+    
     this.cine?.play({ target: () => ({ x: C.x, z: C.z, yaw: C.yaw }), title: '🚑 بلاغ: حالة طوارئ', sub: `فيه مصاب في ${C.name} — روح له ووصّله أقرب مستشفى` });
   }
 
@@ -91,7 +90,7 @@ export class AmbulanceMission {
     if (ex && this.extras) for (const q of this.extras) { const i = ex.indexOf(q); if (i >= 0) ex.splice(i, 1); }
     this.extras = null;
   }
-  _clear() { this._removeExtras(); this.audio?.siren?.(false); if (this.cine?.active) this.cine.stop(); this.case = null; this.hosp = null; }
+  _clear() { this._removeExtras();  if (this.cine?.active) this.cine.stop(); this.case = null; this.hosp = null; }
   _finish() { this._clear(); this.state = 'wait'; this._next = WAIT[0] + Math.random() * (WAIT[1] - WAIT[0]); }
   _fail() { this.failed++; this.hud?.toast('⏱ اتأخرت — إسعاف تاني وصل للمصاب', 3); this._finish(); }
 

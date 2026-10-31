@@ -16,7 +16,7 @@ export class PoliceMission {
   update(dt, ph, player) {
     const on = player?.kind === 'police';
     if (!on) { if (this.state !== 'off') { this._release(); this.state = 'off'; } return; }
-    this._lights(dt, player.rig.policeBar, this.state === 'chase');
+    this._lights(dt, player.rig.policeBar, !!player.sirenOn);
     if (this.state === 'off') { this.state = 'wait'; this._next = 5; this.hud?.toast('🚓 إنت في البوكس — استنى البلاغ', 2.6); return; }
     if (this.state === 'wait') { this._next -= dt; if (this._next <= 0) this._dispatch(ph); return; }
     if (this.state !== 'chase') return;
@@ -39,7 +39,7 @@ export class PoliceMission {
     this.off = o; this.t = 0; this.close = 0; this.dist = Math.hypot(o.x - ph.x, o.z - ph.z);
     o._vMul0 = o._vMul0 ?? o.vMul; o.vMul = o._vMul0 * FLEE_MUL; o.fleeing = true;
     this.state = 'chase'; this.dispatched++;
-    this.audio?.siren?.(true);
+    
     this.cine?.play({ target: () => (o.on ? { x: o.x, z: o.z, yaw: o.yaw } : null), title: '🚨 بلاغ: عربية خبطت وهربت', sub: 'الحقها وفضل جنبها لحد ما تقف — قدامك دقيقتين' });
   }
 
@@ -61,7 +61,7 @@ export class PoliceMission {
   _release() {
     const o = this.off;
     if (o) { o.vMul = o._vMul0 ?? o.vMul; o.fleeing = false; }
-    this.off = null; this.audio?.siren?.(false);
+    this.off = null; 
     if (this.cine?.active) this.cine.stop();
   }
 

@@ -428,17 +428,33 @@ function ambulanceKit(rig, bb, HW) {
     const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
     return new THREE.MeshBasicMaterial({ map: t, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
   };
+  // ===== صندوق الإسعاف: سقف عالي (high-roof) من ورا الكابينة للآخر + جناب مقفولة (من غير شبابيك ركاب) + باب ورا =====
+  // (زي إسعاف مصر الجديد — مرسيدس سبرينتر سقف عالي، صندوق للمريض من غير شبابيك جانبية)
+  const orange = new THREE.MeshStandardMaterial({ color: 0xe0601a, roughness: 0.42, metalness: 0.05 });
+  const RZ0 = bb.min.z + L * 0.36, RZ1 = bb.max.z - 0.04, RH = 0.55, Wb = HW * 2 - 0.02;
+  const boxM = (w, h, d, m, x, y, z) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y, z); o.castShadow = true; o.receiveShadow = true; rig.shell.add(o); return o; };
+  boxM(Wb, RH, RZ1 - RZ0, orange, 0, H + RH / 2 - 0.04, (RZ0 + RZ1) / 2);
+  // مقدمة السقف العالي مايلة (شكل الصندوق اللي فوق الكابينة)
+  { const s = new THREE.Shape([new THREE.Vector2(0, 0), new THREE.Vector2(0.45, 0), new THREE.Vector2(0.45, RH), new THREE.Vector2(0.05, RH)]);
+    const g = new THREE.ExtrudeGeometry(s, { depth: Wb, bevelEnabled: false }); g.rotateY(-Math.PI / 2); g.translate(Wb / 2, H - 0.04, RZ0 - 0.45);
+    const m = new THREE.Mesh(g, orange); m.castShadow = true; rig.shell.add(m); }
+  // جناب الصندوق: ألواح على مكان شبابيك الركاب (من ورا الباب الأمامي للآخر)
+  for (const sx of [-1, 1]) boxM(0.03, H * 0.42, RZ1 - RZ0 - 0.1, orange, sx * (HW + 0.004), H * 0.76, (RZ0 + RZ1) / 2 + 0.05);
+  boxM(Wb - 0.1, H * 0.42, 0.03, orange, 0, H * 0.76, bb.max.z + 0.005); // شباك الباب اللي ورا
+  // خط باب ورا بالطول + مسكة
+  boxM(0.02, H * 0.85 + RH, 0.012, new THREE.MeshStandardMaterial({ color: 0x3a2a20 }), 0, (H * 0.85 + RH) / 2 + H * 0.12, bb.max.z + 0.025);
   const word = sign('إسعاف', '#1d3fc4');
   for (const sx of [-1, 1]) {
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 0.38), word);
-    m.position.set(sx * (HW + 0.012), H * 0.5, bb.min.z + L * 0.55); m.rotation.y = sx * Math.PI / 2; rig.shell.add(m);
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 0.42), word);
+    m.position.set(sx * (HW + 0.024), H * 0.78, (RZ0 + RZ1) / 2 + 0.1); m.rotation.y = sx * Math.PI / 2; rig.shell.add(m);
   }
+  { const m = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.3), word); m.position.set(0, H * 0.82, bb.max.z + 0.025); rig.shell.add(m); }
   // حزام أخضر بترولي تحت حوالين العربية (زي الصور)
   const band = new THREE.MeshStandardMaterial({ color: 0x03231a, roughness: 0.5, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
-  for (const sx of [-1, 1]) { const b = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.16, L * 0.86), band); b.position.set(sx * (HW + 0.006), H * 0.33, (bb.min.z + bb.max.z) / 2); rig.shell.add(b); }
+  for (const sx of [-1, 1]) { const b = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.1, RZ1 - RZ0 - 0.1), band); b.position.set(sx * (HW + 0.022), H * 0.56, (RZ0 + RZ1) / 2 + 0.05); rig.shell.add(b); } // (شريط أخضر على جناب الصندوق)
   const front = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.26), sign('AMBULANCE', '#1d3fc4', true));
   front.position.set(0, H * 0.42, bb.min.z - 0.015); front.rotation.y = Math.PI; rig.shell.add(front);
-  const bar = new THREE.Group(); bar.position.set(0, H + 0.04, bb.min.z + L * 0.25); rig.shell.add(bar);
+  const bar = new THREE.Group(); bar.position.set(0, H + 0.55, bb.min.z + L * 0.36 - 0.25); rig.shell.add(bar); // (على مقدمة السقف العالي)
   bar.add(new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.05, 0.26), new THREE.MeshStandardMaterial({ color: 0x111214, roughness: 0.5 })));
   const a = new THREE.MeshStandardMaterial({ color: 0x001060, emissive: 0x1a4dff, emissiveIntensity: 0.2, roughness: 0.3 });
   const b = new THREE.MeshStandardMaterial({ color: 0x001060, emissive: 0x1a4dff, emissiveIntensity: 0.2, roughness: 0.3 });

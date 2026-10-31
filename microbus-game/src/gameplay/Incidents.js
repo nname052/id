@@ -49,6 +49,8 @@ export class Incidents {
   /** حادثة: kind = 'flip' | 'crash' — الشرطة بتطاردك دقيقة: تقف على جنب (غرامة) أو تهرب */
   trigger(kind, ph, playerKind) {
     if (this.state !== 'idle' || this._cool > 0) return;
+    // عربيات الطوارئ (البوكس والإسعاف): مفيش مخالفة ولا مطاردة لو خبطت وإنت شغال
+    if (playerKind === 'police' || playerKind === 'ambulance') return;
     this.kind = kind; this.vkind = playerKind;
     this.fine = FINE[kind]; this.stars = 1;
     // 1) الركاب

@@ -343,6 +343,25 @@ export class AudioSystem {
     S.o.connect(bp); S.o2.connect(this._gain(0.4)).connect(bp);
     bp.connect(S.g).connect(S.p).connect(this.outside);
   }
+  /** سارينة عربيتك إنت (إسعاف/بوكس) — منفصلة عن سارينة عربيات الشرطة التانية.
+   *  الإسعاف: نغمتين عالي/واطي ("بي-بو") · الشرطة: صوت طالع نازل (wail). (كانت مابتشتغلش خالص: siren(true) من غير صوت) */
+  playerSiren(on, mode = 'ambulance') {
+    if (!this.started || !this.ctx) return;
+    const ctx = this.ctx;
+    if (on && (!this.ps || this.ps.mode !== mode)) {
+      if (this.ps) { this.ps.g.gain.setTargetAtTime(0, ctx.currentTime, 0.05); const old = this.ps; setTimeout(() => { for (const o of old.osc) o.stop(); }, 300); }
+      const S = (this.ps = { mode, osc: [] });
+      const amb = mode === 'ambulance';
+      const o = this._osc(amb ? 'square' : 'sawtooth', amb ? 865 : 980), o2 = this._osc('triangle', amb ? 867 : 982);
+      const lfo = this._osc(amb ? 'square' : 'sine', amb ? 0.85 : 0.24), depth = this._gain(amb ? 95 : 360);
+      lfo.connect(depth); depth.connect(o.frequency); depth.connect(o2.frequency);
+      const lp = this._filter('lowpass', 2600, 0.7), bp = this._filter('peaking', 1100, 1.2); bp.gain.value = 4;
+      S.g = this._gain(0);
+      o.connect(this._gain(0.5)).connect(lp); o2.connect(lp); lp.connect(bp).connect(S.g).connect(this.outside);
+      S.osc.push(o, o2, lfo);
+    }
+    if (this.ps) this.ps.g.gain.setTargetAtTime(on && !this.muted ? 0.085 : 0, ctx.currentTime, on ? 0.08 : 0.25);
+  }
   siren(on) { this._sirenOn = !!on; if (!on && this.sirenN) this.sirenN.g.gain.setTargetAtTime(0, this.ctx.currentTime, 0.3); }
   sirenAt(x, y, z, on) {
     if (!this.started || !this.ctx) return;
