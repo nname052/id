@@ -87,15 +87,19 @@ export function attachJobs(world, findRoute) {
     { id: 5, name: 'خط البريد — مستوصف العذراء', color: '#b45309', from: 'post_office', to: 'hospital_eldazra' },
   ].map((d) => ({ ...d, fare: FARE, fareNote: FARE_NOTE, verified: false, source: 'gameplay-approximation (endpoints: OSM landmarks)' }));
   const lines = [];
-  for (const D of world.id === 'shibin' ? LINE_DEFS : autoLines(world)) {
-    const a = anchor(D.from), b = anchor(D.to);
-    if (!a || !b) continue;
+  // (الخرايط بقت صغيرة ~1.6 كم: خطوط شبين اللي طرفها برّه الخريطة بتتساب، وبيكمّل بخطوط بين معالم جوه الخريطة،
+  //  ولو المعالم مش كفاية: بين شارعين رئيسيين بعاد عن بعض — عشان الميكروباص دايمًا يلاقي 3 خطوط على الأقل)
+  const defs = [...(world.id === 'shibin' ? LINE_DEFS : []), ...autoLines(world)];
+  const tryLine = (D) => {
+    const a = D.a || anchor(D.from), b = D.b || anchor(D.to);
+    if (!a || !b || lines.some((L) => (L.from === a.name && L.to === b.name) || (L.from === b.name && L.to === a.name))) return;
     const r = findRoute(a.x, a.z, b.x, b.z);
-    if (!r || r.length < 600) continue;
+    if (!r || r.length < 450) return;
     // محطات في النص كل ~550م باسم الشارع الحقيقي اللي الخط ماشي فيه (لو ليه اسم)
     const stops = [{ name: a.name, x: a.x, z: a.z }];
     const used = new Set([a.name, b.name]);
-    for (let s = 550; s < r.length - 350; s += 550) {
+    const STEP = Math.max(300, Math.min(550, r.length / 4));
+    for (let s = STEP; s < r.length - 250; s += STEP) {
       let i = 0; while (i < r.pts.length - 1 && r.cum[i + 1] < s) i++;
       const p = r.pts[i];
       if (!p.name || used.has(p.name)) continue;
@@ -103,8 +107,11 @@ export function attachJobs(world, findRoute) {
       stops.push({ name: p.name, x: p.x, z: p.z });
     }
     stops.push({ name: b.name, x: b.x, z: b.z });
-    lines.push({ id: D.id, name: D.name, to: b.name, from: a.name, color: D.color, fare: D.fare, fareNote: D.fareNote, verified: D.verified, source: D.source, stops });
-  }
+    lines.push({ id: lines.length + 1, name: D.name, to: b.name, from: a.name, color: D.color || COLORS[lines.length % COLORS.length], fare: D.fare, fareNote: D.fareNote, verified: D.verified, source: D.source, stops });
+  };
+  for (const D of defs) { if (lines.length >= 5) break; tryLine(D); }
+  if (lines.length < 3) for (const D of streetLines(world)) { if (lines.length >= 3) break; tryLine(D); }
+
   world.lines = lines.length ? lines : null;
 
   // ===== أماكن المشاوير =====
@@ -154,7 +161,7 @@ function autoLines(world) {
     for (const b of L) {
       if (b === a || used.has(b.id) || b.name === a.name) continue;
       const d = Math.hypot(b.rx - a.rx, b.rz - a.rz);
-      if (d < 900 || d > 3000) continue;
+      if (d < 500 || d > 3000) continue;
       const sc = d + (HUB.includes(b.kind) ? -300 : 0) + (b.kind === a.kind ? 400 : 0);
       if (!best || sc > best.sc) best = { b, sc };
     }
@@ -166,3 +173,20 @@ function autoLines(world) {
   return out;
 }
 const short = (s) => (s.length > 18 ? s.split(/[،,(]/)[0].trim().slice(0, 18) : s);
+
+/** خطوط بين شوارع رئيسية (لما المعالم جوه الخريطة مش كفاية): أبعد نقطتين على شوارع ليها أسامي */
+function streetLines(world) {
+  const C = (world.stopCandidates?.().cands || []).filter((c) => c.name);
+  const out = [], used = new Set();
+  for (let k = 0; k < 4 && C.length > 1; k++) {
+    let best = null;
+    for (let i = 0; i < C.length; i += 3) for (let j = i + 1; j < C.length; j += 3) {
+      const a = C[i], b = C[j]; if (a.name === b.name || used.has(a.name) || used.has(b.name)) continue;
+      const d = Math.hypot(a.x - b.x, a.z - b.z); if (!best || d > best.d) best = { a, b, d };
+    }
+    if (!best || best.d < 500) break;
+    used.add(best.a.name); used.add(best.b.name);
+    out.push({ a: { name: best.a.name, x: best.a.x, z: best.a.z }, b: { name: best.b.name, x: best.b.x, z: best.b.z }, name: `خط ${short(best.a.name)} — ${short(best.b.name)}`, fare: 6, fareNote: 'تقريبي', verified: false, source: 'gameplay-approximation (endpoints: OSM street names)' });
+  }
+  return out;
+}

@@ -11,10 +11,10 @@
     "note": "OSM place=city node 'الزقازيق' (city centre)"
   },
   "bbox": {
-    "south": 30.567377,
-    "west": 31.482643,
-    "north": 30.603309,
-    "east": 31.524382
+    "west": 31.495165,
+    "south": 30.578108,
+    "east": 31.511861,
+    "north": 30.592578
   },
   "tile_size": 400,
   "stub_outside": 40,
@@ -60,37 +60,7 @@
       ]
     },
     {
-      "id": "bus_station_5",
-      "name": "موقف المنصورة الجديد",
-      "kind": "bus_station",
-      "osm": "node/8952563382",
-      "lonlat": [
-        31.518189,
-        30.589433
-      ]
-    },
-    {
-      "id": "bus_station_6",
-      "name": "موقف فاروق",
-      "kind": "bus_station",
-      "osm": "node/4886193521",
-      "lonlat": [
-        31.521273,
-        30.585597
-      ]
-    },
-    {
-      "id": "bus_station_7",
-      "name": "موقف سيارات",
-      "kind": "bus_station",
-      "osm": "node/4886193421",
-      "lonlat": [
-        31.522007,
-        30.585782
-      ]
-    },
-    {
-      "id": "historic_8",
+      "id": "historic_5",
       "name": "ساحة ابو خليل",
       "kind": "historic",
       "osm": "node/6163473285",
@@ -100,7 +70,7 @@
       ]
     },
     {
-      "id": "historic_9",
+      "id": "historic_6",
       "name": "قصر الثقافه",
       "kind": "historic",
       "osm": "way/1527315230",
@@ -110,57 +80,7 @@
       ]
     },
     {
-      "id": "hospital_10",
-      "name": "مستشفى الزقازيق العام",
-      "kind": "hospital",
-      "osm": "way/771779533",
-      "lonlat": [
-        31.509425,
-        30.592807
-      ]
-    },
-    {
-      "id": "hospital_11",
-      "name": "مستشفي المبرة",
-      "kind": "hospital",
-      "osm": "node/3966621672",
-      "lonlat": [
-        31.491537,
-        30.585554
-      ]
-    },
-    {
-      "id": "historic_12",
-      "name": "جامع الفتح",
-      "kind": "historic",
-      "osm": "way/121704804",
-      "lonlat": [
-        31.490989,
-        30.586673
-      ]
-    },
-    {
-      "id": "hospital_13",
-      "name": "عيادة المبرة الشاملة",
-      "kind": "hospital",
-      "osm": "node/4658648390",
-      "lonlat": [
-        31.490995,
-        30.587214
-      ]
-    },
-    {
-      "id": "university_14",
-      "name": "كلية الحاسبات والمعلومات",
-      "kind": "university",
-      "osm": "node/5182035023",
-      "lonlat": [
-        31.524187,
-        30.585465
-      ]
-    },
-    {
-      "id": "post_15",
+      "id": "post_7",
       "name": "بريد الزقازيق ٤٤٥١١",
       "kind": "post",
       "osm": "node/4127212689",
@@ -170,7 +90,7 @@
       ]
     },
     {
-      "id": "post_16",
+      "id": "post_8",
       "name": "الشركة الدولية للخدمات البريدية ايجى سيرف فرع الزقازيق",
       "kind": "post",
       "osm": "node/7082627728",
@@ -180,7 +100,7 @@
       ]
     },
     {
-      "id": "park_17",
+      "id": "park_9",
       "name": "حديقة حيوان الزقازيق",
       "kind": "park",
       "osm": "way/771835972",

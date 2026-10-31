@@ -193,7 +193,43 @@ export function buildHuman(R, opts = {}) {
   }
   // العصاية (الكبير): من الإيد اليمين للأرض، بتتحرك مع الدراع
   if (role === 'elder') P.add(limb(0.013, 0.011, J.elY - 0.33, S(6)), T(J.shX + 0.015, (J.elY - 0.33) / 2, 0.06, 0.06, 0, 0), [0.08, 0.036, 0.011], 8); // (ألوان خطية زي باقي الباليتات)
-  return { geo: P.build(), type: role, height: 1.75 };
+  // ===== حاجات في الإيد (للماشيين في الشارع بس) =====
+  const prop = role === 'elder' || role === 'kid' ? null : opts.prop;
+  const handY = J.elY - 0.31;
+  if (prop === 'bag') {
+    // شنطة بلاستيك (سوق) في الإيد الشمال: بتتمرجح مع الدراع
+    const bc = pick([[0.85, 0.85, 0.82], [0.12, 0.12, 0.13], [0.55, 0.12, 0.1], [0.2, 0.35, 0.6]]);
+    P.add(new THREE.BoxGeometry(0.2, 0.24, 0.09), T(-J.shX - 0.01, handY - 0.17, 0.01, 0, 0, 0.04), bc, 6);
+    P.add(limb(0.012, 0.012, 0.09, 5), T(-J.shX - 0.01, handY - 0.04, 0.01), bc, 6);
+  } else if (prop === 'purse' || (prop && fem && prop !== 'phone')) {
+    // شنطة كتف: الحزام على الكتف والشنطة جنب الوسط
+    const bc = pick([[0.16, 0.1, 0.07], [0.08, 0.08, 0.09], [0.45, 0.28, 0.18]]);
+    P.add(new THREE.BoxGeometry(0.06, 0.2, 0.26), T(0.19, 1.0, 0.0), bc, 0);
+    P.add(new THREE.BoxGeometry(0.022, 0.5, 0.03), T(0.165, 1.24, 0.0, 0, 0, 0.12), bc, 0);
+  } else if (prop === 'phone') {
+    // موبايل في الإيد اليمين (الدراع ثابت متني لقدام — بيبص فيه وهو ماشي)
+    P.add(new THREE.BoxGeometry(0.07, 0.14, 0.012), T(J.shX, handY - 0.02, 0.05), [0.05, 0.05, 0.06], 8);
+  }
+  const geo = P.build();
+  if (prop === 'phone') bendArm(geo, 7, 8, 1, 0.35, 1.35);
+  return { geo, type: role, height: 1.75 };
+}
+
+/** دراع ثابت متني (للموبايل): بيلف العضمتين على الـ CPU ويخليهم جزء من الجذع (مايتمرجحوش) */
+function bendArm(g, bu, bf, side, shA, elA) {
+  const p = g.attributes.position, n = g.attributes.normal, b = g.attributes.aBone;
+  const sh = new THREE.Vector3(side * J.shX, J.shY, 0), el = new THREE.Vector3(side * J.shX, J.elY, 0);
+  const v = new THREE.Vector3(), w = new THREE.Vector3(), e = el.clone();
+  const rot = (vec, c, a, isN) => { if (!isN) vec.sub(c); const cs = Math.cos(a), sn = Math.sin(a); const y = cs * vec.y - sn * vec.z, z = sn * vec.y + cs * vec.z; vec.y = y; vec.z = z; return isN ? vec : vec.add(c); };
+  rot(e, sh, -shA, false); // الكوع بعد ما الكتف لف
+  for (let i = 0; i < p.count; i++) {
+    const bone = b.getX(i); if (bone !== bu && bone !== bf) continue;
+    v.fromBufferAttribute(p, i); w.fromBufferAttribute(n, i);
+    if (bone === bf) { rot(v, el, -elA, false); rot(w, null, -elA, true); }
+    rot(v, sh, -shA, false); rot(w, null, -shA, true);
+    p.setXYZ(i, v.x, v.y, v.z); n.setXYZ(i, w.x, w.y, w.z); b.setX(i, 0);
+  }
+  g.computeBoundingSphere();
 }
 
 // ===== الشيدر: حركة المشي من aAnim (phase, amp, armR, armL) =====
@@ -305,14 +341,16 @@ export function seatedGeometry(geo, { hands = 'lap', knee = -1.55 } = {}) {
  * types: لو اتحدد بيتوزع على الأنواع بالترتيب
  */
 const _variants = new Map();
-export function humanVariants(n, seed = 2024, low = false) {
-  const key = `${n}:${seed}:${low}`;
+export function humanVariants(n, seed = 2024, low = false, props = false) {
+  const key = `${n}:${seed}:${low}:${props}`;
   if (_variants.has(key)) return _variants.get(key);
   // (12 شكل للشارع: فيهم 2 كبار و1 طفل)
   const out = [], kinds = ['casual', 'galabeya', 'woman', 'casual', 'abaya', 'galabeya', 'woman', 'casual', 'elder', 'kid', 'woman', 'elder'];
   for (let i = 0; i < n; i++) {
     const R = rng((seed + i * 7919) >>> 0); for (let k = 0; k < 6; k++) R();
-    const h = buildHuman(R, { type: kinds[i % kinds.length], low });
+    // props: ناس الشارع — واحد ماسك موبايل، واحد شايل شنطة سوق، والستات شنطة كتف (مش الكل)
+    const prop = props ? [null, 'phone', 'bag', 'purse', null, 'bag', 'phone', null][i % 8] : null;
+    const h = buildHuman(R, { type: kinds[i % kinds.length], low, prop });
     h.scale = h.type === 'kid' ? 0.6 + R() * 0.08 : h.type === 'elder' ? 0.9 + R() * 0.06 : 0.93 + R() * 0.12;
     out.push(h);
   }

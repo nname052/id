@@ -276,12 +276,14 @@ export class Game {
     cam.position.set(sp.x + 12, 10, sp.z + 12); cam.lookAt(sp.x, 0, sp.z); cam.updateMatrixWorld();
     // المرحلة (أ): المربعات القريبة بس (~300 م حوالين البداية) قبل "جاهز" — الباقي بيكمل في الخلفية وانت بتسوق
     // (كانت بتستنى كل المربعات لحد مدى الرؤية كله ~700 م)
+    this.world.preloading = true;
     for (let k = 0; k < 400 && (this.world.queue.length || this.world.stats.tilesLoaded < 4 || k < 3); k++) {
       S(`تحميل شوارع ${this.map.name} حواليك...`, 0.9 + Math.min(0.06, k * 0.002));
       this.world.updateVisibility(cam.position, 180);
       this.world.update(0.016);
       await nextFrame();
     }
+    this.world.preloading = false;
     // ===== الشيدرز: مرة واحدة لكل المشهد بعد ما المدينة اتحملت =====
     // (كانت بتتجهز للعربيات بس قبل المدينة → أول فريم كان بيجهز شيدرز المدينة على المين ثريد = تهنيج 3-5 ث)
     // compileAsync بيجهزهم بالتوازي (KHR_parallel_shader_compile) من غير ما يوقف الصفحة.

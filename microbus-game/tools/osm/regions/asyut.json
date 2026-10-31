@@ -11,10 +11,10 @@
     "note": "OSM place=city node 'أسيوط' (city centre)"
   },
   "bbox": {
-    "south": 27.165316,
-    "west": 31.165187,
-    "north": 27.201248,
-    "east": 31.205581
+    "west": 31.177305,
+    "south": 27.176047,
+    "east": 31.193462,
+    "north": 27.190517
   },
   "tile_size": 400,
   "stub_outside": 40,
@@ -50,67 +50,7 @@
       ]
     },
     {
-      "id": "government_4",
-      "name": "مبني محافظة أسيوط",
-      "kind": "government",
-      "osm": "node/5177324711",
-      "lonlat": [
-        31.190219,
-        27.192072
-      ]
-    },
-    {
-      "id": "stadium_5",
-      "name": "ملعب جامعة أسيوط",
-      "kind": "stadium",
-      "osm": "way/94168812",
-      "lonlat": [
-        31.17627,
-        27.189318
-      ]
-    },
-    {
-      "id": "bus_station_6",
-      "name": "موقف الازهر - موقف مصر",
-      "kind": "bus_station",
-      "osm": "node/4561729890",
-      "lonlat": [
-        31.174697,
-        27.194432
-      ]
-    },
-    {
-      "id": "university_7",
-      "name": "جامعة أسيوط",
-      "kind": "university",
-      "osm": "way/94168975",
-      "lonlat": [
-        31.170549,
-        27.188473
-      ]
-    },
-    {
-      "id": "university_8",
-      "name": "كلية العلوم",
-      "kind": "university",
-      "osm": "node/6935686634",
-      "lonlat": [
-        31.170529,
-        27.189735
-      ]
-    },
-    {
-      "id": "university_9",
-      "name": "كلية الزراعة",
-      "kind": "university",
-      "osm": "way/705607178",
-      "lonlat": [
-        31.167847,
-        27.189337
-      ]
-    },
-    {
-      "id": "hospital_10",
+      "id": "hospital_4",
       "name": "مستشفى السلام",
       "kind": "hospital",
       "osm": "way/770229565",
@@ -120,7 +60,7 @@
       ]
     },
     {
-      "id": "historic_11",
+      "id": "historic_5",
       "name": "ارسالية كندا",
       "kind": "historic",
       "osm": "node/12600044801",
@@ -130,7 +70,7 @@
       ]
     },
     {
-      "id": "historic_12",
+      "id": "historic_6",
       "name": "نهضة قداسة اسيوط",
       "kind": "historic",
       "osm": "node/12620641001",
@@ -140,7 +80,7 @@
       ]
     },
     {
-      "id": "hospital_13",
+      "id": "hospital_7",
       "name": "مستشفى أسيوط العام",
       "kind": "hospital",
       "osm": "node/14078009201",
@@ -150,77 +90,7 @@
       ]
     },
     {
-      "id": "historic_14",
-      "name": "مطعم كمونة",
-      "kind": "historic",
-      "osm": "node/12600044703",
-      "lonlat": [
-        31.19396,
-        27.186602
-      ]
-    },
-    {
-      "id": "hospital_15",
-      "name": "مستشفی الحياة",
-      "kind": "hospital",
-      "osm": "node/4229667099",
-      "lonlat": [
-        31.179743,
-        27.190605
-      ]
-    },
-    {
-      "id": "historic_16",
-      "name": "المدينة الجامعية للطلبة",
-      "kind": "historic",
-      "osm": "node/5427941423",
-      "lonlat": [
-        31.176416,
-        27.187294
-      ]
-    },
-    {
-      "id": "historic_17",
-      "name": "المبني الإداري",
-      "kind": "historic",
-      "osm": "node/5427951523",
-      "lonlat": [
-        31.172617,
-        27.188506
-      ]
-    },
-    {
-      "id": "historic_18",
-      "name": "حديقة الفردوس",
-      "kind": "historic",
-      "osm": "node/5106360221",
-      "lonlat": [
-        31.198752,
-        27.178243
-      ]
-    },
-    {
-      "id": "historic_19",
-      "name": "شقة هالة",
-      "kind": "historic",
-      "osm": "node/12600044705",
-      "lonlat": [
-        31.188756,
-        27.168222
-      ]
-    },
-    {
-      "id": "historic_20",
-      "name": "جراجات الجامعة",
-      "kind": "historic",
-      "osm": "node/5427951526",
-      "lonlat": [
-        31.170166,
-        27.188185
-      ]
-    },
-    {
-      "id": "park_21",
+      "id": "park_8",
       "name": "جنينة جمعية الشبان المسلمين",
       "kind": "park",
       "osm": "way/1492411667",

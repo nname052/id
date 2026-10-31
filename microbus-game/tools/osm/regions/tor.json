@@ -11,10 +11,10 @@
     "note": "OSM place=city node 'الطور' (city centre)"
   },
   "bbox": {
-    "south": 28.223701,
-    "west": 33.603217,
-    "north": 28.259633,
-    "east": 33.644005
+    "west": 33.615453,
+    "south": 28.234432,
+    "east": 33.631769,
+    "north": 28.248902
   },
   "tile_size": 400,
   "stub_outside": 40,

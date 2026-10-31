@@ -11,10 +11,10 @@
     "note": "OSM place=city node 'دمنهور' (city centre)"
   },
   "bbox": {
-    "south": 31.019532,
-    "west": 30.450094,
-    "north": 31.055464,
-    "east": 30.492031
+    "west": 30.462675,
+    "south": 31.030263,
+    "east": 30.47945,
+    "north": 31.044733
   },
   "tile_size": 400,
   "stub_outside": 40,
@@ -30,17 +30,7 @@
       ]
     },
     {
-      "id": "historic_2",
-      "name": "الجندى المجهول",
-      "kind": "historic",
-      "osm": "node/2269447673",
-      "lonlat": [
-        30.459772,
-        31.036721
-      ]
-    },
-    {
-      "id": "park_3",
+      "id": "park_2",
       "name": "حديقة الجمهورية",
       "kind": "park",
       "osm": "way/1175773204",

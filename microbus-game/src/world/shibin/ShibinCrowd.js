@@ -20,7 +20,7 @@ export class ShibinCrowd {
     this.group = new THREE.Group(); this.group.name = 'crowd';
     scene.add(this.group);
     // (عدد الأشكال: الكمبيوتر 20 — نفس الشخص كان بيتكرر كتير في 240 ماشي بـ 12 شكل؛ الموبايل 12 = draw calls أقل)
-    const V = humanVariants(variants, 777, true);
+    const V = humanVariants(variants, 777, true, true);
     this.nVariants = variants;
     this.batch = new HumanBatch(this.group, V, this.cap);
     this.batch.types = V.map((v) => v.type);

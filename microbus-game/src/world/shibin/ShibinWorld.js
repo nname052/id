@@ -806,22 +806,30 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
     this._lastCam = cam;
     this._kitT = (this._kitT || 0) - 0.25; if (this._kitT <= 0) { this._kitT = 0.5; this.kitRoof?.update(cam); this.kitAC?.update(cam); this.streetKit?.update(cam); }
     const tiles = this.meta.tiles;
-    const r = Math.min(LOAD_R, viewDist + 120);
-    const i0 = Math.floor((cx - r) / TS), i1 = Math.floor((cx + r) / TS), j0 = Math.floor((cz - r) / TS), j1 = Math.floor((cz + r) / TS);
+    // خريطة صغيرة (~1.6 كم ≈ 30-40 مربع × 400م): كل المربعات بتتحمّل (الأقرب الأول) ومفيش unload —
+    // العمارات كانت بتتشال وترجع تتبني قدامك وإنت ماشي. الإخفاء بالمسافة باقي بس ورا الضباب.
+    // (مربعات البحر بس مابتتحسبش: إسكندرية فيها ~110 مربع مية)
+    const seaOnly = (L) => L.length === 1 && L[0] === 'water';
+    const small = (this._small ??= Object.values(tiles).filter((L) => !seaOnly(L)).length <= 60);
+    // (وقت شاشة التحميل: اللي حوالين البداية بس — الباقي بيكمل في الخلفية)
+    const all = small && !this.preloading, r = all ? Infinity : Math.min(LOAD_R, viewDist + 120);
+    // (كله: حدود الشبكة من المربعات الموجودة نفسها — مش من نص القطر)
+    const ext = all ? (this._ext ??= Object.keys(tiles).reduce((e, k) => { const [, i, j] = k.split('_').map(Number); return [Math.min(e[0], i), Math.max(e[1], i), Math.min(e[2], j), Math.max(e[3], j)]; }, [1e9, -1e9, 1e9, -1e9])) : null;
+    const i0 = all ? ext[0] : Math.floor((cx - r) / TS), i1 = all ? ext[1] : Math.floor((cx + r) / TS), j0 = all ? ext[2] : Math.floor((cz - r) / TS), j1 = all ? ext[3] : Math.floor((cz + r) / TS);
     const want = [];
     for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
       const name = `t_${i}_${j}`;
       if (!tiles[name]) continue;
       const d = tileDist(cx, cz, i, j, TS);
-      if (d > r) continue;
+      if (d > (all && seaOnly(tiles[name]) ? Math.min(LOAD_R, viewDist + 120) : r)) continue;
       const k = this._tkey(i, j);
       if (!this.tiles.has(k)) want.push({ k, i, j, name, d });
     }
     want.sort((a, b) => a.d - b.d);
-    for (const w of want.slice(0, 3)) this._loadTile(w);
+    for (const w of want.slice(0, small ? 4 : 3)) this._loadTile(w);
     for (const [k, T] of this.tiles) {
       const d = tileDist(cx, cz, T.i, T.j, TS);
-      if (d > UNLOAD_R) { this._unloadTile(T); this.tiles.delete(k); continue; }
+      if ((!small || seaOnly(tiles[T.name] || [])) && d > UNLOAD_R) { this._unloadTile(T); this.tiles.delete(k); continue; }
       if (!T.ready) continue;
       // LOD: التفاصيل (علامات/حرف الرصيف/قضبان) قريب بس، والعمارات البعيدة بخامة من غير صور
       // الموبايل: التفاصيل والواجهات الكاملة لمسافة أقصر (الشيدر الكامل أغلى حاجة في البكسل)

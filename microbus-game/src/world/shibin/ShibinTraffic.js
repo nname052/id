@@ -501,6 +501,12 @@ export class ShibinTraffic {
   }
 
   /** المكان ده هيبان للكاميرا؟ (جوه مدى الرؤية ومش ورا) → مينفعش نظهر فيه عربية */
+  /** قدام الكاميرا (من غير حد للمسافة) — عشان الاختفاء مايحصلش وإنت شايف العربية */
+  _inCone(x, z) {
+    const C = this._cam, dx = x - C.x, dz = z - C.z, d = Math.hypot(dx, dz) || 1;
+    return (dx * C.fx + dz * C.fz) / d > -0.35;
+  }
+
   _inView(x, z) {
     const C = this._cam, dx = x - C.x, dz = z - C.z, d = Math.hypot(dx, dz);
     if (d > this.viewDist + 15) return false;
@@ -598,7 +604,8 @@ export class ShibinTraffic {
       if (c.virtual) { this._virtualStep(c, dt, fr + i, px, pz); continue; }
       if (!c.on) { if (n++ < (this._first ? 99 : 2)) this._spawn(c, px, pz, fx, fz); continue; }
       const d2 = (c.x - px) ** 2 + (c.z - pz) ** 2;
-      if (d2 > this.despawnR * this.despawnR) {
+      // (مابتختفيش قدام عينك: بتختفي بس لما تبقى برّه الكادر، أو بعيدة أوي)
+      if (d2 > this.despawnR * this.despawnR && (!this._inCone(c.x, c.z) || d2 > 4 * this.despawnR * this.despawnR)) {
         this._release(c); c.on = false; c.rig.root.visible = false;
         // ميكروباص الخط بيكمل شغله "على الورق" وهو بعيد (حساب رخيص من غير رسم) — مش بيختفي من الخط
         if (c.line && !c.turn) { c.virtual = true; c.vdwell = 0; c.pull = null; c.dwell = 0; c._vAcc = 0; }

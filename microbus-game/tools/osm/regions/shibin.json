@@ -1,40 +1,180 @@
 {
-  "id": "shibin",
-  "name": "شبين الكوم",
-  "name_en": "Shebin El Kom",
-  "governorate": "المنوفية",
-  "source_pbf": "../data/osm/minufiyya-2026-10-14.osm.pbf",
-  "source_note": "BBBike extract of OpenStreetMap (Minufiyya area), downloaded 2026-10-14",
-  "origin": { "lat": 30.5545106, "lon": 31.0097923, "osm": "node/299527803", "note": "OSM place node 'شبين الكوم' (city centre)" },
-  "bbox": { "south": 30.540138, "west": 30.986843, "north": 30.58146, "east": 31.029612 },
-  "tile_size": 400,
-  "stub_outside": 40,
-  "landmarks": [
-    { "id": "station_shibin", "name": "محطة قطار شبين الكوم", "kind": "rail_station", "osm": "node/1024943367" },
-    { "id": "station_shibin_new", "name": "محطة شبين الكوم الجديدة", "kind": "rail_station", "osm": "node/1094599866" },
-    { "id": "rail_halt_south", "name": "محطة (halt) بدون اسم في البيانات", "kind": "rail_halt", "osm": "node/10576245625", "optional": true },
-    { "id": "overpass", "name": "كوبرى شبين الكوم العلوي", "kind": "bridge", "osm_name": "كوبرى شبين الكوم العلوي" },
-    { "id": "stadium_street", "name": "شارع الاستاد", "kind": "street", "osm_name": "شارع الاستاد" },
-    { "id": "stadium", "name": "الاستاد الرياضي", "kind": "stadium", "osm": "way/94172928", "name_note": "OSM tags leisure=stadium without a name; streets around it are named شارع الاستاد / غرب الاستاد / شرق الاستاد and the housing next to it is مساكن الاستاد الرياضي" },
-    { "id": "menoufia_university", "name": "جامعة المنوفية", "kind": "university", "osm": "way/770245006" },
-    { "id": "menoufia_university_2", "name": "جامعة المنوفية (مبنى/حرم)", "kind": "university", "osm": "way/94172954", "optional": true },
-    { "id": "faculty_education", "name": "كلية التربية", "kind": "university", "osm": "way/1450083914", "optional": true },
-    { "id": "faculty_pe", "name": "كلية التربية الرياضية", "kind": "university", "osm": "way/1450083917", "optional": true },
-    { "id": "hospital_eldazra", "name": "مستوصف السيدة العذراء", "kind": "hospital", "osm": "node/7464934905" },
-    { "id": "hospital_mawadda", "name": "مستشفي موده عيون", "kind": "hospital", "osm": "node/4787216421" },
-    { "id": "hospital_unnamed_univ", "name": "مستشفى (بدون اسم في البيانات) جنب الجامعة", "kind": "hospital", "osm": "way/94172969", "name_note": "amenity=hospital without a name" },
-    { "id": "post_office", "name": "مكتب بريد شبين الكوم", "kind": "post", "osm": "node/11479239669", "optional": true },
-    { "id": "canal_qased", "name": "ترعة القاصد", "kind": "canal", "osm_name": "ترعة القاصد", "optional": true },
-    { "id": "mubarak_bridge", "name": "كوبرى مبارك", "kind": "bridge", "osm_name": "كوبرى مبارك", "optional": true },
-    { "id": "omar_effendi_bridge", "name": "كوبرى عمر افندى", "kind": "bridge", "osm_name": "كوبرى عمر افندى", "optional": true }
-  ],
-  "needs_verification": [
-    { "id": "paris_street", "name": "شارع باريس", "kind": "street", "reason": "no way named باريس / Paris in the OSM extract" },
-    { "id": "governorate_hq", "name": "ديوان عام محافظة المنوفية", "kind": "government", "reason": "no office/government feature for the governorate HQ inside the region; the only 'محافظة المنوفية' feature is a place node ~6 km away" },
-    { "id": "governor_rest_house", "name": "استراحة المحافظ", "kind": "government", "reason": "not present in the OSM extract" },
-    { "id": "microbus_terminals", "name": "مواقف الميكروباص الرئيسية", "kind": "bus_station", "reason": "no amenity=bus_station / taxi features; only street names mention them (شارع جراج الاوتوبيس, طريق موقف الباجور الماى)" },
-    { "id": "main_squares", "name": "الميادين الرئيسية", "kind": "square", "reason": "no place=square or named ميدان features in the extract" },
-    { "id": "main_hospitals", "name": "المستشفيات الرئيسية (التعليمي/الجامعي/العام)", "kind": "hospital", "reason": "only small/unnamed hospital features exist in the extract" },
-    { "id": "stadium_name", "name": "اسم الاستاد الرسمي", "kind": "stadium", "reason": "the stadium polygon exists but has no name tag" }
-  ]
+ "id": "shibin",
+ "name": "شبين الكوم",
+ "name_en": "Shebin El Kom",
+ "governorate": "المنوفية",
+ "source_pbf": "../data/osm/egypt/cities/shibin.osm.pbf",
+ "source_note": "OpenStreetMap Egypt extract (download.openstreetmap.fr, 2026-10-29), cut with osmium extract -s smart",
+ "origin": {
+  "lat": 30.5545106,
+  "lon": 31.0097923,
+  "osm": "node/299527803",
+  "note": "OSM place node 'شبين الكوم' (city centre)"
+ },
+ "bbox": {
+  "south": 30.547583,
+  "west": 31.003752,
+  "north": 30.562053,
+  "east": 31.020443
+ },
+ "tile_size": 400,
+ "stub_outside": 40,
+ "landmarks": [
+  {
+   "id": "station_shibin",
+   "name": "محطة قطار شبين الكوم",
+   "kind": "rail_station",
+   "osm": "node/1024943367"
+  },
+  {
+   "id": "station_shibin_new",
+   "name": "محطة شبين الكوم الجديدة",
+   "kind": "rail_station",
+   "osm": "node/1094599866"
+  },
+  {
+   "id": "rail_halt_south",
+   "name": "محطة (halt) بدون اسم في البيانات",
+   "kind": "rail_halt",
+   "osm": "node/10576245625",
+   "optional": true
+  },
+  {
+   "id": "overpass",
+   "name": "كوبرى شبين الكوم العلوي",
+   "kind": "bridge",
+   "osm_name": "كوبرى شبين الكوم العلوي"
+  },
+  {
+   "id": "stadium_street",
+   "name": "شارع الاستاد",
+   "kind": "street",
+   "osm_name": "شارع الاستاد"
+  },
+  {
+   "id": "stadium",
+   "name": "الاستاد الرياضي",
+   "kind": "stadium",
+   "osm": "way/94172928",
+   "name_note": "OSM tags leisure=stadium without a name; streets around it are named شارع الاستاد / غرب الاستاد / شرق الاستاد and the housing next to it is مساكن الاستاد الرياضي"
+  },
+  {
+   "id": "menoufia_university",
+   "name": "جامعة المنوفية",
+   "kind": "university",
+   "osm": "way/770245006"
+  },
+  {
+   "id": "menoufia_university_2",
+   "name": "جامعة المنوفية (مبنى/حرم)",
+   "kind": "university",
+   "osm": "way/94172954",
+   "optional": true
+  },
+  {
+   "id": "faculty_education",
+   "name": "كلية التربية",
+   "kind": "university",
+   "osm": "way/1450083914",
+   "optional": true
+  },
+  {
+   "id": "faculty_pe",
+   "name": "كلية التربية الرياضية",
+   "kind": "university",
+   "osm": "way/1450083917",
+   "optional": true
+  },
+  {
+   "id": "hospital_eldazra",
+   "name": "مستوصف السيدة العذراء",
+   "kind": "hospital",
+   "osm": "node/7464934905"
+  },
+  {
+   "id": "hospital_mawadda",
+   "name": "مستشفي موده عيون",
+   "kind": "hospital",
+   "osm": "node/4787216421"
+  },
+  {
+   "id": "hospital_unnamed_univ",
+   "name": "مستشفى (بدون اسم في البيانات) جنب الجامعة",
+   "kind": "hospital",
+   "osm": "way/94172969",
+   "name_note": "amenity=hospital without a name"
+  },
+  {
+   "id": "post_office",
+   "name": "مكتب بريد شبين الكوم",
+   "kind": "post",
+   "osm": "node/11479239669",
+   "optional": true
+  },
+  {
+   "id": "canal_qased",
+   "name": "ترعة القاصد",
+   "kind": "canal",
+   "osm_name": "ترعة القاصد",
+   "optional": true
+  },
+  {
+   "id": "mubarak_bridge",
+   "name": "كوبرى مبارك",
+   "kind": "bridge",
+   "osm_name": "كوبرى مبارك",
+   "optional": true
+  },
+  {
+   "id": "omar_effendi_bridge",
+   "name": "كوبرى عمر افندى",
+   "kind": "bridge",
+   "osm_name": "كوبرى عمر افندى",
+   "optional": true
+  }
+ ],
+ "needs_verification": [
+  {
+   "id": "paris_street",
+   "name": "شارع باريس",
+   "kind": "street",
+   "reason": "no way named باريس / Paris in the OSM extract"
+  },
+  {
+   "id": "governorate_hq",
+   "name": "ديوان عام محافظة المنوفية",
+   "kind": "government",
+   "reason": "no office/government feature for the governorate HQ inside the region; the only 'محافظة المنوفية' feature is a place node ~6 km away"
+  },
+  {
+   "id": "governor_rest_house",
+   "name": "استراحة المحافظ",
+   "kind": "government",
+   "reason": "not present in the OSM extract"
+  },
+  {
+   "id": "microbus_terminals",
+   "name": "مواقف الميكروباص الرئيسية",
+   "kind": "bus_station",
+   "reason": "no amenity=bus_station / taxi features; only street names mention them (شارع جراج الاوتوبيس, طريق موقف الباجور الماى)"
+  },
+  {
+   "id": "main_squares",
+   "name": "الميادين الرئيسية",
+   "kind": "square",
+   "reason": "no place=square or named ميدان features in the extract"
+  },
+  {
+   "id": "main_hospitals",
+   "name": "المستشفيات الرئيسية (التعليمي/الجامعي/العام)",
+   "kind": "hospital",
+   "reason": "only small/unnamed hospital features exist in the extract"
+  },
+  {
+   "id": "stadium_name",
+   "name": "اسم الاستاد الرسمي",
+   "kind": "stadium",
+   "reason": "the stadium polygon exists but has no name tag"
+  }
+ ]
 }

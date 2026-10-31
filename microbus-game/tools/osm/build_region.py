@@ -349,6 +349,29 @@ def main():
                                   road_name=r['name'], road_width=r['w']))
     print(f'  graph: {len(gnodes)} nodes, {len(edges)} edges, {len(gates)} gates  ({time.time() - t0:.1f}s)')
 
+    # ===================== الطرق اللي بتخلص بحاجز عند حدود الخريطة =====================
+    # (طلب صاحب اللعبة: "المسارات اللي بلاقيها منتهية فجأة"): كل حتة طريق رايحة لبوابة الحدود بتتشال
+    # لحد أقرب تقاطع — كده كل الطرق اللي فاضلة بتلف جوه الخريطة. (PRUNE_GATES=0 يرجّع الشكل القديم)
+    if os.environ.get('PRUNE_GATES', '1') == '1' and gates:
+        adj = collections.defaultdict(set)
+        for e in edges:
+            if e['k'] == 'drive': adj[e['a']].add(e['id']); adj[e['b']].add(e['id'])
+        dead, queue = set(), []
+        for g in gates:
+            dead.add(g['edge']); e = edges[g['edge']]
+            for n in (e['a'], e['b']): adj[n].discard(g['edge']); queue.append(n)
+        while queue:
+            n = queue.pop()
+            if len(adj[n]) != 1: continue
+            eid = next(iter(adj[n])); dead.add(eid); e = edges[eid]
+            for m in (e['a'], e['b']): adj[m].discard(eid)
+            queue.append(e['b'] if e['a'] == n else e['a'])
+        before = len(edges)
+        edges = [e for e in edges if e['id'] not in dead]
+        for i, e in enumerate(edges): e['id'] = i
+        print(f'  pruned {before - len(edges)} edges leading to {len(gates)} edge gates (no more dead-end barriers)')
+        gates = []
+
     # ===================== الارتفاعات (الكباري) =====================
     for e in edges:
         e['h'] = [0.0] * len(e['pts'])

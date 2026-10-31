@@ -11,42 +11,22 @@
     "note": "OSM place=city node 'قنا' (city centre)"
   },
   "bbox": {
-    "south": 26.141343,
-    "west": 32.696269,
-    "north": 26.177276,
-    "east": 32.736302
+    "west": 32.708279,
+    "south": 26.152075,
+    "east": 32.724292,
+    "north": 26.166545
   },
   "tile_size": 400,
   "stub_outside": 40,
   "landmarks": [
     {
-      "id": "rail_station_1",
-      "name": "قنا",
-      "kind": "rail_station",
-      "osm": "node/520513717",
-      "lonlat": [
-        32.727124,
-        26.162585
-      ]
-    },
-    {
-      "id": "library_2",
+      "id": "library_1",
       "name": "مكتبه نور الاسلام",
       "kind": "library",
       "osm": "node/9545731219",
       "lonlat": [
         32.713194,
         26.165229
-      ]
-    },
-    {
-      "id": "hospital_3",
-      "name": "مستشفي قنا العام",
-      "kind": "hospital",
-      "osm": "way/776123270",
-      "lonlat": [
-        32.707113,
-        26.159294
       ]
     }
   ],

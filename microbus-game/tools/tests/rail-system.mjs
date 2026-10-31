@@ -19,11 +19,14 @@ const r = await page.evaluate(async () => {
   const out = { ...R.debugStats() };
   const T = R.trains[0], cam = { x: 0, y: 2, z: 0 };
   const step = (n, f) => { for (let i = 0; i < n; i++) { R.update(1 / 30, cam); f?.(i); } };
+  // (الخريطة بقت صغيرة ~1.6 كم: المزلقانات ممكن تبقى برّه الخريطة — اختبارات المزلقان بتشتغل بس لو فيه واحد)
+  const keep = R.stations;
+  if (R.crossings.length) {
   // 1) المزلقان: القطر جاي من 400م
   const C = R.crossings[0];
   Object.assign(T, { state: 'run', dir: 1, v: 15, s: C.s - 400, lastStop: null });
   // (المحطات اللي في السكة دي ماتوقفوش في الاختبار ده)
-  const keep = R.stations; R.stations = [];
+  R.stations = [];
   cam.x = C.x; cam.z = C.z;
   out.cross = { name: C.name, closedBefore: C.closed, closedAt300: false, downAtPass: 0, openAfter: null, minGapTrain: 1e9 };
   step(30 * 40, () => {
@@ -56,6 +59,8 @@ const r = await page.evaluate(async () => {
   // 3) تصادم البوابة النازلة
   const box = { cx: C.x, cz: C.z, hx: 2, hz: 3 }; const cols = []; R.colliders(box, cols);
   out.barrierColliders = cols.filter((c) => !c.train).length;
+  }
+  R.stations = keep;
   // 4) الوقوف في محطة شبين
   R.stations = keep;
   const st = R.stations.find((q) => q.main);
@@ -70,10 +75,9 @@ const r = await page.evaluate(async () => {
   return out;
 });
 await browser.close();
-const pass = r.lineKm > 3 && r.stations.length >= 1 && r.crossings.length >= 3 &&
-  r.cross.closedAt300 && r.cross.downAtPass > 0.9 && r.cross.trainPassed && r.cross.openAfter &&
-  r.traffic.closed && r.traffic.minDistToCrossing > 3 && r.traffic.vEnd < 0.5 &&
-  r.barrierColliders >= 2 && r.station && Math.abs(r.station.d - r.trainLen / 2) < 3 && r.carsOffLineMax < 1.5 && !errors.length;
+const cr = !r.crossings.length || (r.cross.closedAt300 && r.cross.downAtPass > 0.9 && r.cross.trainPassed && r.cross.openAfter &&
+  r.traffic.closed && r.traffic.minDistToCrossing > 3 && r.traffic.vEnd < 0.5 && r.barrierColliders >= 2);
+const pass = r.lineKm > 0.8 && r.stations.length >= 1 && cr && r.station && Math.abs(r.station.d - r.trainLen / 2) < 3 && r.carsOffLineMax < 1.5 && !errors.length;
 console.log(JSON.stringify({ ...r, errors }, null, 1));
 console.log(pass ? 'PASS rail-system' : 'FAIL rail-system');
 process.exit(pass ? 0 : 1);

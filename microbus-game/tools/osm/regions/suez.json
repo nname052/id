@@ -11,84 +11,13 @@
     "note": "OSM place=city node 'السويس' (city centre)"
   },
   "bbox": {
-    "south": 29.956532,
-    "west": 32.516346,
-    "north": 29.992464,
-    "east": 32.557826
+    "west": 32.52879,
+    "south": 29.967263,
+    "east": 32.545382,
+    "north": 29.981733
   },
   "tile_size": 400,
   "stub_outside": 40,
-  "landmarks": [
-    {
-      "id": "stadium_1",
-      "name": "ستاد السويس",
-      "kind": "stadium",
-      "osm": "way/604978811",
-      "lonlat": [
-        32.54262,
-        29.957773
-      ]
-    },
-    {
-      "id": "rail_station_2",
-      "name": "السويس",
-      "kind": "rail_station",
-      "osm": "node/2555058697",
-      "lonlat": [
-        32.527669,
-        29.989176
-      ]
-    },
-    {
-      "id": "government_3",
-      "name": "مبنى محافظة السويس",
-      "kind": "government",
-      "osm": "way/1057566535",
-      "lonlat": [
-        32.550709,
-        29.963567
-      ]
-    },
-    {
-      "id": "hospital_4",
-      "name": "مستشفى التأمين الصحى الشامل",
-      "kind": "hospital",
-      "osm": "way/1057797224",
-      "lonlat": [
-        32.517577,
-        29.969271
-      ]
-    },
-    {
-      "id": "historic_5",
-      "name": "حديقة الشهداء",
-      "kind": "historic",
-      "osm": "node/4424836797",
-      "lonlat": [
-        32.553772,
-        29.960866
-      ]
-    },
-    {
-      "id": "post_6",
-      "name": "بوسطة السويس",
-      "kind": "post",
-      "osm": "node/1660401790",
-      "lonlat": [
-        32.555676,
-        29.966087
-      ]
-    },
-    {
-      "id": "park_7",
-      "name": "دوار",
-      "kind": "park",
-      "osm": "way/1102722155",
-      "lonlat": [
-        32.516548,
-        29.971268
-      ]
-    }
-  ],
+  "landmarks": [],
   "needs_verification": []
 }

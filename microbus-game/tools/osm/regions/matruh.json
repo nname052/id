@@ -11,10 +11,10 @@
     "note": "OSM place=city node 'مرسى مطروح' (city centre)"
   },
   "bbox": {
-    "south": 31.33489,
-    "west": 27.218488,
-    "north": 31.370823,
-    "east": 27.260564
+    "west": 27.231111,
+    "south": 31.345622,
+    "east": 27.247941,
+    "north": 31.360092
   },
   "tile_size": 400,
   "stub_outside": 40,
@@ -57,46 +57,6 @@
       "lonlat": [
         27.241359,
         31.349242
-      ]
-    },
-    {
-      "id": "museum_5",
-      "name": "متحف كهف رومل",
-      "kind": "museum",
-      "osm": "node/595353662",
-      "lonlat": [
-        27.248435,
-        31.36562
-      ]
-    },
-    {
-      "id": "hospital_6",
-      "name": "مستشفى الصدر",
-      "kind": "hospital",
-      "osm": "way/1559332912",
-      "lonlat": [
-        27.220702,
-        31.344591
-      ]
-    },
-    {
-      "id": "historic_7",
-      "name": "شاطئ الغرام",
-      "kind": "historic",
-      "osm": "node/6478964085",
-      "lonlat": [
-        27.221675,
-        31.368321
-      ]
-    },
-    {
-      "id": "post_8",
-      "name": "مكتب بريد الريفيه",
-      "kind": "post",
-      "osm": "node/14184994597",
-      "lonlat": [
-        27.220849,
-        31.342764
       ]
     }
   ],

@@ -11,34 +11,13 @@
     "note": "OSM place=city node 'العريش' (city centre)"
   },
   "bbox": {
-    "south": 31.105675,
-    "west": 33.777365,
-    "north": 31.141607,
-    "east": 33.819339
+    "west": 33.789957,
+    "south": 31.116406,
+    "east": 33.806747,
+    "north": 31.130876
   },
   "tile_size": 400,
   "stub_outside": 40,
-  "landmarks": [
-    {
-      "id": "government_1",
-      "name": "الهلال الأحمر",
-      "kind": "government",
-      "osm": "node/7035253147",
-      "lonlat": [
-        33.798672,
-        31.137114
-      ]
-    },
-    {
-      "id": "hospital_2",
-      "name": "مستشفي العريش العام",
-      "kind": "hospital",
-      "osm": "way/952595678",
-      "lonlat": [
-        33.809283,
-        31.136288
-      ]
-    }
-  ],
+  "landmarks": [],
   "needs_verification": []
 }

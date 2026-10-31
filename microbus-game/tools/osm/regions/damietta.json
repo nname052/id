@@ -11,64 +11,13 @@
     "note": "OSM place=city node 'دمياط' (city centre)"
   },
   "bbox": {
-    "south": 31.398776,
-    "west": 31.800313,
-    "north": 31.434709,
-    "east": 31.842418
+    "west": 31.812945,
+    "south": 31.409508,
+    "east": 31.829787,
+    "north": 31.423978
   },
   "tile_size": 400,
   "stub_outside": 40,
-  "landmarks": [
-    {
-      "id": "rail_station_1",
-      "name": "دمياط",
-      "kind": "rail_station",
-      "osm": "node/1020478764",
-      "lonlat": [
-        31.807194,
-        31.419695
-      ]
-    },
-    {
-      "id": "bus_station_2",
-      "name": "موقف الاعصر و السنانية",
-      "kind": "bus_station",
-      "osm": "node/4431297491",
-      "lonlat": [
-        31.8097,
-        31.420575
-      ]
-    },
-    {
-      "id": "hospital_3",
-      "name": "مركز كيوان للعلاج الطبيعي والتخسيس",
-      "kind": "hospital",
-      "osm": "node/5734327542",
-      "lonlat": [
-        31.822604,
-        31.407141
-      ]
-    },
-    {
-      "id": "historic_4",
-      "name": "سوق السمك",
-      "kind": "historic",
-      "osm": "node/4431326991",
-      "lonlat": [
-        31.809981,
-        31.421047
-      ]
-    },
-    {
-      "id": "library_5",
-      "name": "مكتبة مصر العامة",
-      "kind": "library",
-      "osm": "node/4431297492",
-      "lonlat": [
-        31.801455,
-        31.432216
-      ]
-    }
-  ],
+  "landmarks": [],
   "needs_verification": []
 }

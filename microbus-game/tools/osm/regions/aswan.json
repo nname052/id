@@ -11,96 +11,16 @@
     "note": "OSM place=city node 'أسوان' (city centre)"
   },
   "bbox": {
-    "west": 32.875,
-    "south": 24.07,
-    "east": 32.92,
-    "north": 24.115
+    "west": 32.889434,
+    "south": 24.083836,
+    "east": 32.905178,
+    "north": 24.098306
   },
   "tile_size": 400,
   "stub_outside": 40,
   "landmarks": [
     {
-      "id": "rail_station_1",
-      "name": "محطة سكة حديد أسوان",
-      "kind": "rail_station",
-      "osm": "node/321239620",
-      "lonlat": [
-        32.902525,
-        24.099795
-      ]
-    },
-    {
-      "id": "pyramid_2",
-      "name": "هرم الفنتين",
-      "kind": "pyramid",
-      "osm": "way/554848964",
-      "lonlat": [
-        32.885556,
-        24.085674
-      ]
-    },
-    {
-      "id": "historic_3",
-      "name": "كتدرائية الملاك جبريل",
-      "kind": "historic",
-      "osm": "way/326938597",
-      "lonlat": [
-        32.890415,
-        24.082905
-      ]
-    },
-    {
-      "id": "historic_4",
-      "name": "الحديقة النباتية بأسوان",
-      "kind": "historic",
-      "osm": "way/5772319",
-      "lonlat": [
-        32.886165,
-        24.092457
-      ]
-    },
-    {
-      "id": "museum_5",
-      "name": "متحف النوبة",
-      "kind": "museum",
-      "osm": "way/1128059224",
-      "lonlat": [
-        32.889207,
-        24.079605
-      ]
-    },
-    {
-      "id": "historic_6",
-      "name": "مسلة ناقصةال",
-      "kind": "historic",
-      "osm": "way/243566979",
-      "lonlat": [
-        32.895483,
-        24.076934
-      ]
-    },
-    {
-      "id": "historic_7",
-      "name": "قبر آغا خان",
-      "kind": "historic",
-      "osm": "node/540656368",
-      "lonlat": [
-        32.878835,
-        24.088279
-      ]
-    },
-    {
-      "id": "historic_8",
-      "name": "دير سمان",
-      "kind": "historic",
-      "osm": "way/300665263",
-      "lonlat": [
-        32.875801,
-        24.094721
-      ]
-    },
-    {
-      "id": "historic_9",
+      "id": "historic_1",
       "name": "خلاص النفوس اسوان",
       "kind": "historic",
       "osm": "node/12600045102",
@@ -110,7 +30,7 @@
       ]
     },
     {
-      "id": "historic_10",
+      "id": "historic_2",
       "name": "الجيرمانية اسوان",
       "kind": "historic",
       "osm": "node/12600045103",
@@ -120,37 +40,7 @@
       ]
     },
     {
-      "id": "hospital_11",
-      "name": "مستشفى امراض الصدر",
-      "kind": "hospital",
-      "osm": "way/43157497",
-      "lonlat": [
-        32.908248,
-        24.094358
-      ]
-    },
-    {
-      "id": "historic_12",
-      "name": "معبد خنوم",
-      "kind": "historic",
-      "osm": "way/554848965",
-      "lonlat": [
-        32.88608,
-        24.084412
-      ]
-    },
-    {
-      "id": "hospital_13",
-      "name": "مستشفي مبارك العسكري",
-      "kind": "hospital",
-      "osm": "way/43157366",
-      "lonlat": [
-        32.88816,
-        24.075477
-      ]
-    },
-    {
-      "id": "university_14",
+      "id": "university_3",
       "name": "المعهد العالى للخدمة الاجتماعية",
       "kind": "university",
       "osm": "way/43157520",
@@ -160,43 +50,13 @@
       ]
     },
     {
-      "id": "university_15",
-      "name": "كلية التربية",
-      "kind": "university",
-      "osm": "way/43157489",
-      "lonlat": [
-        32.907363,
-        24.092925
-      ]
-    },
-    {
-      "id": "post_16",
+      "id": "post_4",
       "name": "مكتب بريد أسوان",
       "kind": "post",
       "osm": "node/540655484",
       "lonlat": [
         32.897616,
         24.095376
-      ]
-    },
-    {
-      "id": "park_17",
-      "name": "حديقة السلام",
-      "kind": "park",
-      "osm": "way/29205552",
-      "lonlat": [
-        32.899594,
-        24.099682
-      ]
-    },
-    {
-      "id": "park_18",
-      "name": "حديقة بلازا درة النيل",
-      "kind": "park",
-      "osm": "way/29205640",
-      "lonlat": [
-        32.900226,
-        24.101818
       ]
     }
   ],

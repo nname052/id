@@ -11,36 +11,16 @@
     "note": "OSM place=city node 'القاهرة' (city centre)"
   },
   "bbox": {
-    "west": 31.205,
-    "south": 30.022,
-    "east": 31.272,
-    "north": 30.068
+    "west": 31.226386,
+    "south": 30.036249,
+    "east": 31.245065,
+    "north": 30.052527
   },
   "tile_size": 400,
   "stub_outside": 40,
   "landmarks": [
     {
-      "id": "rail_station_1",
-      "name": "محطة رمسيس",
-      "kind": "rail_station",
-      "osm": "node/271864421",
-      "lonlat": [
-        31.246053,
-        30.062978
-      ]
-    },
-    {
-      "id": "university_2",
-      "name": "جامعة الأزهر الشريف",
-      "kind": "university",
-      "osm": "way/28831942",
-      "lonlat": [
-        31.264878,
-        30.045157
-      ]
-    },
-    {
-      "id": "museum_3",
+      "id": "museum_1",
       "name": "المتحف المصري",
       "kind": "museum",
       "osm": "way/10873198",
@@ -50,7 +30,7 @@
       ]
     },
     {
-      "id": "historic_4",
+      "id": "historic_2",
       "name": "كوبري قصر النيل",
       "kind": "historic",
       "osm": "node/4764007325",
@@ -60,147 +40,7 @@
       ]
     },
     {
-      "id": "historic_5",
-      "name": "برج القاهرة",
-      "kind": "historic",
-      "osm": "way/767933342",
-      "lonlat": [
-        31.224334,
-        30.046045
-      ]
-    },
-    {
-      "id": "historic_6",
-      "name": "قصر عابدين",
-      "kind": "historic",
-      "osm": "way/24942979",
-      "lonlat": [
-        31.247403,
-        30.042681
-      ]
-    },
-    {
-      "id": "museum_7",
-      "name": "متحف الفن الحديث",
-      "kind": "museum",
-      "osm": "way/97229402",
-      "lonlat": [
-        31.22302,
-        30.042714
-      ]
-    },
-    {
-      "id": "museum_8",
-      "name": "متحف محمود مختار",
-      "kind": "museum",
-      "osm": "way/775152514",
-      "lonlat": [
-        31.223036,
-        30.040444
-      ]
-    },
-    {
-      "id": "museum_9",
-      "name": "متحف الفنون الأسلامية",
-      "kind": "museum",
-      "osm": "way/46579853",
-      "lonlat": [
-        31.252662,
-        30.044531
-      ]
-    },
-    {
-      "id": "museum_10",
-      "name": "متحف الخزف الإسلامي",
-      "kind": "museum",
-      "osm": "node/14310894630",
-      "lonlat": [
-        31.223095,
-        30.056399
-      ]
-    },
-    {
-      "id": "hospital_11",
-      "name": "مؤسسة مستشفى سرطان الأطفال",
-      "kind": "hospital",
-      "osm": "way/28865204",
-      "lonlat": [
-        31.237878,
-        30.023093
-      ]
-    },
-    {
-      "id": "historic_12",
-      "name": "باب زويلة",
-      "kind": "historic",
-      "osm": "way/775853319",
-      "lonlat": [
-        31.257767,
-        30.042764
-      ]
-    },
-    {
-      "id": "historic_13",
-      "name": "قبة شجر الدر",
-      "kind": "historic",
-      "osm": "way/379083886",
-      "lonlat": [
-        31.252137,
-        30.025916
-      ]
-    },
-    {
-      "id": "hospital_14",
-      "name": "المستشفى القبطي",
-      "kind": "hospital",
-      "osm": "way/774871347",
-      "lonlat": [
-        31.252786,
-        30.063036
-      ]
-    },
-    {
-      "id": "historic_15",
-      "name": "الجامع الأزهر",
-      "kind": "historic",
-      "osm": "way/24749059",
-      "lonlat": [
-        31.262972,
-        30.045816
-      ]
-    },
-    {
-      "id": "historic_16",
-      "name": "قصر الجوهرة",
-      "kind": "historic",
-      "osm": "relation/16886994",
-      "lonlat": [
-        31.259996,
-        30.027625
-      ]
-    },
-    {
-      "id": "historic_17",
-      "name": "قلعة صلاح الدين",
-      "kind": "historic",
-      "osm": "way/24908286",
-      "lonlat": [
-        31.262294,
-        30.029813
-      ]
-    },
-    {
-      "id": "library_18",
-      "name": "معهد الدراسات الشرقية للآباء الدومنيكان",
-      "kind": "library",
-      "osm": "way/29978011",
-      "lonlat": [
-        31.271757,
-        30.056979
-      ]
-    },
-    {
-      "id": "university_19",
+      "id": "university_3",
       "name": "الجامعة الأمريكية بالقاهرة",
       "kind": "university",
       "osm": "way/28850198",
@@ -210,7 +50,7 @@
       ]
     },
     {
-      "id": "university_20",
+      "id": "university_4",
       "name": "مكتبة الجامعة الأمريكية",
       "kind": "university",
       "osm": "way/24942928",
@@ -220,7 +60,7 @@
       ]
     },
     {
-      "id": "bus_station_21",
+      "id": "bus_station_5",
       "name": "جو باص التحرير",
       "kind": "bus_station",
       "osm": "way/1232410843",
@@ -230,7 +70,7 @@
       ]
     },
     {
-      "id": "bus_station_22",
+      "id": "bus_station_6",
       "name": "موقف عبد المنعم رياض",
       "kind": "bus_station",
       "osm": "relation/16822065",
@@ -240,83 +80,103 @@
       ]
     },
     {
-      "id": "government_23",
-      "name": "ديوان محافظة القاهرة",
-      "kind": "government",
-      "osm": "way/1465589099",
+      "id": "historic_7",
+      "name": "مسلة ميدان التحرير",
+      "kind": "historic",
+      "osm": "node/9175406749",
       "lonlat": [
-        31.245578,
-        30.044689
+        31.235762,
+        30.04442
       ]
     },
     {
-      "id": "bus_station_24",
-      "name": "موقف ميدان السيدة زينب",
-      "kind": "bus_station",
-      "osm": "way/1536109544",
+      "id": "library_8",
+      "name": "مؤسسة اليابانية مكتب القاهرة",
+      "kind": "library",
+      "osm": "node/99200232",
       "lonlat": [
-        31.241781,
-        30.033261
+        31.235526,
+        30.041538
       ]
     },
     {
-      "id": "bus_station_25",
-      "name": "موقف الترجمان",
-      "kind": "bus_station",
-      "osm": "node/3232969796",
+      "id": "historic_9",
+      "name": "تمثال قصر النيل",
+      "kind": "historic",
+      "osm": "node/5112028121",
       "lonlat": [
-        31.238229,
-        30.058162
+        31.231621,
+        30.043966
       ]
     },
     {
-      "id": "government_26",
-      "name": "وزارة التعليم العالي",
-      "kind": "government",
-      "osm": "relation/10716370",
+      "id": "hospital_10",
+      "name": "مستشفى هيئة النقل العام",
+      "kind": "hospital",
+      "osm": "node/8343379230",
       "lonlat": [
-        31.246388,
-        30.057477
+        31.238375,
+        30.051386
       ]
     },
     {
-      "id": "stadium_27",
-      "name": "ملاعب السعيدية",
-      "kind": "stadium",
-      "osm": "way/52255021",
+      "id": "park_11",
+      "name": "ميدان التحرير",
+      "kind": "park",
+      "osm": "way/30925727",
       "lonlat": [
-        31.208887,
-        30.025272
+        31.235763,
+        30.044414
       ]
     },
     {
-      "id": "metro_28",
-      "name": "عرابي",
+      "id": "park_12",
+      "name": "حديقة الأندلس",
+      "kind": "park",
+      "osm": "way/41415058",
+      "lonlat": [
+        31.227434,
+        30.044402
+      ]
+    },
+    {
+      "id": "metro_13",
+      "name": "السادات",
       "kind": "metro",
-      "osm": "node/5353485467",
+      "osm": "node/316633428",
       "lonlat": [
-        31.242538,
-        30.057332
+        31.235378,
+        30.043948
       ]
     },
     {
-      "id": "metro_29",
-      "name": "باب الشعرية",
-      "kind": "metro",
-      "osm": "node/5194348146",
+      "id": "university_14",
+      "name": "كلية التعليم المستمر",
+      "kind": "university",
+      "osm": "way/769795119",
       "lonlat": [
-        31.255875,
-        30.053711
+        31.238661,
+        30.042401
       ]
     },
     {
-      "id": "metro_30",
-      "name": "الجيش",
+      "id": "metro_15",
+      "name": "سعد زغلول",
       "kind": "metro",
-      "osm": "node/9710900077",
+      "osm": "node/5349031086",
       "lonlat": [
-        31.267974,
-        30.062262
+        31.238082,
+        30.036568
+      ]
+    },
+    {
+      "id": "metro_16",
+      "name": "محمد نجيب",
+      "kind": "metro",
+      "osm": "node/329978615",
+      "lonlat": [
+        31.244276,
+        30.045392
       ]
     }
   ],

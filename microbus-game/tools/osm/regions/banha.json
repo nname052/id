@@ -11,10 +11,10 @@
     "note": "OSM place=city node 'بنها' (city centre)"
   },
   "bbox": {
-    "south": 30.444531,
-    "west": 31.16322,
-    "north": 30.480464,
-    "east": 31.204906
+    "west": 31.175726,
+    "south": 30.455262,
+    "east": 31.1924,
+    "north": 30.469732
   },
   "tile_size": 400,
   "stub_outside": 40,
@@ -30,17 +30,7 @@
       ]
     },
     {
-      "id": "university_2",
-      "name": "جامعة بنها",
-      "kind": "university",
-      "osm": "way/771303417",
-      "lonlat": [
-        31.196951,
-        30.475834
-      ]
-    },
-    {
-      "id": "hospital_3",
+      "id": "hospital_2",
       "name": "مستشفى بنها للصحة النفسية وعلاج الإدمان",
       "kind": "hospital",
       "osm": "node/13907606661",
@@ -50,33 +40,13 @@
       ]
     },
     {
-      "id": "hospital_4",
+      "id": "hospital_3",
       "name": "مستشفي جامعة بنها",
       "kind": "hospital",
       "osm": "way/94125740",
       "lonlat": [
         31.178725,
         30.469645
-      ]
-    },
-    {
-      "id": "hospital_5",
-      "name": "مستشفى الحميات",
-      "kind": "hospital",
-      "osm": "way/1076112442",
-      "lonlat": [
-        31.180821,
-        30.473216
-      ]
-    },
-    {
-      "id": "historic_6",
-      "name": "بطا",
-      "kind": "historic",
-      "osm": "node/4704924490",
-      "lonlat": [
-        31.169272,
-        30.462562
       ]
     }
   ],

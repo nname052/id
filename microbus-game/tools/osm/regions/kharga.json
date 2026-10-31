@@ -11,26 +11,16 @@
     "note": "OSM place=city node 'الخارجة' (city centre)"
   },
   "bbox": {
-    "south": 25.434292,
-    "west": 30.521703,
-    "north": 25.470225,
-    "east": 30.561498
+    "west": 30.533642,
+    "south": 25.445023,
+    "east": 30.54956,
+    "north": 25.459493
   },
   "tile_size": 400,
   "stub_outside": 40,
   "landmarks": [
     {
-      "id": "bus_station_1",
-      "name": "موقف القرى",
-      "kind": "bus_station",
-      "osm": "node/4555412592",
-      "lonlat": [
-        30.545247,
-        25.440183
-      ]
-    },
-    {
-      "id": "library_2",
+      "id": "library_1",
       "name": "مكتبة بدر",
       "kind": "library",
       "osm": "node/4686743689",
@@ -40,7 +30,7 @@
       ]
     },
     {
-      "id": "post_3",
+      "id": "post_2",
       "name": "مكتب بريد الخارجة",
       "kind": "post",
       "osm": "node/4634543592",

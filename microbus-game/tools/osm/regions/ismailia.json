@@ -11,10 +11,10 @@
     "note": "OSM place=city node 'الإسماعيلية' (city centre)"
   },
   "bbox": {
-    "south": 30.586411,
-    "west": 32.256209,
-    "north": 30.622344,
-    "east": 32.297956
+    "west": 32.268733,
+    "south": 30.597143,
+    "east": 32.285432,
+    "north": 30.611612
   },
   "tile_size": 400,
   "stub_outside": 40,
@@ -27,146 +27,6 @@
       "lonlat": [
         32.27382,
         30.600853
-      ]
-    },
-    {
-      "id": "university_2",
-      "name": "جامعة قناة السويس",
-      "kind": "university",
-      "osm": "way/97234548",
-      "lonlat": [
-        32.269767,
-        30.621566
-      ]
-    },
-    {
-      "id": "stadium_3",
-      "name": "ستاد هيئة قناة السويس",
-      "kind": "stadium",
-      "osm": "way/664459703",
-      "lonlat": [
-        32.292445,
-        30.592784
-      ]
-    },
-    {
-      "id": "rail_station_4",
-      "name": "الإسماعيلية",
-      "kind": "rail_station",
-      "osm": "node/1018510154",
-      "lonlat": [
-        32.270059,
-        30.593331
-      ]
-    },
-    {
-      "id": "rail_station_5",
-      "name": "محطة القرش",
-      "kind": "rail_station",
-      "osm": "node/1126060881",
-      "lonlat": [
-        32.29787,
-        30.601275
-      ]
-    },
-    {
-      "id": "bus_station_6",
-      "name": "موقف الاسماعيليه",
-      "kind": "bus_station",
-      "osm": "node/4715645587",
-      "lonlat": [
-        32.272231,
-        30.616348
-      ]
-    },
-    {
-      "id": "bus_station_7",
-      "name": "موقف الاتوبيس",
-      "kind": "bus_station",
-      "osm": "way/478336467",
-      "lonlat": [
-        32.271906,
-        30.616916
-      ]
-    },
-    {
-      "id": "university_8",
-      "name": "كلية الاداب",
-      "kind": "university",
-      "osm": "node/11844645733",
-      "lonlat": [
-        32.277143,
-        30.620892
-      ]
-    },
-    {
-      "id": "museum_9",
-      "name": "متحف الاسماعيلية",
-      "kind": "museum",
-      "osm": "way/429911115",
-      "lonlat": [
-        32.283171,
-        30.593174
-      ]
-    },
-    {
-      "id": "museum_10",
-      "name": "متحف السويس القومي",
-      "kind": "museum",
-      "osm": "way/690921437",
-      "lonlat": [
-        32.273481,
-        30.590217
-      ]
-    },
-    {
-      "id": "historic_11",
-      "name": "انجيلية الإسماعيلية",
-      "kind": "historic",
-      "osm": "node/12843841201",
-      "lonlat": [
-        32.27088,
-        30.588022
-      ]
-    },
-    {
-      "id": "hospital_12",
-      "name": "مستشفى الاسماعيلية العام",
-      "kind": "hospital",
-      "osm": "way/97234524",
-      "lonlat": [
-        32.287422,
-        30.620498
-      ]
-    },
-    {
-      "id": "hospital_13",
-      "name": "عيادة الدكتور عبد الحميد صبح",
-      "kind": "hospital",
-      "osm": "node/2722597993",
-      "lonlat": [
-        32.262694,
-        30.590219
-      ]
-    },
-    {
-      "id": "hospital_14",
-      "name": "التامين الصحي",
-      "kind": "hospital",
-      "osm": "way/589912462",
-      "lonlat": [
-        32.29094,
-        30.62085
-      ]
-    },
-    {
-      "id": "post_15",
-      "name": "مكتب بريد الاسماعيليه",
-      "kind": "post",
-      "osm": "way/473969627",
-      "lonlat": [
-        32.271776,
-        30.593582
       ]
     }
   ],

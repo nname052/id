@@ -11,54 +11,13 @@
     "note": "OSM place=city node 'الغردقة' (city centre)"
   },
   "bbox": {
-    "west": 33.79,
-    "south": 27.168,
-    "east": 33.85,
-    "north": 27.245
+    "west": 33.822625,
+    "south": 27.215321,
+    "east": 33.838788,
+    "north": 27.229791
   },
   "tile_size": 400,
   "stub_outside": 40,
-  "landmarks": [
-    {
-      "id": "airport_1",
-      "name": "مطار الغردقة الدولي",
-      "kind": "airport",
-      "osm": "way/224243578",
-      "lonlat": [
-        33.80165,
-        27.185396
-      ]
-    },
-    {
-      "id": "hospital_2",
-      "name": "وحده الميناء",
-      "kind": "hospital",
-      "osm": "node/5280869323",
-      "lonlat": [
-        33.84134,
-        27.230038
-      ]
-    },
-    {
-      "id": "historic_3",
-      "name": "عمارة ٢٦مبارك ٢",
-      "kind": "historic",
-      "osm": "node/5720517449",
-      "lonlat": [
-        33.829726,
-        27.198345
-      ]
-    },
-    {
-      "id": "historic_4",
-      "name": "مبارك ٢",
-      "kind": "historic",
-      "osm": "node/5718013422",
-      "lonlat": [
-        33.829683,
-        27.196277
-      ]
-    }
-  ],
+  "landmarks": [],
   "needs_verification": []
 }

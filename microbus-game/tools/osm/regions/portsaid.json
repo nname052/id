@@ -11,36 +11,16 @@
     "note": "OSM place=city node 'بورسعيد' (city centre)"
   },
   "bbox": {
-    "south": 31.245269,
-    "west": 32.284487,
-    "north": 31.281201,
-    "east": 32.326523
+    "west": 32.297098,
+    "south": 31.256,
+    "east": 32.313912,
+    "north": 31.27047
   },
   "tile_size": 400,
   "stub_outside": 40,
   "landmarks": [
     {
-      "id": "stadium_1",
-      "name": "ستاد النادي المصري",
-      "kind": "stadium",
-      "osm": "way/97518836",
-      "lonlat": [
-        32.291381,
-        31.271505
-      ]
-    },
-    {
-      "id": "university_2",
-      "name": "جامعة بورسعيد",
-      "kind": "university",
-      "osm": "way/1236255538",
-      "lonlat": [
-        32.314092,
-        31.246635
-      ]
-    },
-    {
-      "id": "museum_3",
+      "id": "museum_1",
       "name": "مسجد التوفيقي",
       "kind": "museum",
       "osm": "node/5852588986",
@@ -50,7 +30,7 @@
       ]
     },
     {
-      "id": "museum_4",
+      "id": "museum_2",
       "name": "متحف بور سعيد الحربي",
       "kind": "museum",
       "osm": "node/7181559385",
@@ -60,37 +40,7 @@
       ]
     },
     {
-      "id": "hospital_5",
-      "name": "ال سليمان",
-      "kind": "hospital",
-      "osm": "node/13593159801",
-      "lonlat": [
-        32.292383,
-        31.269511
-      ]
-    },
-    {
-      "id": "historic_6",
-      "name": "مسلة بورفؤاد",
-      "kind": "historic",
-      "osm": "node/13618342305",
-      "lonlat": [
-        32.316,
-        31.253031
-      ]
-    },
-    {
-      "id": "university_7",
-      "name": "كلية التربية النوعية",
-      "kind": "university",
-      "osm": "node/14200324501",
-      "lonlat": [
-        32.288712,
-        31.271241
-      ]
-    },
-    {
-      "id": "park_8",
+      "id": "park_3",
       "name": "المنشية",
       "kind": "park",
       "osm": "way/1444277933",
@@ -100,33 +50,13 @@
       ]
     },
     {
-      "id": "park_9",
+      "id": "park_4",
       "name": "حديقة الطفل",
       "kind": "park",
       "osm": "way/393645131",
       "lonlat": [
         32.308713,
         31.266307
-      ]
-    },
-    {
-      "id": "post_10",
-      "name": "مكتب بريد الامين",
-      "kind": "post",
-      "osm": "node/12272976001",
-      "lonlat": [
-        32.28963,
-        31.265626
-      ]
-    },
-    {
-      "id": "post_11",
-      "name": "مكتب بريد ابو الروس",
-      "kind": "post",
-      "osm": "way/1389245648",
-      "lonlat": [
-        32.289541,
-        31.265715
       ]
     }
   ],

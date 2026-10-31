@@ -11,10 +11,10 @@
     "note": "OSM place=city node 'المنصورة' (city centre)"
   },
   "bbox": {
-    "south": 31.0196,
-    "west": 31.365522,
-    "north": 31.055532,
-    "east": 31.407458
+    "west": 31.378103,
+    "south": 31.030331,
+    "east": 31.394877,
+    "north": 31.044801
   },
   "tile_size": 400,
   "stub_outside": 40,
@@ -30,57 +30,7 @@
       ]
     },
     {
-      "id": "rail_station_2",
-      "name": "المنصورة",
-      "kind": "rail_station",
-      "osm": "node/1019565539",
-      "lonlat": [
-        31.388626,
-        31.045433
-      ]
-    },
-    {
-      "id": "rail_station_3",
-      "name": "طلخا",
-      "kind": "rail_station",
-      "osm": "node/1019599326",
-      "lonlat": [
-        31.378275,
-        31.054164
-      ]
-    },
-    {
-      "id": "library_4",
-      "name": "مكتبة مصر العامة",
-      "kind": "library",
-      "osm": "node/3119540922",
-      "lonlat": [
-        31.395297,
-        31.052542
-      ]
-    },
-    {
-      "id": "bus_station_5",
-      "name": "المحطة الدولية",
-      "kind": "bus_station",
-      "osm": "way/185975505",
-      "lonlat": [
-        31.394268,
-        31.045479
-      ]
-    },
-    {
-      "id": "government_6",
-      "name": "ديوان المحافظة",
-      "kind": "government",
-      "osm": "way/55638051",
-      "lonlat": [
-        31.395016,
-        31.051391
-      ]
-    },
-    {
-      "id": "hospital_7",
+      "id": "hospital_2",
       "name": "المستشفى الدولي",
       "kind": "hospital",
       "osm": "way/587301910",
@@ -90,73 +40,13 @@
       ]
     },
     {
-      "id": "hospital_8",
+      "id": "hospital_3",
       "name": "التأمين الصحي",
       "kind": "hospital",
       "osm": "node/5900240797",
       "lonlat": [
         31.378309,
         31.04278
-      ]
-    },
-    {
-      "id": "hospital_9",
-      "name": "عيادة أ.د. محمد أبوحجازى لطب المخ والأعصاب Prof.Dr. Mohammad Abu-Hegazy, Neurology Consultant",
-      "kind": "hospital",
-      "osm": "node/4765039480",
-      "lonlat": [
-        31.384446,
-        31.047496
-      ]
-    },
-    {
-      "id": "museum_10",
-      "name": "دار بن لقمان",
-      "kind": "museum",
-      "osm": "way/1437032099",
-      "lonlat": [
-        31.379932,
-        31.045301
-      ]
-    },
-    {
-      "id": "university_11",
-      "name": "كلية الدراسات الاسلامية",
-      "kind": "university",
-      "osm": "node/5587402843",
-      "lonlat": [
-        31.399316,
-        31.043974
-      ]
-    },
-    {
-      "id": "park_12",
-      "name": "موقف بقاس",
-      "kind": "park",
-      "osm": "node/8689048397",
-      "lonlat": [
-        31.388372,
-        31.047697
-      ]
-    },
-    {
-      "id": "park_13",
-      "name": "حديقة قصر ثقافة المنصورة",
-      "kind": "park",
-      "osm": "node/8699415469",
-      "lonlat": [
-        31.38662,
-        31.048272
-      ]
-    },
-    {
-      "id": "post_14",
-      "name": "مكتب بريد المنصورة",
-      "kind": "post",
-      "osm": "node/3119635526",
-      "lonlat": [
-        31.374807,
-        31.04719
       ]
     }
   ],

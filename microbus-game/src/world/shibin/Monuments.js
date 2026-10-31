@@ -560,6 +560,8 @@ function montazaPalace(W, group, lat, lon, add, zone) {
     for (let r = 40; r <= 260; r += 20) if (W.height(cx + dx * r, cz + dz * r, 0) < -0.3) { if (!best || r < best.r) best = { r, a }; break; }
   }
   if (W.height(cx, cz, 0) < -0.3) return null; // (لو المكان طلع مية: مفيش)
+  // (الخريطة الصغيرة: القصر ممكن يبقى برّه حدودها — لازم يكون فيه شارع قريب)
+  const near = W.nearestRoad(cx, cz, 200); if (!near || near.d > 160) return null;
   // (المربعات غالبًا لسه ماتحمّلتش وقت بناء المعالم → مفيش مية في الفحص: البحر في إسكندرية ناحية الشمال = -z)
   const ang = best ? best.a : Math.PI; // المحلي +z = ناحية البحر
   const g = new THREE.Group(); g.position.set(cx, 0, cz); g.rotation.y = ang;
