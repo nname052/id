@@ -306,6 +306,10 @@ export function buildMonuments(W, group) {
     }
   }
   try { const s = stanleyBridge(W, group); if (s) out.push(s); } catch (e) { console.warn('[stanley]', e); }
+  // ===== قصر المنتزه (الحرملك) — مش متسمي في OSM؛ مكانه من إحداثياته المنشورة (31.2886، 30.0158) بعد ضغط الخريطة =====
+  if (W.id === 'alexandria' && W.meta?.origin) {
+    try { const m = montazaPalace(W, group, 31.23942, 29.935202, add, zone); if (m) out.push(m); } catch (e) { console.warn('[montaza]', e); }
+  }
   return out;
 }
 
@@ -501,4 +505,75 @@ function latticeTex() {
   }
   _lat = tex(c); _lat.repeat.set(6, 22);
   return _lat;
+}
+
+// =====================================================================
+//  قصر المنتزه — "الحرملك" (1932، الملك فؤاد): الشكل المعروف من وصف المبنى:
+//  - كتلة طويلة (~75م) 3 أدوار بحجر لونه أوكر/مشمشي، صفوف شبابيك وبواكي بعقود نص دايرية، ودرابزين فوق السطح
+//  - برج مربع عالي (~42م) على الطراز الفلورنسي (زي باليتسو فيكيو): حزام بارز فوق (ماشيكوليشن) وشرفات مسننة وفانوس صغير فوقه
+//  - الواجهة الطويلة ناحية البحر، والقصر وسط جنينة المنتزه (الساحة حواليه فاضية)
+//  (مش متسمي في OSM — المكان من الإحداثيات المنشورة بعد نفس تحويل الخريطة المضغوطة؛ الأبعاد تقريبية)
+// =====================================================================
+function palaceFacade() {
+  const c = canvas(256, 256), x = c.getContext('2d');
+  x.fillStyle = '#d6a46c'; x.fillRect(0, 0, 256, 256);
+  x.fillStyle = 'rgba(120,70,40,0.18)'; for (let i = 0; i < 256; i += 16) x.fillRect(0, i, 256, 1); // خطوط الحجر
+  x.fillStyle = '#c38f5c'; x.fillRect(0, 0, 256, 18); x.fillRect(0, 238, 256, 18); // كورنيش
+  // شباكين بعقد نص دايري لكل خانة
+  for (const cx of [64, 192]) {
+    x.fillStyle = '#efd9b4'; x.beginPath(); x.moveTo(cx - 30, 205); x.lineTo(cx - 30, 95); x.arc(cx, 95, 30, Math.PI, 0); x.lineTo(cx + 30, 205); x.closePath(); x.fill();
+    x.fillStyle = '#3b2f2a'; x.beginPath(); x.moveTo(cx - 22, 200); x.lineTo(cx - 22, 98); x.arc(cx, 98, 22, Math.PI, 0); x.lineTo(cx + 22, 200); x.closePath(); x.fill();
+    x.fillStyle = '#efd9b4'; x.fillRect(cx - 2, 76, 4, 124); x.fillRect(cx - 22, 140, 44, 4);
+  }
+  return c;
+}
+function montazaPalace(W, group, lat, lon, add, zone) {
+  const O = W.meta.origin;
+  const cx = (lon - O.lon) * 111320 * Math.cos(O.lat * Math.PI / 180), cz = -(lat - O.lat) * 110574;
+  // ناحية البحر: أقرب اتجاه فيه مية (الواجهة الطويلة بتبص عليه)
+  let best = null;
+  for (let k = 0; k < 16; k++) {
+    const a = (k / 16) * Math.PI * 2, dx = Math.sin(a), dz = Math.cos(a);
+    for (let r = 40; r <= 260; r += 20) if (W.height(cx + dx * r, cz + dz * r, 0) < -0.3) { if (!best || r < best.r) best = { r, a }; break; }
+  }
+  if (W.height(cx, cz, 0) < -0.3) return null; // (لو المكان طلع مية: مفيش)
+  // (المربعات غالبًا لسه ماتحمّلتش وقت بناء المعالم → مفيش مية في الفحص: البحر في إسكندرية ناحية الشمال = -z)
+  const ang = best ? best.a : Math.PI; // المحلي +z = ناحية البحر
+  const g = new THREE.Group(); g.position.set(cx, 0, cz); g.rotation.y = ang;
+  const base = palaceFacade();
+  const mat = (rx, ry) => { const t = tex(base, { repeat: true }); t.repeat.set(rx, ry); return new THREE.MeshStandardMaterial({ map: t, roughness: 0.85 }); };
+  const trim = new THREE.MeshStandardMaterial({ color: 0xc38f5c, roughness: 0.8 });
+  const roofM = new THREE.MeshStandardMaterial({ color: 0x9a4e2e, roughness: 0.75 });
+  const box = (w, h, d, m, x, y, z) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y, z); o.castShadow = true; o.receiveShadow = true; g.add(o); return o; };
+  // الكتلة الرئيسية (3 أدوار ~16م) + جناحين أوطى شوية
+  const L = 74, D = 24, H = 16;
+  box(L, H, D, [mat(1, 3), mat(1, 3), trim, trim, mat(L / 8, 3), mat(L / 8, 3)], 0, H / 2, 0);
+  for (const sx of [-1, 1]) box(14, H + 3, D + 6, [mat(D / 8, 3.5), mat(D / 8, 3.5), trim, trim, mat(14 / 8, 3.5), mat(14 / 8, 3.5)], sx * (L / 2 - 4), (H + 3) / 2, 0);
+  // درابزين السطح + كورنيش
+  box(L + 1, 0.5, D + 1, trim, 0, H + 0.25, 0);
+  for (let i = -L / 2 + 1; i <= L / 2 - 1; i += 1.6) for (const sz of [-1, 1]) box(0.35, 1.0, 0.35, trim, i, H + 1.0, sz * (D / 2));
+  // سقف قرميد خفيف فوق الجناحين
+  for (const sx of [-1, 1]) { const r = new THREE.Mesh(new THREE.ConeGeometry(11, 4, 4), roofM); r.position.set(sx * (L / 2 - 4), H + 3 + 2, 0); r.rotation.y = Math.PI / 4; r.scale.set(1, 1, 1.45); r.castShadow = true; g.add(r); }
+  // البواكي على الواجهة البحرية (دور أرضي): عقود على أعمدة
+  for (let i = -L / 2 + 10; i <= L / 2 - 10; i += 4.2) box(0.8, 5, 0.8, trim, i, 2.5, D / 2 + 2.2);
+  box(L - 18, 1.0, 4.6, trim, 0, 5.5, D / 2 + 2.2);
+  // البرج الفلورنسي (~42م) على طرف الكتلة
+  const T = 9, TH = 36, tx = -L / 2 + 14, tz = -2;
+  box(T, TH, T, mat(1.1, 7), tx, TH / 2, tz);
+  box(T + 1.6, 3, T + 1.6, trim, tx, TH + 1.5, tz);                // الحزام البارز
+  for (let i = 0; i < 5; i++) for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { // الشرفات المسننة
+    const o = -T / 2 - 0.8 + i * ((T + 1.6) / 4);
+    box(a ? 0.6 : 1.1, 1.4, a ? 1.1 : 0.6, trim, tx + (a ? a * (T / 2 + 0.5) : o), TH + 3.7, tz + (b ? b * (T / 2 + 0.5) : o));
+  }
+  box(4.5, 5, 4.5, mat(0.6, 1.2), tx, TH + 5.5, tz);                // الفانوس
+  const cap = new THREE.Mesh(new THREE.ConeGeometry(3.6, 3.2, 4), roofM); cap.position.set(tx, TH + 9.6, tz); cap.rotation.y = Math.PI / 4; cap.castShadow = true; g.add(cap);
+  group.add(g);
+  g.updateMatrixWorld(true);
+  g.traverse((o) => { if (o.isMesh) o.name = 'montaza-palace'; });
+  // تصادم + الساحة حواليه فاضية (مفيش عمارات مولّدة/حقيقية جوه الجنينة القريبة)
+  W._addCollider({ cx, cz, hx: L / 2 + 1, hz: D / 2 + 4, angle: -ang, restitution: 0.1, kind: 'building' }, null);
+  const R2 = 70, ring = Array.from({ length: 25 }, (_, i) => [cx + Math.cos((i / 24) * Math.PI * 2) * R2, cz + Math.sin((i / 24) * Math.PI * 2) * R2]);
+  zone(cx, cz, R2, R2, 0, ring);
+  void add;
+  return { name: 'قصر المنتزه (الحرملك)', kind: 'palace', model: 'detailed' };
 }
