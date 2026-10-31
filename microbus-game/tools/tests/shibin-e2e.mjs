@@ -48,7 +48,7 @@ drive = await page.evaluate(async () => {
   const { findRoute } = await import('/src/nav/RoadGraph.js');
   const sp = W.spawnPose();
   const L = Object.fromEntries(W.landmarkPoints.map((l) => [l.id, l]));
-  const legs = [[sp, L.menoufia_university], [L.menoufia_university, L.station_shibin_new], [L.station_shibin_new, sp]];
+  const legs = [[sp, L.hospital_mawadda], [L.hospital_mawadda, L.post_office], [L.post_office, sp]];
   const mem = () => ({ geo: g.renderer.info.memory.geometries, tex: g.renderer.info.memory.textures, heapMB: performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) : null, tiles: W.tiles.size });
   const m0 = mem();
   let maxUpd = 0, maxQueue = 0, dist = 0, steps = 0, loads = new Set(), junctions = new Set(), maxRender = 0, frames = 0;
@@ -174,7 +174,7 @@ gps = await page.evaluate(async () => {
     }
   }
   // GPS بتاع اللعبة نفسه لمعلم حقيقي
-  const ph = g.player.physics, U = W.landmarkPoints.find((l) => l.id === 'menoufia_university');
+  const ph = g.player.physics, U = W.landmarkPoints.find((l) => l.id === 'hospital_mawadda');
   g.nav.setTarget({ x: U.rx, z: U.rz, name: U.name });
   g.nav._t = 0; g.nav.update(0.3, ph);
   const info = g.nav.info;
@@ -189,7 +189,7 @@ let traf = null;
 if (run('traffic')) {
 traf = await page.evaluate(async () => {
   const g = game, W = g.world, tr = g.traffic, ph = g.player.physics;
-  const sp = W.spawnPose(); ph.reset(sp.x + 500, sp.z + 500, 0); // اللاعب بعيد شوية عشان المرور يتحرك براحته
+  const sp = W.spawnPose(); ph.reset(sp.x + 250, sp.z + 250, 0); // (الخريطة 1.6 كم) اللاعب بعيد شوية عشان المرور يتحرك براحته
   const { edgePoint } = await import('/src/world/shibin/ShibinData.js');
   let overlapsMax = 0, onClosed = 0, offRoad = 0, movingSum = 0, samples = 0, activeMin = 1e9;
   const q = {};

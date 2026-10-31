@@ -20,7 +20,7 @@ const r = await page.evaluate(async () => {
   const { findRoute } = await import('/src/nav/RoadGraph.js');
   const L = Object.fromEntries(W.landmarkPoints.map((l) => [l.id, l]));
   const sp = W.spawnPose();
-  const legs = [[sp, L.menoufia_university], [L.menoufia_university, L.station_shibin_new]];
+  const legs = [[sp, L.hospital_mawadda], [L.hospital_mawadda, L.post_office]];
   const dt = 1 / 30, v = 11, VD = tr.viewDist;
   let pedOnRoad = 0, crossSeen = 0, groupsSeen = 0, carThroughPed = 0, dwells = 0, pullers = new Set(), pedPop = 0, popIn = 0, vanish = 0, overlapsMax = 0, parkedHit = 0, parkedBad = 0, parkedMax = 0, activeSum = 0, n = 0, pedSum = 0, steps = 0;
   const wasVis = new Map(), pop = [];

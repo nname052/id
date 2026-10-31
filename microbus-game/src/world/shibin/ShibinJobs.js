@@ -172,7 +172,15 @@ function autoLines(world) {
   }
   return out;
 }
-const short = (s) => (s.length > 18 ? s.split(/[،,(]/)[0].trim().slice(0, 18) : s);
+// اسم قصير للافتة: لحد 18 حرف بس على حدود كلمة (كان بيقطع في نص الكلمة: "محطة قطار شبين الك")
+const short = (s) => {
+  if (s.length <= 18) return s;
+  s = s.split(/[،,(]/)[0].trim();
+  if (s.length <= 18) return s;
+  const w = s.split(/\s+/); let o = '';
+  for (const x of w) { if ((o ? o.length + 1 : 0) + x.length > 18) break; o = o ? `${o} ${x}` : x; }
+  return o || s.slice(0, 18);
+};
 
 /** خطوط بين شوارع رئيسية (لما المعالم جوه الخريطة مش كفاية): أبعد نقطتين على شوارع ليها أسامي */
 function streetLines(world) {

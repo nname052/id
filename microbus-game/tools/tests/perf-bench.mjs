@@ -76,7 +76,7 @@ const drive = await page.evaluate(async (DRIVE_S) => {
   const fr = g.findRoute;
   const L = Object.fromEntries(W.landmarkPoints.map((l) => [l.id, l]));
   const sp = W.spawnPose();
-  const legs = [[sp, L.menoufia_university], [L.menoufia_university, L.station_shibin_new], [L.station_shibin_new, sp]];
+  const legs = [[sp, L.hospital_mawadda], [L.hospital_mawadda, L.post_office], [L.post_office, sp]];
   const pts = []; let cum = [0];
   for (const [a, b] of legs) {
     const rt = fr(a.rx ?? a.x, a.rz ?? a.z, b.rx ?? b.x, b.rz ?? b.z);
