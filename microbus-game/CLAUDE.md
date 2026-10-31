@@ -13,6 +13,13 @@
 - Published as a claude.ai Artifact (`dist/index.html` + `files` map). GLB models are base64-inlined in the JS
   (the Artifact host can't serve .glb), the service worker is intentionally disabled.
 
+- **Map size (v40)**: every city is a ~1.6 km square (`tools/osm/egypt/shrink_bbox.py` writes the bbox into cities.json,
+  then `make_configs.py`); Alexandria/Giza are compacted (`compact_city.py`). `build_region.py` prunes the dead-end
+  pieces that only led to an edge barrier (`PRUNE_GATES=1` default) and `build_city.sh` runs `clip_buildings.py`
+  (drops buildings > 90 m from any road). Shibin is built the same way (`build_city.sh shibin` → `../data/cities/shibin`).
+- **Small maps** (≤ 60 land tiles, `ShibinWorld.updateVisibility`): after the loading screen every tile is loaded and never
+  unloaded (no pop-in). Iterate the tile list, never a radius of Infinity (that froze the page once).
+
 ## Data post-processing (run after `tools/osm/build_region.py`, in this order)
 - `python3 tools/osm/import_ms_buildings.py` — real building footprints (Microsoft Global ML Building
   Footprints, ODbL, quadkey 122121120 filtered to the city bbox) replace the generated buildings inside the city.

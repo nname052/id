@@ -626,7 +626,8 @@ export class Game {
   }
 
   _tick(t) {
-    const cap = this.fpsCap;
+    // (شاشة البداية/القايمة: المشهد ورا بس — 20 فريم كفاية، من غير سخونية وإنت بتختار)
+    const cap = this.started ? this.fpsCap : Math.min(this.fpsCap || 60, 20);
     if (cap) {
       const iv = 1000 / cap, last = this._tickT ?? t - iv;
       // تراكم: لو الشاشة 60 والسقف 45 بنرسم 3 من كل 4 بانتظام (مش متقطع)
