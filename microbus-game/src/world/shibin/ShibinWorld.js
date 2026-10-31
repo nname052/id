@@ -109,10 +109,23 @@ export class ShibinWorld {
     const WC = { sea: [0.13, 0.33, 0.45], nile: [0.2, 0.32, 0.33] }[this.waterStyle] || [0.235, 0.298, 0.278];
     const water = new THREE.MeshStandardMaterial({ color: new THREE.Color().setRGB(...WC, THREE.SRGBColorSpace), roughness: 0.07, metalness: 0, envMapIntensity: 0.9 });
     const WU = (this._waterU = { uWT: { value: 0 }, uSea: { value: this.waterStyle === 'sea' ? 1 : this.waterStyle === 'nile' ? 0.35 : 0 } });
-    water.onBeforeCompile = (sh) => {
+    // موج بيطلع وينزل بجد قريب من الكاميرا (البحر بس، مش الجودة الواطية): شبكة كثيفة 160×160م بتمشي مع الكاميرا
+    // (WAVE=1)، والمية المسطحة (WAVE=0) بتتشال جوه نفس الدايرة — على الحرف الموج بيهدى لصفر فمفيش خط
+    WU.uWaveC = { value: new THREE.Vector2(1e9, 1e9) }; WU.uWaveR = { value: 78 };
+    const waterShader = (WAVE) => (sh) => {
       Object.assign(sh.uniforms, WU);
-      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec2 vWW;').replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvWW = (modelMatrix * vec4(transformed, 1.0)).xz;');
-      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec2 vWW; uniform float uWT; uniform float uSea;')
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec2 vWW; uniform float uWT; uniform vec2 uWaveC; uniform float uWaveR;')
+        .replace('#include <begin_vertex>', WAVE ? `#include <begin_vertex>
+{
+  vec2 q = (modelMatrix * vec4(transformed, 1.0)).xz;
+  float k = 1.0 - smoothstep(uWaveR * 0.55, uWaveR, length(q - uWaveC));
+  float b1 = dot(q, vec2(0.24, 0.10)) - uWT * 1.25, b2 = dot(q, vec2(-0.12, 0.50)) - uWT * 1.9, b3 = dot(q, vec2(0.63, -0.41)) + uWT * 2.4;
+  transformed.y += (sin(b1) * 0.13 + sin(b2) * 0.06 + sin(b3) * 0.025) * k;
+}` : '#include <begin_vertex>')
+        .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvWW = (modelMatrix * vec4(transformed, 1.0)).xz;');
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec2 vWW; uniform float uWT; uniform float uSea; uniform vec2 uWaveC; uniform float uWaveR;')
+        .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
+  ${WAVE ? 'if (length(vWW - uWaveC) > uWaveR) discard;' : 'if (length(vWW - uWaveC) < uWaveR - 1.0) discard;'}`)
         .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
 {
   // موجتين صغيرين بيتحركوا مع التيار + تموّج أدق: ميل السطح (gradient) → بيعوج الـ normal
@@ -128,7 +141,15 @@ export class ShibinWorld {
   normal = normalize(normal + (viewMatrix * vec4(-gr.x, 0.0, -gr.y, 0.0)).xyz * fade);
 }`);
     };
-    water.customProgramCacheKey = () => 'shibin-water-3';
+    water.onBeforeCompile = waterShader(0);
+    water.customProgramCacheKey = () => 'shibin-water-4';
+    if (this.waterStyle === 'sea' && !this.low) {
+      const wm = water.clone(); wm.onBeforeCompile = waterShader(1); wm.customProgramCacheKey = () => 'shibin-water-wave-1';
+      const g = new THREE.PlaneGeometry(160, 160, 160, 160).rotateX(-Math.PI / 2);
+      this.wavePatch = new THREE.Mesh(g, wm); this.wavePatch.name = 'water-waves'; this.wavePatch.renderOrder = -3;
+      this.wavePatch.frustumCulled = false; this.wavePatch.receiveShadow = true; this.wavePatch.visible = false;
+      this.wavePatch.position.y = WATER_Y;
+    }
     // "فتحة" الترعة في الأرض: الأرض (y≈0) كانت مغطية المية (-0.55) — وماكانتش بتبان غير من بعيد
     // (لما الـ polygonOffset بتاع الأرض يكبر). ده سطح مش بيترسم لون، بيكتب عمق بس فوق الترعة بعد المية،
     // فالأرض اللي تحته متترسمش. (مفيش خامات ولا draw calls تقيلة)
@@ -755,6 +776,14 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
 
   update(dt) {
     if (this._waterU) this._waterU.uWT.value += dt;
+    // شبكة الموج: بتتنقل مع الكاميرا بخطوة متر (عشان رؤوسها تفضل في نفس الأماكن = مفيش رعشة)
+    const wp = this.wavePatch, cam = this._lastCam;
+    if (wp && cam) {
+      if (!wp.parent) this.group.add(wp);
+      const x = Math.round(cam.x), z = Math.round(cam.z);
+      wp.position.x = x; wp.position.z = z; wp.visible = true; wp.updateMatrixWorld();
+      this._waterU.uWaveC.value.set(x, z);
+    }
     if (this.fallen?.length) this._updateFallen(dt);
     // بنبني على دفعات: ميزانية وقت صغيرة كل فريم
     const budget = this.low ? 4 : 7;
