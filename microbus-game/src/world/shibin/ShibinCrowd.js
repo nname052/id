@@ -13,17 +13,19 @@ const _p = {};
 function rng(seed) { let s = seed >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
 
 export class ShibinCrowd {
-  constructor(scene, world, { count = 120 } = {}) {
+  constructor(scene, world, { count = 120, variants = VARIANTS } = {}) {
     this.world = world; this.graph = world.graph;
     this.cap = Math.ceil(count * 1.7);
     this.R = rng(777);
     this.group = new THREE.Group(); this.group.name = 'crowd';
     scene.add(this.group);
-    const V = humanVariants(VARIANTS, 777, true);
+    // (عدد الأشكال: الكمبيوتر 20 — نفس الشخص كان بيتكرر كتير في 240 ماشي بـ 12 شكل؛ الموبايل 12 = draw calls أقل)
+    const V = humanVariants(variants, 777, true);
+    this.nVariants = variants;
     this.batch = new HumanBatch(this.group, V, this.cap);
     this.batch.types = V.map((v) => v.type);
     this.people = []; this.extras = [];
-    for (let i = 0; i < this.cap; i++) this.people.push({ on: false, variant: i % VARIANTS, phase: this.R() * 10, heading: 0, scared: 0 });
+    for (let i = 0; i < this.cap; i++) this.people.push({ on: false, variant: i % variants, phase: this.R() * 10, heading: 0, scared: 0 });
     this.setCount(count);
     this._trim = new Map();
   }

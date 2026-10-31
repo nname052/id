@@ -164,7 +164,7 @@ export class Game {
     this.traffic.viewDist = this.mobile ? 150 : 190;
     if (this.mobile) { this.traffic.activeR = 195; this.traffic.despawnR = 240; }
     this.crowdBase = this.tier === 'low' ? 80 : this.mobile ? 105 : 240; // (المدينة كانت فاضية: ناس أكتر بكتير)
-    this.crowd = new ShibinCrowd(this.scene, this.world, { count: this.crowdBase });
+    this.crowd = new ShibinCrowd(this.scene, this.world, { count: this.crowdBase, variants: this.mobile || this.tier === 'low' ? 12 : 20 });
     this.crowd.traffic = this.traffic; this.traffic.crowd = this.crowd; mark('crowd');
     // المرايات مش بترسم هالات/بقع نور الأعمدة (ديكور)
     PlayerVehicle.mirrorHide = [this.world.lamps?.glow, this.world.lamps?.pools].filter(Boolean);
