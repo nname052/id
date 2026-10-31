@@ -61,8 +61,9 @@ export function applyPhotoAtlas(M, img) {
     }
     ctx.putImageData(s, rx, ry);
   };
-  paintRow(img, A.rows.brick, M.facadeBrick.map, M.facadeBrick.emissiveMap, win);
-  paintRow(img, A.rows.plaster, M.facadePlaster.map, M.facadePlaster.emissiveMap, win);
+  // (واجهات العمارات: من غير صور — خانات الصور المقصوصة من عمارات مختلفة كانت بتبان كولاج متكرر ومتمطوط "عك".
+  //  الواجهات المولّدة — طوب أحمر بين بلاطات خرسانة وشبابيك مترتبة — أنضف وأقرب لشكل العمارات المصرية. المحلات والأسفلت والرصيف لسه من الصور)
+  void win;
   // المحلات بالليل: نفس الصورة منورة (يافطة + جوه المحل)
   paintRow(img, A.rows.shop, M.shop.map, M.shop.emissiveMap, (ctx, cell, k, x, y, w, h) => {
     ctx.globalAlpha = 0.6; ctx.drawImage(img, k * A.cell, A.rows.shop.y, A.cell, A.cell, x, y, w, h); ctx.globalAlpha = 1;
@@ -76,6 +77,6 @@ export function applyPhotoAtlas(M, img) {
   ground(M.asphalt.map, A.asphalt);
   ground(M.sidewalkTop.map, A.sidewalk);
   // لون الطوب الصافي (الحيطان الصمّا) من نفس الصور
-  M.photoWall = A.wall;
+  // (لون الحيطة الصمّا من الصور كان رمادي فاتح مش زي طوب الواجهة المولّدة — اتشال)
   return true;
 }

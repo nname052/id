@@ -108,7 +108,8 @@ export class Game {
     S('توليد خامات الأسفلت والعمارات...', 0.2);
     await nextFrame();
     this.M = createMaterials();
-    this.photoAtlas = applyPhotoAtlas(this.M, await photos);
+    // (?photos=0: من غير صور الواجهات الحقيقية — للمقارنة)
+    this.photoAtlas = /[?&]photos=0/.test(location.search) ? false : applyPhotoAtlas(this.M, await photos);
     applyTextureOverrides(this.assets, this.M);
 
     S('السما والشمس...', 0.4);
