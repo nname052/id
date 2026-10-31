@@ -815,8 +815,8 @@ export function buildLandmarks(W, features, { mobile = false } = {}) {
     bench: new NearInstancer(benchGeo(), PM, { R, max: 60, name: 'corniche-bench' }),
     tree: null, // نفس شجر الشوارع (instancing واحد للشجر كله)
     kiosk: new NearInstancer(kioskGeo(), PM, { R: R + 60, max: 20, name: 'corniche-kiosk', castShadow: true }),
-    sit0: new NearInstancer(seatedGeometry(sitV[0].geo), humanStaticMaterial(), { R: mobile ? 80 : 120, max: 40, name: 'corniche-sit0' }),
-    sit1: mobile ? null : new NearInstancer(seatedGeometry(sitV[1].geo), humanStaticMaterial(), { R: 120, max: 40, name: 'corniche-sit1' }),
+    sit0: new NearInstancer(seatedGeometry(sitV[0].geo), humanStaticMaterial(), { R: mobile ? 80 : 120, max: mobile ? 40 : 70, name: 'corniche-sit0' }),
+    sit1: mobile ? null : new NearInstancer(seatedGeometry(sitV[1].geo), humanStaticMaterial(), { R: 120, max: 70, name: 'corniche-sit1' }),
     lamps: [],
   };
   const canals = (W._mmWater || []).filter((w) => w.name === 'ترعة بحر شبين' && w.kind === 'canal');
@@ -838,7 +838,21 @@ export function buildLandmarks(W, features, { mobile = false } = {}) {
   stats.poiSigns = features?.pois ? poiSigns(W, features.pois, group, skip) : 0;
   // القهاوي اللي في OSM: كراسي بلاستيك (موديل حقيقي CC0) وترابيزات صغيرة على الرصيف قدامها
   const chair = cafeSeating(W, features?.pois || [], mobile);
-  if (chair) { out.chair = chair.chairs; out.table = chair.tables; stats.cafeChairs = chair.chairs.items.length; }
+  if (chair) {
+    out.chair = chair.chairs; out.table = chair.tables; stats.cafeChairs = chair.chairs.items.length;
+    // زباين القهاوي: ~45% من كراسي القهاوي الحقيقية (OSM) عليها حد قاعد وشه للترابيزة — بنفس فحص الكرسي (على الرصيف)
+    const R2 = rng(57), sits = [];
+    for (const it of chair.chairs.items) {
+      if (R2() > 0.45) continue;
+      const S = R2() < 0.5 || !out.sit1 ? out.sit0 : out.sit1;
+      const q = S.add(it.x, 0.47, it.z, it.yaw, 0.95); q.chairOf = it; sits.push(q);
+    }
+    for (const S of new Set([out.sit0, out.sit1])) {
+      const prev = S.check;
+      S.check = (it) => { if (!it.chairOf) return prev ? prev(it) : true; const c = chair.chairs.check(it.chairOf); if (c && it.chairOf.dy === undefined) it.y = 0.47; return c; };
+    }
+    stats.cafeSitters = sits.length;
+  }
   // كورنيش البحر (إسكندرية وأي مدينة على البحر): قعدات قهاوي على رصيف البحر — مولّدة (من غير أسامي)، زي العمارات المولّدة
   if (W.waterStyle === 'sea' && chair) stats.seaCafes = seaCafes(W, out, chair, mobile);
   // بياعين الشارع على الشوارع الرئيسية
