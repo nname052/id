@@ -35,7 +35,7 @@ export class Intercity {
     const d = Math.hypot(H.x - ph.x, H.z - ph.z);
     if (this._armed === null) this._armed = d > 60;
     if (d > 60) { this._armed = true; this._hinted = false; return; }
-    if (!this._hinted && d < 45) { this._hinted = true; this.hud?.toast('🚌 موقف السفر — اقف هنا لو عايز تسافر مدينة تانية', 3); }
+    if (!this._hinted && this._armed && d < 45) { this._hinted = true; this.hud?.toast('🚌 موقف السفر — اقف هنا لو عايز تسافر مدينة تانية', 3); }
     if (!this._armed || this.hud?.cardOpen) return;
     this._stopT = d < 30 && Math.abs(ph.speed) < 0.8 ? this._stopT + dt : 0;
     if (this._stopT < 1.5) return;

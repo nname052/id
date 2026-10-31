@@ -374,7 +374,7 @@ export function buildRealRig(kind, assets, opts = {}) {
   // ===== الفوانيس (مكانها بس، للكشافات) + الضل =====
   const lampY = C.style === 'car' ? Math.min(0.75, ws.yMin - 0.2) : Math.min(1.1, ws.yMin - 0.45);
   rig.lamps = { head: [[-HW * 0.72, lampY, frontZ + 0.04], [HW * 0.72, lampY, frontZ + 0.04]], tail: [[-HW * 0.8, lampY, rearZ - 0.04], [HW * 0.8, lampY, rearZ - 0.04]] };
-  rig.lights = { head: { set emissiveIntensity(v) {} }, tail: { set emissiveIntensity(v) {} }, fog: null };
+  rig.lights = lampGlow(rig, bodyMeshes, rig.lamps, frontZ, rearZ, HW);
   rig.setReverse = () => {};
   const sh = contactShadow(HW * 2 + 0.3, rearZ - frontZ + 0.4); sh.position.z = (rearZ + frontZ) / 2; rig.root.add(sh); rig.contactShadow = sh;
   rig.dims = { HW, frontF: -frontZ, rearF: -rearZ, roofY: bb.max.y };
@@ -438,4 +438,40 @@ function ambulanceKit(rig, bb, HW) {
   const b = new THREE.MeshStandardMaterial({ color: 0x001060, emissive: 0x1a4dff, emissiveIntensity: 0.2, roughness: 0.3 });
   for (const [m, x] of [[a, -0.27], [b, 0.27]]) { const l = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.12, 0.24), m); l.position.set(x, 0.08, 0); bar.add(l); }
   rig.policeBar = { a, b, t: 0, on: false };
+}
+
+// ===== الفوانيس بالليل: أغلب الموديلات مافيهاش خامة فوانيس منفصلة → وهج ناعم (additive) مكان الفانوس،
+//  ولو الموديل فيه خامة فوانيس متسمية (headlights / stoplamp / BRedLight…) بتنوّر هي كمان. =====
+let _glowTex = null;
+function glowTex() {
+  if (_glowTex) return _glowTex;
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const x = c.getContext('2d'), g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+  g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.25, 'rgba(255,255,255,0.75)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+  x.fillStyle = g; x.fillRect(0, 0, 64, 64);
+  return (_glowTex = new THREE.CanvasTexture(c));
+}
+function lampGlow(rig, bodyMeshes, lamps, frontZ, rearZ, HW) {
+  const mk = (color) => new THREE.MeshBasicMaterial({ map: glowTex(), color, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
+  const headM = mk(0xfff1d6), tailM = mk(0xff2010);
+  const quads = (list, mat, w, h, face) => list.map(([x, y, z]) => {
+    const q = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
+    q.position.set(x * 1.02, y, z + face * 0.03); if (face < 0) q.rotation.y = Math.PI;
+    q.visible = false; q.renderOrder = 3; q.userData.role = 'glow'; rig.shell.add(q); return q;
+  });
+  const hq = quads(lamps.head, headM, 0.55, 0.38, -1), tq = quads(lamps.tail, tailM, 0.4, 0.3, 1);
+  // خامات الفوانيس اللي في الموديل نفسه (لو موجودة)
+  const headMats = [], tailMats = [];
+  for (const m of bodyMeshes) {
+    const n = m.material.name || '';
+    if (/stop|brake|tail|bredlight|rear.?light/i.test(n)) tailMats.push(m.material);
+    else if (/headlight|hl_|head.?lamp|fyellowlight|front.?light/i.test(n)) headMats.push(m.material);
+  }
+  for (const M of tailMats) { M.emissive = new THREE.Color(0xff1a10); M.emissiveIntensity = 0; }
+  for (const M of headMats) { M.emissive = new THREE.Color(0xfff2d8); M.emissiveIntensity = 0; }
+  return {
+    head: { set emissiveIntensity(v) { const on = v > 0.1; headM.opacity = on ? 0.85 : 0; for (const q of hq) q.visible = on; for (const M of headMats) M.emissiveIntensity = on ? 1.6 : 0; } },
+    tail: { set emissiveIntensity(v) { const k = v > 2 ? 1 : v > 0.5 ? 0.45 : 0; tailM.opacity = k; for (const q of tq) q.visible = k > 0; for (const M of tailMats) M.emissiveIntensity = k * 2.4; } },
+    fog: null,
+  };
 }
