@@ -386,6 +386,9 @@ def main():
                 crosses = True; break
         # كوبري على ترعة: الحدبة على قد طوله (كوبري 15م → ~40سم بس، مش متر = منحدر 13%)
         H = OVERPASS_H if crosses else min(SMALL_BRIDGE_H, max(0.25, dist_total(chain) * 0.025))
+        # كوبري طويل فوق مية (مش فوق طريق) — زي كوبري ستانلي فوق خليج ستانلي (~400م): الكوبري عالي فوق المية
+        # بجد (~4–5م) عشان البواكي اللي تحته تبان؛ الحدبة الصغيرة بتاعة كباري الترع كانت بتخليه على مستوى المية تقريبًا
+        if not crosses and dist_total(chain) > 200: H = min(5.0, dist_total(chain) * 0.012)
         name = roads[e0['way']]['name']
         bridge_info.append(dict(name=name, edges=[e['id'] for e in chain], H=H, overpass=crosses))
         # المسافة على السلسلة من أقرب طرف "على الأرض"

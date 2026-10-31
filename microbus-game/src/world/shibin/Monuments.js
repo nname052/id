@@ -412,7 +412,15 @@ function stanleyBridge(W, group) {
   // العرض: بين الاتجاهين + نص عرض كل واحد + رصيف 2.5م
   let off = 0; for (const e of E) { const m = e.pts[Math.floor(e.pts.length / 2)]; off = Math.max(off, Math.abs((m.x - P0.x) * nx + (m.z - P0.z) * nz) + e.half); }
   const HW = off + 2.6, cx = (P0.x + P1.x) / 2, cz = (P0.z + P1.z) / 2, ang = Math.atan2(ux, uz);
-  const deckY = (s) => W.height(P0.x + ux * s, P0.z + uz * s, 0);
+  // ارتفاع سطح الكوبري: من نقط طريق الكوبري نفسه (الشبكة فيها الارتفاعات) — W.height وقت بناء المعالم
+  // بيرجّع 0 لأن مربعات الأرض لسه ماتحمّلتش (كان بيطلع كل حاجة على مستوى المية ومفيش بواكي)
+  const DP = []; for (const e of E) for (const q of e.pts) DP.push([(q.x - P0.x) * ux + (q.z - P0.z) * uz, q.y || 0]);
+  DP.sort((a, b) => a[0] - b[0]);
+  const deckY = (s) => {
+    if (!DP.length) return W.height(P0.x + ux * s, P0.z + uz * s, 0);
+    let best = DP[0], bd = Infinity; for (const d of DP) { const k = Math.abs(d[0] - s); if (k < bd) { bd = k; best = d; } }
+    return best[1];
+  };
   const at = (s, o, y = 0) => new THREE.Vector3(P0.x + ux * s + nx * o, y, P0.z + uz * s + nz * o);
   const cream = new THREE.MeshStandardMaterial({ color: 0xe9dcc2, roughness: 0.8 });
   const brick = new THREE.MeshStandardMaterial({ color: 0xa8553a, roughness: 0.85 });
@@ -457,6 +465,21 @@ function stanleyBridge(W, group) {
     }
     // الرجل نفسها على وش المية (أعرض من الكوبري)
     box('white', 5, 1.6, HW * 2 + 3, at(s, 0, y0 - 1.3));
+  }
+  // ===== البواكي اللي تحت الكوبري (فوق المية): رجول كريمي كل ~14م وبينها عقود موطّية على الوشين =====
+  // (بتتعمل بس في الحتة اللي الكوبري فيها عالي كفاية فوق المية — الكوبري بقى ~5م فوق خليج ستانلي)
+  const WY = -0.6, DECK_T = 0.9, SP = 14;
+  for (let s0 = 0; s0 + SP <= L; s0 += SP) {
+    const s1 = s0 + SP, sm = (s0 + s1) / 2, clr = deckY(sm) - DECK_T - WY;
+    if (clr < 2.2) continue;
+    for (const sp of [s0, s1]) { const h = deckY(sp) - DECK_T - WY; if (h > 2.2) box('cream', 1.6, h, HW * 2 + 0.6, at(sp, 0, WY + h / 2)); }
+    const r = SP / 2 - 0.8, k = Math.min(1, (clr - 0.35) / r);
+    for (const sd of [-1, 1]) {
+      const c = at(sm, sd * (HW + 0.18), WY);
+      B.cream.push(new THREE.TorusGeometry(r, 0.42, 6, 18, Math.PI).scale(1, k, 1).rotateY(ang - Math.PI / 2).translate(c.x, c.y, c.z));
+      // الحيطة اللي فوق العقد لحد الكوبري (كوشة)
+      B.cream.push(new THREE.BoxGeometry(0.5, Math.max(0.2, clr - r * k), SP).rotateY(ang).translate(...at(sm, sd * (HW + 0.18), WY + r * k + (clr - r * k) / 2).toArray()));
+    }
   }
   // ===== الدرابزين الأبيض (عمدان + كوبستة) + أعمدة النور المزدوجة كل 14م =====
   for (const sd of [-1, 1]) {
