@@ -131,23 +131,23 @@ export class CameraSystem {
   }
 
   /** الكاميرا اللي ورا متدخلش جوه عمارة: لو الخط من العربية للكاميرا بيخبط في مبنى نقرّبها */
-  _avoidWalls(px, pz, cam) {
+  _avoidWalls(px, pz, cam, lift = true) {
     if (!this.colliders) return;
     const dx = cam.x - px, dz = cam.z - pz;
     const box = { cx: (px + cam.x) / 2, cz: (pz + cam.z) / 2, hx: Math.abs(dx) / 2 + 2, hz: Math.abs(dz) / 2 + 2, angle: 0 };
     const list = this.colliders(box).filter((c) => c.kind === 'building' || c.kind === 'wall' || c.kind === 'edge');
     if (!list.length) return;
     let tMax = 1;
-    for (let t = 0.25; t <= 1.0001; t += 0.05) {
+    for (let t = 0.25; t <= 1.0001; t += 0.02) {
       const x = px + dx * t, z = pz + dz * t;
       const hit = list.some((c) => {
         const ca = Math.cos(c.angle || 0), sa = Math.sin(c.angle || 0), rx = x - c.cx, rz = z - c.cz;
         const lx = rx * ca - rz * sa, lz = rx * sa + rz * ca;
         return Math.abs(lx) < c.hx + 0.4 && Math.abs(lz) < c.hz + 0.4;
       });
-      if (hit) { tMax = Math.max(0.25, t - 0.08); break; }
+      if (hit) { tMax = Math.max(0.25, t - 0.06); break; }
     }
-    if (tMax < 1) { cam.x = px + dx * tMax; cam.z = pz + dz * tMax; cam.y += (1 - tMax) * 1.5; }
+    if (tMax < 1) { cam.x = px + dx * tMax; cam.z = pz + dz * tMax; if (lift) cam.y += (1 - tMax) * 1.5; }
   }
 
   /** look: دخل الجيم باد (العصاية اليمين) */
@@ -236,12 +236,14 @@ export class CameraSystem {
       const sx = Math.sin(camYaw), sz = Math.cos(camYaw);
       const target = _v.set(root.position.x + sx * want, baseY + height + this.look.pitch * 3, root.position.z + sz * want);
       target.y = Math.max(target.y, baseY + 0.9); // مايبقاش تحت مستوى العربية
-      this._avoidWalls(root.position.x, root.position.z, target);
+      this._avoidWalls(root.position.x, root.position.z, target, false);
       // المسافة بعد تفادي الحيطان: بتقرّب بسرعة وبترجع براحة (من غير نط)
       const d = Math.hypot(target.x - root.position.x, target.z - root.position.z);
       if (this.snap || this._chaseD === undefined) this._chaseD = d;
-      this._chaseD += (d - this._chaseD) * Math.min(1, dt * (d < this._chaseD ? 14 : 3));
-      this.chasePos.set(root.position.x + sx * this._chaseD, target.y, root.position.z + sz * this._chaseD);
+      this._chaseD += (d - this._chaseD) * Math.min(1, dt * (d < this._chaseD ? 8 : 2.5));
+      // ولما تقرّب بتعلى شوية — من المسافة المتنعّمة نفسها (كانت بتعلى لحد 1.5م في فريم واحد = "العربية بتربش")
+      const lift = Math.max(0, 1 - this._chaseD / Math.max(0.1, want)) * 1.5;
+      this.chasePos.set(root.position.x + sx * this._chaseD, target.y + lift, root.position.z + sz * this._chaseD);
       cam.position.copy(this.chasePos);
       const fx = -Math.sin(yaw), fz = -Math.cos(yaw);
       cam.lookAt(root.position.x + fx * 2.2, baseY + (ph.spec.roofHeight ?? 2) * 0.6, root.position.z + fz * 2.2);
