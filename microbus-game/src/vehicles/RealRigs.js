@@ -267,9 +267,15 @@ export function buildRealRig(kind, assets, opts = {}) {
   }
   // غطا العداد + العداد الأنالوج
   const cw = C.style === 'car' ? 0.34 : 0.4;
-  add(extrudeAcross([[dashBack + 0.12, dashY], [dashBack + 0.08, dashY + 0.08], [dashBack + 0.0, dashY + 0.085], [dashBack + 0.0, dashY + 0.07], [dashBack + 0.06, dashY + 0.065], [dashBack + 0.09, dashY]], cw + 0.04, 0.01), M.dashTop, M4(eye.x, 0, 0));
+  // العدادات: وش العداد فوق التابلوه ومايل ناحية عين السواق، وفوقه "شمسية" رفيعة بارزة ناحية السواق + خدين على الجناب
+  // (كانت كتلة صلبة والعداد مدفون جواها — مكانش باين خالص)
+  const dh = cw * 0.43, dz = dashBack + 0.07, dyc = dashY + 0.012 + dh / 2;
+  const dTilt = Math.atan2(eye.y - dyc, eye.z - dz);
   const dials = new DashScreen(512, 220, drawDials, { fps: 8, emissive: 0.75 });
-  add(new THREE.PlaneGeometry(cw, cw * 0.43), dials.mat, M4(eye.x, dashY + 0.035, dashBack + 0.035, -0.32));
+  add(new THREE.PlaneGeometry(cw, dh), dials.mat, M4(eye.x, dyc, dz, -dTilt));
+  add(new THREE.BoxGeometry(cw + 0.05, dh + 0.02, 0.02), M.dashTop, M4(eye.x, dyc, dz - 0.012, -dTilt)); // ضهر العداد
+  add(extrudeAcross([[dz - 0.05, dyc + dh / 2 + 0.035], [dz + 0.06, dyc + dh / 2 + 0.03], [dz + 0.075, dyc + dh / 2 + 0.012], [dz + 0.055, dyc + dh / 2 + 0.018], [dz - 0.05, dyc + dh / 2 + 0.022]], cw + 0.06, 0.01), M.dashTop, M4(eye.x, 0, 0));
+  for (const sx of [-1, 1]) add(new THREE.BoxGeometry(0.014, dh + 0.04, 0.11), M.dashTop, M4(eye.x + sx * (cw / 2 + 0.03), dyc, dz + 0.01));
   // راديو/تكييف في النص
   add(new RoundedBoxGeometry(0.2, 0.06, 0.03, 2, 0.008), M.trim, M4(0.02, dashY - 0.12, dashBack - 0.005, 0.1));
   for (const vx of [-0.12, 0.16]) add(new RoundedBoxGeometry(0.11, 0.05, 0.02, 2, 0.01), M.vent, M4(vx, dashY - 0.05, dashBack - 0.01, 0.1));
