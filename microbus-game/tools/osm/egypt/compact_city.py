@@ -149,7 +149,11 @@ def main(cfg_path):
             stats['coast'] += 1
             continue
         if wid in h.water_members: continue  # (المية بتتكتب كمساحات جاهزة تحت)
-        if not inband[js].any(): continue
+        if not inband[js].any():
+            # (معلم أثري/سياحي على حافة الشريط — هرم خوفو كان برّه بكام متر فاتشال: بيتساب لو قريب من الشريط ≤ 300م)
+            heritage = 'historic' in tags or 'tourism' in tags or tags.get('tomb') == 'pyramid'
+            nn, tt = n[js], t[js]
+            if not (heritage and tags.get('name') and ((tt >= W.t0) & (tt <= W.t1)).all() and (nn >= nlo - 300).all() and (nn <= nhi + 300).all()): continue
         tm = float(np.median(t[js])); sc = W.scale(tm)
         if 'building' in tags or ('building:part' in tags):
             # (التخفيف العشوائي للمباني في المناطق المضغوطة — بس مش المعالم: هرم خوفو متعلّم building=pyramid واتشال مرة بالصدفة)
