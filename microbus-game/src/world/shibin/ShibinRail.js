@@ -390,7 +390,8 @@ export class ShibinRail {
     const line = this.line;
     for (const T of this.trains) {
       const VMAX = 17; // ~60 كم/س جوه المدينة
-      if (T.state === 'stop') {
+      if (T.player) { /* (اللاعب بيسوق: TrainDriver.update بيحرّك T.s و T.v) */ }
+      else if (T.state === 'stop') {
         T.v = 0; T.wait -= dt;
         if (T.wait <= 0) { T.state = 'run'; T.lastStop = T.stopAt; }
       } else if (T.state === 'away') {

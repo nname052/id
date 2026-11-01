@@ -1144,6 +1144,7 @@ def build_landmarks(cfg, rd, roads, areas, P, REGION):
                 t, pts = rd.ways[oid]
                 poly = areas.get(oid)
                 if poly is not None:
+                    if poly.geom_type == 'MultiPolygon': poly = max(poly.geoms, key=lambda g: g.area)  # (معلم اتقسم على حد الخريطة: أكبر حتة)
                     c = poly.centroid
                     found = dict(x=r1(c.x), z=r1(c.y), osm=L['osm'], osm_name=t.get('name'), footprint=[[r1(x), r1(z)] for x, z in poly.exterior.coords])
                 else:

@@ -349,3 +349,6 @@ body.touch .speed small, body.touch .gear-box small { display: none; }
 body.touch .rpm-wrap { display: none; }
 body.touch #street span { font-size: 11px; padding: 2px 8px; }
 body.touch #toast { font-size: 11px; max-width: 44vw; }
+
+/* (قطر) لوحة خط الميكروباص واللفة الجاية مالهمش لازمة وإنت سايق القطر */
+body.train #job, body.train #navpill, body.train #linepick { display: none !important; }

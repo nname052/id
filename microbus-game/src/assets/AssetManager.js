@@ -114,6 +114,16 @@ export class AssetManager {
     }
     scene.rotation.y = THREE.MathUtils.degToRad(cfg.rotationY || 0);
     scene.updateMatrixWorld(true);
+    // dropStray: قطع طايرة بعيد عن العربية (أرضيات/ضل/نسخ في الملف) — كانت بتكبّر الصندوق فالموديل يتصغّر غلط
+    if (cfg.dropStray) {
+      const parts = [];
+      scene.traverse((o) => { if (o.isMesh) { const b = new THREE.Box3().setFromObject(o, true); parts.push({ o, c: b.getCenter(new THREE.Vector3()), s: b.getSize(new THREE.Vector3()).length() }); } });
+      const med = (a) => a.slice().sort((x, y) => x - y)[Math.floor(a.length / 2)];
+      const C = new THREE.Vector3(med(parts.map((q) => q.c.x)), med(parts.map((q) => q.c.y)), med(parts.map((q) => q.c.z)));
+      const R = med(parts.map((q) => q.c.distanceTo(C))) * cfg.dropStray;
+      for (const q of parts) if (q.c.distanceTo(C) > R) q.o.removeFromParent();
+      scene.updateMatrixWorld(true);
+    }
     const box = new THREE.Box3().setFromObject(scene);
     const size = box.getSize(new THREE.Vector3());
     let scale = 1;

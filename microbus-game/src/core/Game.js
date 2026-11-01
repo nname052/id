@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { TrainDriver } from '../gameplay/TrainDriver.js';
 import { createMaterials } from '../render/materials.js';
 import { loadPhotoAtlas, applyPhotoAtlas } from '../render/photoAtlas.js';
 import { Environment } from '../world/Environment.js';
@@ -769,6 +770,23 @@ export class Game {
   }
 
   setVehicle(kind) {
+    // ===== القطر (MAJOR UPDATE): مش عربية — اللاعب بيسوق قطر السكة الحديد بتاع المدينة =====
+    if (kind === 'train') {
+      if (this.driving === 'train') return;
+      const td = (this.trainDrive ||= new TrainDriver(this));
+      if (!td.ok) { this.hud?.toast('مفيش سكة حديد كفاية في المدينة دي للقطر', 3); return; }
+      td.enter(); this.driving = 'train'; this.player.rig.root.visible = false;
+      this.cams.snap = true; document.body.classList.add('train');
+      return;
+    }
+    if (this.driving === 'train') {
+      // نازل من القطر: العربية بتظهر على أقرب شارع جنب الجرار
+      this.trainDrive.exit(); this.driving = null; document.body.classList.remove('train');
+      const c = this.trainDrive.T.cars[0].m.position, rp = this.world.roadPose?.(c.x, c.z);
+      this.player.rig.root.visible = true;
+      if (rp) { this.player.physics.reset(rp.x, rp.z, rp.yaw); this.player._savePrev(); }
+      if (this.player.kind === kind) return;
+    }
     if (!this.player || this.player.kind === kind) return;
     const o = this.player.physics, at = { x: o.x, z: o.z, yaw: o.yaw };
     const moved = this.started;
@@ -942,7 +960,8 @@ export class Game {
     this.acc += dt;
     let steps = 0;
     const ph = this.player.physics;
-    while (this.acc >= FIXED_DT && steps < 8) {
+    if (this.driving === 'train') { this.trainDrive.update(dt, input); this.acc = 0; }
+    while (this.driving !== 'train' && this.acc >= FIXED_DT && steps < 8) {
       this.world.refY = ph.heave - ph.spec.cgHeight;
       this.player.beforeStep();
       ph.step(FIXED_DT, input, this._colliders);
@@ -989,8 +1008,9 @@ export class Game {
         }
       } else this._streetCand = key;
     }
-    this.player.syncVisuals(dt, this.acc / FIXED_DT);
+    if (this.driving !== 'train') this.player.syncVisuals(dt, this.acc / FIXED_DT);
     this.cams.update(dt, input);
+    if (this.driving === 'train') this.trainDrive.camera(this.camera, this.cams.mode, dt);
     this.cine?.update(dt, this.camera);
     if (this.player.driver) this.player.driver.visible = this.cams.mode !== 0;
     // إيدين السواق على الجادون بتبان من الكابينة بس (من برا الموديل بتاع السواق هو اللي باين)
@@ -1084,6 +1104,7 @@ export class Game {
     if (input.horn) { this._hornT = (this._hornT || 0) - dt; if (this._hornT <= 0) { this._hornT = 0.6; this.traffic.honked?.(this.player.physics); this.crowd?.honked?.(this.player.physics); } } else this._hornT = 0;
     this.audio.update(dt, { player: this.player, camera: this.camera, traffic: this.traffic, inside, horn: input.horn, passengers: this.passengers?.count, crowd: this.crowd });
     this.hud.update(dt, ph, this.lights);
+    if (this.driving === 'train') this.trainDrive.hud();
     if (this.touch) this.touch.update(ph.steeringWheelAngle);
 
     if (inside) this.player.renderMirrors(this.renderer, this.scene, this.camera.position);

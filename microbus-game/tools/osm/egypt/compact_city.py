@@ -159,7 +159,7 @@ def main(cfg_path):
             keep_way.add(wid); stats['bld'] += 1
             continue
         hw = tags.get('highway')
-        if hw and sc < 0.5 and hw not in big and not any(k in (tags.get('name') or '') for k in C.get('keep_names', [])):
+        if hw and sc < C.get('drop_minor_below', 0.5) and hw not in big and not any(k in (tags.get('name') or '') for k in C.get('keep_names', [])):
             stats['roads_dropped_compressed'] += 1; continue
         if hw: stats['roads'] += 1
         keep_way.add(wid)
