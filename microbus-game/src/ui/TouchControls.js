@@ -85,11 +85,12 @@ export class TouchControls {
     const fingerAngle = (e) => Math.atan2(e.clientY - cy, e.clientX - cx);
 
     zone.addEventListener('pointerdown', (e) => {
-      if (id !== null) return;
+      // (صباع قديم "معلّق": لو رفع الصباع ماوصلش — الكابتشر فشل أو المتصفح بلعه — الدركسيون كان بيفضل ماسك
+      //  الصباع القديم ومش بيستجيب لأي لمسة جديدة. أي لمسة جديدة على الدركسيون بتاخده دايمًا)
       const r = this.wheelEl.getBoundingClientRect();
       cx = r.left + r.width / 2; cy = r.top + r.height / 2; R = this.wheelEl.offsetWidth / 2;
       const dist = Math.hypot(e.clientX - cx, e.clientY - cy);
-      if (dist > R * 1.35) return;
+      if (dist > R * 1.75) return; // (المنطقة كلها — الأركان كانت بتتجاهل فوق 1.35)
       e.preventDefault();
       id = e.pointerId;
       this._capture(zone, e);
@@ -101,9 +102,9 @@ export class TouchControls {
       this.state.wheelAngle = this.physAngle;
       this.wheelEl.classList.add('held');
     });
-    zone.addEventListener('pointermove', (e) => {
+    const move = (e) => {
       if (e.pointerId !== id) return;
-      e.preventDefault();
+      if (e.cancelable) e.preventDefault();
       // لو الصباع قريب جدًا من المركز، الزاوية بتبقى عشوائية → نتجاهل
       if (Math.hypot(e.clientX - cx, e.clientY - cy) < R * 0.18) return;
       const raw = fingerAngle(e);
@@ -113,7 +114,8 @@ export class TouchControls {
       if (target > this.maxWheel) { target = this.maxWheel; unwrapped = target - offset; }
       if (target < -this.maxWheel) { target = -this.maxWheel; unwrapped = target - offset; }
       this.state.wheelAngle = -target;
-    });
+    };
+    zone.addEventListener('pointermove', move);
     const end = (e) => {
       if (e.pointerId !== id) return;
       id = null;
@@ -121,6 +123,10 @@ export class TouchControls {
       this.wheelEl.classList.remove('held');
     };
     for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) zone.addEventListener(ev, end);
+    // (لو الصباع اترفع برّه المنطقة والكابتشر مااشتغلش: الحدث بيوصل للصفحة)
+    for (const ev of ['pointerup', 'pointercancel']) window.addEventListener(ev, end);
+    // حركة الصباع لو طلع برّه المنطقة من غير كابتشر: نكمّل نلف برضه
+    window.addEventListener('pointermove', (e) => { if (e.pointerId === id && e.target !== zone && !zone.contains(e.target)) move(e); }, { passive: false });
   }
 
   // ===================== الدواسات =====================

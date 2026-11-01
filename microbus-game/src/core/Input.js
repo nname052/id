@@ -29,9 +29,9 @@ export class Input {
   read() {
     const k = this.keys;
     const st = {
-      throttle: k.has('KeyW') || k.has('ArrowUp') ? 1 : 0,
+      throttle: k.has('KeyW') || k.has('ArrowUp') ? 1 : this.forceThrottle || 0, // (forceThrottle: للاختبارات بس)
       brake: k.has('KeyS') || k.has('ArrowDown') ? 1 : 0,
-      steer: (k.has('KeyA') || k.has('ArrowLeft') ? 1 : 0) - (k.has('KeyD') || k.has('ArrowRight') ? 1 : 0),
+      steer: (k.has('KeyA') || k.has('ArrowLeft') ? 1 : 0) - (k.has('KeyD') || k.has('ArrowRight') ? 1 : 0) || this.forceSteer || 0, // (forceSteer: للاختبارات بس)
       handbrake: k.has('Space') ? 1 : 0,
       horn: k.has('KeyH'),
       lookBack: k.has('KeyB'),

@@ -197,6 +197,25 @@ export class CameraSystem {
       // مكان العين بيتنقل بنعومة لما الكرسي يتظبط (مش نطّة)
       if (this.snap || !this._eyeL || this._eyeOf !== eye) { this._eyeL = eye.position.clone(); this._eyeOf = eye; }
       else this._eyeL.lerp(eye.position, Math.min(1, dt * 5));
+      // ===== الكابينة ثابتة قدام عينك =====
+      // الكاميرا ميلها هادي (ميل الطريق + جزء من المساعدين)، والجسم كان بيترسم بميل الفيزيا كله → الفرق بينهم
+      // كان بيتغير كل فريم (ميل الأرض بيتحدّث بخطوة الفيزيا مش بفريم الشاشة) = "العربية من جوا بترعش".
+      // دلوقتي في منظور السواق الجسم نفسه بيترسم بنفس الميل الهادي (متنعّم شوية)، والكاميرا بتتحسب منه هو
+      // → التابلوه والدركسيون والكراسي ماتتحركش بالنسبة لعينك خالص، والأفق برضه هادي.
+      const gp = p.groundPitch ?? ph.pitch, gr = p.groundRoll ?? ph.roll;
+      const wantP = gp + (ph.pitch - gp) * kPitch, wantR = gr + (ph.roll - gr) * kRoll;
+      const body = p.rig.body;
+      if (this.snap || this._cpP === undefined) { this._cpP = body.rotation.x; this._cpR = body.rotation.z; }
+      const kk = Math.min(1, dt * 14); // (~70 مللي ثانية: بيشيل نطّات خطوة الفيزيا من غير ما يتأخر عن الطريق)
+      this._cpP += (wantP - this._cpP) * kk; this._cpR += (wantR - this._cpR) * kk;
+      body.rotation.x = this._cpP; body.rotation.z = this._cpR;
+      // هزة الخبطة: العربية كلها بتتهز (الكابينة والعين مع بعض) مش الكاميرا لوحدها جوه الكابينة
+      if (this.shake > 0) {
+        const t = (this._shT = (this._shT || 0) + dt), a = this.shake * 0.012;
+        body.position.x += (Math.sin(t * 23) + Math.sin(t * 17 + 1.3) * 0.5) * a * 0.5;
+        body.position.y += (Math.sin(t * 19 + 0.7) + Math.sin(t * 13 + 2.1) * 0.5) * a;
+      }
+      body.updateMatrix();
       eye.parent.updateWorldMatrix(true, false);
       // لما تبص ورا: الراس بتلف وتميل ناحية نص الكابينة (زي السواق الحقيقي وهو بيرجع)
       const ay = Math.abs(this.look.yaw);
@@ -204,11 +223,8 @@ export class CameraSystem {
       const lean = _v2.set(0.34 * turn, 0.1 * turn, 0.18 * turn);
       const pos = _v.copy(this.headOffset).add(lean).add(this._eyeL).applyMatrix4(eye.parent.matrixWorld);
       cam.position.copy(pos);
-      // الأفق: اتجاه العربية + ميل الطريق كامل + جزء من ميل المساعدين (كان كله = الأفق بيتهز مع كل مطب ولفة)
-      const gp = p.groundPitch ?? ph.pitch, gr = p.groundRoll ?? ph.roll;
-      const camPitch = gp + (ph.pitch - gp) * kPitch, camRoll = gr + (ph.roll - gr) * kRoll;
-      p.rig.root.getWorldQuaternion(_q);
-      _q.multiply(_q3.setFromEuler(_e.set(camPitch, 0, camRoll, 'YXZ')));
+      // الاتجاه: من الكابينة نفسها (بعد ما اتظبط ميلها فوق) — يعني صفر حركة بين العين والتابلوه
+      eye.parent.getWorldQuaternion(_q);
       // بص شوية في اتجاه اللفة (زي السواق الحقيقي)
       const steerLook = ph.steerSmooth * 0.07 * Math.min(1, Math.abs(ph.forwardSpeed) / 6);
       _e.set((p.rig.eyePitch ?? -0.2) + this.look.pitch, this.look.yaw + steerLook, 0, 'YXZ');
@@ -264,7 +280,7 @@ export class CameraSystem {
       cam.position.copy(o.pos);
       cam.lookAt(root.position.x, focusY, root.position.z);
     }
-    if (this.shake > 0) {
+    if (this.shake > 0 && id !== 'cockpit') {
       // هزة الخبطة: موجات ناعمة (مش رقم عشوائي جديد كل فريم = رعشة)
       const t = (this._shT = (this._shT || 0) + dt);
       cam.position.x += (Math.sin(t * 37) + Math.sin(t * 23 + 1.3) * 0.5) * this.shake * 0.02;

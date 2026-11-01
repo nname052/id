@@ -47,8 +47,9 @@ export class MirrorInsets {
     for (const it of this.items) {
       const w = Math.round(h * Math.min(1.2, Math.max(0.55, it.aspect)));
       const left = it.mc.m.side < 0;
-      const top = touch ? 56 : Math.round(H * 0.32);
-      const x = left ? 8 + w / 2 : W - 8 - w / 2;
+      // (الموبايل: المراية الشمال جنب الخريطة الصغيرة في الركن فوق، واليمين تحت صف الأزرار)
+      const top = touch ? (left ? 8 : 56) : Math.round(H * 0.32);
+      const x = left ? (touch ? 96 : 8) + w / 2 : W - 8 - w / 2;
       const y = H - top - h / 2;
       it.face.position.set(x, y, 0); it.face.scale.set(w, h, 1);
       it.frame.position.set(x, y, 0); it.frame.scale.set(w + 6, h + 6, 1);

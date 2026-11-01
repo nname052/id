@@ -96,12 +96,46 @@ export class MiniMap {
   }
 
   /** أماكن حقيقية من البيانات (OSM) — مفيش أماكن متألفة */
+  /** المعالم على الخريطة: 10–15 بس بالأهمية (مش كل نقطة)، كل واحد بأيقونة ولون فئته، ومتباعدين ≥ 120م */
   _pois() {
     if (this._poiList) return this._poiList;
-    const ICON = { rail_station: '🚉', rail_halt: '🚉', hospital: '🏥', university: '🎓', stadium: '🏟', post: '📮', bridge: '🌉', street: '🛣', canal: '💧' };
-    const W = this.game.world, out = [];
-    for (const l of W?.landmarkPoints || []) out.push({ name: l.name, x: l.rx, z: l.rz, icon: ICON[l.kind] || '📍' });
-    for (const sp of W?.policeSpots || []) out.push({ name: sp.name, x: sp.q.x, z: sp.q.z, icon: '👮' });
+    const W = this.game.world, cand = [];
+    // [أيقونة، لون الشارة، أهمية]
+    const LM = {
+      pyramid: ['🔺', '#c2861a', 100], historic: ['🏛', '#9a5b2e', 80], museum: ['🏛', '#7c3aed', 75], rail_station: ['🚉', '#1d4ed8', 70], rail_halt: ['🚉', '#1d4ed8', 60],
+      metro: ['Ⓜ', '#dc2626', 62], stadium: ['🏟', '#15803d', 55], university: ['🎓', '#0e7490', 50], hospital: ['🏥', '#e11d48', 48], park: ['🌳', '#16a34a', 42],
+      bus_station: ['🚌', '#ea580c', 40], government: ['🏢', '#475569', 34], library: ['📚', '#6d28d9', 30], bridge: ['🌉', '#0369a1', 26], post: ['📮', '#b45309', 20],
+    };
+    const PO = {
+      place_of_worship: ['🕌', '#0f766e', 38], marketplace: ['🛒', '#a16207', 30], fuel: ['⛽', '#15803d', 28], hospital: ['🏥', '#e11d48', 44], clinic: ['➕', '#e11d48', 18],
+      bank: ['🏦', '#334155', 15], post_office: ['📮', '#b45309', 18], school: ['🏫', '#0369a1', 12], pharmacy: ['💊', '#16a34a', 10], cafe: ['☕', '#92400e', 8], restaurant: ['🍽', '#92400e', 8], bus_station: ['🚌', '#ea580c', 36],
+    };
+    // (OSM فيه بنزينة "توتال" متعلّمة أثر — بتتشال بالاسم؛ والاسم اللي كله إنجليزي أهميته أقل من العربي)
+    const NOT = /توتال|total|موبيل|mobil|شل\b|shell|وطنية/i, AR = /[\u0600-\u06FF]/;
+    const add = (name, x, z, c, kind) => {
+      if (!name || !c) return;
+      if ((kind === 'historic' || kind === 'museum') && NOT.test(name)) return;
+      cand.push({ name, x, z, icon: c[0], col: c[1], w: c[2] - (AR.test(name) ? 0 : 6) });
+    };
+    // (مكان المعلم نفسه — مش اليافطة اللي على أقرب شارع: الأهرامات التلاتة كانت يافطاتهم في نفس الحتة)
+    // (كل المعالم المؤكدة جوه الخريطة — landmarkPoints فيها بس اللي جنبه شارع ≤ 160م، فالأهرامات التانية كانت ناقصة)
+    for (const l of W?.landmarks?.confirmed || []) if (l.inside_region !== false && l.kind !== 'street' && l.kind !== 'canal') add(l.name, l.x, l.z, LM[l.kind], l.kind);
+    for (const p of W?.features?.pois || []) {
+      if (!p.p) continue;
+      const c = PO[p.kind], church = p.kind === 'place_of_worship' && /كنيس|church|دير/i.test(p.name || '');
+      add(p.name, p.p[0], p.p[1], c && (church ? ['⛪', c[1], c[2]] : c), p.kind);
+    }
+    // مواقف الميكروباص (أول وآخر الخطوط) — أماكن مهمة للعبة نفسها
+    for (const st of this.game.passengers?.stops || []) if (st.kind === 'terminal') add(`موقف ${st.name}`.replace(/^موقف موقف/, 'موقف'), st.x, st.z, ['🚐', '#d97706', 32], 'terminal');
+    cand.sort((a, b) => b.w - a.w);
+    const out = [], names = new Set();
+    for (const c of cand) {
+      // المهم (معالم/جوامع/أسواق/بنزينات/مواقف) لحد 15؛ الأقل أهمية (بنك/مدرسة/صيدلية/كافيه) بيكمّل لحد 10 بس
+      if (out.length >= 15 || (c.w < 26 && out.length >= 10)) break;
+      const key = c.name.replace(/\s+/g, '').toLowerCase();
+      if (names.has(key) || out.some((o) => Math.hypot(o.x - c.x, o.z - c.z) < (o.icon === c.icon && c.icon !== '🔺' ? 250 : 120))) continue;
+      names.add(key); out.push({ ...c, short: c.name.length > 22 ? c.name.slice(0, 21) + '…' : c.name });
+    }
     return (this._poiList = out);
   }
 
@@ -135,7 +169,7 @@ export class MiniMap {
     // canvas على المعالج (willReadFrequently): عشرات الآلاف من الخطوط العريضة بتترسم مرة واحدة —
     // على كارت الشاشة (الافتراضي) كانت بتاخد ~22 ث في الجيزة على كارت سوفتوير، على المعالج أسرع بكتير
     const x = c.getContext('2d', { willReadFrequently: true });
-    x.fillStyle = '#9fd67a'; x.fillRect(0, 0, c.width, c.height);
+    x.fillStyle = '#e6dcc6'; x.fillRect(0, 0, c.width, c.height);
     const P = (wx, wz) => [(wx - x0) * PXw, (wz - z0) * PXw];
     const poly = (flat, w, col, dash) => {
       x.strokeStyle = col; x.lineWidth = Math.max(1, w * PXw); x.lineCap = 'round'; x.lineJoin = 'round';
@@ -159,23 +193,19 @@ export class MiniMap {
       x.setLineDash([]);
     };
     // المدينة: نسيج مباني فاتح حوالين كل الشوارع
-    batch(D.roads, () => 46, () => '#efe0c2');
-    batch(D.water, (w) => Math.max(6, w.w), () => '#4fb3ea');
-    batch(D.rail, () => 4, () => '#6b5b4b', [10, 6]);
-    batch(D.roads, (r) => r.w + 6, () => '#5b5348');
-    batch(D.roads, (r) => r.w + 1, (r) => (r.major ? '#ffd34d' : '#ffffff'));
-    // بوابات التوسع (حدود المنطقة)
-    for (const g of D.gates) { const [a, b] = P(g.x, g.z); x.fillStyle = '#d62828'; x.fillRect(a - 4, b - 4, 8, 8); }
-    // حدود المنطقة
-    x.strokeStyle = 'rgba(214,40,40,0.6)'; x.lineWidth = 3; x.setLineDash([14, 8]);
+    // (ستايل هادي: أرض رملي فاتح، كتل المدينة كريمي، شوارع بيضا بحرف رمادي، الرئيسي أصفر دافي)
+    batch(D.roads, () => 46, () => '#f4ecdc');
+    batch(D.water, (w) => Math.max(6, w.w), () => '#8ccbf0');
+    batch(D.rail, () => 4, () => '#9a8a78', [10, 6]);
+    batch(D.roads, (r) => r.w + 5, (r) => (r.major ? '#d9a53a' : '#c9bfae'));
+    batch(D.roads, (r) => r.w + 1, (r) => (r.major ? '#ffd76b' : '#ffffff'));
+    // حدود المنطقة: خط رمادي خفيف (الأحمر والمربعات كانوا زحمة)
+    x.strokeStyle = 'rgba(90,80,70,0.35)'; x.lineWidth = 2; x.setLineDash([10, 8]);
     x.beginPath(); D.boundary.forEach(([wx, wz], i) => { const [a, b] = P(wx, wz); if (i) x.lineTo(a, b); else x.moveTo(a, b); }); x.stroke(); x.setLineDash([]);
     this.baseNL = document.createElement('canvas');
     this.baseNL.width = c.width; this.baseNL.height = c.height;
     this.baseNL.getContext('2d', { willReadFrequently: true }).drawImage(c, 0, 0);
-    x.textAlign = 'center'; x.direction = 'rtl'; x.lineJoin = 'round';
-    const lbl = (t, wx, wz, size = 13, col = '#3a3128') => { const [a, b] = P(wx, wz); x.font = `bold ${size}px Cairo, sans-serif`; x.lineWidth = 4; x.strokeStyle = '#fff'; x.strokeText(t, a, b); x.fillStyle = col; x.fillText(t, a, b); };
-    for (const s of D.streetLabels) lbl(s.name, s.x, s.z, 12);
-    for (const l of D.landmarks) lbl(`📍 ${l.name}`, l.x, l.z - 8, 14, '#0d4f8c');
+    // (من غير أسامي مخبوزة: كانت ~40 اسم شارع + كل المعالم = زحمة. المعالم بتترسم فوق بحجم ثابت — _drawPois)
   }
 
   update(dt) {
@@ -199,7 +229,7 @@ export class MiniMap {
     const PX = this.PX;
     const scale = big ? this._fitScale(W, H) * this.view.zoom : (1.6 * dpr / (PX * 2)) * zoom;
     x.setTransform(1, 0, 0, 1, 0, 0);
-    x.fillStyle = '#9fd67a'; x.fillRect(0, 0, W, H);
+    x.fillStyle = '#e6dcc6'; x.fillRect(0, 0, W, H);
     // التحويل: العالم → الشاشة
     const toBase = (wx, wz) => [(wx - this.b.x0) * PX, (wz - this.b.z0) * PX];
     x.save();
@@ -257,16 +287,37 @@ export class MiniMap {
         else if (dests.has(st) && P.mode === 'line') dot(st.x, st.z, 6, '#22c55e', '#3a3128');
       }
     }
-    if (big) {
+    // المعالم (10–15): شارة ملوّنة بأيقونة الفئة؛ في الكبيرة + اسم صغير تحتها (لو مش هيدخل في اسم تاني)
+    {
+      const rects = [], r0 = big ? 11 : 7.5;
+      x.save();
+      const m = x.getTransform();
+      x.setTransform(1, 0, 0, 1, 0, 0);
+      const R = r0 * dpr;
+      const vis = [];
       for (const p of this._pois()) {
-        const [a, b] = toBase(p.x, p.z);
-        x.save(); x.translate(a, b); x.scale(k * dpr, k * dpr);
-        x.beginPath(); x.arc(0, 0, 11, 0, Math.PI * 2); x.fillStyle = 'rgba(255,255,255,0.92)'; x.fill(); x.lineWidth = 2; x.strokeStyle = '#0d4f8c'; x.stroke();
-        x.font = '13px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(p.icon, 0, 1);
-        x.restore();
+        const [a, b] = toBase(p.x, p.z), sp = m.transformPoint(new DOMPoint(a, b));
+        if (sp.x < -20 || sp.y < -20 || sp.x > W + 20 || sp.y > H + 20) continue;
+        vis.push([p, sp]);
+        rects.push([sp.x - R, sp.y - R, R * 2, R * 2]); // (الاسم مايغطيش شارة معلم تاني)
       }
-      if (this.sel) pin(this.sel.x, this.sel.z, '#7c3aed');
+      if (big) rects.push([0, H - 28 * dpr, W, 28 * dpr]); // (ولا شريط الشرح اللي تحت)
+      for (const [p, sp] of vis) {
+        x.beginPath(); x.arc(sp.x, sp.y, R, 0, Math.PI * 2); x.fillStyle = p.col; x.fill();
+        x.lineWidth = 2 * dpr; x.strokeStyle = '#fff'; x.stroke();
+        x.font = `${Math.round(R * 1.15)}px sans-serif`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillStyle = '#fff'; x.fillText(p.icon, sp.x, sp.y + 0.5 * dpr);
+        if (!big) continue;
+        x.font = `700 ${11 * dpr}px Cairo, sans-serif`; x.direction = 'rtl'; x.textBaseline = 'top';
+        const tw = x.measureText(p.short).width, rx = sp.x - tw / 2 - 3 * dpr, ry = sp.y + R + 2 * dpr, rw = tw + 6 * dpr, rh = 15 * dpr;
+        if (rects.some((q) => rx < q[0] + q[2] && q[0] < rx + rw && ry < q[1] + q[3] && q[1] < ry + rh)) continue;
+        rects.push([rx, ry, rw, rh]);
+        x.fillStyle = 'rgba(255,255,255,0.88)'; x.beginPath(); x.roundRect(rx, ry, rw, rh, 5 * dpr); x.fill();
+        x.fillStyle = '#2b2620'; x.fillText(p.short, sp.x, ry + 1.5 * dpr);
+      }
+      x.restore();
+      x.setTransform(m);
     }
+    if (big && this.sel) pin(this.sel.x, this.sel.z, '#7c3aed');
     if (nav?.target) pin(nav.target.x, nav.target.z, this.game.userTarget ? '#7c3aed' : P?.trip ? '#16a34a' : P?.mode === 'line' ? '#e8711a' : '#f59e0b');
     // اللاعبين التانيين
     // كل لاعب بلون رقمه (نفس لون الاسم فوق عربيته) واسمه جنبه

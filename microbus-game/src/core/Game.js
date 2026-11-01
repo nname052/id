@@ -98,7 +98,20 @@ export class Game {
     this.basePR = Math.min(window.devicePixelRatio, this.mobile ? 1.55 : 1.5);
     renderer.setPixelRatio(this.basePR);
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    // تدريج ألوان مجاني لكل الأجهزة (جوه الـ tone mapping نفسه — مفيش رسمة زيادة):
+    // دفا خفيف (شمس مصر)، تشبع أعلى شوية (ألوان العماير والعربيات)، وبعدين ACES زي الأول.
+    // (المؤثرات السينمائية PostFX شغالة على الكمبيوتر بس، فالموبايل كان من غير أي تدريج = ألوان باهتة)
+    if (!THREE.ShaderChunk.tonemapping_pars_fragment.includes('// egypt-grade')) {
+      THREE.ShaderChunk.tonemapping_pars_fragment = THREE.ShaderChunk.tonemapping_pars_fragment.replace(
+        'vec3 CustomToneMapping( vec3 color ) { return color; }',
+        `vec3 CustomToneMapping( vec3 color ) { // egypt-grade
+          color *= vec3( 1.06, 1.015, 0.95 );
+          float l = dot( color, vec3( 0.2126, 0.7152, 0.0722 ) );
+          color = max( mix( vec3( l ), color, 1.18 ), 0.0 );
+          return ACESFilmicToneMapping( color );
+        }`);
+    }
+    renderer.toneMapping = THREE.CustomToneMapping;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = this.mobile ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
@@ -558,7 +571,8 @@ export class Game {
     this.incidents.start(this.player.physics);
     this._prepareVehicles();
     // الميكروباص في شبين: اختار خطك الأول (اللعبة شغالة عادي في الخلفية، واختيار تاني من زرار تغيير الخط)
-    if (this.world && this.player.kind === 'microbus' && this.passengers.LINES.length > 1) this.openLinePicker();
+    // (من غير شاشة اختيار الخط اللي بتغطي كل حاجة أول ما تبدأ: الخط الأول شغال، والتغيير من أيقونة ⇄ الصغيرة)
+    if (this.world && this.player.kind === 'microbus' && this.passengers.LINES.length > 1) setTimeout(() => this.hud.toast('⇄ تقدر تغيّر خط الميكروباص من الأيقونة الصغيرة فوق', 3.5), 3500);
   }
 
   /** وجهة يدوية من الخريطة الكبيرة ({x,z,name}) */
@@ -693,7 +707,9 @@ export class Game {
     // الضل بيتقفل/يتفتح من الإعدادات بس (تغييره بيعيد بناء كل الشيدرز = تهنيج).
     // الجودة الواطية بتقلل الدقة وبتحدّث الضل كل كام فريم بدل كل فريم
     this.env.sun.castShadow = this.settings?.get('shadows') !== 'off';
-    this.shadowEvery = level >= 4 ? 3 : level >= 3 ? 2 : this.mobile && level >= 1 ? 2 : 1;
+    // (الضل لازم يتحدّث كل فريم: كل فريمين = ضل العربية وهي ماشية بيتأخر فريم ويرجع = بيتهز قدام عينك ~28سم على 60 كم/س.
+    //  التوفير بقى من مساحة الضل ودقته — مش من التحديث. أوطى جودة بس اللي بتحدّث كل فريمين)
+    this.shadowEvery = level >= 4 ? 2 : 1;
     // مسافة الضل: أقصر في الجودة الأقل = حاجات أقل في رسمة الضل (ودقة أحسن في نفس الخريطة)
     { const ext = level >= 4 ? 32 : level >= 3 ? 40 : level >= 2 ? 50 : 60, C = this.env.sun.shadow.camera;
       if (C.right !== ext) { C.left = -ext; C.right = ext; C.top = ext; C.bottom = -ext; C.updateProjectionMatrix(); } }

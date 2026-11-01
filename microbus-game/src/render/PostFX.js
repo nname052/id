@@ -59,7 +59,7 @@ export class PostFX {
     this.bloom.strength = on ? 0.55 : 0.12;
     this.bloom.threshold = on ? 0.7 : 0.92;
     const U = this.grade.uniforms;
-    U.uWarm.value = on ? -0.02 : 0.06; U.uSat.value = on ? 1.02 : 1.08; U.uVig.value = on ? 0.3 : 0.22;
+    U.uWarm.value = on ? -0.04 : 0.015; U.uSat.value = on ? 0.95 : 1.0; U.uVig.value = on ? 0.3 : 0.22; // (الدفا والتشبع بقوا في الـ tone mapping لكل الأجهزة — هنا التكملة بس)
   }
   setSize(w, h) { this.composer.setSize(w, h); this.grade.uniforms.uAspect.value = w / h; }
   setPixelRatio(pr) { this.composer.setPixelRatio(pr); }
