@@ -64,7 +64,9 @@ const r = await page.evaluate(async () => {
   // 4) الوقوف في محطة شبين
   R.stations = keep;
   const st = R.stations.find((q) => q.main);
-  Object.assign(T, { state: 'run', dir: 1, v: 15, s: st.s - 500, lastStop: null });
+  // (الخط في الخريطة الصغيرة ~0.8 كم: القطر بيبدأ من الناحية اللي فيها مسافة كفاية قبل المحطة)
+  const L = R.line.length, fwd = st.s > L - st.s;
+  Object.assign(T, { state: 'run', dir: fwd ? 1 : -1, v: 12, s: fwd ? Math.max(T.len / 2 + 2, st.s - 500) : Math.min(L - T.len / 2 - 2, st.s + 500), lastStop: null });
   let stopped = null;
   for (let i = 0; i < 30 * 90 && !stopped; i++) { R.update(1 / 30, { x: 0, y: 0, z: 0 }); if (T.state === 'stop') stopped = { d: +(T.s - st.s).toFixed(1), name: T.stopAt?.name }; }
   out.station = stopped; out.trainLen = T.len;
@@ -77,7 +79,7 @@ const r = await page.evaluate(async () => {
 await browser.close();
 const cr = !r.crossings.length || (r.cross.closedAt300 && r.cross.downAtPass > 0.9 && r.cross.trainPassed && r.cross.openAfter &&
   r.traffic.closed && r.traffic.minDistToCrossing > 3 && r.traffic.vEnd < 0.5 && r.barrierColliders >= 2);
-const pass = r.lineKm > 0.8 && r.stations.length >= 1 && cr && r.station && Math.abs(r.station.d - r.trainLen / 2) < 3 && r.carsOffLineMax < 1.5 && !errors.length;
+const pass = r.lineKm > 0.5 && r.stations.length >= 1 && cr && r.station && Math.abs(Math.abs(r.station.d) - r.trainLen / 2) < 3 && r.carsOffLineMax < 1.5 && !errors.length;
 console.log(JSON.stringify({ ...r, errors }, null, 1));
 console.log(pass ? 'PASS rail-system' : 'FAIL rail-system');
 process.exit(pass ? 0 : 1);

@@ -25,6 +25,8 @@ export const MODELS = [
   { key: 'car_logan', path: 'glbs/000-128/e4f9463f6e004b90bb977d12f6375b9c.glb', role: 'رينو لوجان 2004 (ملاكي/تاكسي منتشر)', tris: 18000, err: 0.03 },
   { key: 'car_nexia', path: 'glbs/000-028/90006f59fd594d2b95f1469f651491f1.glb', role: 'دايو سييلو/نيكسيا (ملاكي منتشر)', tris: 18000, err: 0.03 },
   { key: 'pickup_p404', path: 'glbs/000-015/1a4b4cfdad074045aad63afae4c1e8c7.glb', role: 'بيجو 404 بيك أب — ربع نقل', tris: 16000 },
+  { key: 'suzuki_carry_van', path: 'glbs/000-032/5c0007c0c6ed4d298b8c80646efa09d2.glb', role: 'سوزوكي كاري ميني فان (ركاب/توناية مقفولة)', tris: 22000, err: 0.03 },
+  { key: 'suzuki_carry_truck', path: 'glbs/000-118/13dc5e2aad2e4d00af57e8d99d7095e9.glb', role: 'سوزوكي كاري بيك أب صغير (kei truck — توناية نقل)', tris: 14000 },
   { key: 'bus_karosa', path: 'glbs/000-106/21262813724e401b88333d381c4626f7.glb', role: 'أتوبيس (كاروسا C734) — المدن غير القاهرة', tris: 16000 },
 ];
 

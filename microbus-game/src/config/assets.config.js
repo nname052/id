@@ -53,6 +53,9 @@ export const MODEL_ASSETS = {
   car_nexia: { file: 'car_nexia.glb', targetLength: 4.42, targetWidth: 1.86, rotationY: 180, wheelR: 0.29 }, // دايو نكسيا: 4.48 × 1.66 × 1.39 م (الطول بين الطول والارتفاع الحقيقيين — الموديل نسبته مختلفة)
   pickup_p404: { file: 'pickup_p404.glb', targetLength: 4.4, rotationY: 180, wheelR: 0.33 },
   pickup_toyota: { file: 'pickup_toyota.glb', targetLength: 4.35, rotationY: 180, wheelR: 0.33 },
+  // سوزوكي كاري (الـ"سوزوكي" المصري): كي كار 3.40 × 1.48م — ميني فان (ركاب) وبيك أب صغير (توناية نقل)
+  suzuki_carry_van: { file: 'suzuki_carry_van.glb', targetLength: 3.4, targetWidth: 1.6, rotationY: 0 },
+  suzuki_carry_truck: { file: 'suzuki_carry_truck.glb', targetLength: 3.4, targetWidth: 1.6, rotationY: 0 },
   bus_karosa: { file: 'bus_karosa.glb', targetLength: 11, targetWidth: 2.52, rotationY: 90, wheelR: 0.5 }, // كاروسا B932: 11.05 × 2.50 م (الموديل كان 2.84 عرض)
   // المعالم الحقيقية (لو اتحمّلت): المقاس الحقيقي بالمتر
   mon_sphinx: { file: 'mon_sphinx.glb', targetLength: 73, rotationY: 0 },
