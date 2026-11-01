@@ -18,6 +18,8 @@ for i in 1 2 3 4; do REGION=$ID python3 tools/osm/unify_ramps.py > /dev/null; do
 REGION=$ID python3 tools/osm/smooth_ramps.py
 REGION=$ID python3 tools/osm/audit_buildings.py --fix
 REGION=$ID python3 tools/osm/clean_sidewalks.py
+# (مرة تانية بعد clean_sidewalks: تبليط التقاطعات بيوسّع الأسفلت فعمارات مولّدة كانت بتبقى راكبة عليه — 47 في شبين)
+REGION=$ID python3 tools/osm/audit_buildings.py --fix
 REGION=$ID python3 tools/osm/audit_buildings.py --fix-real
 rm -f /tmp/rb_$ID.json
 # (الخريطة الصغيرة: مفيش عمارات بعيدة عن الشوارع — كانت بتتحمّل على الفاضي)

@@ -40,13 +40,44 @@ def main(cid):
             for dj in range(-R, R + 1):
                 if (di * C) ** 2 + (dj * C) ** 2 <= (CLIP_M + C) ** 2: near.add((i + di, j + dj))
     ok = lambda c: c is None or (math.floor(c[0] / C), math.floor(c[1] / C)) in near
+    # آخر الشارع المسدود (شارع عربيات): العمارة المولّدة اللي قاعدة قصاده بالظبط بتتشال — كانت بتقفل الطريق
+    # (البصمات الحقيقية بتفضل: الحارة السد الحقيقية آخرها بيت فعلًا)
+    deg = [0] * len(g['nodes'])
+    for e in g['edges']: deg[e[0]] += 1; deg[e[1]] += 1
+    CARS = {'primary', 'secondary', 'tertiary', 'residential', 'unclassified', 'road', 'living_street', 'service', 'trunk', 'motorway', 'primary_link', 'secondary_link', 'tertiary_link', 'trunk_link', 'motorway_link'}
+    tips = []
+    for e in g['edges']:
+        if g['classes'][e[3]] not in CARS: continue
+        P = e[10]
+        for end, (px, pz, qx, qz) in ((e[1], (P[-4], P[-3], P[-2], P[-1])), (e[0], (P[2], P[3], P[0], P[1]))):
+            if deg[end] != 1 or g['nodes'][end][2] & 1: continue
+            l = math.hypot(qx - px, qz - pz) or 1
+            tips.append((qx, qz, (qx - px) / l, (qz - pz) / l, e[7] / 2 + 0.8))
+    tgrid = {}
+    for tp in tips: tgrid.setdefault((math.floor(tp[0] / 30), math.floor(tp[1] / 30)), []).append(tp)
+    def blocks(b):
+        cx, cz, w, d, a = b[0], b[1], b[2], b[3], b[4]
+        ca, sa = math.cos(a), math.sin(a)
+        for i in (-1, 0, 1):
+            for j in (-1, 0, 1):
+                for (qx, qz, dx, dz, hw) in tgrid.get((math.floor(cx / 30) + i, math.floor(cz / 30) + j), []):
+                    for s in range(0, 13, 1):
+                        for o in (-hw, 0, hw):
+                            X, Z = qx + dx * s - dz * o, qz + dz * s + dx * o
+                            u, v = (X - cx) * ca - (Z - cz) * sa, (X - cx) * sa + (Z - cz) * ca
+                            if abs(u) < w / 2 and abs(v) < d / 2: return True
+        return False
+    dead_cut = 0
     meta_p = os.path.join(D, 'metadata/metadata.json'); meta = json.load(open(meta_p))
     kept = dropped = tiles_gone = 0
     for f in glob.glob(os.path.join(D, 'buildings', 't_*.json')):
         d = json.load(open(f)); n0 = 0; n1 = 0
         for key in ('gen', 'real'):
             if isinstance(d.get(key), list):
-                n0 += len(d[key]); d[key] = [b for b in d[key] if ok(centre(b))]; n1 += len(d[key])
+                n0 += len(d[key]); d[key] = [b for b in d[key] if ok(centre(b))]
+                if key == 'gen' and tips:
+                    k0 = len(d[key]); d[key] = [b for b in d[key] if not blocks(b)]; dead_cut += k0 - len(d[key])
+                n1 += len(d[key])
         kept += n1; dropped += n0 - n1
         name = os.path.basename(f)[:-5]
         if n1 == 0:
@@ -57,7 +88,7 @@ def main(cid):
         elif n1 != n0:
             json.dump(d, open(f, 'w'), separators=(',', ':'), ensure_ascii=False)
     json.dump(meta, open(meta_p, 'w'), ensure_ascii=False, indent=1)
-    print(f'clip_buildings {cid}: kept {kept}, dropped {dropped} (> {CLIP_M:.0f} m from roads), empty tiles removed {tiles_gone}, tiles now {len(meta["tiles"])}')
+    print(f'clip_buildings {cid}: kept {kept}, dropped {dropped} (> {CLIP_M:.0f} m from roads), empty tiles removed {tiles_gone}, tiles now {len(meta["tiles"])}, dead-end blockers removed {dead_cut}')
 
 
 if __name__ == '__main__':

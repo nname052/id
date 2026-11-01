@@ -1115,6 +1115,11 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
   _buildBuildings(T, Bd) {
     // أماكن محجوزة (المحطة…): العمارات المولّدة اللي جواها بتتشال
     if (this.exclude?.length && Bd.gen?.length) Bd = { ...Bd, gen: Bd.gen.filter(([x, z, w, d]) => !this.exclude.some((r) => { const dx = x - r.cx, dz = z - r.cz, ca = Math.cos(r.angle), sa = Math.sin(r.angle); const lx = dx * ca - dz * sa, lz = dx * sa + dz * ca; const m = Math.max(w, d) / 2; return Math.abs(lx) < r.hx + m && Math.abs(lz) < r.hz + m; })) };
+    // مناطق فاضية (هضبة الأهرامات): مفيش عمارات مولّدة مركزها جوه المضلع
+    if (this.clearZones?.length && Bd.gen?.length) {
+      const pip = (P, x, z) => { let c = false; for (let i = 0, j = P.length - 1; i < P.length; j = i++) { const [xi, zi] = P[i], [xj, zj] = P[j]; if ((zi > z) !== (zj > z) && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) c = !c; } return c; };
+      Bd = { ...Bd, gen: Bd.gen.filter(([x, z]) => !this.clearZones.some((P) => pip(P, x, z))) };
+    }
     if (Bd.gen?.length) {
       const P = (this.stats.bldParts ||= { geo: 0, kit: 0, street: 0, col: 0, real: 0, n: 0 }); let t = performance.now();
       const lap = (k) => { const n = performance.now(); P[k] = Math.max(P[k], n - t); t = n; };

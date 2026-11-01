@@ -311,6 +311,28 @@ export function buildMonuments(W, group) {
       out.push({ name, kind: 'library', model: 'detailed' });
     }
   }
+  // ===== هضبة الأهرامات: صحرا فاضية (زي الحقيقة) — مفيش عمارات (مولّدة أو بصمات) جوه الهضبة =====
+  // (الخريطة المضغوطة قرّبت المدينة من الأهرامات، فكانت العمارات لازقة في هرم خوفو). المنطقة = الغلاف المحدّب
+  // للأهرامات وأبو الهول + 110م حواليهم (نزلة السمان الحقيقية بتبدأ بعد كده من ناحية أبو الهول)
+  {
+    const pts = [];
+    for (const l of L) {
+      if (l.kind === 'pyramid' && l.footprint?.length) for (const [x, z] of l.footprint) pts.push([x, z]);
+      else if (/^أبو الهول$|^أبي الهول$/.test(l.name || '')) pts.push([l.x, l.z]);
+    }
+    if (pts.length >= 6) {
+      const R = 110, ring = [];
+      for (const [x, z] of pts) for (let k = 0; k < 16; k++) ring.push([x + Math.cos(k / 16 * Math.PI * 2) * R, z + Math.sin(k / 16 * Math.PI * 2) * R]);
+      ring.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+      const cr = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+      const lo = [], hi = [];
+      for (const p of ring) { while (lo.length >= 2 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+      for (let i = ring.length - 1; i >= 0; i--) { const p = ring[i]; while (hi.length >= 2 && cr(hi[hi.length - 2], hi[hi.length - 1], p) <= 0) hi.pop(); hi.push(p); }
+      const hull = lo.slice(0, -1).concat(hi.slice(0, -1));
+      (W.monumentZones ||= []).push(hull); (W.clearZones ||= []).push(hull);
+      out.push({ name: 'هضبة الأهرامات', kind: 'plateau' });
+    }
+  }
   // جامع محمد علي (القلعة): الموديل الحقيقي لو موجود مكان المسجد العام اللي بالكود
   for (const p of W.features?.pois || []) {
     if (p.kind !== 'place_of_worship' || !/محمد علي/.test(p.name || '')) continue;
