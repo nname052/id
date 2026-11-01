@@ -764,6 +764,9 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
       // على الأرض (أوطى من السطح بـ 6سم+) بتفضل على الشارع — مابتتمسكش في حرف المطلع (كانت عتبة 10–28سم في الحارة).
       // اللي داخل المطلع من أوله بيطلع عادي: عند رجل المطلع الارتفاع < 6سم فبيمسكه من الأول ويطلع معاه
       if (bh !== null && bh < 0.45 && ref < bh - 0.06 && this._groundRoadNearer(x, z, Infinity, null)) bh = null;
+      // (وحرف المطلع الواطي نفسه (برّه قلب حارته) فوق شارع أرضي مش متوصل بيه: الشارع — كانت العربية بتطلع على الحرف
+      //  بالتدريج وبعدين تقع لما المطلع يخلص = عتبة 15–30سم في شوارع الجيزة)
+      else if (bh !== null && bh < 0.45 && bestD > bestHw * 0.4 && this._groundRoadNearer(x, z, Infinity, bestE)) bh = null;
       if (bh !== null && bh < 1.2 && bestD > bestHw * 0.55 && (ref < bh - 0.3 ? this._groundRoadNearer(x, z, Infinity, null) : bh < 0.8 && Math.abs(ref - bh) > 0.08 && this._groundRoadNearer(x, z, bestD, bestE))) bh = null; // (اللي ماشي على المطلع فعلًا — ارتفاعه = ارتفاعه — بيفضل عليه حتى عند حرفه)
       if (bh !== null) g = bh;
     }
