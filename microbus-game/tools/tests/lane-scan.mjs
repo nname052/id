@@ -34,14 +34,16 @@ const res = await p.evaluate(async () => {
       edges++;
       const offs = e.oneway ? [0] : [-e.half * 0.5, e.half * 0.5];
       for (const off of offs) {
-        let prev = null;
+        let prev = null, prevBump = false;
         for (let s = Math.min(6, e.length / 3); s <= e.length - Math.min(6, e.length / 3); s += 0.5) {
           edgePoint(e, s, q);
           const x = q.x - q.dz * off, z = q.z + q.dx * off;
           const h = W.height(x, z, prev ?? q.y);
           samples++;
-          if (prev !== null && Math.abs(h - prev) > 0.06) { bumps.push({ edge: e.id, name: e.name, cls: e.cls, x: +x.toFixed(1), z: +z.toFixed(1), from: +prev.toFixed(2), to: +h.toFixed(2) }); break; }
-          prev = h;
+          // (المطبات الحقيقية (OSM) مقصودة — مش عتبة؛ وعلى الكوباري المطلع نفسه ميله لحد ~20% = 10سم كل نص متر)
+          const onBump = W.bumps && W.bumps.h(x, z) > 0.001, lim = Math.min(h, prev ?? h) > 0.4 ? 0.12 : 0.06;
+          if (prev !== null && !onBump && !prevBump && Math.abs(h - prev) > lim) { bumps.push({ edge: e.id, name: e.name, cls: e.cls, x: +x.toFixed(1), z: +z.toFixed(1), from: +prev.toFixed(2), to: +h.toFixed(2) }); break; }
+          prev = h; prevBump = onBump;
         }
       }
     }
