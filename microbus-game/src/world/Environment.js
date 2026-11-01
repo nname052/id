@@ -9,8 +9,9 @@ import { Sky } from 'three/addons/objects/Sky.js';
 export const TIME_PRESETS = {
   day: {
     // شمس الدلتا: سما فيها شبورة/تراب خفيف (مش أزرق صافي)، ضباب بيج دافي، والإضاءة المحيطة أقل شوية عشان الضل يبان
-    label: 'نهار', elevation: 52, azimuth: 135, sunColor: 0xffecd2, sunIntensity: 3.5, hemi: 0.3,
-    turbidity: 6.5, rayleigh: 1.5, mie: 0.006, mieG: 0.82, fog: 0xcfc7b6, fogNear: 110, fogFar: 700, exposure: 0.55,
+    // (MAJOR UPDATE: سما أصفى وضباب أخف وأقل بيج — المدينة كانت باهتة/رمادي؛ ظل أفتح شوية)
+    label: 'نهار', elevation: 52, azimuth: 135, sunColor: 0xffe8c8, sunIntensity: 3.5, hemi: 0.4,
+    turbidity: 4.2, rayleigh: 1.35, mie: 0.005, mieG: 0.82, fog: 0xd6dde0, fogNear: 170, fogFar: 760, exposure: 0.6,
     lampsOn: false, windows: 0, envIntensity: 0.7,
   },
   sunset: {
