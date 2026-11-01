@@ -11,10 +11,10 @@
     "note": "OSM place=city node 'المنيا' (city centre)"
   },
   "bbox": {
-    "west": 30.748916,
-    "south": 28.082098,
-    "east": 30.765208,
-    "north": 28.096567
+    "west": 30.752226,
+    "south": 28.085037,
+    "east": 30.761899,
+    "north": 28.093628
   },
   "tile_size": 400,
   "stub_outside": 40,
@@ -30,63 +30,13 @@
       ]
     },
     {
-      "id": "bus_station_2",
-      "name": "موقف قسطور",
-      "kind": "bus_station",
-      "osm": "node/1892460997",
-      "lonlat": [
-        30.755972,
-        28.094462
-      ]
-    },
-    {
-      "id": "hospital_3",
-      "name": "مستوصف الجمعية الشرعية",
-      "kind": "hospital",
-      "osm": "node/1888411235",
-      "lonlat": [
-        30.762435,
-        28.084191
-      ]
-    },
-    {
-      "id": "hospital_4",
-      "name": "بنك الدم الإقليمى",
-      "kind": "hospital",
-      "osm": "node/1888411221",
-      "lonlat": [
-        30.764313,
-        28.091271
-      ]
-    },
-    {
-      "id": "hospital_5",
-      "name": "مستشفى المبرة",
-      "kind": "hospital",
-      "osm": "node/1888451891",
-      "lonlat": [
-        30.759458,
-        28.096534
-      ]
-    },
-    {
-      "id": "post_6",
+      "id": "post_2",
       "name": "مكتب البوستة الرئيسي",
       "kind": "post",
       "osm": "node/1888338974",
       "lonlat": [
         30.758605,
         28.090306
-      ]
-    },
-    {
-      "id": "post_7",
-      "name": "مكتب بريد أرض المولد",
-      "kind": "post",
-      "osm": "node/1888257943",
-      "lonlat": [
-        30.764527,
-        28.085573
       ]
     }
   ],

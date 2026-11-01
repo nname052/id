@@ -11,44 +11,13 @@
     "note": "OSM place=city node 'المنصورة' (city centre)"
   },
   "bbox": {
-    "west": 31.378103,
-    "south": 31.030331,
-    "east": 31.394877,
-    "north": 31.044801
+    "west": 31.38151,
+    "south": 31.03327,
+    "east": 31.39147,
+    "north": 31.041862
   },
   "tile_size": 400,
   "stub_outside": 40,
-  "landmarks": [
-    {
-      "id": "stadium_1",
-      "name": "إستاد المنصوره الرياضي",
-      "kind": "stadium",
-      "osm": "way/614809959",
-      "lonlat": [
-        31.393106,
-        31.033635
-      ]
-    },
-    {
-      "id": "hospital_2",
-      "name": "المستشفى الدولي",
-      "kind": "hospital",
-      "osm": "way/587301910",
-      "lonlat": [
-        31.390694,
-        31.031915
-      ]
-    },
-    {
-      "id": "hospital_3",
-      "name": "التأمين الصحي",
-      "kind": "hospital",
-      "osm": "node/5900240797",
-      "lonlat": [
-        31.378309,
-        31.04278
-      ]
-    }
-  ],
+  "landmarks": [],
   "needs_verification": []
 }

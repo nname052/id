@@ -8,7 +8,7 @@ import json, math, os, sys
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 P = os.path.join(ROOT, 'tools/osm/egypt/cities.json')
 SIDE = float(sys.argv[1]) if len(sys.argv) > 1 else 1600
-BIG = {'cairo': 1800, 'cairo_east': 1800}
+BIG = {'cairo': 1100, 'cairo_east': 1100}
 SKIP = {'alexandria', 'giza', 'alex', 'alex_east'}
 d = json.load(open(P))
 for c in d:

@@ -11,24 +11,13 @@
     "note": "OSM place=city node 'الفيوم' (city centre)"
   },
   "bbox": {
-    "west": 30.831724,
-    "south": 29.300173,
-    "east": 30.848206,
-    "north": 29.314643
+    "west": 30.835072,
+    "south": 29.303112,
+    "east": 30.844858,
+    "north": 29.311703
   },
   "tile_size": 400,
   "stub_outside": 40,
-  "landmarks": [
-    {
-      "id": "rail_station_1",
-      "name": "الفيوم",
-      "kind": "rail_station",
-      "osm": "node/1022171353",
-      "lonlat": [
-        30.847736,
-        29.309064
-      ]
-    }
-  ],
+  "landmarks": [],
   "needs_verification": []
 }

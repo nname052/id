@@ -12,10 +12,10 @@
   "note": "OSM place node 'شبين الكوم' (city centre)"
  },
  "bbox": {
-  "south": 30.547583,
-  "west": 31.003752,
-  "north": 30.562053,
-  "east": 31.020443
+  "south": 30.550857,
+  "west": 31.004633,
+  "north": 30.560329,
+  "east": 31.015577
  },
  "tile_size": 400,
  "stub_outside": 40,

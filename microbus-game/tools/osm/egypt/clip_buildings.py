@@ -1,9 +1,9 @@
 """بيشيل العمارات البعيدة عن أي شارع (> CLIP_M متر) — بعد تصغير الخريطة بصمات Microsoft كانت لسه
 بتغطي المساحة القديمة (~5 كم) فاللعبة كانت بتحمّل مئات المربعات عمارات من غير شوارع.
     python3 tools/osm/egypt/clip_buildings.py <id>     (DATA_ROOT=../data/cities افتراضي)"""
-import glob, json, math, os, sys
+import collections, glob, json, math, os, sys
 
-CLIP_M = float(os.environ.get('CLIP_M', 90))
+CLIP_M = float(os.environ.get('CLIP_M', 45))
 
 
 def centre(b):
@@ -44,6 +44,7 @@ def main(cid):
     # (البصمات الحقيقية بتفضل: الحارة السد الحقيقية آخرها بيت فعلًا)
     deg = [0] * len(g['nodes'])
     for e in g['edges']: deg[e[0]] += 1; deg[e[1]] += 1
+    deg_all = {i: k for i, k in enumerate(deg) if k}
     CARS = {'primary', 'secondary', 'tertiary', 'residential', 'unclassified', 'road', 'living_street', 'service', 'trunk', 'motorway', 'primary_link', 'secondary_link', 'tertiary_link', 'trunk_link', 'motorway_link'}
     tips = []
     for e in g['edges']:
@@ -68,6 +69,22 @@ def main(cid):
                             if abs(u) < w / 2 and abs(v) < d / 2: return True
         return False
     dead_cut = 0
+    # التقاطعات (3 شوارع أو أكتر): العمارة المولّدة اللي مستطيلها بيلمس دايرة التقاطع (نص أعرض شارع + 1م) بتتشال
+    jw = collections.defaultdict(float)
+    for e in g['edges']:
+        for n in (e[0], e[1]): jw[n] = max(jw[n], e[7] / 2)
+    jgrid = {}
+    for n, k in deg_all.items():
+        if k >= 3: x, z = g['nodes'][n][0], g['nodes'][n][1]; jgrid.setdefault((math.floor(x / 30), math.floor(z / 30)), []).append((x, z, jw[n] + 1.0))
+    def in_junction(b):
+        ca, sa = math.cos(b[4]), math.sin(b[4])
+        for i in (-1, 0, 1):
+            for j in (-1, 0, 1):
+                for (x, z, R) in jgrid.get((math.floor(b[0] / 30) + i, math.floor(b[1] / 30) + j), []):
+                    dx, dz = x - b[0], z - b[1]; u, v = dx * ca - dz * sa, dx * sa + dz * ca
+                    cu, cv = max(-b[2] / 2, min(b[2] / 2, u)), max(-b[3] / 2, min(b[3] / 2, v))
+                    if math.hypot(u - cu, v - cv) < R: return True
+        return False
     meta_p = os.path.join(D, 'metadata/metadata.json'); meta = json.load(open(meta_p))
     kept = dropped = tiles_gone = 0
     for f in glob.glob(os.path.join(D, 'buildings', 't_*.json')):
@@ -76,7 +93,7 @@ def main(cid):
             if isinstance(d.get(key), list):
                 n0 += len(d[key]); d[key] = [b for b in d[key] if ok(centre(b))]
                 if key == 'gen' and tips:
-                    k0 = len(d[key]); d[key] = [b for b in d[key] if not blocks(b)]; dead_cut += k0 - len(d[key])
+                    k0 = len(d[key]); d[key] = [b for b in d[key] if not blocks(b) and not in_junction(b)]; dead_cut += k0 - len(d[key])
                 n1 += len(d[key])
         kept += n1; dropped += n0 - n1
         name = os.path.basename(f)[:-5]

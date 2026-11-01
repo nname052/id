@@ -11,42 +11,22 @@
     "note": "OSM place=city node 'بنها' (city centre)"
   },
   "bbox": {
-    "west": 31.175726,
-    "south": 30.455262,
-    "east": 31.1924,
-    "north": 30.469732
+    "west": 31.179113,
+    "south": 30.458202,
+    "east": 31.189013,
+    "north": 30.466793
   },
   "tile_size": 400,
   "stub_outside": 40,
   "landmarks": [
     {
-      "id": "rail_station_1",
-      "name": "بنها",
-      "kind": "rail_station",
-      "osm": "node/1029624589",
-      "lonlat": [
-        31.180968,
-        30.456075
-      ]
-    },
-    {
-      "id": "hospital_2",
+      "id": "hospital_1",
       "name": "مستشفى بنها للصحة النفسية وعلاج الإدمان",
       "kind": "hospital",
       "osm": "node/13907606661",
       "lonlat": [
         31.186996,
         30.465381
-      ]
-    },
-    {
-      "id": "hospital_3",
-      "name": "مستشفي جامعة بنها",
-      "kind": "hospital",
-      "osm": "way/94125740",
-      "lonlat": [
-        31.178725,
-        30.469645
       ]
     }
   ],

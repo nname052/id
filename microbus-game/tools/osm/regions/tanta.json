@@ -11,10 +11,10 @@
     "note": "OSM place=city node 'طنطا' (city centre)"
   },
   "bbox": {
-    "west": 30.989889,
-    "south": 30.776132,
-    "east": 31.006619,
-    "north": 30.790602
+    "west": 30.993287,
+    "south": 30.779071,
+    "east": 31.00322,
+    "north": 30.787662
   },
   "tile_size": 400,
   "stub_outside": 40,

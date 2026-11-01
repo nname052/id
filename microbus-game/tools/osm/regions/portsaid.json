@@ -11,36 +11,16 @@
     "note": "OSM place=city node 'بورسعيد' (city centre)"
   },
   "bbox": {
-    "west": 32.297098,
-    "south": 31.256,
-    "east": 32.313912,
-    "north": 31.27047
+    "west": 32.300513,
+    "south": 31.258939,
+    "east": 32.310497,
+    "north": 31.267531
   },
   "tile_size": 400,
   "stub_outside": 40,
   "landmarks": [
     {
-      "id": "museum_1",
-      "name": "مسجد التوفيقي",
-      "kind": "museum",
-      "osm": "node/5852588986",
-      "lonlat": [
-        32.298282,
-        31.266038
-      ]
-    },
-    {
-      "id": "museum_2",
-      "name": "متحف بور سعيد الحربي",
-      "kind": "museum",
-      "osm": "node/7181559385",
-      "lonlat": [
-        32.299998,
-        31.270121
-      ]
-    },
-    {
-      "id": "park_3",
+      "id": "park_1",
       "name": "المنشية",
       "kind": "park",
       "osm": "way/1444277933",
@@ -50,7 +30,7 @@
       ]
     },
     {
-      "id": "park_4",
+      "id": "park_2",
       "name": "حديقة الطفل",
       "kind": "park",
       "osm": "way/393645131",

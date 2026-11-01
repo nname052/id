@@ -11,10 +11,10 @@
     "note": "OSM place=city node 'سوهاج' (city centre)"
   },
   "bbox": {
-    "west": 31.691229,
-    "south": 26.540513,
-    "east": 31.707297,
-    "north": 26.554983
+    "west": 31.694493,
+    "south": 26.543452,
+    "east": 31.704033,
+    "north": 26.552044
   },
   "tile_size": 400,
   "stub_outside": 40,

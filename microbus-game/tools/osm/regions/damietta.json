@@ -11,10 +11,10 @@
     "note": "OSM place=city node 'دمياط' (city centre)"
   },
   "bbox": {
-    "west": 31.812945,
-    "south": 31.409508,
-    "east": 31.829787,
-    "north": 31.423978
+    "west": 31.816366,
+    "south": 31.412447,
+    "east": 31.826366,
+    "north": 31.421038
   },
   "tile_size": 400,
   "stub_outside": 40,

@@ -11,10 +11,10 @@
     "note": "OSM place=city node 'أسيوط' (city centre)"
   },
   "bbox": {
-    "west": 31.177305,
-    "south": 27.176047,
-    "east": 31.193462,
-    "north": 27.190517
+    "west": 31.180587,
+    "south": 27.178986,
+    "east": 31.19018,
+    "north": 27.187578
   },
   "tile_size": 400,
   "stub_outside": 40,
@@ -40,17 +40,7 @@
       ]
     },
     {
-      "id": "bus_station_3",
-      "name": "موقف الاربعين",
-      "kind": "bus_station",
-      "osm": "node/4552406490",
-      "lonlat": [
-        31.189805,
-        27.177894
-      ]
-    },
-    {
-      "id": "hospital_4",
+      "id": "hospital_3",
       "name": "مستشفى السلام",
       "kind": "hospital",
       "osm": "way/770229565",
@@ -60,7 +50,7 @@
       ]
     },
     {
-      "id": "historic_5",
+      "id": "historic_4",
       "name": "ارسالية كندا",
       "kind": "historic",
       "osm": "node/12600044801",
@@ -70,33 +60,13 @@
       ]
     },
     {
-      "id": "historic_6",
+      "id": "historic_5",
       "name": "نهضة قداسة اسيوط",
       "kind": "historic",
       "osm": "node/12620641001",
       "lonlat": [
         31.182377,
         27.184158
-      ]
-    },
-    {
-      "id": "hospital_7",
-      "name": "مستشفى أسيوط العام",
-      "kind": "hospital",
-      "osm": "node/14078009201",
-      "lonlat": [
-        31.183722,
-        27.17742
-      ]
-    },
-    {
-      "id": "park_8",
-      "name": "جنينة جمعية الشبان المسلمين",
-      "kind": "park",
-      "osm": "way/1492411667",
-      "lonlat": [
-        31.183856,
-        27.178441
       ]
     }
   ],

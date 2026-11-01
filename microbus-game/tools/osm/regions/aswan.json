@@ -11,10 +11,10 @@
     "note": "OSM place=city node 'أسوان' (city centre)"
   },
   "bbox": {
-    "west": 32.889434,
-    "south": 24.083836,
-    "east": 32.905178,
-    "north": 24.098306
+    "west": 32.892632,
+    "south": 24.086775,
+    "east": 32.90198,
+    "north": 24.095367
   },
   "tile_size": 400,
   "stub_outside": 40,
@@ -27,36 +27,6 @@
       "lonlat": [
         32.900657,
         24.094934
-      ]
-    },
-    {
-      "id": "historic_2",
-      "name": "الجيرمانية اسوان",
-      "kind": "historic",
-      "osm": "node/12600045103",
-      "lonlat": [
-        32.892168,
-        24.085913
-      ]
-    },
-    {
-      "id": "university_3",
-      "name": "المعهد العالى للخدمة الاجتماعية",
-      "kind": "university",
-      "osm": "way/43157520",
-      "lonlat": [
-        32.899116,
-        24.085057
-      ]
-    },
-    {
-      "id": "post_4",
-      "name": "مكتب بريد أسوان",
-      "kind": "post",
-      "osm": "node/540655484",
-      "lonlat": [
-        32.897616,
-        24.095376
       ]
     }
   ],

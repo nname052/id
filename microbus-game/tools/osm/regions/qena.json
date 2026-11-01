@@ -11,24 +11,13 @@
     "note": "OSM place=city node 'قنا' (city centre)"
   },
   "bbox": {
-    "west": 32.708279,
-    "south": 26.152075,
-    "east": 32.724292,
-    "north": 26.166545
+    "west": 32.711532,
+    "south": 26.155014,
+    "east": 32.721039,
+    "north": 26.163605
   },
   "tile_size": 400,
   "stub_outside": 40,
-  "landmarks": [
-    {
-      "id": "library_1",
-      "name": "مكتبه نور الاسلام",
-      "kind": "library",
-      "osm": "node/9545731219",
-      "lonlat": [
-        32.713194,
-        26.165229
-      ]
-    }
-  ],
+  "landmarks": [],
   "needs_verification": []
 }

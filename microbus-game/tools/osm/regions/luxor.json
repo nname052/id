@@ -11,74 +11,13 @@
     "note": "OSM place=city node 'الأقصر' (city centre)"
   },
   "bbox": {
-    "west": 32.63921,
-    "south": 25.694861,
-    "east": 32.655162,
-    "north": 25.709331
+    "west": 32.64245,
+    "south": 25.6978,
+    "east": 32.651922,
+    "north": 25.706392
   },
   "tile_size": 400,
   "stub_outside": 40,
-  "landmarks": [
-    {
-      "id": "rail_station_1",
-      "name": "الأقصر",
-      "kind": "rail_station",
-      "osm": "node/1018818485",
-      "lonlat": [
-        32.644966,
-        25.696542
-      ]
-    },
-    {
-      "id": "historic_2",
-      "name": "طريق الكباش",
-      "kind": "historic",
-      "osm": "way/384948047",
-      "lonlat": [
-        32.64892,
-        25.708706
-      ]
-    },
-    {
-      "id": "historic_3",
-      "name": "معبد الأقصر",
-      "kind": "historic",
-      "osm": "way/1079039494",
-      "lonlat": [
-        32.639558,
-        25.699583
-      ]
-    },
-    {
-      "id": "hospital_4",
-      "name": "مستشفي كليوباترا",
-      "kind": "hospital",
-      "osm": "node/13110393001",
-      "lonlat": [
-        32.642433,
-        25.700007
-      ]
-    },
-    {
-      "id": "historic_5",
-      "name": "ديوان محافظة الأقصر",
-      "kind": "historic",
-      "osm": "node/4803948122",
-      "lonlat": [
-        32.641717,
-        25.704346
-      ]
-    },
-    {
-      "id": "hospital_6",
-      "name": "مستشفى الكرنك الدولي",
-      "kind": "hospital",
-      "osm": "way/207309094",
-      "lonlat": [
-        32.645179,
-        25.708505
-      ]
-    }
-  ],
+  "landmarks": [],
   "needs_verification": []
 }

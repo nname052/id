@@ -11,10 +11,10 @@
     "note": "OSM place=city node 'بني سويف' (city centre)"
   },
   "bbox": {
-    "west": 31.090034,
-    "south": 29.065746,
-    "east": 31.106479,
-    "north": 29.080216
+    "west": 31.093374,
+    "south": 29.068685,
+    "east": 31.103138,
+    "north": 29.077277
   },
   "tile_size": 400,
   "stub_outside": 40,

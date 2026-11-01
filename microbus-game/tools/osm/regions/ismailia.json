@@ -11,10 +11,10 @@
     "note": "OSM place=city node 'الإسماعيلية' (city centre)"
   },
   "bbox": {
-    "west": 32.268733,
-    "south": 30.597143,
-    "east": 32.285432,
-    "north": 30.611612
+    "west": 32.272125,
+    "south": 30.600082,
+    "east": 32.28204,
+    "north": 30.608673
   },
   "tile_size": 400,
   "stub_outside": 40,

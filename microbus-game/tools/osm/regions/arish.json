@@ -11,10 +11,10 @@
     "note": "OSM place=city node 'العريش' (city centre)"
   },
   "bbox": {
-    "west": 33.789957,
-    "south": 31.116406,
-    "east": 33.806747,
-    "north": 31.130876
+    "west": 33.793368,
+    "south": 31.119345,
+    "east": 33.803337,
+    "north": 31.127937
   },
   "tile_size": 400,
   "stub_outside": 40,

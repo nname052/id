@@ -24,5 +24,8 @@ REGION=$ID python3 tools/osm/audit_buildings.py --fix-real
 rm -f /tmp/rb_$ID.json
 # (الخريطة الصغيرة: مفيش عمارات بعيدة عن الشوارع — كانت بتتحمّل على الفاضي)
 python3 tools/osm/egypt/clip_buildings.py $ID
+# (آخر خطوة قبل الحزم: مفيش عمارة مولّدة على الأسفلت — أي خطوة قبلها ممكن تكون وسّعته)
+REGION=$ID python3 tools/osm/audit_buildings.py --fix > /dev/null
+REGION=$ID python3 tools/osm/audit_buildings.py --fix > /dev/null
 python3 tools/osm/egypt/pack_city.py $ID
 echo "== $ID done"

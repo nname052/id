@@ -372,6 +372,72 @@ def main():
         print(f'  pruned {before - len(edges)} edges leading to {len(gates)} edge gates (no more dead-end barriers)')
         gates = []
 
+    # ===================== شبكة مدمجة (MAJOR UPDATE — "10 شوارع حلوة أحسن من 100 شارع فاضي") =====================
+    # 1) من غير طرق الخدمة/المدقات/ممرات المشاة، ومن غير الشوارع السكنية اللي مالهاش اسم
+    # 2) تقليم الشوارع الجانبية المسدودة (لحد ما مايفضلش ولا واحد) — الرئيسي بيفضل
+    # 3) أكبر شبكة متصلة بس: كل الطرق اللي فاضلة متوصلة ببعض (مفيش حتت معزولة)
+    if os.environ.get('COMPACT_NET', '1') == '1':
+        MAJOR = {'motorway', 'trunk', 'primary', 'secondary', 'tertiary'}
+        def base_hw(e): return roads[e['way']]['hw'].replace('_link', '')
+        def keep_e(e):
+            if e['k'] != 'drive': return roads[e['way']]['hw'] == 'pedestrian' and bool(roads[e['way']]['name'])
+            b = base_hw(e)
+            if b in MAJOR: return True
+            if b in ('service', 'track', 'unclassified', 'road') and not roads[e['way']]['name']: return False
+            if b in ('residential', 'living_street') and not roads[e['way']]['name']: return False
+            return b not in ('track',)
+        before = len(edges)
+        edges = [e for e in edges if keep_e(e)]
+        # تقليم المسدود (الجانبي بس) بالتكرار
+        while True:
+            deg = collections.Counter()
+            for e in edges:
+                if e['k'] == 'drive': deg[e['a']] += 1; deg[e['b']] += 1
+            drop = {id(e) for e in edges if e['k'] == 'drive' and base_hw(e) not in MAJOR and (deg[e['a']] == 1 or deg[e['b']] == 1)}
+            if not drop: break
+            edges = [e for e in edges if id(e) not in drop]
+        # أكبر مكوّن متصل (عربيات)
+        adj = collections.defaultdict(list)
+        for e in edges:
+            if e['k'] == 'drive': adj[e['a']].append(e['b']); adj[e['b']].append(e['a'])
+        best = set()
+        seen = set()
+        for s in list(adj):
+            if s in seen: continue
+            comp, st = {s}, [s]; seen.add(s)
+            while st:
+                n = st.pop()
+                for m in adj[n]:
+                    if m not in seen: seen.add(m); comp.add(m); st.append(m)
+            if len(comp) > len(best): best = comp
+        edges = [e for e in edges if (e['a'] in best and e['b'] in best)]
+        for i, e in enumerate(edges): e['id'] = i
+        # اتجاه واحد اتقطع (الحتة اللي بتكمّله برّه الخريطة اتشالت) = أماكن تدخلها ومتعرفش تخرج منها:
+        # الطرق دي بتبقى باتجاهين (عرض حارتين) لحد ما كل الشبكة توصلها وترجع منها
+        conv = 0
+        for _ in range(12):
+            G, R = collections.defaultdict(list), collections.defaultdict(list)
+            for e in edges:
+                if e['k'] != 'drive': continue
+                G[e['a']].append(e['b']); R[e['b']].append(e['a'])
+                if not roads[e['way']]['ow']: G[e['b']].append(e['a']); R[e['a']].append(e['b'])
+            start = max(G, key=lambda n: len(G[n]) + len(R[n]))
+            def reach(A):
+                s, st = {start}, [start]
+                while st:
+                    n = st.pop()
+                    for m in A[n]:
+                        if m not in s: s.add(m); st.append(m)
+                return s
+            scc = reach(G) & reach(R)
+            ch = False
+            for e in edges:
+                r = roads[e['way']]
+                if e['k'] == 'drive' and r['ow'] and not (e['a'] in scc and e['b'] in scc):
+                    r['ow'] = 0; r['lanes'] = max(2, r['lanes']); r['w'] = max(r['w'], 6.0); r['hwid'] = r2(r['w'] / 2); conv += 1; ch = True
+            if not ch: break
+        print(f'  compact network: {before} -> {len(edges)} edges (no service/unnamed side streets, no dead-end stubs, one connected network); {conv} stranded one-way roads made two-way')
+
     # ===================== الارتفاعات (الكباري) =====================
     for e in edges:
         e['h'] = [0.0] * len(e['pts'])

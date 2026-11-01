@@ -11,10 +11,10 @@
     "note": "OSM place=city node 'الغردقة' (city centre)"
   },
   "bbox": {
-    "west": 33.822625,
-    "south": 27.215321,
-    "east": 33.838788,
-    "north": 27.229791
+    "west": 33.825908,
+    "south": 27.21826,
+    "east": 33.835505,
+    "north": 27.226852
   },
   "tile_size": 400,
   "stub_outside": 40,

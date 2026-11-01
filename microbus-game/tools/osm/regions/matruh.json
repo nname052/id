@@ -11,10 +11,10 @@
     "note": "OSM place=city node 'مرسى مطروح' (city centre)"
   },
   "bbox": {
-    "west": 27.231111,
-    "south": 31.345622,
-    "east": 27.247941,
-    "north": 31.360092
+    "west": 27.23453,
+    "south": 31.348561,
+    "east": 27.244523,
+    "north": 31.357152
   },
   "tile_size": 400,
   "stub_outside": 40,

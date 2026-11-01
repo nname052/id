@@ -11,10 +11,10 @@
     "note": "OSM place=city node 'كفر الشيخ' (city centre)"
   },
   "bbox": {
-    "west": 30.934304,
-    "south": 31.101704,
-    "east": 30.951092,
-    "north": 31.116173
+    "west": 30.937714,
+    "south": 31.104643,
+    "east": 30.947682,
+    "north": 31.113234
   },
   "tile_size": 400,
   "stub_outside": 40,

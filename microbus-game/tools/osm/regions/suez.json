@@ -11,10 +11,10 @@
     "note": "OSM place=city node 'السويس' (city centre)"
   },
   "bbox": {
-    "west": 32.52879,
-    "south": 29.967263,
-    "east": 32.545382,
-    "north": 29.981733
+    "west": 32.53216,
+    "south": 29.970202,
+    "east": 32.542012,
+    "north": 29.978794
   },
   "tile_size": 400,
   "stub_outside": 40,
