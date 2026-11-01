@@ -20,6 +20,18 @@
 - **Small maps** (≤ 60 land tiles, `ShibinWorld.updateVisibility`): after the loading screen every tile is loaded and never
   unloaded (no pop-in). Iterate the tile list, never a radius of Infinity (that froze the page once).
 
+- **MAJOR UPDATE (v44)**: cities ~950 m (`shrink_bbox.py`), compact network in `build_region.py` (`COMPACT_NET=1`: major + named
+  streets, dead-end stubs pruned, largest component, stranded one-way → two-way; falls back to unnamed residential/unclassified
+  when the result is < max(150, 35%)). `clip_buildings.py`: CLIP_M 45 m, junction discs always cleared. `compact_city.py` never
+  thins named/heritage buildings and keeps heritage landmarks ≤ 300 m outside the band (Khufu was lost twice).
+  Validate every rebuilt city: `DATA_ROOT=$PWD/../data/cities python3 tools/osm/egypt/validate_city.py <ids>` (must PASS).
+  Don't edit `build_city.sh` while a rebuild runs (sh re-reads the file).
+- **New vehicles**: `golf` (golf_cart, ~24 km/h) + `TourMission` (Giza pyramids, real OSM monuments only), `suzuki`
+  (suzuki_carry_van, fares like a taxi), `train` (`TrainDriver`, drives the city's rail line). `PyramidAnimals` (camels, horses).
+  Loader options: `alignPCA` (model yawed in the file), `dropMats` (e.g. a ground plane), `dropStray`, `targetWidth`;
+  rig option `glassRe` (glass material with an odd name). Wheel detection ignores ground contacts near the centreline (spare tyre).
+- New GLBs in `assets/models` need a dev-server restart (kill the `node .../vite` PID, not the npx wrapper).
+
 ## Data post-processing (run after `tools/osm/build_region.py`, in this order)
 - `python3 tools/osm/import_ms_buildings.py` — real building footprints (Microsoft Global ML Building
   Footprints, ODbL, quadkey 122121120 filtered to the city bbox) replace the generated buildings inside the city.
