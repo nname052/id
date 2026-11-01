@@ -61,6 +61,7 @@ export const TRIP_RANGE = { taxi: [450, 2600], tuktuk: [140, 900] };
 export function tripFare(kind, meters) {
   const km = meters / 1000;
   if (kind === 'taxi') return Math.max(15, Math.round(10 + 4.5 * km));
+  if (kind === 'suzuki') return Math.max(10, Math.ceil((6 + 6 * km) / 5) * 5); // (السوزوكي: أرخص من التاكسي وأغلى من التوكتوك)
   return Math.max(5, Math.ceil((4 + 9 * km) / 5) * 5);
 }
 

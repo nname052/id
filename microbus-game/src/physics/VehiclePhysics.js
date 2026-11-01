@@ -129,6 +129,19 @@ export const BUS_SPEC_BASE = {
 
 // عربية جولف كهربا (4 كراسي، ~500 كجم بالبطارية + ركاب): موتور كهربا عزمه ثابت من الصفر، سرعة واحدة،
 // أقصى ~24 كم/س (زي عربيات الجولف الحقيقية)، فرامل خفيفة، مساعدين ناعمين
+// سوزوكي كاري (التوناية/السوزوكي الفان): موتور F10A 970cc ~45 حصان، 75 نيوتن.متر عند 3000، ~800 كجم فاضية،
+// 4 سرعات عادي، كاوتش 145R12 — بطيئة وخفيفة وعالية (مركز ثقل عالي: بتميل في الملفات)، أقصى ~110 كم/س
+export const SUZUKI_SPEC_BASE = {
+  ...TAXI_SPEC_BASE,
+  mass: 820, inertiaYaw: 1100, inertiaPitch: 1050, inertiaRoll: 330, cgHeight: 0.68,
+  springK: 21000, damperBump: 1500, damperRebound: 2000, maxCompression: 0.11,
+  tireMu: 0.86, dragCoef: 0.62, brakeForce: 6200, brakeBiasFront: 0.62, handbrakeForce: 2400,
+  maxSteer: 0.62, steeringRatio: 18,
+  gears: [3.58, 2.11, 1.41, 1.0], reverseRatio: 3.67, finalDrive: 5.12, drivetrainEff: 0.88,
+  idleRpm: 850, maxRpm: 5800, shiftTime: 0.35, shift: [2600, 5200, 1700],
+  torqueCurve: [[800, 52], [1500, 64], [2500, 72], [3000, 75], [4000, 72], [5000, 64], [5800, 52]],
+};
+
 export const GOLF_SPEC_BASE = {
   ...TAXI_SPEC_BASE,
   mass: 560, inertiaYaw: 520, inertiaPitch: 500, inertiaRoll: 160, cgHeight: 0.48,

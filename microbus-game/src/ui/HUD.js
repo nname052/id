@@ -86,7 +86,7 @@ export class HUD {
       a = `📍 <b>${esc(j.dest)}</b>`;
       b = `${d ? `${d} · ` : ''}الأجرة <b>${j.fare} ج</b>`;
     } else {
-      a = `🙋 <b>${j.kind === 'tuktuk' ? 'توكتوك' : 'تاكسي'}</b> <span>فاضي</span>`;
+      a = `🙋 <b>${j.kind === 'tuktuk' ? 'توكتوك' : j.kind === 'suzuki' ? 'سوزوكي' : 'تاكسي'}</b> <span>فاضي</span>`;
       b = d ? `أقرب زبون بيشاور · ${d}` : 'دوّر على زبون بيشاور (علامة صفرا)';
     }
     if (a !== this._jobHtml[0]) { this.job1.innerHTML = a; this._jobHtml[0] = a; }

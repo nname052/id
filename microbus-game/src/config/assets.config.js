@@ -55,6 +55,8 @@ export const MODEL_ASSETS = {
   pickup_toyota: { file: 'pickup_toyota.glb', targetLength: 4.35, rotationY: 180, wheelR: 0.33 },
   // عربية جولف (الأهرامات): ~2.4 × 1.2م (Club Car / E-Z-GO بأربع كراسي ~2.7م)
   golf_cart: { file: 'golf_cart.glb', targetLength: 2.75, rotationY: 0 },
+  // سوزوكي كاري (التوناية): 3.40 × 1.48 × 1.88 م (kei: الطول ≤ 3.4م والعرض ≤ 1.48م) — الموديل جاي بأرضية (Zemin) بتتشال
+  suzuki_carry_van: { file: 'suzuki_carry_van.glb', targetLength: 3.4, targetWidth: 1.48, rotationY: 270, alignPCA: true, dropMats: /^zemin$/i },
   // حيوانات منطقة الأهرامات: جمل عربي (وحيد السنام) ~3م طول، حصان ~2.4م
   camel: { file: 'camel.glb', targetLength: 3.0, rotationY: 0 },
   horse_saddle: { file: 'horse_saddle.glb', targetLength: 2.4, rotationY: 0 },

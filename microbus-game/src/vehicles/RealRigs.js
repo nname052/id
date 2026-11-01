@@ -14,7 +14,7 @@ import { contactShadow } from './CarModels.js';
 import { mats as cockpitMats, extrudeAcross, DashScreen, beam } from './Cockpits.js';
 import { mirrorFace, fakeDoor } from './PlayerRigs.js';
 import { addBobbleDog } from './CabAccessories.js';
-import { CAR_SPEC_BASE, PICKUP_SPEC_BASE, TRUCK_SPEC_BASE, BUS_SPEC_BASE, MICROBUS_SPEC, GOLF_SPEC_BASE } from '../physics/VehiclePhysics.js';
+import { CAR_SPEC_BASE, PICKUP_SPEC_BASE, TRUCK_SPEC_BASE, BUS_SPEC_BASE, MICROBUS_SPEC, GOLF_SPEC_BASE, SUZUKI_SPEC_BASE } from '../physics/VehiclePhysics.js';
 
 const M4 = (x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0) => new THREE.Matrix4().compose(
   new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz, 'YXZ')), new THREE.Vector3(1, 1, 1));
@@ -36,6 +36,9 @@ export const REAL_KINDS = {
   // عربية جولف (سياحة الأهرامات): مفتوحة، سقف خفيف، كرسيين قدام واتنين ورا
   golf: { r: 0.22, model: 'golf_cart', paint: undefined, base: GOLF_SPEC_BASE, cgFrac: 0.5, eyeBack: 0.45, eyeAbove: 0.5, headroom: 0.2, floorBelow: 0.75,
     wheelR: 0.17, wheelTilt: -0.9, reach: 0.4, drop: 0.25, dashDist: 0.5, style: 'car', mode: 'free', label: 'عربية جولف', mirrorIn: false, vmax: 40 },
+  // سوزوكي كاري فان (التوناية): كابينة فوق العجل الأمامي (السواق قاعد فوق المحور) — بتشتغل توصيل ركاب زي التاكسي
+  suzuki: { r: 0.28, model: 'suzuki_carry_van', paint: undefined, base: SUZUKI_SPEC_BASE, cgFrac: 0.47, eyeBack: 0.3, eyeAbove: 0.34, headroom: 0.16, floorBelow: 0.85,
+    wheelR: 0.19, wheelTilt: -0.75, reach: 0.4, drop: 0.3, dashDist: 0.62, style: 'truck', mode: 'trip', label: 'سوزوكي', mirrorIn: false, vmax: 140, glassRe: /^Material_326$/ }, // (زجاج الموديل اسمه Material_326)
   truck: { r: 0.36, model: 'truck_canter', paint: undefined, base: TRUCK_SPEC_BASE, cgFrac: 0.38, eyeBack: 0.62, eyeAbove: 0.25, headroom: 0.2, floorBelow: 0.9,
     wheelR: 0.22, wheelTilt: -0.6, reach: 0.4, drop: 0.36, dashDist: 0.62, style: 'truck', mode: 'free', label: 'نقل', mirrorIn: false },
   bus: { r: 0.5, model: 'bus_karosa', paint: undefined, base: BUS_SPEC_BASE, cgFrac: 0.62, eyeBack: 0.72, eyeAbove: 0.28, headroom: 0.25, floorBelow: 0.93,
@@ -141,7 +144,7 @@ export function buildRealRig(kind, assets, opts = {}) {
     if (!byMat.has(o.material)) byMat.set(o.material, []);
     byMat.get(o.material).push(g);
   });
-  let parts = [...byMat].map(([mat, gs]) => ({ g: mergeGeometries(gs), mat, glass: (mat.transparent && mat.opacity < 0.6) || /glass|window|стекл/i.test(mat.name || '') })); // (الفوانيس شفافة شوية بس مش زجاج)
+  let parts = [...byMat].map(([mat, gs]) => ({ g: mergeGeometries(gs), mat, glass: (mat.transparent && mat.opacity < 0.6) || /glass|window|стекл/i.test(mat.name || '') || !!C.glassRe?.test(mat.name || '') })); // (الفوانيس شفافة شوية بس مش زجاج)
   // ===== العجل من الشكل نفسه (أغلب الموديلات العجل فيها مخبوز في الجسم — ModelFit.findWheelsGeo) =====
   const F = findWheelsGeo(parts);
   if (!F) return null;

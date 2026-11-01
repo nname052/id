@@ -44,6 +44,10 @@ export function findWheelsGeo(parts) {
   const touch = [];
   for (const p of parts) if (!p.glass) { const P = p.g.attributes.position; for (let i = 0; i < P.count; i++) if (P.getY(i) < minY + 0.035) touch.push([P.getX(i), P.getZ(i)]); }
   if (touch.length < 8) return null;
+  // (الاستبن المتعلّق تحت نص العربية — سوزوكي/بيك أب — بيلمس الأرض زي العجل وبيعمل "محور" تالت: نشيل النقط اللي في النص)
+  { const xs = touch.map((q) => q[0]), xm = (Math.min(...xs) + Math.max(...xs)) / 2, half = (Math.max(...xs) - Math.min(...xs)) / 2;
+    const side = touch.filter((q) => Math.abs(q[0] - xm) > half * 0.45);
+    if (side.length >= 8 && side.length < touch.length) touch.splice(0, touch.length, ...side); }
   touch.sort((u, v) => u[1] - v[1]);
   const axles = [[touch[0]]];
   for (let i = 1; i < touch.length; i++) { if (touch[i][1] - touch[i - 1][1] > 0.6) axles.push([]); axles[axles.length - 1].push(touch[i]); }

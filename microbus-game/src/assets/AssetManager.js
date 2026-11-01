@@ -112,6 +112,23 @@ export class AssetManager {
         o.userData.role = 'paint';
       });
     }
+    // dropMats: قطع مش من العربية بالاسم (مثلًا أرضية متصدّرة مع الموديل — خامة "Zemin" = أرض بالتركي)
+    if (cfg.dropMats) {
+      const rm = []; scene.traverse((o) => { if (o.isMesh && cfg.dropMats.test(o.material?.name || '')) rm.push(o); });
+      for (const o of rm) o.removeFromParent();
+    }
+    // alignPCA: موديل متلفّ بزاوية مايلة في الملف (السوزوكي جاية مايلة ~50°): المحور الطولي (PCA على الرؤوس) يتعدل على x قبل rotationY
+    let yaw0 = 0;
+    if (cfg.alignPCA) {
+      scene.updateMatrixWorld(true);
+      let n = 0, mx = 0, mz = 0, sxx = 0, szz = 0, sxz = 0; const v = new THREE.Vector3();
+      scene.traverse((o) => { if (!o.isMesh) return; const P = o.geometry.attributes.position;
+        for (let i = 0; i < P.count; i += 3) { v.fromBufferAttribute(P, i).applyMatrix4(o.matrixWorld); n++; mx += v.x; mz += v.z; sxx += v.x * v.x; szz += v.z * v.z; sxz += v.x * v.z; } });
+      mx /= n; mz /= n; sxx = sxx / n - mx * mx; szz = szz / n - mz * mz; sxz = sxz / n - mx * mz;
+      yaw0 = 0.5 * Math.atan2(2 * sxz, sxx - szz); // زاوية المحور الطولي عن x
+      // (اللفة جوه غلاف: التحجيم بعد كده — targetWidth — يبقى على محاور العربية نفسها مش مايل/مقصوص)
+      const fix = new THREE.Group(); fix.add(scene); scene.rotation.y = yaw0; scene = fix;
+    }
     scene.rotation.y = THREE.MathUtils.degToRad(cfg.rotationY || 0);
     scene.updateMatrixWorld(true);
     // dropStray: قطع طايرة بعيد عن العربية (أرضيات/ضل/نسخ في الملف) — كانت بتكبّر الصندوق فالموديل يتصغّر غلط
@@ -124,7 +141,8 @@ export class AssetManager {
       for (const q of parts) if (q.c.distanceTo(C) > R) q.o.removeFromParent();
       scene.updateMatrixWorld(true);
     }
-    const box = new THREE.Box3().setFromObject(scene);
+    // (alignPCA: صندوق دقيق من الرؤوس — صناديق القطع بعد لفة مايلة بتتنفخ فالعربية كانت بتتصغّر ~25%)
+    const box = new THREE.Box3().setFromObject(scene, !!cfg.alignPCA);
     const size = box.getSize(new THREE.Vector3());
     let scale = 1;
     if (cfg.targetLength) scale = cfg.targetLength / Math.max(size.x, size.z);

@@ -24,9 +24,9 @@ const r = await p.evaluate(async (kinds) => {
     out[kind] = { t50: +t50.toFixed(1), t100: +(t50 + t100x).toFixed(1), vmax: Math.round(vmax), brakeFrom: Math.round(v0), brakeDist: +dist.toFixed(1), mass: ph.spec.mass };
   }
   return out;
-}, ['microbus', 'taxi', 'car', 'pickup', 'police', 'ambulance', 'truck', 'bus', 'tuktuk']);
+}, ['microbus', 'taxi', 'car', 'pickup', 'police', 'ambulance', 'truck', 'bus', 'tuktuk', 'suzuki', 'golf']);
 console.log(JSON.stringify(r, null, 0).replace(/},/g, '},\n'));
-const RANGE = { microbus: [16, 22, 135, 155], taxi: [9, 12.5, 160, 190], car: [10, 13.5, 155, 185], pickup: [15, 19.5, 135, 160], ambulance: [17, 23, 135, 155], truck: [30, 50, 105, 125], bus: [null, null, 85, 100], tuktuk: [null, null, 55, 70] };
+const RANGE = { microbus: [16, 22, 135, 155], taxi: [9, 12.5, 160, 190], car: [10, 13.5, 155, 185], pickup: [15, 19.5, 135, 160], ambulance: [17, 23, 135, 155], truck: [30, 50, 105, 125], bus: [null, null, 85, 100], tuktuk: [null, null, 55, 70], suzuki: [16, 24, 100, 125], golf: [null, null, 20, 28] }; // (سوزوكي كاري F10A: 0→100 ~20ث، أقصى ~110؛ عربية جولف محدودة ~24)
 let ok = true;
 for (const [k, [a, bb, lo, hi]] of Object.entries(RANGE)) { const v = r[k]; const bad = (a !== null && (v.t100 < a || v.t100 > bb)) || v.vmax < lo || v.vmax > hi; if (bad) { ok = false; console.log('OUT OF RANGE', k, v); } }
 console.log(ok ? 'PASS' : 'FAIL');
