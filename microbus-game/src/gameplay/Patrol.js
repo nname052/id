@@ -4,6 +4,7 @@
 //  الحادثة بتتولّد كل فترة قريب منك عشان تشوفها: عربية بتخبط واحدة تانية من ضهرها وتكمل بسرعة.
 // =====================================================================
 import { buildSedan } from '../vehicles/SedanModel.js';
+import { buildPoliceBox } from '../vehicles/PoliceBox.js';
 import { groundHeight } from '../world/ground.js';
 import { findRoute, projectToGraph } from '../nav/RoadGraph.js';
 
@@ -12,9 +13,10 @@ const EVENT_EVERY = [70, 140]; // ثانية بين الحوادث
 const FLEE_MUL = 1.55;      // الهربان بيزوّد سرعته
 
 export class Patrol {
-  constructor(scene, { traffic, audio, hud, incidents } = {}) {
-    Object.assign(this, { scene, traffic, audio, hud, incidents });
-    this.car = buildSedan({ livery: 'police', lod: 1, seeThrough: false });
+  constructor(scene, { traffic, audio, hud, incidents, assets } = {}) {
+    Object.assign(this, { scene, traffic, audio, hud, incidents, assets });
+    // البوكس المصري (بيك أب الشرطة) — السيدان لو موديل البيك أب مش موجود
+    this.car = buildPoliceBox(this.assets) || buildSedan({ livery: 'police', lod: 1, seeThrough: false });
     this.car.root.visible = false; scene.add(this.car.root);
     this.p = { x: 0, z: 0, yaw: 0, v: 0 };
     this.state = 'idle'; // idle → chase → stop → leave
@@ -201,7 +203,7 @@ export class Patrol {
       lb.children[1].material.emissiveIntensity = k < 2 ? (k === 0 ? 3 : 0.3) : 0.15;
       lb.children[2].material.emissiveIntensity = k >= 2 ? (k === 2 ? 3 : 0.3) : 0.15;
     }
-    this.audio?.sirenAt?.(P.x, 1.4, P.z, this.state === 'chase');
+    this.audio?.sirenAt?.(P.x, 1.4, P.z, this.state === 'chase', 'patrol');
   }
 
   _finish() {

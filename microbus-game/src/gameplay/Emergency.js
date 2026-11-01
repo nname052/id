@@ -127,6 +127,8 @@ export class Emergency {
     const on = J.state !== 'wait' && J.state !== 'gone';
     rig.bar.red.emissiveIntensity = on && Math.floor(tm * 3) % 2 === 0 ? 4 : 0;
     rig.bar.blue.emissiveIntensity = on && Math.floor(tm * 3) % 2 === 1 ? 4 : 0;
+    // السارينة وهي ماشية بس (جاية أو رايحة المستشفى) — واقفة عند المصاب: الكشاف بس زي الحقيقة
+    if (J.state !== 'drive' && J.state !== 'leave') this.audio?.sirenAt?.(rig.root.position.x, 1.5, rig.root.position.z, false, 'ems');
     if (J.state === 'wait') {
       J.t -= dt; if (J.t > 0) return;
       // طالعة من طريق على بُعد 200-320م من المصاب
@@ -149,7 +151,7 @@ export class Emergency {
       J.v += Math.max(-4 * dt, Math.min(2 * dt, vT - J.v));
       J.rs += J.v * dt;
       this._placeOn(rig, R, J.rs, J.v);
-      this.audio?.sirenAt?.(rig.root.position.x, 1.5, rig.root.position.z, true);
+      this.audio?.sirenAt?.(rig.root.position.x, 1.5, rig.root.position.z, true, 'ems');
       if (J.state === 'drive' && (left < 7 || Math.hypot(rig.root.position.x - P.x, rig.root.position.z - P.z) < 7.5) && J.v < 1) {
         J.state = 'medics'; J.t = 0; J.v = 0;
         const [fx, fz] = [Math.sin(rig.yaw), Math.cos(rig.yaw)];
@@ -163,6 +165,7 @@ export class Emergency {
     if (J.state === 'medics' || J.state === 'carry' || J.state === 'load') this._medics(J, rig, dt);
     if (J.state === 'gone') {
       rig.root.visible = false; rig.stretcher.visible = false; this.crowd.extras.length = 0;
+      this.audio?.sirenAt?.(rig.root.position.x, 1.5, rig.root.position.z, false, 'ems');
       this.jobs.shift(); this.delivered++;
     }
     // تصادم: عربية الإسعاف

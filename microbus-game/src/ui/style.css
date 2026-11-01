@@ -338,3 +338,14 @@ body.cine-on > :not(#cine):not(#app) { visibility: hidden !important; }
 .t-siren { display: none; }
 body.emergency .t-siren { display: inline-flex; }
 body.siren-on .t-siren { background: rgba(30, 80, 255, 0.75) !important; }
+
+/* (v42) الموبايل: نص الشاشة فاضي للطريق — لوحة الشغل بتصغر لسطر واحد بعد 6 ث، لوحة السرعة أصغر وأشف، اسم الشارع بيختفي بعد 4 ث */
+body.touch #job.mini .job-2 { display: none; }
+body.touch #job.mini { padding-top: 2px; padding-bottom: 2px; background: rgba(14, 14, 16, 0.38); }
+body.touch .dash { padding: 2px 10px; gap: 8px; background: rgba(14, 14, 16, 0.32); border-radius: 10px; }
+body.touch .speed span { font-size: 22px; min-width: 36px; }
+body.touch .gear-box span { font-size: 19px; }
+body.touch .speed small, body.touch .gear-box small { display: none; }
+body.touch .rpm-wrap { display: none; }
+body.touch #street span { font-size: 11px; padding: 2px 8px; }
+body.touch #toast { font-size: 11px; max-width: 44vw; }

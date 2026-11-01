@@ -82,6 +82,10 @@ export class HUD {
       b = d ? `أقرب زبون بيشاور · ${d}` : 'دوّر على زبون بيشاور (علامة صفرا)';
     }
     if (a !== this._jobHtml[0]) { this.job1.innerHTML = a; this._jobHtml[0] = a; }
+    // (الموبايل: السطر التاني بيظهر 6 ث بس لما يتغير، وبعدين اللوحة بتصغر لسطر واحد — الشاشة الصغيرة كانت مليانة)
+    const now = performance.now();
+    if (a !== this._jobA || (b.replace(/[\d.,]+ ?(كم|م|ث|%)/g, '') !== this._jobBKey)) { this._jobA = a; this._jobBKey = b.replace(/[\d.,]+ ?(كم|م|ث|%)/g, ''); this._jobFullT = now + 6000; }
+    this.jobEl.classList.toggle('mini', now > (this._jobFullT || 0));
     if (b !== this._jobHtml[1]) { this.job2.innerHTML = b; this._jobHtml[1] = b; }
     this.jobSw.classList.toggle('hidden', !(j.mode === 'line' && j.canSwitch));
   }
@@ -154,6 +158,9 @@ export class HUD {
     this._street = text;
     box.classList.toggle('hidden', !text);
     if (text) { el.textContent = text; el.classList.toggle('unnamed', !name); }
+    // (الموبايل: اسم الشارع بيظهر 4 ث لما يتغير وبعدين بيختفي — كان قاعد فوق العدادات على طول)
+    clearTimeout(this._streetT);
+    if (text && document.body.classList.contains('touch')) this._streetT = setTimeout(() => box.classList.add('hidden'), 4000);
   }
 
   /** نجوم "مطلوب" (0 = مستخبية) */

@@ -9,7 +9,8 @@ const BASE = process.argv[2] || 'http://localhost:5173/';
 const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 const p = await browser.newPage({ viewport: { width: 320, height: 200 } });
 p.setDefaultTimeout(3600000);
-await p.goto(`${BASE}?map=shibin`);
+const MAP = process.argv[3] || "shibin";
+await p.goto(`${BASE}?map=${MAP}`);
 await p.waitForFunction(() => !document.getElementById('go').disabled);
 const res = await p.evaluate(async () => {
   const g = game, W = g.world, TS = W.TS;

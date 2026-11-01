@@ -641,15 +641,21 @@ export class ShibinTraffic {
         const hf = B.h(c.x + fx * hl, c.z + fz * hl), hr = B.h(c.x - fx * hl, c.z - fz * hl);
         by = (hf + hr) / 2; bp = Math.atan2(hf - hr, 2 * hl);
       }
-      r.root.position.set(c.x, c.y + by, c.z);
+      // البعيد بيتحدّث كل 3 فريمات: بين التحديثات بنكمّل مكانه بسرعته (كان بيتنطط 10 مرات في الثانية = رعشة في العربيات البعيدة)
+      const lead = c._dtAcc || 0;
+      r.root.position.set(c.x - Math.sin(c.yaw) * c.v * lead, c.y + by, c.z - Math.cos(c.yaw) * c.v * lead);
       r.root.rotation.order = 'YXZ';
       r.root.rotation.set((c._pitch || 0) + bp, c.yaw, 0);
       c.spin += (c.v / (r.wheelRadius || 0.3)) * dt;
       // سرعة اللف (من تغيّر الاتجاه) → العجل اللي قدام بيلف مع الدركسيون، والجسم بيميل في اللفة (مش كتلة واحدة)
-      const dyaw = c._pyaw === undefined ? 0 : Math.atan2(Math.sin(c.yaw - c._pyaw), Math.cos(c.yaw - c._pyaw));
-      c._pyaw = c.yaw;
-      const yr = dt > 0 ? dyaw / dt : 0;
-      c._yr = (c._yr || 0) + (yr - (c._yr || 0)) * Math.min(1, dt * 6);
+      // (سرعة اللف على الوقت الفعلي بين تحديثين — مع التحديث كل 3 فريمات كانت بتطلع ×3 مرة وصفر مرتين = الدركسيون والميل بيرتعشوا)
+      c._yawT = (c._yawT || 0) + dt;
+      if (lead === 0 || c._pyaw === undefined) {
+        const dyaw = c._pyaw === undefined ? 0 : Math.atan2(Math.sin(c.yaw - c._pyaw), Math.cos(c.yaw - c._pyaw));
+        const yr = c._yawT > 0 ? dyaw / c._yawT : 0;
+        c._pyaw = c.yaw; c._yawT = 0;
+        c._yr = (c._yr || 0) + (yr - (c._yr || 0)) * Math.min(1, dt * 6);
+      }
       if (c.v > 0.6) c._steer = Math.max(-0.55, Math.min(0.55, Math.atan(c._yr * 2.6 / c.v)));
       for (const w of r.wheels || []) {
         if (w.spin) w.spin.rotation.x = -c.spin;

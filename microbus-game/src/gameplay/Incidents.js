@@ -8,6 +8,7 @@
 // =====================================================================
 import * as THREE from 'three';
 import { buildSedan } from '../vehicles/SedanModel.js';
+import { buildPoliceBox } from '../vehicles/PoliceBox.js';
 import { groundHeight } from '../world/ground.js';
 import { findRoute, projectToGraph } from '../nav/RoadGraph.js';
 
@@ -20,10 +21,11 @@ const CHASE_TIME = 60;     // المطاردة دقيقة؛ لو فضلت بعي
 const STAR_V = [0, 30, 33, 36], STAR_UP = 20;
 
 export class Incidents {
-  constructor(scene, { hud, wallet, licenses, passengers, audio } = {}) {
-    Object.assign(this, { scene, hud, wallet, licenses, passengers, audio });
+  constructor(scene, { hud, wallet, licenses, passengers, audio, assets } = {}) {
+    Object.assign(this, { scene, hud, wallet, licenses, passengers, audio, assets });
     this.state = 'idle';
-    this.car = buildSedan({ livery: 'police', lod: 1, seeThrough: false });
+    // البوكس المصري (بيك أب الشرطة) — السيدان لو موديل البيك أب مش موجود
+    this.car = buildPoliceBox(this.assets) || buildSedan({ livery: 'police', lod: 1, seeThrough: false });
     this.car.root.visible = false;
     scene.add(this.car.root);
     this.p = { x: 0, z: 0, yaw: 0, v: 0, vx: 0, vz: 0 };
@@ -196,7 +198,7 @@ export class Incidents {
       lb.children[1].material.emissiveIntensity = k < 2 ? (k === 0 ? 3 : 0.3) : 0.15;
       lb.children[2].material.emissiveIntensity = k >= 2 ? (k === 2 ? 3 : 0.3) : 0.15;
     }
-    this.audio?.sirenAt?.(P.x, 1.4, P.z, this.state === 'chase');
+    this.audio?.sirenAt?.(P.x, 1.4, P.z, this.state === 'chase', 'incident');
     void dist;
   }
 

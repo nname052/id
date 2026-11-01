@@ -332,16 +332,18 @@ export class AudioSystem {
     }
   }
 
-  /** سارينة الشرطة (Spatial): بتعلى وتوطى (wail) — بتتبني أول مرة تتطلب بس */
-  _buildSiren() {
-    const ctx = this.ctx, S = (this.sirenN = {});
+  /** سارينة عربية تانية (Spatial) — لكل مصدر سارينة لوحده (key: الدورية / شرطة الحادثة / الإسعاف):
+   *  كانوا كلهم سارينة واحدة → اللي بيقول "اطفي" كل فريم كان بيسكّت التاني. الشرطة wail، الإسعاف hi-lo */
+  _buildSiren(mode) {
+    const ctx = this.ctx, S = {}, amb = mode === 'ambulance';
     S.p = ctx.createPanner(); S.p.panningModel = 'HRTF'; S.p.distanceModel = 'inverse'; S.p.refDistance = 8; S.p.rolloffFactor = 1.1;
-    S.o = this._osc('sawtooth', 700); S.o2 = this._osc('square', 702);
-    S.lfo = this._osc('sine', 0.32); const depth = this._gain(330); S.lfo.connect(depth); depth.connect(S.o.frequency); depth.connect(S.o2.frequency);
+    S.o = this._osc(amb ? 'square' : 'sawtooth', amb ? 865 : 700); S.o2 = this._osc(amb ? 'triangle' : 'square', amb ? 867 : 702);
+    S.lfo = this._osc(amb ? 'square' : 'sine', amb ? 0.85 : 0.32); const depth = this._gain(amb ? 95 : 330); S.lfo.connect(depth); depth.connect(S.o.frequency); depth.connect(S.o2.frequency);
     S.g = this._gain(0);
     const bp = this._filter('bandpass', 1100, 0.9);
     S.o.connect(bp); S.o2.connect(this._gain(0.4)).connect(bp);
     bp.connect(S.g).connect(S.p).connect(this.outside);
+    return S;
   }
   /** سارينة عربيتك إنت (إسعاف/بوكس) — منفصلة عن سارينة عربيات الشرطة التانية.
    *  الإسعاف: نغمتين عالي/واطي ("بي-بو") · الشرطة: صوت طالع نازل (wail). (كانت مابتشتغلش خالص: siren(true) من غير صوت) */
@@ -362,13 +364,15 @@ export class AudioSystem {
     }
     if (this.ps) this.ps.g.gain.setTargetAtTime(on && !this.muted ? 0.085 : 0, ctx.currentTime, on ? 0.08 : 0.25);
   }
-  siren(on) { this._sirenOn = !!on; if (!on && this.sirenN) this.sirenN.g.gain.setTargetAtTime(0, this.ctx.currentTime, 0.3); }
-  sirenAt(x, y, z, on) {
+  // (قديمة: مفتاح عام للسارينات — كانت شرط للصوت ومحدش بيشغّله = عربيات الشرطة والإسعاف التانية من غير صوت خالص)
+  siren(on) { if (!on) for (const S of Object.values(this.sirens || {})) S.g.gain.setTargetAtTime(0, this.ctx.currentTime, 0.3); }
+  sirenAt(x, y, z, on, key = 'police', mode = key === 'ems' ? 'ambulance' : 'police') {
     if (!this.started || !this.ctx) return;
-    if (!this.sirenN) { if (!on) return; this._buildSiren(); }
-    const S = this.sirenN, t = this.ctx.currentTime;
+    const M = (this.sirens ||= {});
+    if (!M[key]) { if (!on) return; M[key] = this._buildSiren(mode); }
+    const S = M[key], t = this.ctx.currentTime;
     S.p.positionX.value = x; S.p.positionY.value = y; S.p.positionZ.value = z;
-    S.g.gain.setTargetAtTime(on && this._sirenOn && !this.muted ? 0.16 : 0, t, 0.15);
+    S.g.gain.setTargetAtTime(on && !this.muted ? 0.16 : 0, t, 0.15);
   }
 
   /** كلاكس عربية AI (Spatial) */

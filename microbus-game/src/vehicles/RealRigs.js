@@ -179,6 +179,26 @@ export function buildRealRig(kind, assets, opts = {}) {
     }
     return own.get(m);
   };
+  // خامة "الصالون" (جوه العربية) في بعض الموديلات فيها كمان جلد الأبواب من برّه (لوجان: Podveska_Salon) — وبتتغمّق
+  // عشان الكسوة → الأبواب كانت باينة سودا من برّه. المثلثات اللي على جنب العربية ووشها لبرّه بتروح لخامة الصاج
+  { const paintPart = parts.find((p) => !p.glass && PAINT_RE.test(p.mat.name || ''));
+    if (paintPart) for (const p of parts) {
+      if (p === paintPart || p.glass || !/salon|interior|inter_/i.test(p.mat.name || '')) continue;
+      const g = p.g.index ? p.g.toNonIndexed() : p.g, A = g.attributes.position, keepI = [], outI = [];
+      const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), n = new THREE.Vector3();
+      for (let i = 0; i < A.count; i += 3) {
+        a.fromBufferAttribute(A, i); b.fromBufferAttribute(A, i + 1); c.fromBufferAttribute(A, i + 2);
+        n.subVectors(c, b).cross(b.clone().sub(a)).normalize();
+        const cx = (a.x + b.x + c.x) / 3, cy = (a.y + b.y + c.y) / 3;
+        (Math.abs(cx) > HWb * 0.7 && Math.abs(n.x) > 0.55 && cy > 0.2 && cy < bb.max.y * 0.72 ? outI : keepI).push(i);
+      }
+      if (!outI.length) continue;
+      const pick = (idx) => { const ng = new THREE.BufferGeometry(); for (const k of ['position', 'normal', 'uv']) { const s = g.attributes[k]; if (!s) continue; const arr = new Float32Array(idx.length * 3 * s.itemSize); idx.forEach((i, j) => { for (let q = 0; q < 3 * s.itemSize; q++) arr[j * 3 * s.itemSize + q] = s.array[i * s.itemSize + q]; }); ng.setAttribute(k, new THREE.BufferAttribute(arr, s.itemSize)); } return ng; };
+      const pg = paintPart.g.index ? paintPart.g.toNonIndexed() : paintPart.g;
+      for (const k of Object.keys(pg.attributes)) if (!['position', 'normal', 'uv'].includes(k)) pg.deleteAttribute(k);
+      paintPart.g = mergeGeometries([pg, pick(outI)]) || paintPart.g;
+      p.g = pick(keepI);
+    } }
   const bodyMeshes = [];
   for (const p of parts) {
     if (!p.g.attributes.position.count) continue;
@@ -240,7 +260,8 @@ export function buildRealRig(kind, assets, opts = {}) {
   }
   rig.windshield = ws;
   // ===== قعدة السواق =====
-  const cabHW = HW - (C.style === 'car' ? 0.14 : 0.12);
+  // (عرض الكابينة من عرض الجسم نفسه — من HW بالمرايات كانت كسوة الأبواب الغامقة طالعة برّه الصاج = أبواب سودا من برّه)
+  const cabHW = Math.min(HW - (C.style === 'car' ? 0.14 : 0.12), HWb - 0.09);
   const eye = new THREE.Vector3(-cabHW * (C.style === 'bus' ? 0.62 : 0.5), Math.min(ws.yMax - C.headroom, ws.yMin + C.eyeAbove + (C.style === 'car' ? 0 : 0.1)), ws.zAtMax + C.eyeBack);
   if (C.style !== 'car') eye.y = Math.max(eye.y, ws.yMin + C.eyeAbove);
   const floorY = eye.y - C.floorBelow, dashY = ws.yMin - 0.015, dashBack = eye.z - C.dashDist;
@@ -300,8 +321,14 @@ export function buildRealRig(kind, assets, opts = {}) {
   // الأرضية + تابلوه الأبواب
   const cabRear = C.style === 'bus' ? rearZ - 0.3 : C.style === 'car' && kind === 'car' ? eye.z + 1.5 : eye.z + 0.5;
   add(new THREE.BoxGeometry(W + 0.04, 0.03, cabRear - dashBack + 0.2), M.carpet, M4(0, floorY, (cabRear + dashBack) / 2));
+  // كسوة الأبواب جوه الصاج بتاع الكابينة نفسها: أضيق نقطة في جلد الباب (بعض البيك أب الكابينة أضيق من الصندوق)
+  let doorX = cabHW + 0.01;
+  { const NZ = 8, mx = new Array(NZ).fill(0), z0 = dashBack, z1 = dashBack + Math.min(1.6, cabRear - dashBack), v = new THREE.Vector3();
+    for (const m of bodyMeshes) { if (m.userData.role === 'glass') continue; const A = m.geometry.attributes.position;
+      for (let i = 0; i < A.count; i++) { v.fromBufferAttribute(A, i); if (v.y < floorY + 0.1 || v.y > dashY || v.z < z0 || v.z > z1) continue; const k = Math.min(NZ - 1, Math.floor((v.z - z0) / (z1 - z0) * NZ)); mx[k] = Math.max(mx[k], Math.abs(v.x)); } }
+    const skin = Math.min(...mx.filter((q) => q > 0.4)); if (skin < Infinity) doorX = Math.min(doorX, skin - 0.06); }
   for (const sx of [-1, 1]) {
-    add(new RoundedBoxGeometry(0.05, Math.max(0.2, dashY - floorY - 0.05), Math.min(1.6, cabRear - dashBack), 2, 0.02), M.trim, M4(sx * (cabHW + 0.01), (dashY + floorY) / 2, dashBack + Math.min(1.6, cabRear - dashBack) / 2));
+    add(new RoundedBoxGeometry(0.05, Math.max(0.2, dashY - floorY - 0.05), Math.min(1.6, cabRear - dashBack), 2, 0.02), M.trim, M4(sx * doorX, (dashY + floorY) / 2, dashBack + Math.min(1.6, cabRear - dashBack) / 2));
   }
   // الكراسي
   const seat = (x, z, w, y = floorY + 0.36) => {
@@ -414,6 +441,14 @@ function policeKit(rig, bodyMeshes, bb, HW) {
     const d = new THREE.Mesh(new THREE.BoxGeometry(0.012, H * 0.28, z1 - z0), white);
     d.position.set(sx * (HW - 0.02), H * 0.46, (z0 + z1) / 2); rig.shell.add(d);
   }
+  // الصندوق اللي ورا متغطي بشمسية سودا على قفص (زي البوكس المصري وزي بوكس المرور PoliceBox.js — كان مكشوف)
+  { const bz0 = z1 + 0.12, bz1 = bb.max.z - 0.05, bedY = H * 0.52, topY = H * 1.02;
+    if (bz1 - bz0 > 0.8) {
+      const cover = new THREE.Mesh(new THREE.BoxGeometry(HW * 1.8, topY - bedY, bz1 - bz0), new THREE.MeshStandardMaterial({ color: 0x18191b, roughness: 0.95 }));
+      cover.position.set(0, (bedY + topY) / 2, (bz0 + bz1) / 2); cover.castShadow = true; rig.shell.add(cover);
+      const fm = new THREE.MeshStandardMaterial({ color: 0x0e0f10, roughness: 0.6, metalness: 0.4 });
+      for (const s of [-1, 1]) { const f = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, bz1 - bz0 + 0.04), fm); f.position.set(s * HW * 0.9, topY, (bz0 + bz1) / 2); rig.shell.add(f); }
+    } }
   const bar = new THREE.Group(); bar.position.set(0, H + 0.04, (z0 + z1) / 2 + 0.1); rig.shell.add(bar);
   const base = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.05, 0.24), new THREE.MeshStandardMaterial({ color: 0x111214, roughness: 0.5 }));
   bar.add(base);
@@ -437,7 +472,19 @@ function ambulanceKit(rig, bb, HW) {
   };
   // ===== صندوق الإسعاف: سقف عالي (high-roof) من ورا الكابينة للآخر + جناب مقفولة (من غير شبابيك ركاب) + باب ورا =====
   // (زي إسعاف مصر الجديد — مرسيدس سبرينتر سقف عالي، صندوق للمريض من غير شبابيك جانبية)
-  const orange = new THREE.MeshStandardMaterial({ color: 0xe0601a, roughness: 0.42, metalness: 0.05 });
+  // نفس ألوان إسعاف المرور بالظبط (Emergency.js، من صور Commons): برتقالي 0xe8681c + حزام أخضر بترولي غامق تحت حوالين العربية
+  // (كان الصاج متفتّح ×0.25 أبيض والصندوق برتقالي تاني = لونين مختلفين في نفس العربية، ومفيش حزام على الجسم)
+  const PM = rig.mats.paint;
+  if (PM) PM.color.set(0xe8681c);
+  const orange = PM ? PM.clone() : new THREE.MeshStandardMaterial({ color: 0xe8681c, roughness: 0.42, metalness: 0.05 });
+  if (PM) {
+    PM.onBeforeCompile = (sh) => {
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vLocA;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvLocA = position;');
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vLocA;')
+        .replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.012, 0.10, 0.075), step(0.56, vLocA.y) * step(vLocA.y, 0.92));');
+    };
+    PM.customProgramCacheKey = () => 'eg-ambulance-player-1'; PM.needsUpdate = true;
+  }
   const RZ0 = bb.min.z + L * 0.36, RZ1 = bb.max.z - 0.04, RH = 0.55, Wb = HW * 2 - 0.02;
   const boxM = (w, h, d, m, x, y, z) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y, z); o.castShadow = true; o.receiveShadow = true; rig.shell.add(o); return o; };
   boxM(Wb, RH, RZ1 - RZ0, orange, 0, H + RH / 2 - 0.04, (RZ0 + RZ1) / 2);
@@ -461,7 +508,8 @@ function ambulanceKit(rig, bb, HW) {
     for (const sx of [-1, 1]) boxM(Math.min(0.62, HW - 0.2), 0.42, 0.012, frost, sx * (HW * 0.5), H * 0.86, bb.max.z + 0.03); }
   // حزام أخضر بترولي تحت حوالين العربية (زي الصور)
   const band = new THREE.MeshStandardMaterial({ color: 0x03231a, roughness: 0.5, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
-  for (const sx of [-1, 1]) { const b = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.1, RZ1 - RZ0 - 0.1), band); b.position.set(sx * (HW + 0.022), H * 0.56, (RZ0 + RZ1) / 2 + 0.05); rig.shell.add(b); } // (شريط أخضر على جناب الصندوق)
+  // خطين أخضر على جناب السقف العالي (زي إسعاف المرور)
+  for (const sx of [-1, 1]) for (const dy of [0.27, 0.16]) { const b = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.05, RZ1 - RZ0 - 0.1), band); b.position.set(sx * (HW + 0.005), H + RH - dy, (RZ0 + RZ1) / 2); rig.shell.add(b); }
   const front = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.26), sign('AMBULANCE', '#1d3fc4', true));
   front.position.set(0, H * 0.42, bb.min.z - 0.015); front.rotation.y = Math.PI; rig.shell.add(front);
   const bar = new THREE.Group(); bar.position.set(0, H + 0.55, bb.min.z + L * 0.36 - 0.25); rig.shell.add(bar); // (على مقدمة السقف العالي)

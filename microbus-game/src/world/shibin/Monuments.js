@@ -288,7 +288,22 @@ export function buildMonuments(W, group) {
     if (/^مكتبة الإسكندرية$/.test(name)) {
       let r = l.footprint ? 0 : 80; for (const [x, z] of l.footprint || []) r = Math.max(r, Math.hypot(x - l.x, z - l.z));
       r = Math.min(Math.max(r, 60), 80);
-      bibliotheca(W, group, l.x, l.z, r, add);
+      // (الخريطة المضغوطة: الكورنيش بقى أقرب من نص قطر المبنى — السقف كان راكب على طريق الجيش والعربيات ماشية تحته)
+      // → نص القطر ≤ (أقرب شارع − عرضه − رصيف 4م)، واتجاه البحر = ناحية أقرب نقطة على الكورنيش (مش "شمال" ثابت)
+      let near = Infinity, cor = null;
+      for (const e of W.graph?.edges || []) {
+        if (e.closed || e.elevated) continue;
+        for (let i = 0; i < e.pts.length - 1; i++) {
+          const a = e.pts[i], b = e.pts[i + 1], ex = b.x - a.x, ez = b.z - a.z, l2 = ex * ex + ez * ez || 1e-9;
+          const tt = Math.max(0, Math.min(1, ((l.x - a.x) * ex + (l.z - a.z) * ez) / l2)), px = a.x + ex * tt, pz = a.z + ez * tt;
+          const d = Math.hypot(px - l.x, pz - l.z);
+          near = Math.min(near, d - e.half - 4);
+          if (/الجيش|كورنيش/.test(e.name || '') && (!cor || d < cor.d)) cor = { d, x: px, z: pz };
+        }
+      }
+      r = Math.max(32, Math.min(r, near));
+      const sea = cor ? { x: (cor.x - l.x) / cor.d, z: (cor.z - l.z) / cor.d } : { x: 0, z: -1 };
+      bibliotheca(W, group, l.x, l.z, r, add, sea, Math.max(3, Math.min(14, near + 3 - r)));
       W._addCollider({ cx: l.x, cz: l.z, hx: r * 0.72, hz: r * 0.72, angle: 0, restitution: 0.1, kind: 'building' }, null);
       // الساحة والحوض حوالين المبنى فاضيين (زي الحقيقة): مفيش عمارات (حقيقية أو مولّدة) جوه دايرة r+40
       const R2 = r + 40, ring = Array.from({ length: 33 }, (_, i) => [l.x + Math.cos((i / 32) * Math.PI * 2) * R2, l.z + Math.sin((i / 32) * Math.PI * 2) * R2]);
@@ -350,9 +365,9 @@ function bibTextures() {
   return { roof, wall };
 }
 
-function bibliotheca(W, group, cx, cz, r, add) {
+function bibliotheca(W, group, cx, cz, r, add, sea = { x: 0, z: -1 }, poolW = 14) {
   const T = bibTextures();
-  const sea = { x: 0, z: -1 }; // البحر شمال المكتبة (الخريطة المضغوطة مابتلفّش الاتجاهات)
+  // sea: اتجاه البحر/الكورنيش من المركز (في الحقيقة شمال: السقف بينزل ناحيته، والحيطة العالية بالحروف ناحية الجنوب)
   const slope = Math.tan(THREE.MathUtils.degToRad(15.5)), hc = 10.5; // ارتفاع السقف في النص؛ +32م جنوب، تحت الأرض شمال
   const hAt = (x, z) => hc - ((x * sea.x + z * sea.z)) * slope; // x,z نسبة للمركز
   // 1) الحيطة: شريط حوالين الدايرة، ارتفاعه لحد السقف المايل (أقل حاجة 0.6م عند البحر = حرف الحوض)
@@ -373,11 +388,13 @@ function bibliotheca(W, group, cx, cz, r, add) {
   const roof = new THREE.Mesh(rg, new THREE.MeshStandardMaterial({ map: T.roof, roughness: 0.35, metalness: 0.35, envMapIntensity: 0.9 }));
   roof.position.set(cx, 0.02, cz); add(roof, 'bibliotheca-roof');
   // 3) حوض المية ناحية البحر (نص حلقة حوالين المبنى)
-  const pool = new THREE.RingGeometry(r + 0.5, r + 14, 64, 1, Math.PI * 0.05, Math.PI * 0.9).rotateX(-Math.PI / 2);
+  const pool = new THREE.RingGeometry(r + 0.5, r + poolW, 64, 1, Math.PI * 0.05, Math.PI * 0.9).rotateX(-Math.PI / 2); // (عرضه لحد الرصيف)
   const pm = new THREE.Mesh(pool, new THREE.MeshStandardMaterial({ color: 0x3f6f86, roughness: 0.08, metalness: 0.2, polygonOffset: true, polygonOffsetFactor: -2 }));
-  pm.position.set(cx, 0.06, cz); pm.rotation.y = Math.PI; add(pm, 'bibliotheca-pool'); pm.castShadow = false;
+  // (الحوض ناحية البحر — كان ملفوف ناحية الجنوب = ناحية البر، المبنى كان شكله "ماشي بضهره")
+  pm.position.set(cx, 0.06, cz); pm.rotation.y = Math.atan2(-sea.x, -sea.z); add(pm, 'bibliotheca-pool'); pm.castShadow = false;
   // 4) القبة السماوية: كورة غامقة على قاعدة، في الساحة الجنوبية الغربية
-  const px = cx - r * 0.55, pz = cz + r * 1.05;
+  // (في الساحة اللي ناحية البر، على الشمال شوية)
+  const px = cx - sea.x * r * 1.05 + sea.z * r * 0.55, pz = cz - sea.z * r * 1.05 - sea.x * r * 0.55;
   const sph = new THREE.Mesh(new THREE.SphereGeometry(9, 32, 20), new THREE.MeshStandardMaterial({ color: 0x2b2d31, roughness: 0.4, metalness: 0.5 }));
   sph.position.set(px, 9.5, pz); add(sph, 'bibliotheca-planetarium');
   const ring = new THREE.Mesh(new THREE.TorusGeometry(9.6, 0.35, 8, 48).rotateX(Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x9aa0a6, roughness: 0.4, metalness: 0.6 }));

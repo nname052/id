@@ -15,7 +15,7 @@ const r = await p.evaluate(async () => {
   const g = game, T = g.traffic, ph = g.player.physics; g.renderer.setAnimationLoop(null);
   const step = (n) => { for (let i = 0; i < n; i++) { g._frame ? null : null; g.debugSim(1 / 30, {}); } };
   // نشغّل فريم لعبة عادي عشان الزرار يتقرا
-  g.input.consume?.('x'); const inp = g.input.read ? g.input.read() : null;
+  // (من غير input.read() هنا: كانت بتاكل دوسة G قبل فريم اللعبة → الاختبار بيفشل حسب التوقيت)
   await new Promise((q) => requestAnimationFrame(q));
   for (let i = 0; i < 3; i++) g._frame();
   const out = { sirenOn: !!g.player.sirenOn, body: document.body.classList.contains('siren-on'), ps: !!g.audio.ps, gain: g.audio.ps ? g.audio.ps.g.gain.value : null, bar: g.player.rig.policeBar?.a.emissiveIntensity };
@@ -28,6 +28,11 @@ const r = await p.evaluate(async () => {
   const lane0 = c.lane, v0 = c.v;
   for (let i = 0; i < 90; i++) g._frame();
   out.yield = { lane0: +lane0.toFixed(2), lane1: +c.lane.toFixed(2), v0: +v0.toFixed(1), v1: +c.v.toFixed(1), yielding: !!c.yielding };
+  // سارينة عربيات الشرطة التانية (الدورية بتطارد عربية هربانة): لازم يبقى ليها صوت (كانت ساكتة خالص)
+  { const off = T.cars.find((q) => q.on && !q.off && !q.virtual && q !== c);
+    out.patrol = { started: off ? g.patrol.start(off) : false };
+    for (let i = 0; i < 20; i++) g._frame();
+    const S = g.audio.sirens?.patrol; out.patrol.voice = !!S; out.patrol.gain = S ? +S.g.gain.value.toFixed(3) : null; out.patrol.state = g.patrol.state; out.patrol.box = !!g.patrol.car.policeBox; }
   // خبطة وإنت إسعاف: مفيش مطاردة
   g.incidents.trigger('crash', ph, g.player.kind);
   out.incident = g.incidents.state;
@@ -35,5 +40,5 @@ const r = await p.evaluate(async () => {
 });
 await b.close();
 console.log(JSON.stringify({ r, errs }));
-const ok = r.sirenOn && r.body && r.ps && r.yield && (r.yield.yielding || r.yield.lane1 > r.yield.lane0 + 0.3) && r.yield.v1 <= 4.5 && r.incident === 'idle' && !errs.length;
+const ok = r.sirenOn && r.body && r.ps && r.yield && (r.yield.yielding || r.yield.lane1 > r.yield.lane0 + 0.3) && r.yield.v1 <= 4.5 && r.incident === 'idle' && (!r.patrol?.started || (r.patrol.voice && r.patrol.gain > 0.05)) && r.patrol?.box && !errs.length;
 console.log(ok ? 'PASS siren-yield' : 'FAIL siren-yield'); process.exit(ok ? 0 : 1);

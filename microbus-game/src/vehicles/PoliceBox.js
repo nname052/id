@@ -51,10 +51,14 @@ export function buildPoliceBox(assets) {
   car.body.add(cover);
   const bar = new THREE.BoxGeometry(0.04, 0.04, bz1 - bz0 + 0.04);
   for (const s of [-1, 1]) { const f = new THREE.Mesh(bar, M.frame); f.position.set(s * W * 0.45, topY, (bz0 + bz1) / 2); car.body.add(f); }
-  // الكشاف الأزرق فوق الكابينة
-  const lb = new THREE.Mesh(new THREE.BoxGeometry(W * 0.55, 0.1, 0.22), M.blue);
-  lb.position.set(0, y0 + H + 0.03, (cabZ0 + cabZ1) / 2 + 0.1);
-  car.body.add(lb);
+  // الكشاف فوق الكابينة: قاعدة + نصين أزرق (بيلمعوا بالتبادل وهو مطارد — نفس شكل lightbar بتاع السيدان: [قاعدة، شمال، يمين])
+  const lb = new THREE.Group(); lb.position.set(0, y0 + H + 0.03, (cabZ0 + cabZ1) / 2 + 0.1);
+  lb.add(new THREE.Mesh(new THREE.BoxGeometry(W * 0.58, 0.05, 0.24), M.frame));
+  for (const s of [-1, 1]) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(W * 0.27, 0.1, 0.22), M.blue.clone()); m.material.emissiveIntensity = 0.5;
+    m.position.set(s * W * 0.145, 0.07, 0); lb.add(m);
+  }
+  car.body.add(lb); car.lightbar = lb;
   car.lights = null; car.policeBox = true;
   return car;
 }
