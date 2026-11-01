@@ -27,6 +27,9 @@ export const MODELS = [
   { key: 'pickup_p404', path: 'glbs/000-015/1a4b4cfdad074045aad63afae4c1e8c7.glb', role: 'بيجو 404 بيك أب — ربع نقل', tris: 16000 },
   { key: 'suzuki_carry_van', path: 'glbs/000-032/5c0007c0c6ed4d298b8c80646efa09d2.glb', role: 'سوزوكي كاري ميني فان (ركاب/توناية مقفولة)', tris: 22000, err: 0.03 },
   { key: 'suzuki_carry_truck', path: 'glbs/000-118/13dc5e2aad2e4d00af57e8d99d7095e9.glb', role: 'سوزوكي كاري بيك أب صغير (kei truck — توناية نقل)', tris: 14000 },
+  { key: 'golf_cart', path: 'glbs/000-045/c47ccbe5107d4d8f92b3caaf93f3d9cc.glb', role: 'عربية جولف (السياحة عند الأهرامات)', tris: 12000 },
+  { key: 'camel', path: 'glbs/000-148/794fd9fe9d224bb9ba8ddae8a499321e.glb', role: 'جمل (منطقة الأهرامات)', tris: 3800 },
+  { key: 'horse_saddle', path: 'glbs/000-045/b08743c2c4734fb98a4e0a2f5767c318.glb', role: 'حصان بسرج متحرك (منطقة الأهرامات)', tris: 9000, err: 0.02 },
   { key: 'bus_karosa', path: 'glbs/000-106/21262813724e401b88333d381c4626f7.glb', role: 'أتوبيس (كاروسا C734) — المدن غير القاهرة', tris: 16000 },
 ];
 

@@ -98,5 +98,55 @@
   "role": "بيجو 404 بيك أب — ربع نقل",
   "via": "Objaverse (allenai/objaverse, Hugging Face)",
   "fetched": "2026-10-30"
+ },
+ "suzuki_carry_van": {
+  "name": "Suzuki Carry Minivan",
+  "author": "ProPolyModels",
+  "authorUrl": "https://sketchfab.com/ProPolyModels",
+  "url": "https://sketchfab.com/3d-models/suzuki-carry-minivan-5c0007c0c6ed4d298b8c80646efa09d2",
+  "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+  "role": "سوزوكي كاري ميني فان (ركاب/توناية مقفولة)",
+  "via": "Objaverse (allenai/objaverse, Hugging Face)",
+  "fetched": "2026-11-01"
+ },
+ "suzuki_carry_truck": {
+  "name": "Kei Truck",
+  "author": "grs",
+  "authorUrl": "https://sketchfab.com/sgrosjean",
+  "url": "https://sketchfab.com/3d-models/kei-truck-13dc5e2aad2e4d00af57e8d99d7095e9",
+  "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+  "role": "سوزوكي كاري بيك أب صغير (kei truck — توناية نقل)",
+  "via": "Objaverse (allenai/objaverse, Hugging Face)",
+  "fetched": "2026-11-01"
+ },
+ "golf_cart": {
+  "name": "Golf Cart",
+  "author": "mikethornley",
+  "authorUrl": "https://sketchfab.com/mikethornley",
+  "url": "https://sketchfab.com/3d-models/golf-cart-c47ccbe5107d4d8f92b3caaf93f3d9cc",
+  "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+  "role": "عربية جولف (السياحة عند الأهرامات)",
+  "via": "Objaverse (allenai/objaverse, Hugging Face)",
+  "fetched": "2026-11-01"
+ },
+ "camel": {
+  "name": "Camel",
+  "author": "LynxAbraxas",
+  "authorUrl": "https://sketchfab.com/LynxAbraxas",
+  "url": "https://sketchfab.com/3d-models/camel-794fd9fe9d224bb9ba8ddae8a499321e",
+  "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+  "role": "جمل (منطقة الأهرامات)",
+  "via": "Objaverse (allenai/objaverse, Hugging Face)",
+  "fetched": "2026-11-01"
+ },
+ "horse_saddle": {
+  "name": "Animated Rigged Horse With Saddle",
+  "author": "Ayan",
+  "authorUrl": "https://sketchfab.com/ayanahmadbutt",
+  "url": "https://sketchfab.com/3d-models/animated-rigged-horse-with-saddle-b08743c2c4734fb98a4e0a2f5767c318",
+  "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+  "role": "حصان بسرج متحرك (منطقة الأهرامات)",
+  "via": "Objaverse (allenai/objaverse, Hugging Face)",
+  "fetched": "2026-11-01"
  }
 }

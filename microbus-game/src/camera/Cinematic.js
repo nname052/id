@@ -19,7 +19,8 @@ export class Cinematic {
     this._look = new THREE.Vector3();
   }
   /** target(): {x, z} (بيتنادى كل فريم — الهدف ممكن يكون بيتحرك) */
-  play({ target, title, sub = '', dur = 3.6, onEnd = null }) {
+  play({ target, title, sub = '', dur = 3.6, onEnd = null, r = 16, h = 5.5, lookY = 1 }) {
+    this.R = r; this.H = h; this.lookY = lookY; // (المعالم الكبيرة — الهرم: لفة أوسع وأعلى)
     this.target = target; this.dur = dur; this.t = 0; this.onEnd = onEnd; this.active = true;
     this.tEl.textContent = title; this.sEl.textContent = sub;
     this.el.classList.remove('hidden'); document.body.classList.add('cine-on');
@@ -35,9 +36,9 @@ export class Cinematic {
     this.t += dt;
     const p = this.target?.();
     if (!p || this.t >= this.dur) { this.stop(); return; }
-    const k = this.t / this.dur, a = (p.yaw || 0) + 0.6 + k * 1.2, r = 16 - 6 * k;
-    camera.position.set(p.x + Math.sin(a) * r, 5.5 - 2 * k, p.z + Math.cos(a) * r);
-    this._look.set(p.x, 1.0, p.z);
+    const k = this.t / this.dur, a = (p.yaw || 0) + 0.6 + k * 1.2, r = this.R * (1 - 0.375 * k);
+    camera.position.set(p.x + Math.sin(a) * r, this.H * (1 - 0.36 * k), p.z + Math.cos(a) * r);
+    this._look.set(p.x, this.lookY, p.z);
     camera.lookAt(this._look);
   }
 }

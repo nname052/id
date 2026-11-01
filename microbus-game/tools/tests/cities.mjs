@@ -32,7 +32,7 @@ for (const m of MAPS) {
       return { map: g.mapId, tiles: W.stats.tilesLoaded, buildings: W.stats.buildings, edges: W.graph.edges.length, lines: (g.passengers.LINES || []).length,
         landmarks: W.landmarkPoints.length, moved: +Math.hypot(ph.x - x0, ph.z - z0).toFixed(1), minY: +minY.toFixed(2), maxY: +maxY.toFixed(2), flipped: !!ph.flipped, street: W.streetAt(ph.x, ph.z)?.name || '' };
     });
-    const ok = !errors.length && r.map === m.id && r.tiles > 4 && r.buildings > 300 && r.edges > 200 && r.moved > 5 && r.minY > -0.6 && r.maxY < 2 && !r.flipped;
+    const ok = !errors.length && r.map === m.id && r.tiles > 4 && r.buildings > 300 && r.edges >= 150 && /* (MAJOR UPDATE: شبكة مدمجة — build_region بيضمن ≥ 150) */ r.moved > 5 && r.minY > -0.6 && r.maxY < 2 && !r.flipped;
     if (!ok) fail++;
     console.log(`${ok ? 'PASS' : 'FAIL'} ${m.id} ${JSON.stringify({ loadS, ...r, errors: errors.slice(0, 3) })}`);
   } catch (e) { fail++; console.log(`FAIL ${m.id} ${e.message.slice(0, 200)} ${errors.slice(0, 2)}`); }

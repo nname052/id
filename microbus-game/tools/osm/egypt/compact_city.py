@@ -152,7 +152,9 @@ def main(cfg_path):
         if not inband[js].any(): continue
         tm = float(np.median(t[js])); sc = W.scale(tm)
         if 'building' in tags or ('building:part' in tags):
-            if sc < 0.95 and hashf(wid) > sc * 1.05: stats['bld_dropped_compressed'] += 1; continue
+            # (التخفيف العشوائي للمباني في المناطق المضغوطة — بس مش المعالم: هرم خوفو متعلّم building=pyramid واتشال مرة بالصدفة)
+            landmark = bool(tags.get('name')) or 'historic' in tags or 'tourism' in tags or tags.get('building') in ('pyramid', 'temple', 'mosque', 'church', 'cathedral')
+            if not landmark and sc < 0.95 and hashf(wid) > sc * 1.05: stats['bld_dropped_compressed'] += 1; continue
             # كتلة واحدة: كل النقط بتتحرك بنفس إزاحة المركز
             c0 = xy[js].mean(0); c1 = new[js].mean(0)
             for r in refs: shift[r] = c1 - c0

@@ -68,6 +68,14 @@ export class HUD {
       else if (aj.state === 'toHosp') { a = `🏥 <b>${esc(aj.hosp || 'المستشفى')}</b>`; b = `${d || aj.dist + 'م'} · فاضل ${aj.left}ث`; }
       else { a = '🚑 <b>إسعاف</b> <span>جاهز</span>'; b = 'استنى البلاغ الجاي'; }
     }
+    else if (j.mode === 'free' && j.kind === 'golf') {
+      const tj = this.tourJob || {};
+      if (tj.state === 'toPick') { a = '⛳ <b>سايح مستنيك</b> <span>جولة سياحية</span>'; b = `${d || tj.dist + 'م'} · اقف جنبه`; }
+      else if (tj.state === 'board') { a = '🧳 <b>السايح بيركب</b>'; b = 'استنى واقف'; }
+      else if (tj.state === 'toStop' || tj.state === 'photo') { a = `🗺️ <b>${esc(tj.stop || '')}</b> <span>${tj.leg}/${tj.legs}</span>`; b = tj.state === 'photo' ? '📸 السايح بيصوّر — استنى' : `${d || tj.dist + 'م'} · فاضل ${tj.left}ث`; }
+      else if (tj.state === 'toBack') { a = '🔙 <b>رجّع السايح</b>'; b = `${d || tj.dist + 'م'} · فاضل ${tj.left}ث`; }
+      else { a = '⛳ <b>عربية جولف</b>'; b = 'استنى السايح الجاي'; }
+    }
     else if (j.mode === 'free') {
       a = `${{ car: '🚗', pickup: '🛻', truck: '🚚' }[j.kind] || '🚗'} <b>سواقة حرة</b> <span>${{ car: 'ملاكي', pickup: 'ربع نقل', truck: 'نقل' }[j.kind] || ''}</span>`;
       b = d ? `المكان اللي اخترته · ${d}` : 'لف في المدينة براحتك';

@@ -57,7 +57,7 @@ export function findWheelsGeo(parts) {
   const front = ax(axles[0]), rear = ax(axles[axles.length - 1]);
   if (!front || !rear) return null;
   // لازم يبقوا متماثلين (شمال/يمين على نفس البعد ونفس المحور) — غير كده الأوطى نقط مش العجل (رفرف/طين/حاجة مدلدلة)
-  for (const A of [front, rear]) if (Math.abs((A.L.x - xMid) + (A.R.x - xMid)) > 0.25 || Math.abs(A.L.z - A.R.z) > 0.3 || A.R.x - A.L.x < 0.9) return null;
+  for (const A of [front, rear]) if (Math.abs((A.L.x - xMid) + (A.R.x - xMid)) > 0.25 || Math.abs(A.L.z - A.R.z) > 0.3 || A.R.x - A.L.x < 0.7) return null; // (عربية الجولف: المسافة بين العجل ~0.9م)
   return { minY, W: [['FL', front.L, true], ['FR', front.R, true], ['RL', rear.L, false], ['RR', rear.R, false]].map(([id, s, fr]) => ({ id, front: fr, x: s.x, z: s.z, hw: s.hw })) };
 }
 

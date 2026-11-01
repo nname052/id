@@ -14,7 +14,7 @@ import { contactShadow } from './CarModels.js';
 import { mats as cockpitMats, extrudeAcross, DashScreen, beam } from './Cockpits.js';
 import { mirrorFace, fakeDoor } from './PlayerRigs.js';
 import { addBobbleDog } from './CabAccessories.js';
-import { CAR_SPEC_BASE, PICKUP_SPEC_BASE, TRUCK_SPEC_BASE, BUS_SPEC_BASE, MICROBUS_SPEC } from '../physics/VehiclePhysics.js';
+import { CAR_SPEC_BASE, PICKUP_SPEC_BASE, TRUCK_SPEC_BASE, BUS_SPEC_BASE, MICROBUS_SPEC, GOLF_SPEC_BASE } from '../physics/VehiclePhysics.js';
 
 const M4 = (x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0) => new THREE.Matrix4().compose(
   new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz, 'YXZ')), new THREE.Vector3(1, 1, 1));
@@ -33,6 +33,9 @@ export const REAL_KINDS = {
   // الإسعاف: هاي إس (نفس موديل الميكروباص) برتقالي زي عربيات هيئة الإسعاف المصرية + كشاف أزرق و"إسعاف" على الجنبين
   ambulance: { r: 0.33, model: 'microbus_traffic', paint: 0xe8681c, paintBiggest: true, base: { ...MICROBUS_SPEC, mass: 2400, inertiaYaw: 5000, inertiaPitch: 4700, inertiaRoll: 1250, cgHeight: 0.9 }, cgFrac: 0.5, eyeBack: 0.35, eyeAbove: 0.22, headroom: 0.18, floorBelow: 0.9,
     wheelR: 0.2, wheelTilt: -0.8, reach: 0.42, drop: 0.3, dashDist: 0.55, style: 'truck', mode: 'ambulance', label: 'إسعاف', mirrorIn: false, ambulance: true },
+  // عربية جولف (سياحة الأهرامات): مفتوحة، سقف خفيف، كرسيين قدام واتنين ورا
+  golf: { r: 0.22, model: 'golf_cart', paint: undefined, base: GOLF_SPEC_BASE, cgFrac: 0.5, eyeBack: 0.45, eyeAbove: 0.5, headroom: 0.2, floorBelow: 0.75,
+    wheelR: 0.17, wheelTilt: -0.9, reach: 0.4, drop: 0.25, dashDist: 0.5, style: 'car', mode: 'free', label: 'عربية جولف', mirrorIn: false, vmax: 40 },
   truck: { r: 0.36, model: 'truck_canter', paint: undefined, base: TRUCK_SPEC_BASE, cgFrac: 0.38, eyeBack: 0.62, eyeAbove: 0.25, headroom: 0.2, floorBelow: 0.9,
     wheelR: 0.22, wheelTilt: -0.6, reach: 0.4, drop: 0.36, dashDist: 0.62, style: 'truck', mode: 'free', label: 'نقل', mirrorIn: false },
   bus: { r: 0.5, model: 'bus_karosa', paint: undefined, base: BUS_SPEC_BASE, cgFrac: 0.62, eyeBack: 0.72, eyeAbove: 0.28, headroom: 0.25, floorBelow: 0.93,
@@ -405,7 +408,7 @@ export function buildRealRig(kind, assets, opts = {}) {
   rig.eye = eyeObj; rig.eyeBase = eye.clone(); rig.eyePitch = C.style === 'car' ? -0.08 : -0.13;
   rig.steering = steering;
   rig.bobbles = C.style === 'car' ? [addBobbleDog(g, 0.25, dashY + 0.01, dashBack + 0.1, 0, 0.75)] : [];
-  const st = { kmh: 0, rpm: 0, gear: 'N', hb: false, lights: false, vmax: C.style === 'bus' ? 100 : C.style === 'truck' ? 120 : 180, rmax: Math.ceil(spec.maxRpm / 1000) * 1000 };
+  const st = { kmh: 0, rpm: 0, gear: 'N', hb: false, lights: false, vmax: C.vmax || (C.style === 'bus' ? 100 : C.style === 'truck' ? 120 : 180), rmax: Math.ceil(spec.maxRpm / 1000) * 1000 };
   rig.cockpit = {
     update(dt, ph, P) { st.kmh = Math.abs(ph.speed) * 3.6; st.rpm = ph.rpm; st.gear = ph.gearMode === 'D' ? String(ph.gear || 1) : ph.gearMode; st.hb = ph.handbrake > 0.1; st.lights = P.headOn; dials.update(dt, st); },
     setNight(on) { dials.mat.emissiveIntensity = on ? 1 : 0.75; },

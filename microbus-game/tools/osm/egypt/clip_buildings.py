@@ -92,8 +92,9 @@ def main(cid):
         for key in ('gen', 'real'):
             if isinstance(d.get(key), list):
                 n0 += len(d[key]); d[key] = [b for b in d[key] if ok(centre(b))]
-                if key == 'gen' and tips:
-                    k0 = len(d[key]); d[key] = [b for b in d[key] if not blocks(b) and not in_junction(b)]; dead_cut += k0 - len(d[key])
+                # (التقاطعات دايمًا — كانت بتتعمل بس لو فيه شوارع مسدودة، فالمدن اللي مافيهاش ولا مسدود فضلت فيها عماير في التقاطع)
+                if key == 'gen':
+                    k0 = len(d[key]); d[key] = [b for b in d[key] if not (tips and blocks(b)) and not in_junction(b)]; dead_cut += k0 - len(d[key])
                 n1 += len(d[key])
         kept += n1; dropped += n0 - n1
         name = os.path.basename(f)[:-5]

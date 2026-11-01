@@ -44,6 +44,8 @@ import { Radio } from '../audio/Radio.js';
 import { ShibinTraffic } from '../world/shibin/ShibinTraffic.js';
 import { PoliceMission } from '../gameplay/PoliceMission.js';
 import { AmbulanceMission } from '../gameplay/AmbulanceMission.js';
+import { TourMission } from '../gameplay/TourMission.js';
+import { PyramidAnimals } from '../world/shibin/PyramidAnimals.js';
 import { Intercity } from '../gameplay/Intercity.js';
 import { Cinematic } from '../camera/Cinematic.js';
 import { ShibinCrowd } from '../world/shibin/ShibinCrowd.js';
@@ -244,6 +246,8 @@ export class Game {
     if (this.traffic) this.policeMission = new PoliceMission({ traffic: this.traffic, audio: this.audio, hud: this.hud, wallet: this.wallet, cine: this.cine });
     if (this.world) this.intercity = new Intercity({ world: this.world, hud: this.hud, wallet: this.wallet, passengers: this.passengers });
     if (this.world && this.crowd) this.ambulanceMission = new AmbulanceMission({ world: this.world, crowd: this.crowd, audio: this.audio, hud: this.hud, wallet: this.wallet, cine: this.cine });
+    if (this.world && this.tier !== 'low') { try { this.pyramidAnimals = new PyramidAnimals(this.scene, this.world, this.assets, { mobile: this.mobile }); } catch (e) { console.warn('[animals]', e); } }
+    if (this.world && this.crowd) this.tourMission = new TourMission({ world: this.world, crowd: this.crowd, hud: this.hud, wallet: this.wallet, cine: this.cine, passengers: this.passengers });
         this.docs = new Docs(this, this.touch ? this.touch.root.querySelector('.t-top') : null);
     this.mp = new Multiplayer(this);
     if (this.traffic) this.traffic.remotePlayers = () => this.mp.positions();
@@ -1040,6 +1044,8 @@ export class Game {
       }
       this.policeMission?.update(dt, ph, this.player);
       this.ambulanceMission?.update(dt, ph, this.player);
+      this.tourMission?.update(dt, ph, this.player);
+      this.pyramidAnimals?.update(dt, this.camera.position);
       if (!this.incidents.busy) this.intercity?.update(dt, ph, this.player.kind);
       this.works?.userData.update(dt, ph.x, ph.z);
       this._stationUpdate(dt, ph);
@@ -1052,9 +1058,10 @@ export class Game {
       if (this._navT <= 0) {
         this._navT = 0.25;
         const pol = this.police.navTarget() || this.incidents.navTarget?.();
-        const pm = this.policeMission?.navTarget() || this.ambulanceMission?.navTarget();
+        const pm = this.policeMission?.navTarget() || this.ambulanceMission?.navTarget() || this.tourMission?.navTarget();
         if (this.player.kind === 'police') this.hud.policeJob = this.policeMission?.jobInfo();
         if (this.player.kind === 'ambulance') this.hud.ambJob = this.ambulanceMission?.jobInfo();
+        if (this.player.kind === 'golf') this.hud.tourJob = this.tourMission?.jobInfo();
         const lowFuel = this.fuel.frac < 0.15 && !this.passengers.trip && !this.passengers.onboard.length;
         this.hud.navOverride = pol ? 'police' : lowFuel ? 'fuel' : null;
         // "اذهب إلى هنا" من الخريطة: بيخلص لما توصل (أو لو ركب زبون/الكمين)

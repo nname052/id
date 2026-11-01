@@ -379,38 +379,49 @@ def main():
     if os.environ.get('COMPACT_NET', '1') == '1':
         MAJOR = {'motorway', 'trunk', 'primary', 'secondary', 'tertiary'}
         def base_hw(e): return roads[e['way']]['hw'].replace('_link', '')
-        def keep_e(e):
+        # المستويات: 0 = صارم (رئيسي + مسمّى)، 1 = + سكني من غير اسم، 2 = + unclassified/road من غير اسم.
+        # المدن اللي OSM فيها شوارع كتير من غير أسامي (العريش/الغردقة/الخارجة) كانت بتتقلص لـ 14 شارع:
+        # بناخد أول مستوى يدّي شبكة كفاية (≥ max(150, 35% من الأصل)).
+        def keep_e(e, lvl):
             if e['k'] != 'drive': return roads[e['way']]['hw'] == 'pedestrian' and bool(roads[e['way']]['name'])
             b = base_hw(e)
             if b in MAJOR: return True
-            if b in ('service', 'track', 'unclassified', 'road') and not roads[e['way']]['name']: return False
-            if b in ('residential', 'living_street') and not roads[e['way']]['name']: return False
-            return b not in ('track',)
+            named = bool(roads[e['way']]['name'])
+            if b in ('service', 'track'): return named and b != 'track'
+            if b in ('unclassified', 'road'): return named or lvl >= 2
+            if b in ('residential', 'living_street'): return named or lvl >= 1
+            return True
+        def compact(lvl):
+            E = [e for e in edges if keep_e(e, lvl)]
+            # تقليم المسدود (الجانبي بس) بالتكرار
+            while True:
+                deg = collections.Counter()
+                for e in E:
+                    if e['k'] == 'drive': deg[e['a']] += 1; deg[e['b']] += 1
+                drop = {id(e) for e in E if e['k'] == 'drive' and base_hw(e) not in MAJOR and (deg[e['a']] == 1 or deg[e['b']] == 1)}
+                if not drop: break
+                E = [e for e in E if id(e) not in drop]
+            # أكبر مكوّن متصل (عربيات)
+            adj = collections.defaultdict(list)
+            for e in E:
+                if e['k'] == 'drive': adj[e['a']].append(e['b']); adj[e['b']].append(e['a'])
+            best, seen = set(), set()
+            for s0 in list(adj):
+                if s0 in seen: continue
+                comp, st = {s0}, [s0]; seen.add(s0)
+                while st:
+                    n = st.pop()
+                    for m in adj[n]:
+                        if m not in seen: seen.add(m); comp.add(m); st.append(m)
+                if len(comp) > len(best): best = comp
+            return [e for e in E if (e['a'] in best and e['b'] in best)]
         before = len(edges)
-        edges = [e for e in edges if keep_e(e)]
-        # تقليم المسدود (الجانبي بس) بالتكرار
-        while True:
-            deg = collections.Counter()
-            for e in edges:
-                if e['k'] == 'drive': deg[e['a']] += 1; deg[e['b']] += 1
-            drop = {id(e) for e in edges if e['k'] == 'drive' and base_hw(e) not in MAJOR and (deg[e['a']] == 1 or deg[e['b']] == 1)}
-            if not drop: break
-            edges = [e for e in edges if id(e) not in drop]
-        # أكبر مكوّن متصل (عربيات)
-        adj = collections.defaultdict(list)
-        for e in edges:
-            if e['k'] == 'drive': adj[e['a']].append(e['b']); adj[e['b']].append(e['a'])
-        best = set()
-        seen = set()
-        for s in list(adj):
-            if s in seen: continue
-            comp, st = {s}, [s]; seen.add(s)
-            while st:
-                n = st.pop()
-                for m in adj[n]:
-                    if m not in seen: seen.add(m); comp.add(m); st.append(m)
-            if len(comp) > len(best): best = comp
-        edges = [e for e in edges if (e['a'] in best and e['b'] in best)]
+        need = max(150, int(before * 0.35))
+        for lvl in (0, 1, 2):
+            res = compact(lvl)
+            if len(res) >= need: break
+        edges = res
+        print(f'  compact level {lvl} (need {need})')
         for i, e in enumerate(edges): e['id'] = i
         # اتجاه واحد اتقطع (الحتة اللي بتكمّله برّه الخريطة اتشالت) = أماكن تدخلها ومتعرفش تخرج منها:
         # الطرق دي بتبقى باتجاهين (عرض حارتين) لحد ما كل الشبكة توصلها وترجع منها

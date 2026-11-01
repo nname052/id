@@ -127,6 +127,20 @@ export const BUS_SPEC_BASE = {
   antiRollK: 140000, antiRollC: 14000,
 };
 
+// عربية جولف كهربا (4 كراسي، ~500 كجم بالبطارية + ركاب): موتور كهربا عزمه ثابت من الصفر، سرعة واحدة،
+// أقصى ~24 كم/س (زي عربيات الجولف الحقيقية)، فرامل خفيفة، مساعدين ناعمين
+export const GOLF_SPEC_BASE = {
+  ...TAXI_SPEC_BASE,
+  mass: 560, inertiaYaw: 520, inertiaPitch: 500, inertiaRoll: 160, cgHeight: 0.48,
+  springK: 14000, damperBump: 1100, damperRebound: 1500, maxCompression: 0.08,
+  tireMu: 0.85, rollingResistance: 0.018, dragCoef: 0.45, brakeForce: 3600, brakeBiasFront: 0.55, handbrakeForce: 1500,
+  maxSteer: 0.62, steeringRatio: 13,
+  gears: [1.0], reverseRatio: 1.0, finalDrive: 10.0, drivetrainEff: 0.88,
+  idleRpm: 0, maxRpm: 3000, shiftTime: 0.1, shift: [99999, 99999, 0],
+  torqueCurve: [[0, 34], [1500, 34], [2500, 28], [2850, 16], [3000, 0]], // (محدّد سرعة زي عربيات الجولف الحقيقية: ~24 كم/س)
+  antiRollK: 6000, antiRollC: 700,
+};
+
 const G = 9.81;
 // (v41) العزم = الرقم الحقيقي بالظبط (كان ×1.3 "عشان تحس بيها" → كل العربيات أسرع من الحقيقة ~30%).
 // المرجع: 0→100 والسرعة القصوى ومسافة الفرامل لكل عربية في tools/tests/vehicle-reality.mjs
