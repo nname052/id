@@ -170,6 +170,16 @@ export class Incidents {
       const gap = dist - 10;
       want = Math.max(0, Math.min(STAR_V[this.stars || 1], ph.speed + gap * 0.8));
     }
+    // جاية في وشّك (قدامك ورايحة عكسك): بتركن على يمينها وتهدّي/تقف لحد ما تعدّي، وبعدين تلف وراك
+    // (كانت بتعدّي من جوه عربيتك وش لوش — 0.3م)
+    {
+      const [fx, fz] = ph.forward, ahead = (P.x - ph.x) * fx + (P.z - ph.z) * fz > 0, opp = Math.cos(P.yaw - ph.yaw) < -0.3;
+      if (dist < 30 && ahead && opp) {
+        const pfx = -Math.sin(P.yaw), pfz = -Math.cos(P.yaw), rx = -pfz, rz = pfx; // يمين عربية الشرطة
+        tx = P.x + pfx * 8 + rx * 4; tz = P.z + pfz * 8 + rz * 4;
+        want = dist < 15 ? 0 : 3;
+      }
+    }
     const ang = Math.atan2(-(tx - P.x), -(tz - P.z));
     let d = ang - P.yaw; d = Math.atan2(Math.sin(d), Math.cos(d));
     const maxTurn = (1.6 + 8 / (2 + P.v)) * dt;

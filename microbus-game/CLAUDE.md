@@ -30,6 +30,14 @@
   (suzuki_carry_van, fares like a taxi), `train` (`TrainDriver`, drives the city's rail line). `PyramidAnimals` (camels, horses).
   Loader options: `alignPCA` (model yawed in the file), `dropMats` (e.g. a ground plane), `dropStray`, `targetWidth`;
   rig option `glassRe` (glass material with an odd name). Wheel detection ignores ground contacts near the centreline (spare tyre).
+- **Cockpit view = body drawn with the camera's tilt** (`CameraSystem` cockpit branch): the body's pitch/roll are replaced by the
+  smoothed stabilized tilt and the camera orientation comes from the body; impact shake moves body+eye together. Never rotate or
+  offset the cockpit camera alone (the dashboard "trembles"). `tools/tests/cockpit-shake.mjs` (JITTER=1 for uneven frame times).
+- **Touch wheel** (`TouchControls._bindWheel`): any new touch takes the wheel (a lost pointerup used to freeze it); test `touch-wheel.mjs`.
+- **Shadows** must update every frame (`shadowEvery` 1; 2 only at the lowest level) — skipping frames strobes moving cars' shadows.
+- **Colour grade** lives in the tone mapping (`THREE.CustomToneMapping` patched in `Game` constructor: warmth + saturation, then ACES)
+  so phones get it for free; PostFX's grade pass is only a light complement.
+- **Map markers** (`MiniMap._pois`): 10–15 by importance from `landmarks.confirmed` + named `features.pois` + microbus terminals.
 - New GLBs in `assets/models` need a dev-server restart (kill the `node .../vite` PID, not the npx wrapper).
 
 ## Data post-processing (run after `tools/osm/build_region.py`, in this order)

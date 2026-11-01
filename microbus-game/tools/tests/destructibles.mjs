@@ -23,7 +23,14 @@ const r = await page.evaluate(async () => {
     const sp = W.spawnPose();
     const cand = inst.items.filter((it) => Math.hypot(it.x - sp.x, it.z - sp.z) < 500).sort((a, b) => Math.hypot(a.x - sp.x, a.z - sp.z) - Math.hypot(b.x - sp.x, b.z - sp.z));
     let it = null;
-    for (const c of cand) { W.updateVisibility({ x: c.x, y: 2, z: c.z }, 300); for (let k = 0; k < 60 && [...W.tiles.values()].some((T) => !T.ready); k++) { W.update(1 / 30); await new Promise((q) => setTimeout(q, 0)); } if (c.ok === undefined) c.ok = inst.check ? inst.check(c) : true; if (c.ok && !W.colGrid.size === false) { it = c; break; } }
+    for (const c of cand) { W.updateVisibility({ x: c.x, y: 2, z: c.z }, 300); for (let k = 0; k < 60 && [...W.tiles.values()].some((T) => !T.ready); k++) { W.update(1 / 30); await new Promise((q) => setTimeout(q, 0)); } if (c.ok === undefined) c.ok = inst.check ? inst.check(c) : true; if (c.ok && !W.colGrid.size === false) {
+      // (الطريق للعنصر لازم يبقى فاضي: بعد إعادة بناء الخريطة فيه عربيات مركونة بين الشارع وبعض الشجر — كانت العربية بتخبطها هي)
+      const r0 = W.nearestRoad(c.x, c.z, 30); if (!r0) continue;
+      let ux = c.x - r0.x, uz = c.z - r0.z; const ul = Math.hypot(ux, uz) || 1; ux /= ul; uz /= ul;
+      let blocked = false;
+      for (let s = 1; s < 11 && !blocked; s += 0.5) { const a = []; W.refY = 0; W.queryColliders(c.x - ux * s, c.z - uz * s, a); blocked = a.some((q) => q.kind !== 'breakable' && Math.hypot(q.cx - (c.x - ux * s), q.cz - (c.z - uz * s)) < Math.max(q.hx || 0, q.hz || 0) + 1.3); }
+      if (blocked) continue;
+      it = c; break; } }
     if (!it) return { label, found: false };
     const col = [...W.colGrid.values()].flat().find((c) => c.item === it);
     // العربية جاية عليه من الشارع (من ناحية أقرب طريق)
@@ -46,7 +53,10 @@ const r = await page.evaluate(async () => {
   out.poleSlow = await ram(W.streetKit.pole, 7, 'pole-slow');
   out.poleFast = await ram(W.streetKit.pole, 32, 'pole-fast');
   const tree = W.landmarksLayer.instancers.find((q) => q.mesh.name === 'trees');
+  // (الشجر جنب الرصيف وجنبه عربيات مركونة: الاختبار عن وقوع الشجرة — المرور مايدخلش في الخبطة)
+  const tc = g.traffic.colliders.bind(g.traffic); g.traffic.colliders = () => {};
   out.treeFast = await ram(tree, 32, 'tree-fast');
+  g.traffic.colliders = tc;
   return out;
 });
 await browser.close();

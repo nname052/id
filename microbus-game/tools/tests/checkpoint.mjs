@@ -45,18 +45,19 @@ const r = await page.evaluate(async () => {
   // اللاعب ماشي بعيد على طريق حقيقي، والشرطة وراه
   const far = W.graph.edges.find((e) => !e.elevated && Math.hypot(e.pts[0].x - q.x, e.pts[0].z - q.z) > 500 && Math.hypot(e.pts[0].x - q.x, e.pts[0].z - q.z) < 700);
   const rt = findRoute(ph.x, ph.z, far.pts[0].x, far.pts[0].z);
-  let offRoad = 0, minDist = 1e9, samples = 0;
+  let offRoad = 0, minDist = 1e9, minPass = 1e9, samples = 0;
   for (let s = 0; s < Math.min(rt.length, 420); s += 11 * dt) {
     let i = 0; while (i < rt.pts.length - 2 && rt.cum[i + 1] < s) i++;
     const a = rt.pts[i], b = rt.pts[i + 1], t = (s - rt.cum[i]) / ((rt.cum[i + 1] - rt.cum[i]) || 1);
     ph.reset(a.x + (b.x - a.x) * t, a.z + (b.z - a.z) * t, Math.atan2(-(b.x - a.x), -(b.z - a.z)));
-    ph.vx = -Math.sin(ph.yaw) * 11; ph.vz = -Math.cos(ph.yaw) * 11;
+    ph.vx = -Math.sin(ph.yaw) * 11; ph.vz = -Math.cos(ph.yaw) * 11; ph.speed = 11; ph.forwardSpeed = 11; // (السرعة نفسها بتتحسب في خطوة الفيزيا بس — من غيرها الشرطة كانت فاكراك وقفت)
     Inc.update(dt, ph);
     const d = Math.hypot(P.x - ph.x, P.z - ph.z);
-    minDist = Math.min(minDist, d);
+    // (وراك: لازم تفضل على مسافة ≥ 6.5م. جاية في وشك وانت معدّي جنبها: مفيش تداخل أبدًا ≥ 2.5م)
+    { const [fx, fz] = ph.forward; const behind = (P.x - ph.x) * fx + (P.z - ph.z) * fz < 0; if (behind) minDist = Math.min(minDist, d); else minPass = Math.min(minPass, d); }
     if (samples++ % 10 === 0) { const nr = W.nearestRoad(P.x, P.z, 60); if (!nr || nr.d > nr.e.half + 3.5) offRoad++; }
   }
-  out.chaseSamples = samples; out.policeOffRoadSamples = offRoad; out.minDistToPlayer = +minDist.toFixed(1);
+  out.chaseSamples = samples; out.policeOffRoadSamples = offRoad; out.minDistToPlayer = +minDist.toFixed(1); out.minPassDist = +minPass.toFixed(1);
   // 4) وقفت → محضر هروب من كمين
   ph.reset(ph.x, ph.z, ph.yaw); ph.vx = ph.vz = 0;
   for (let i = 0; i < 150; i++) { Inc.update(dt, ph); }
@@ -64,7 +65,7 @@ const r = await page.evaluate(async () => {
   out.cardTitle = document.querySelector('#paycard .pc-h')?.textContent;
   return out;
 });
-const pass = r.visible && r.barriers >= 4 && r.state1 === 'signal' && ['signal', 'check', 'done'].includes(r.state2) && r.state3 === 'done' && r.officerWalkedM > 1 && r.chase === 'chase' && r.spawnDistFromPlayer > 25 && r.policeOffRoadSamples === 0 && r.minDistToPlayer >= 6.5 && r.afterStop === 'ticket' && !errors.length;
+const pass = r.visible && r.barriers >= 4 && r.state1 === 'signal' && ['signal', 'check', 'done'].includes(r.state2) && r.state3 === 'done' && r.officerWalkedM > 1 && r.chase === 'chase' && r.spawnDistFromPlayer > 25 && r.policeOffRoadSamples === 0 && r.minDistToPlayer >= 6.5 && r.minPassDist >= 2.5 && ['ticket', 'blocked'].includes(r.afterStop) && !errors.length;
 console.log(JSON.stringify({ ...r, errors }));
 console.log(pass ? 'PASS checkpoint' : 'FAIL checkpoint');
 await browser.close();

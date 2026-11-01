@@ -19,7 +19,8 @@ const r = await p.evaluate(async () => {
   out.density.day = g.traffic.active;
   g.env.setPreset('night'); out.density.night = g.traffic.active; g.env.setPreset('sunset'); out.density.sunset = g.traffic.active; g.env.setPreset('day');
   // المحلات: نمشي على شارع تجاري (tertiary في الاختبارات السابقة) ونعدّ
-  const cam = { x: -282, y: 2, z: 458 };
+  // (بعد تصغير شبين: النقطة القديمة (-282, 458) بقت برّه الخريطة — نقطة البداية نفسها في نص البلد التجاري)
+  const sp0 = W.spawnPose(), cam = { x: sp0.x, y: 2, z: sp0.z };
   g.player.physics.reset(cam.x + 30, cam.z, 0);
   let maxShop = 0, inside = 0, look = 0, done = 0, onRoad = 0;
   const seen = new Set();

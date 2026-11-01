@@ -11,11 +11,13 @@ const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--ena
 const p = await browser.newPage({ viewport: { width: 640, height: 360 } });
 p.setDefaultTimeout(1200000);
 const errs = []; p.on('pageerror', (e) => errs.push(e.message));
-await p.goto(`${BASE}?map=shibin`);
+await p.goto(`${BASE}?map=${process.env.MAP || 'shibin'}`);
 await p.waitForFunction(() => !document.getElementById('go').disabled);
 await p.evaluate(() => document.getElementById('go').click()); await p.waitForTimeout(1500);
-const res = await p.evaluate(async () => {
+const res = await p.evaluate(async (KIND) => {
   const g = game, W = g.world;
+  if (KIND && g.player.kind !== KIND) await g.setVehicle(KIND);
+  g.traffic.colliders = () => {}; g.traffic.setDensity?.(0); // (الاختبار عن الكوبري نفسه — المرور اللي عليه كان بيوقف السواقة) // (KIND=bus/truck/car/tuktuk: نفس الكباري بكل أنواع العربيات)
   g.renderer.setAnimationLoop(null);
   const settle = async (x, z) => { for (let k = 0; k < 300; k++) { W.updateVisibility({ x, z }, 560); W.update(0.05); if (!W.queue.length && k > 6) break; await new Promise((r) => setTimeout(r, 5)); } };
   const { edgePoint } = await import('/src/world/shibin/ShibinData.js');
@@ -87,7 +89,7 @@ const res = await p.evaluate(async () => {
     }
   }
   return { elevatedEdges: elevated.length, steps: steps.length, stepList: steps.slice(0, 25), drives };
-});
+}, process.env.KIND || '');
 console.log(JSON.stringify(res, null, 1));
 console.log('errors', errs.length);
 await browser.close();

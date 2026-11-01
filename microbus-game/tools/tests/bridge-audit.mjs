@@ -15,13 +15,15 @@ const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--ena
 const page = await browser.newPage({ viewport: { width: 640, height: 360 } });
 page.setDefaultTimeout(900000);
 const errors = []; page.on('pageerror', (e) => errors.push(e.message));
-await page.goto(`${BASE}?map=shibin`);
+const MAP = process.env.MAP || 'shibin';
+await page.goto(`${BASE}?map=${MAP}`);
 await page.waitForFunction(() => !document.getElementById('go').disabled);
 await page.evaluate(() => document.getElementById('go').click()); await page.waitForTimeout(1500);
 await page.evaluate(() => document.querySelector('#linepick .lp-close')?.click());
 const r = await page.evaluate(async () => {
   const g = game, W = g.world; g.renderer.setAnimationLoop(null);
-  const es = W.graph.edges.filter((e) => e.name === 'كوبرى شبين الكوم العلوي');
+  // (بعد تصغير المدن: كوبري شبين العلوي بقى برّه الخريطة — بنراجع كل الكباري اللي في المدينة دي، أي اسم)
+  const es = W.graph.edges.filter((e) => e.elevated && !e.closed && Math.max(...e.pts.map((p) => p.y)) > 2);
   const out = { edges: es.length, lengthM: Math.round(es.reduce((s, e) => s + e.length, 0)), maxH: 0, maxGrade: 0, wallSamples: 0, wallMissing: 0, wallOnDeck: 0, crossings: 0, lowClear: 0, minClear: 99, piersOnCross: 0, parapetSamples: 0, parapetMissing: 0 };
   const near = (x, z, y) => { W.refY = y; const a = []; W.queryColliders(x, z, a); return a; };
   for (const e of es) {

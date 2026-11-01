@@ -18,9 +18,9 @@ const r = await p.evaluate(async ([KIND, JIT]) => {
   // مشوار حقيقي في المدينة (تقاطعات، أرصفة، مطبات): من مكان البداية لنقطة على بعد ~500م بالطريق
   const W = g.world, ph = g.player.physics;
   const { findRoute } = await import('/src/nav/RoadGraph.js');
-  let route = null;
-  for (let k = 0; k < 40 && !route; k++) {
-    const e = W.graph.edges[Math.floor(Math.random() * W.graph.edges.length)];
+  let route = null, seed = 12345; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647); // (مسار ثابت: الاختبار مايعتمدش على الحظ)
+  for (let k = 0; k < 80 && !route; k++) {
+    const e = W.graph.edges[Math.floor(rnd() * W.graph.edges.length)];
     if (!e || e.elevated || e.closed) continue;
     const q = e.pts[Math.floor(e.pts.length / 2)];
     const d = Math.hypot(q.x - ph.x, q.z - ph.z); if (d < 300 || d > 700) continue;

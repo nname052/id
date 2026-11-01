@@ -20,7 +20,10 @@ const r = await page.evaluate(async () => {
   const { findRoute } = await import('/src/nav/RoadGraph.js');
   const L = Object.fromEntries(W.landmarkPoints.map((l) => [l.id, l]));
   const sp = W.spawnPose();
-  const legs = [[sp, L.hospital_mawadda], [L.hospital_mawadda, L.post_office]];
+  // (بعد تصغير شبين: مستشفى مودة بقت برّه الخريطة — المشوار بين أبعد معلمين لسه جوه)
+  const LP = W.landmarkPoints, far1 = [...LP].sort((a, b) => Math.hypot(b.x - sp.x, b.z - sp.z) - Math.hypot(a.x - sp.x, a.z - sp.z))[0];
+  const far2 = [...LP].filter((l) => l !== far1).sort((a, b) => Math.hypot(b.x - far1.x, b.z - far1.z) - Math.hypot(a.x - far1.x, a.z - far1.z))[0];
+  const legs = [[sp, L.hospital_mawadda || far1], [L.hospital_mawadda || far1, L.post_office || far2]];
   const dt = 1 / 30, v = 11, VD = tr.viewDist;
   let pedOnRoad = 0, crossSeen = 0, groupsSeen = 0, carThroughPed = 0, dwells = 0, pullers = new Set(), pedPop = 0, popIn = 0, vanish = 0, overlapsMax = 0, parkedHit = 0, parkedBad = 0, parkedMax = 0, activeSum = 0, n = 0, pedSum = 0, steps = 0;
   const wasVis = new Map(), pop = [];

@@ -48,7 +48,10 @@ drive = await page.evaluate(async () => {
   const { findRoute } = await import('/src/nav/RoadGraph.js');
   const sp = W.spawnPose();
   const L = Object.fromEntries(W.landmarkPoints.map((l) => [l.id, l]));
-  const legs = [[sp, L.hospital_mawadda], [L.hospital_mawadda, L.post_office], [L.post_office, sp]];
+  // (بعد تصغير شبين: مستشفى مودة برّه الخريطة — أبعد معلم عن البداية بداله)
+  const far1 = [...W.landmarkPoints].sort((a, b) => Math.hypot(b.x - sp.x, b.z - sp.z) - Math.hypot(a.x - sp.x, a.z - sp.z))[0];
+  const H = L.hospital_mawadda || far1, PO = L.post_office && L.post_office !== H ? L.post_office : W.landmarkPoints.find((l) => l !== H);
+  const legs = [[sp, H], [H, PO], [PO, sp]];
   const mem = () => ({ geo: g.renderer.info.memory.geometries, tex: g.renderer.info.memory.textures, heapMB: performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) : null, tiles: W.tiles.size });
   const m0 = mem();
   let maxUpd = 0, maxQueue = 0, dist = 0, steps = 0, loads = new Set(), junctions = new Set(), maxRender = 0, frames = 0;
@@ -81,9 +84,10 @@ drive = await page.evaluate(async () => {
   ph.reset(sp.x, sp.z, sp.yaw);
   for (let k = 0; k < 200; k++) { W.updateVisibility({ x: sp.x, z: sp.z }, 560); W.update(dt); if (!W.queue.length && k > 10) break; await new Promise((r) => setTimeout(r, 10)); }
   const m1 = mem();
-  return { km: +(dist / 1000).toFixed(2), steps, tilesVisited: loads.size, junctions: junctions.size, maxWorldUpdateMs: +maxUpd.toFixed(1), buildMsMax: +W.stats.buildMsMax.toFixed(1), buildMaxJob: W.stats.buildMaxJob, bldParts: W.stats.bldParts, maxQueue, maxRenderMs: +maxRender.toFixed(0), m0, mid, m1 };
+  return { km: +(dist / 1000).toFixed(2), steps, tilesVisited: loads.size, tilesTotal: Object.keys(W.meta?.tiles || {}).length, junctions: junctions.size, maxWorldUpdateMs: +maxUpd.toFixed(1), buildMsMax: +W.stats.buildMsMax.toFixed(1), buildMaxJob: W.stats.buildMaxJob, bldParts: W.stats.bldParts, maxQueue, maxRenderMs: +maxRender.toFixed(0), m0, mid, m1 };
 });
-T(2, 'سواقة طويلة عبر مربعات كتير', drive.km > 2 && drive.tilesVisited > 15, { km: drive.km, tilesVisited: drive.tilesVisited });
+// (بعد التصغير شبين كلها 15 مربع: لازم يزور كل المربعات — أو أكتر من 15 في الخرايط الكبيرة)
+T(2, 'سواقة طويلة عبر مربعات كتير', drive.km > 2 && drive.tilesVisited >= Math.min(16, drive.tilesTotal || 16), { km: drive.km, tilesVisited: drive.tilesVisited, tilesTotal: drive.tilesTotal });
 T(3, 'المرور على تقاطعات كتير', drive.junctions >= 20, { junctions: drive.junctions });
 T(4, 'حدود المربعات من غير تهنيج', drive.buildMsMax < 40 && drive.maxWorldUpdateMs < 50, { buildJobMaxMs: drive.buildMsMax, slowestJob: drive.buildMaxJob, bldParts: drive.bldParts, worldUpdateMaxMs: drive.maxWorldUpdateMs, note: 'CPU software rendering (swiftshader) — real devices are faster' });
 const leak = drive.m1 && drive.m0 ? drive.m1.geo - drive.m0.geo : null;
@@ -174,7 +178,7 @@ gps = await page.evaluate(async () => {
     }
   }
   // GPS بتاع اللعبة نفسه لمعلم حقيقي
-  const ph = g.player.physics, U = W.landmarkPoints.find((l) => l.id === 'hospital_mawadda');
+  const ph = g.player.physics, U = W.landmarkPoints.find((l) => l.id === 'hospital_mawadda') || W.landmarkPoints.find((l) => l.kind === 'hospital') || W.landmarkPoints[0];
   g.nav.setTarget({ x: U.rx, z: U.rz, name: U.name });
   g.nav._t = 0; g.nav.update(0.3, ph);
   const info = g.nav.info;

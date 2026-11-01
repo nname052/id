@@ -89,11 +89,14 @@ def run(lines):
         for e, y in new.items(): lines[e][2][:] = y
     for e, (xs, zs, ys, w) in lines.items():
         n = len(ys)
-        for rng in (range(1, n), range(n - 2, -1, -1)):  # الميل ≤ 8%
-            for k in rng:
-                j = k - 1 if rng.step == 1 else k + 1
-                ys[k] = min(ys[k], ys[j] + MAXG * math.hypot(xs[k] - xs[j], zs[k] - zs[j]))
+        # الميل ≤ 8% في الاتجاهين، والأطراف (نقط مشتركة مع وصلات تانية) ثابتة من الأول.
+        # (القديم كان بيوطّي بس وبعدين يرجّع الأطراف لارتفاعها → "سلمة" 30% في أول/آخر قطعة — ظهرت في الجيزة بعد الضغط)
         ys[0], ys[-1] = orig[e][0], orig[e][-1]
+        for _ in range(6):
+            for k in range(1, n - 1):
+                g = MAXG * math.hypot(xs[k] - xs[k - 1], zs[k] - zs[k - 1]); ys[k] = max(ys[k - 1] - g, min(ys[k - 1] + g, ys[k]))
+            for k in range(n - 2, 0, -1):
+                g = MAXG * math.hypot(xs[k] - xs[k + 1], zs[k] - zs[k + 1]); ys[k] = max(ys[k + 1] - g, min(ys[k + 1] + g, ys[k]))
         ys[:] = [round(v, 2) for v in ys]
     return sum(1 for e in lines for a, b in zip(lines[e][2], orig[e]) if abs(a - b) >= 0.01)
 
