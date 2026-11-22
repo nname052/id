@@ -1112,7 +1112,7 @@ export class Game {
         const ut = this.userTarget;
         if (ut && Math.hypot(ut.x - ph.x, ut.z - ph.z) < 22) { this.hud.toast(`📍 وصلت: ${ut.name}`, 2.4); this.userTarget = null; }
         if (this.userTarget && this.passengers.trip) this.userTarget = null; // زبون التاكسي له الأولوية
-        this.nav.setTarget(pol || pm || this.userTarget || (this.passengers.navTarget(ph)));
+        this.nav.setTarget(this.driving === 'heli' || this.driving === 'plane' ? null : pol || pm || this.userTarget || (this.passengers.navTarget(ph)));
         this.hud.setNav(this.nav.info);
         this.hud.setFuel(this.fuel.frac);
         const P = this.player, info = this.nav.info, job = this.passengers.jobInfo();

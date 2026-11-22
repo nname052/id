@@ -40,6 +40,10 @@ res.plane = await p.evaluate(() => {
     step(1, { lever: Math.max(-1, Math.min(1, (180 - F.V * 1.944) * 0.05)), roll, pitch });
     if (Math.hypot(B.pos.x - cx, B.pos.z - cz) < 250 || F.crashed) break;
   }
+  // المهمة: الحلقة فوق المدينة (نحط الطيارة قدامها ونعدّي)
+  const M = ad.mission; o.missionStart = M.state;
+  if (M.state === 'takeoff' || M.state === 'wp') { M.state = 'wp'; const w = M.wp; M.ring.show(w.x, w.y, w.z, 0); F.place(w.x, 0, w.z + 300, 0, { alt: w.y - ad.cg.y, speed: 110 }); for (let i = 0; i < 30 * 6 && M.state === 'wp'; i++) step(1, { lever: 0 }); }
+  o.missionAfterRing = M.state;
   o.overCity = { d: Math.round(Math.hypot(B.pos.x - cx, B.pos.z - cz)), alt: Math.round(B.pos.y), kt: Math.round(F.V * 1.944), crashed: F.crashed };
   return o;
 });
@@ -51,6 +55,7 @@ res.planeLand = await p.evaluate(() => {
   // اقتراب نهائي: 2.5كم قبل عتبة 36، خط انزلاق 3°، قلابات كاملة والعجل نازل
   const th = A.threshold(1), D = 2500;
   F.place(th.x, 0, th.z + D, 0, { alt: D * Math.tan(3 * Math.PI / 180) + 15, speed: 72 });
+  const money0 = g.wallet.balance;
   F.gearDown = true; F.gearPos = 1; F.flapIdx = 3; F.flaps = 1; F.throttle = 0.35;
   let touch = null, t = 0;
   while (t < 200) {
@@ -68,7 +73,8 @@ res.planeLand = await p.evaluate(() => {
     if (F.crashed || (touch && F.V < 1)) break;
   }
   ad.camera(g.camera, 1, 1 / 30, {});
-  return { touch, stopped: F.V < 1, stopFromThreshold: Math.round(th.z - B.pos.z), onRunway: Math.abs(B.pos.x - A.cx) < 20 && Math.abs(B.pos.z - A.cz) < 1300, crashed: F.crashed, papi: A.papi[1].lights.map((m) => m.material.color.getHexString()) };
+  for (let i = 0; i < 10; i++) step(1, { brake: 1, lever: -1 });
+  return { paid: g.wallet.balance - money0, missionNext: ad.mission.state, touch, stopped: F.V < 1, stopFromThreshold: Math.round(th.z - B.pos.z), onRunway: Math.abs(B.pos.x - A.cx) < 20 && Math.abs(B.pos.z - A.cz) < 1300, crashed: F.crashed, papi: A.papi[1].lights.map((m) => m.material.color.getHexString()) };
 });
 await shot('plane-landed', 2);
 // ===== الهليكوبتر =====
@@ -91,6 +97,20 @@ res.heli = await p.evaluate(() => {
 });
 await shot('heli-hover-chase', 1);
 await shot('heli-hover-cockpit', 0);
+res.medevac = await p.evaluate(() => {
+  const g = game, ad = g.airDrive, F = ad.fdm, B = F.B, M = ad.mission;
+  const step = (n, fly) => { for (let i = 0; i < n; i++) { ad.update(1 / 30, { actions: {}, handbrake: 0, fly }); if (F.crashed) break; } };
+  if (M.state !== 'medevac') M.heliTurn = 0, M.start();
+  const d = M.dest, money0 = g.wallet.balance, info = M.info();
+  F.place(d.x, d.y, d.z, 0, { alt: 20 }); F.rpm = 1; F.coll = 0.57;
+  let I = 0.57;
+  for (let i = 0; i < 30 * 40 && M.state === 'medevac'; i++) {
+    if (F.onGround) { step(1, { lever: Math.max(0, F.coll - 0.5 / 30), leverAbs: true }); continue; }
+    const h = B.pos.y - ad.cg.y - d.y, vyT = h > 6 ? -2 : -0.5, e = vyT - B.vel.y; I = Math.max(0, Math.min(1, I + 0.08 * e / 30));
+    step(1, { lever: Math.max(0, Math.min(1, I + 0.12 * e)), leverAbs: true });
+  }
+  return { dest: d.name, onRoof: d.y > 0, info, paid: g.wallet.balance - money0, next: M.state, crashed: F.crashed };
+});
 res.heliRoof = await p.evaluate(() => {
   const g = game, ad = g.airDrive, F = ad.fdm, B = F.B;
   const step = (n, fly) => { for (let i = 0; i < n; i++) { ad.update(1 / 30, { actions: {}, handbrake: 0, fly }); if (F.crashed) break; } };
@@ -132,6 +152,7 @@ console.log(JSON.stringify(res, null, 1));
 const P = res.plane, L = res.planeLand, H = res.heli, R = res.heliRoof, C = res.heliCrash;
 const ok = P.start.onRunway && !P.takeoff.crashed && P.takeoff.dist > 600 && P.takeoff.dist < 2500 && !P.overCity.crashed && P.overCity.d < 300
   && L.touch && L.stopped && L.onRunway && !L.crashed && L.touch.sink < 3
+  && P.missionAfterRing === 'land' && L.paid > 0 && L.missionNext === 'takeoff' && res.medevac.paid > 0 && res.medevac.next === 'tour'
   && H.rpm > 0.99 && !H.hover.crashed && Math.abs(H.hover.alt - 15) < 1.5 && H.hover.drift < 3
   && (R.skipped || (R.onGround && R.onRoof && !R.crashed))
   && (C.skipped || (C.crashed && C.afterRespawn))

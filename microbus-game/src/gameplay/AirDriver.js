@@ -12,6 +12,7 @@ import { AIRCRAFT_ASSETS } from '../config/assets.config.js';
 import { PlaneFDM, HeliFDM, buildAircraftRig, syncAircraftRig } from '../vehicles/Aircraft.js';
 import { Airport } from '../world/Airport.js';
 import { FlightAudio } from '../audio/FlightAudio.js';
+import { FlightMissions } from './FlightMissions.js';
 
 const STEP = 1 / 120;
 const MODEL = { heli: 'heli_206', plane: 'plane_a320' };
@@ -48,6 +49,7 @@ export class AirDriver {
     this._envOn();
     this.audio ||= new FlightAudio(g.audio);
     this.audio.start(kind);
+    (this.mission ||= new FlightMissions(this)).start();
     const keys = g.mobile ? '' : kind === 'plane' ? ' — W/S دفع، الأسهم العصاية، A/D الدفة، V/X القلابات، G العجل، Space فرامل' : ' — W/S الـ collective، الأسهم العصاية، A/D البدالات، Z مساعد الثبات';
     g.hud.toast(kind === 'plane' ? `✈️ إنت على أول الممر في منطقة الطيران${keys}` : `🚁 الريشة بتدور… ارفع الـ collective لحد ~57% عشان تحوم${keys}`, 6);
     return true;
@@ -157,7 +159,8 @@ export class AirDriver {
   /** مفيش مباني أعلى من 1م في نص قطر R حوالين النقطة (عشان الهليكوبتر تبدأ هنا) */
   _clearAt(x, z, R) {
     this._index();
-    for (let a = 0; a < 16; a++) for (const r of [R * 0.5, R]) { const px = x + Math.cos(a / 16 * Math.PI * 2) * r, pz = z + Math.sin(a / 16 * Math.PI * 2) * r; if (this._roof(px, pz) > 1) return false; }
+    if (this._roof(x, z) > 1) return false;
+    for (let a = 0; a < 16; a++) for (const r of [R * 0.35, R * 0.7, R]) { const px = x + Math.cos(a / 16 * Math.PI * 2) * r, pz = z + Math.sin(a / 16 * Math.PI * 2) * r; if (this._roof(px, pz) > 1) return false; }
     return this.W.height(x, z, 0) > WATER_FLOOR + 0.05;
   }
 
@@ -183,7 +186,7 @@ export class AirDriver {
         this.audio?.crash();
       }
       this.crashT -= dt;
-      if (this.crashT <= 0) this.spawn(true);
+      if (this.crashT <= 0) { this.spawn(true); if (this.kind === 'plane') this.mission?.start(); }
       this._syncPlayer(); return;
     }
     const ctl = { pitch: fly.pitch || 0, roll: fly.roll || 0, yaw: fly.yaw || 0, brake: Math.max(input.handbrake || 0, fly.brake || 0) };
@@ -287,20 +290,22 @@ export class AirDriver {
       [this.kind === 'plane' ? 'الدفع' : 'Collective', `${Math.round(pow * 100)}%`],
       this.kind === 'plane' ? ['القلابات', ['0', '1', '2', 'FULL'][F.flapIdx]] : ['الريشة', `${Math.round(F.rpm * 100)}%`],
     ];
-    const key = rows.map((r) => r[1]).join('|') + warn;
+    const mi = this.mission?.info();
+    const key = rows.map((r) => r[1]).join('|') + warn + (mi ? mi.title + mi.text : '');
     if (key !== this._pk) {
       this._pk = key;
       el.rows.innerHTML = rows.map(([k, v]) => `<div><small>${k}</small><b>${v}</b></div>`).join('');
       el.warn.textContent = warn; el.warn.style.display = warn ? '' : 'none';
       el.bar.style.height = `${Math.round(pow * 100)}%`;
+      el.mis.innerHTML = mi ? `<b>${mi.title}</b> ${mi.text}` : ''; el.mis.style.display = mi ? '' : 'none';
     }
     this._att(el.att, B);
   }
   _panel() {
     const d = document.createElement('div'); d.id = 'flight-hud';
-    d.innerHTML = '<canvas width="96" height="96"></canvas><div class="fh-rows"></div><div class="fh-pow"><i></i></div><div class="fh-warn"></div>';
+    d.innerHTML = '<canvas width="96" height="96"></canvas><div class="fh-rows"></div><div class="fh-pow"><i></i></div><div class="fh-warn"></div><div class="fh-mis"></div>';
     document.body.appendChild(d);
-    return { root: d, att: d.querySelector('canvas'), rows: d.querySelector('.fh-rows'), bar: d.querySelector('.fh-pow i'), warn: d.querySelector('.fh-warn') };
+    return { root: d, att: d.querySelector('canvas'), rows: d.querySelector('.fh-rows'), bar: d.querySelector('.fh-pow i'), warn: d.querySelector('.fh-warn'), mis: d.querySelector('.fh-mis') };
   }
   /** مؤشر الوضع (الأفق الصناعي): سما/أرض + خطوط الميل */
   _att(c, B) {

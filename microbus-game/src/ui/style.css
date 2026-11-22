@@ -371,8 +371,10 @@ body:not(.flying) #flight-hud { display: none; }
 #flight-hud .fh-pow i { display: block; width: 100%; background: #f2b330; }
 #flight-hud .fh-warn { grid-column: 1 / -1; background: #c62828; color: #fff; border-radius: 8px; padding: 4px 8px; text-align: center; font-size: 13px; animation: fhblink 0.8s infinite alternate; }
 @keyframes fhblink { from { opacity: 1; } to { opacity: 0.55; } }
-body.touch #flight-hud { top: calc(56px + env(safe-area-inset-top, 0px)); transform: none; padding: 6px; font-size: 11px; }
-body.touch #flight-hud canvas { width: 72px; height: 72px; }
+body.touch #flight-hud { top: calc(6px + env(safe-area-inset-top, 0px)); left: calc(108px + env(safe-area-inset-left, 0px)); transform: none; padding: 5px 6px; font-size: 11px; gap: 4px 6px; }
+body.touch #flight-hud .fh-rows { grid-template-columns: repeat(3, minmax(52px, auto)); }
+body.touch #flight-hud .fh-rows b { font-size: 12px; }
+body.touch #flight-hud canvas { width: 58px; height: 58px; }
 #ftouch { position: fixed; inset: 0; z-index: 4; pointer-events: none; direction: ltr; }
 #ftouch button, #ftouch .ft-stick, #ftouch .ft-lever { pointer-events: auto; touch-action: none; }
 #ftouch button { border: 1.5px solid rgba(255, 255, 255, 0.22); color: #fff; background: rgba(18, 18, 22, 0.4); border-radius: 12px; font: 700 12px/1 'Cairo', sans-serif; min-width: 52px; height: 40px; padding: 0 8px; }
@@ -390,3 +392,5 @@ body.touch #flight-hud canvas { width: 72px; height: 72px; }
 .ft-btns { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(70px + env(safe-area-inset-bottom, 0px)); display: flex; gap: 6px; }
 #ftouch[data-kind="heli"] .ft-plane, #ftouch[data-kind="plane"] .ft-heli { display: none; }
 #help .help-fly { display: none; } body.flying #help .help-fly { display: block; } body.flying #help .help-car { display: none; }
+#flight-hud .fh-mis { grid-column: 1 / -1; font-size: 12px; background: rgba(58, 208, 255, 0.16); border-radius: 8px; padding: 4px 8px; }
+#flight-hud .fh-mis b { color: #7fe0ff; margin-left: 4px; }
