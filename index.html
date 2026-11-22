@@ -13,8 +13,8 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="ميكروباص" />
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
-  <script type="module" crossorigin src="./assets/index-DBCOGS1f.js"></script>
-  <link rel="stylesheet" crossorigin href="./assets/index-3XJpVhvg.css">
+  <script type="module" crossorigin src="./assets/index-AFy3EwOE.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-DwHG0f9g.css">
 </head>
 <body>
   <div id="app"></div>
@@ -48,9 +48,12 @@
         <button data-v="ambulance"><b>🚑</b><span>إسعاف</span><small>هاي إس · حالات طوارئ</small></button>
         <button data-v="truck"><b>🚚</b><span>نقل</span><small>كانتر · تقيل وعالي</small></button>
         <button data-v="bus"><b>🚌</b><span>أتوبيس</span><small>40 راكب · على الخط</small></button>
+        <button data-v="heli"><b>🚁</b><span>هليكوبتر</span><small>حوم · طيران فوق المدينة</small></button>
+        <button data-v="plane"><b>✈️</b><span>طيارة ركاب</span><small>A320 · إقلاع وهبوط</small></button>
       </div>
       <p class="osm-attr" id="osm-attr">بيانات الخريطة © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a> (ODbL) · أماكن وأشكال المباني: <a href="https://github.com/microsoft/GlobalMLBuildingFootprints" target="_blank" rel="noopener">Microsoft Global ML Building Footprints</a> (ODbL)</p>
       <details class="osm-attr photo-credits" id="photo-credits"><summary>مصادر الصور: شوارع شبين الكوم الحقيقية — Wikimedia Commons</summary><ul id="photo-list"></ul></details>
+      <details class="osm-attr photo-credits" id="model-credits"><summary>مصادر الموديلات ثلاثية الأبعاد (Sketchfab)</summary><ul id="model-list"></ul></details>
       <button id="go" disabled>يلا بينا ▶</button>
       <div class="keys">
         <div><kbd>W</kbd> بنزين</div>
@@ -86,9 +89,14 @@
   <div id="rotate"><div>📱↻<br />لف التليفون بالعرض عشان تسوق</div></div>
   <div id="fps" class="hidden"></div>
   <div id="help" class="hidden">
-    <b>التحكم</b>
+    <div class="help-car"><b>التحكم</b>
     W بنزين · S فرامل/ريوس · A/D دركسيون · Space فرامل يد · C كاميرا · R رجوع للطريق<br />
-    H كلاكس · Q/E بص يمين وشمال · B بص ورا · T وقت اليوم · M صوت · F عداد FPS · I إخفاء/إظهار المساعدة
+    H كلاكس · Q/E بص يمين وشمال · B بص ورا · T وقت اليوم · M صوت · F عداد FPS · I إخفاء/إظهار المساعدة</div>
+    <div class="help-fly">
+      <b>الطيران</b>
+      الأسهم = العصاية (↑ الأنف لتحت · ↓ الأنف لفوق · ←/→ ميل) · W/S الدفع / الـ collective · A/D الدفة / البدالات · C كاميرا · R رجوع لنقطة البداية<br />
+      الطيارة: V/X القلابات + / − · G العجل · Space فرامل · الهليكوبتر: Z مساعد الثبات (SAS)
+    </div>
   </div>
 
 </body>
