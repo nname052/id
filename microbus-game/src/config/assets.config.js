@@ -86,3 +86,11 @@ export const AUDIO_ASSETS = {
   horn: 'horn.mp3',                  // كلاكس
   ambience: 'street_ambience.mp3',   // دوشة شارع (لوب)
 };
+
+// الطيران (STAGE 7) — بيتحمّلوا لما تختارهم (AssetManager.loadLazy). الوش ناحية -z زي العربيات
+export const AIRCRAFT_ASSETS = {
+  // هليكوبتر مدني خفيف (Sketchfab "Helicopter" — irs1182, CC BY 4.0): الطول الكلي بالريش ~11.9م
+  heli_206: { file: 'heli_206.glb', targetLength: 11.9, rotationY: 270 },
+  // إيرباص A320 (Sketchfab "A320" — manilov.ap, CC BY 4.0) بطلاء محايد: الطول الحقيقي 37.57م
+  plane_a320: { file: 'plane_a320.glb', targetLength: 37.57, rotationY: 180 },
+};

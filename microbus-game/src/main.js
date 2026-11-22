@@ -1,3 +1,4 @@
+import MODEL_CREDITS from './config/modelCredits.json';
 import { Game } from './core/Game.js';
 import { seatColor } from './net/Multiplayer.js';
 import { PHOTO_SOURCES } from './render/photoAtlas.js';
@@ -53,6 +54,9 @@ pick.addEventListener('click', (e) => {
   const lic = (l) => (LIC[l] ? `<a href="${LIC[l]}" target="_blank" rel="noopener">${esc(l)}</a>` : esc(l));
   if (ul) ul.innerHTML = PHOTO_SOURCES.map((s) => `<li><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title)}</a> — ${esc(s.author)} · ${lic(s.license)}</li>`).join('')
     + '<li>اتقصت حتت من الصور واتعدّل منظورها ولونها عشان تبقى خامات (واجهات، محلات، أسفلت، رصيف) — نفس الرخصة.</li>';
+  // الموديلات (CC BY): الاسم + الفنان + اللينك + الرخصة — من نفس ملف الحقوق اللي أداة التحميل بتكتبه
+  const ml = document.getElementById('model-list');
+  if (ml) ml.innerHTML = Object.values(MODEL_CREDITS).filter((m) => m.url && /CC/.test(m.license || '')).map((m) => `<li><a href="${esc(m.url)}" target="_blank" rel="noopener">${esc(m.name || '')}</a> — ${esc(m.author || '')} · ${/CC0/i.test(m.license) ? 'CC0' : /BY-3/i.test(m.license) ? '<a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noopener">CC BY 3.0</a>' : '<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>'}${/اتشال/.test(m.role || '') ? ' (اتغيّر: الطلاء)' : ' (اتبسّط للتليفونات)'}</li>`).join('');
 }
 
 {

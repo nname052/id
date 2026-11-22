@@ -30,6 +30,9 @@ export const MODELS = [
   { key: 'golf_cart', path: 'glbs/000-045/c47ccbe5107d4d8f92b3caaf93f3d9cc.glb', role: 'عربية جولف (السياحة عند الأهرامات)', tris: 12000 },
   { key: 'camel', path: 'glbs/000-148/794fd9fe9d224bb9ba8ddae8a499321e.glb', role: 'جمل (منطقة الأهرامات)', tris: 3800 },
   { key: 'horse_saddle', path: 'glbs/000-045/b08743c2c4734fb98a4e0a2f5767c318.glb', role: 'حصان بسرج متحرك (منطقة الأهرامات)', tris: 9000, err: 0.02 },
+  // STAGE 7 — الطيران: هليكوبتر مدني (بيل 206 تقريبًا، وحدات سم) + إيرباص A320 (متر، الطلاء اتغيّر: repaint_a320.py)
+  { key: 'heli_206', path: 'glbs/000-152/91366449ce6842f784748a914e29d641.glb', role: 'هليكوبتر مدني (ركاب/إسعاف جوي) — الطيران', tris: 16000, tex: 1024, prep: 'tools/models/split_heli.py', dir: 'assets/aircraft' },
+  { key: 'plane_a320', path: 'glbs/000-113/ec28bdee6c944688a19bef31ea33437f.glb', role: 'طيارة ركاب (إيرباص A320) — الطيران؛ اسم الشركة والشعار والتسجيل اتشالوا', tris: 20000, tex: 1024, prep: 'tools/models/repaint_a320.py', dir: 'assets/aircraft' },
   { key: 'bus_karosa', path: 'glbs/000-106/21262813724e401b88333d381c4626f7.glb', role: 'أتوبيس (كاروسا C734) — المدن غير القاهرة', tris: 16000 },
 ];
 
@@ -56,12 +59,14 @@ for (const M of MODELS) {
     if (!r.ok) { console.log(`FAIL ${M.key}: ${r.status}`); continue; }
     fs.writeFileSync(src, Buffer.from(await r.arrayBuffer()));
   }
-  const J = glbJson(src), ex = J.asset?.extras || {};
+  let J = glbJson(src), ex = J.asset?.extras || {};
+  let inp = src;
+  if (M.prep) { inp = src.replace(/\.glb$/, '_prep.glb'); execFileSync('python3', [path.join(ROOT, M.prep), src, inp], { stdio: 'inherit' }); }
   if (!OK.test(ex.license || '')) { console.log(`SKIP ${M.key}: license "${ex.license}"`); continue; }
-  const out = path.join(ROOT, 'assets/models', `${M.key}.glb`);
+  const out = path.join(ROOT, M.dir || 'assets/models', `${M.key}.glb`);
   const ratio = Math.min(1, M.tris / tris(J));
   // (من غير --join: أسامي القطع زي العجل لازم تفضل عشان اللعبة تلفّها)
-  execFileSync('npx', ['gltf-transform', 'optimize', src, out, '--compress', 'meshopt', '--texture-compress', 'webp', '--texture-size', String(M.tex ?? 512), '--palette', 'false', '--join', 'false', '--instance', 'false', '--flatten', 'false',
+  execFileSync('npx', ['gltf-transform', 'optimize', inp, out, '--compress', 'meshopt', '--texture-compress', 'webp', '--texture-size', String(M.tex ?? 512), '--palette', 'false', '--join', 'false', '--instance', 'false', '--flatten', 'false',
     '--simplify', ratio < 1 ? 'true' : 'false', '--simplify-ratio', String(ratio.toFixed(4)), '--simplify-error', String(M.err ?? 0.012)], { stdio: 'inherit', cwd: ROOT });
   credits[M.key] = { name: ex.title, author: (ex.author || '').replace(/\s*\(.*$/, ''), authorUrl: (ex.author || '').match(/\((.*)\)/)?.[1], url: ex.source, license: ex.license, role: M.role, via: 'Objaverse (allenai/objaverse, Hugging Face)', fetched: new Date().toISOString().slice(0, 10) };
   console.log(`OK ${M.key}: ${ex.title} — ${credits[M.key].author} (${ex.license}) ${(fs.statSync(out).size / 1e6).toFixed(2)} MB, ${tris(J)} → ~${Math.round(tris(J) * ratio)} tris`);

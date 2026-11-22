@@ -148,5 +148,25 @@
   "role": "حصان بسرج متحرك (منطقة الأهرامات)",
   "via": "Objaverse (allenai/objaverse, Hugging Face)",
   "fetched": "2026-11-01"
+ },
+ "heli_206": {
+  "name": "Helicopter",
+  "author": "irs1182",
+  "authorUrl": "https://sketchfab.com/irs1182",
+  "url": "https://sketchfab.com/3d-models/helicopter-91366449ce6842f784748a914e29d641",
+  "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+  "role": "هليكوبتر مدني (ركاب/إسعاف جوي) — الطيران",
+  "via": "Objaverse (allenai/objaverse, Hugging Face)",
+  "fetched": "2026-11-22"
+ },
+ "plane_a320": {
+  "name": "A320",
+  "author": "manilov.ap",
+  "authorUrl": "https://sketchfab.com/manilov.ap",
+  "url": "https://sketchfab.com/3d-models/a320-ec28bdee6c944688a19bef31ea33437f",
+  "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+  "role": "طيارة ركاب (إيرباص A320) — الطيران؛ اسم الشركة والشعار والتسجيل اتشالوا",
+  "via": "Objaverse (allenai/objaverse, Hugging Face)",
+  "fetched": "2026-11-22"
  }
 }

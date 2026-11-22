@@ -7,7 +7,9 @@ import { MODEL_ASSETS, TEXTURE_ASSETS, AUDIO_ASSETS } from '../config/assets.con
 
 // بيدور على الملفات اللي إنت حاطتها في فولدر assets/ (وقت البناء)،
 // فمفيش أي طلب لملف مش موجود → مفيش أخطاء 404 في الـ Console.
-const FOUND = import.meta.glob('../../assets/**/*.{glb,GLB,jpg,jpeg,png,webp,mp3,ogg,wav,m4a}', { query: '?url', import: 'default', eager: true });
+const FOUND = import.meta.glob(['../../assets/**/*.{glb,GLB,jpg,jpeg,png,webp,mp3,ogg,wav,m4a}', '!../../assets/aircraft/**'], { query: '?url', import: 'default', eager: true });
+// الطيارة والهليكوبتر: بيتحمّلوا لما تختارهم بس (ملف JS لوحده لكل موديل) — مش مع كل تحميل للعبة
+const LAZY = import.meta.glob('../../assets/aircraft/*.glb', { query: '?url', import: 'default' });
 
 const byName = {};
 for (const [path, url] of Object.entries(FOUND)) {
@@ -93,6 +95,16 @@ export class AssetManager {
   }
 
   get(key) { return this.models[key] || null; }
+
+  /** موديل بيتحمّل وقت الحاجة (assets/aircraft) — بيرجع نفس شكل get() */
+  async loadLazy(key, cfg) {
+    if (this.models[key]) return this.models[key];
+    const imp = LAZY[`../../assets/aircraft/${cfg.file}`];
+    if (!imp) throw new Error(`${cfg.file} not in build`);
+    const url = await imp();
+    const gltf = await this._loadGLB(url);
+    return (this.models[key] = this._wrap(key, cfg, gltf));
+  }
 
   _wrap(key, cfg, gltf) {
     let scene = gltf.scene;

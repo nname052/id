@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { TrainDriver } from '../gameplay/TrainDriver.js';
+import { AirDriver } from '../gameplay/AirDriver.js';
+import { FlightTouch } from '../ui/FlightTouch.js';
 import { createMaterials } from '../render/materials.js';
 import { loadPhotoAtlas, applyPhotoAtlas } from '../render/photoAtlas.js';
 import { Environment } from '../world/Environment.js';
@@ -794,6 +796,23 @@ export class Game {
   }
 
   setVehicle(kind) {
+    // ===== الطيران (STAGE 7): هليكوبتر / طيارة ركاب — مش عربية: AirDriver بيتحكم في كل حاجة =====
+    if (kind === 'heli' || kind === 'plane') {
+      if (this.driving === kind || this._airBusy) return;
+      if (this.driving === 'train') { this.trainDrive.exit(); document.body.classList.remove('train'); }
+      if (this.driving === 'heli' || this.driving === 'plane') this.airDrive.exit();
+      const ad = (this.airDrive ||= new AirDriver(this));
+      this._airBusy = true;
+      ad.enter(kind).then(() => {
+        this.driving = kind; this.player.rig.root.visible = false; this.cams.snap = true;
+        if (this.mobile) { this.flightTouch ||= new FlightTouch(); this.input.flightTouch = this.flightTouch; this.flightTouch.show(kind, 0); this.touch?.root.classList.add('fly'); }
+      }).catch((e) => { console.error('[air]', e); this.hud.toast('ماقدرناش نحمّل الطيارة: ' + e.message, 4); }).finally(() => { this._airBusy = false; });
+      return;
+    }
+    if (this.driving === 'heli' || this.driving === 'plane') {
+      this.airDrive.exit(); this.driving = null; this.player.rig.root.visible = true; this.flightTouch?.hide(); this.cams.snap = true;
+      if (this.player.kind === kind) return;
+    }
     // ===== القطر (MAJOR UPDATE): مش عربية — اللاعب بيسوق قطر السكة الحديد بتاع المدينة =====
     if (kind === 'train') {
       if (this.driving === 'train') return;
@@ -969,7 +988,7 @@ export class Game {
     if (a.camera) this.hud.toast(`الكاميرا: ${this.cams.next()}`);
     if (a.zoomIn) this.cams.zoomBy(1 / 1.15);
     if (a.zoomOut) this.cams.zoomBy(1.15);
-    if (a.reset) {
+    if (a.reset && !this.driving) {
       const r = this.player.reset();
       this.hud.toast(r === 'recover' ? 'العربية اتعدلت' : 'رجعت للطريق واتصلّحت');
       this._flipNote = false; this.touch?.root.querySelector('[data-act="reset"]')?.classList.remove('lit');
@@ -984,8 +1003,10 @@ export class Game {
     this.acc += dt;
     let steps = 0;
     const ph = this.player.physics;
+    const air = this.driving === 'heli' || this.driving === 'plane';
     if (this.driving === 'train') { this.trainDrive.update(dt, input); this.acc = 0; }
-    while (this.driving !== 'train' && this.acc >= FIXED_DT && steps < 8) {
+    if (air) { this.airDrive.update(dt, input); this.acc = 0; }
+    while (!this.driving && this.acc >= FIXED_DT && steps < 8) {
       this.world.refY = ph.heave - ph.spec.cgHeight;
       this.player.beforeStep();
       ph.step(FIXED_DT, input, this._colliders);
@@ -1032,11 +1053,12 @@ export class Game {
         }
       } else this._streetCand = key;
     }
-    if (this.driving !== 'train') this.player.syncVisuals(dt, this.acc / FIXED_DT);
+    if (!this.driving) this.player.syncVisuals(dt, this.acc / FIXED_DT);
     // دخان الشكمان (بنزين جامد / نقلة فتيس) — مش في القطر
-    if (this.started && this.driving !== 'train') { (this.exhaust ||= new ExhaustSmoke(this.scene, { max: this.tier === 'low' ? 70 : 160 })).update(dt, this.player, input, this.camera, this.renderer); }
+    if (this.started && !this.driving) { (this.exhaust ||= new ExhaustSmoke(this.scene, { max: this.tier === 'low' ? 70 : 160 })).update(dt, this.player, input, this.camera, this.renderer); }
     this.cams.update(dt, input);
     if (this.driving === 'train') this.trainDrive.camera(this.camera, this.cams.mode, dt);
+    if (air) this.airDrive.camera(this.camera, this.cams.mode, dt, input);
     this.cine?.update(dt, this.camera);
     if (this.player.driver) this.player.driver.visible = this.cams.mode !== 0;
     // إيدين السواق على الجادون بتبان من الكابينة بس (من برا الموديل بتاع السواق هو اللي باين)
@@ -1044,15 +1066,15 @@ export class Game {
     this.crowd.update(dt, this.camera.position, this.player.physics, this.camera.getWorldDirection(this._camDir || (this._camDir = new THREE.Vector3())));
     this.emergency?.update(dt, this.camera.position);
     this.passengers.camPos = this.camera.position;
-    if (this.started) this.passengers.update(dt, ph);
+    if (this.started && !air) this.passengers.update(dt, ph);
     // البنزين، الرخص، الكماين، والبنزينة
     if (this.started) {
-      this.fuel.update(dt, ph);
+      if (!air) this.fuel.update(dt, ph);
       this.licenses.update(dt);
-      this.police.update(dt, ph, this.player.kind, this.clock.elapsedTime);
-      this.incidents.update(dt, ph);
+      if (!air) this.police.update(dt, ph, this.player.kind, this.clock.elapsedTime);
+      if (!air) this.incidents.update(dt, ph);
       // (الدورية بتاعة المرور بتقف وإنت سايق البوكس — الحوادث بقت مهماتك إنت)
-      if (this.player.kind !== 'police') this.patrol?.update(dt, ph);
+      if (this.player.kind !== 'police' && !air) this.patrol?.update(dt, ph);
       // السارينة (الإسعاف/البوكس): بإيدك (G / الزرار) أو لوحدها وقت المهمة. بتشغّل الصوت والكشاف، والمرور بيفسح
       {
         const k = this.player.kind, em = k === 'police' || k === 'ambulance';
@@ -1068,9 +1090,9 @@ export class Game {
       this.ambulanceMission?.update(dt, ph, this.player);
       this.tourMission?.update(dt, ph, this.player);
       this.pyramidAnimals?.update(dt, this.camera.position);
-      if (!this.incidents.busy) this.intercity?.update(dt, ph, this.player.kind);
+      if (!this.incidents.busy && !air) this.intercity?.update(dt, ph, this.player.kind);
       this.works?.userData.update(dt, ph.x, ph.z);
-      this._stationUpdate(dt, ph);
+      if (!air) this._stationUpdate(dt, ph);
       this.docs.update(dt);
     }
     // الـ GPS: الهدف من الشغل (المحطة الجاية / الزبون / الوجهة)، والطريق بيتحسب ويتابع كل ربع ثانية
@@ -1131,9 +1153,10 @@ export class Game {
       else this.hud.toast('السارينة في الإسعاف والبوكس بس', 1.6);
     }
     if (input.horn) { this._hornT = (this._hornT || 0) - dt; if (this._hornT <= 0) { this._hornT = 0.6; this.traffic.honked?.(this.player.physics); this.crowd?.honked?.(this.player.physics); } } else this._hornT = 0;
-    this.audio.update(dt, { player: this.player, camera: this.camera, traffic: this.traffic, inside, horn: input.horn, passengers: this.passengers?.count, crowd: this.crowd });
+    this.audio.update(dt, { player: this.player, camera: this.camera, traffic: this.traffic, inside, horn: input.horn && !air, passengers: this.passengers?.count, crowd: this.crowd, muteEngine: !!this.driving });
     this.hud.update(dt, ph, this.lights);
     if (this.driving === 'train') this.trainDrive.hud();
+    if (air) { this.airDrive.hud(); this.airDrive.fog(); }
     if (this.touch) this.touch.update(ph.steeringWheelAngle);
 
     if (inside) this.player.renderMirrors(this.renderer, this.scene, this.camera.position);

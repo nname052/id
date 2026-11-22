@@ -1145,7 +1145,7 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
       this.streetKit?.addTile(T.name, Bd.gen); lap('street');
       for (const c of colliders) this._addCollider(c, T);
       // بصمات المباني (للاختبارات وفحص "العربية جوه مبنى")
-      for (const [cx, cz, w, d, a] of Bd.gen) { const c = Math.cos(a), s = Math.sin(a); (this._bldFoot ||= []).push({ kind: 'gen', T: T.name, P: [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([u, v]) => [cx + u * w / 2 * c + v * d / 2 * s, cz - u * w / 2 * s + v * d / 2 * c]) }); }
+      for (const [cx, cz, w, d, a, fl] of Bd.gen) { const c = Math.cos(a), s = Math.sin(a); (this._bldFoot ||= []).push({ kind: 'gen', T: T.name, h: 3.6 + (fl || 1) * 3.0 + 0.9, P: [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([u, v]) => [cx + u * w / 2 * c + v * d / 2 * s, cz - u * w / 2 * s + v * d / 2 * c]) }); }
       lap('col'); P.n = Math.max(P.n, Bd.gen.length);
       this.stats.buildings += T.nB;
     }
@@ -1156,7 +1156,7 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
       const { group } = styledRealBuilding(rb, this);
       T.group.add(group);
       if (rb.kind === 'train_station') this.rail?.realStationLoaded?.(rb);
-      { const r0 = rb.rings[0], Pp = []; for (let i = 0; i + 1 < r0.length; i += 2) Pp.push([r0[i], r0[i + 1]]); (this._bldFoot ||= []).push({ kind: 'real', T: T.name, P: Pp }); }
+      { const r0 = rb.rings[0], Pp = []; for (let i = 0; i + 1 < r0.length; i += 2) Pp.push([r0[i], r0[i + 1]]); (this._bldFoot ||= []).push({ kind: 'real', T: T.name, h: Math.max(1, rb.floors || 3) * 3.2 + 0.6, P: Pp }); }
       // التصادم: صناديق صغيرة على حيطان المضلع
       // (الحيطة كانت 60 سم بس: خبطة مايلة على 50 كم/س كانت بتعدّي منها والعربية تخلص جوه المبنى 5م.
       //  دلوقتي كل حيطة سُمكها 2.4م لجوه المبنى — الوش اللي برّه في نفس مكانه بالظبط)

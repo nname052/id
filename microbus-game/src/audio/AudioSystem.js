@@ -499,7 +499,7 @@ export class AudioSystem {
     return this.muted;
   }
 
-  update(dt, { player, camera, traffic, inside, horn, passengers, crowd }) {
+  update(dt, { player, camera, traffic, inside, horn, passengers, crowd, muteEngine = false }) {
     if (!this.started) return;
     const ctx = this.ctx, t = ctx.currentTime;
     const ph = player.physics;
@@ -523,7 +523,7 @@ export class AudioSystem {
     const camDist = camera.position.distanceTo(player.rig.root.position);
     const distAtt = inside ? 1 : Math.min(1, 6 / Math.max(3, camDist));
     // الموتور طافي (البنزين خلص): الصوت بيقع بالراحة
-    const run = ph.engineOff ? 0 : 1;
+    const run = ph.engineOff || muteEngine ? 0 : 1; // (muteEngine: اللاعب في القطر/الطيارة — العربية مركونة)
     if (!(this._engineHold && t < this._engineHold)) set(e.out.gain, run * (inside ? 0.5 : 0.42) * distAtt * (0.75 + thr * 0.35) * (this.vol?.engine ?? 0.8) / 0.8, run ? 0.05 : 0.35);
     if (e.file) {
       set(e.file.playbackRate, 0.6 + rpm / 2200);

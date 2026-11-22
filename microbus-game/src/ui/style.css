@@ -355,3 +355,38 @@ body.touch #toast { font-size: 11px; max-width: 44vw; }
 
 /* (قطر) لوحة خط الميكروباص واللفة الجاية مالهمش لازمة وإنت سايق القطر */
 body.train #job, body.train #navpill, body.train #linepick { display: none !important; }
+
+/* ===== الطيران (STAGE 7) ===== */
+body.flying #job, body.flying #navpill, body.flying #linepick, body.flying #street { display: none !important; }
+body.flying #touch .t-wheel-zone, body.flying #touch .t-pedals, body.flying #touch .t-horn, body.flying #touch [data-act="siren"], body.flying #touch [data-act="lights"] { display: none !important; }
+#flight-hud { position: fixed; left: calc(12px + env(safe-area-inset-left, 0px)); top: 50%; transform: translateY(-50%); z-index: 5; pointer-events: none; display: grid; grid-template-columns: auto auto; gap: 6px 8px; align-items: start;
+  background: rgba(12, 14, 18, 0.5); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 14px; padding: 8px; color: #fff; font: 600 12px/1.2 'Cairo', sans-serif; direction: rtl; }
+body:not(.flying) #flight-hud { display: none; }
+#flight-hud canvas { width: 96px; height: 96px; grid-row: span 2; }
+#flight-hud .fh-rows { display: grid; grid-template-columns: repeat(2, minmax(64px, auto)); gap: 4px 10px; }
+#flight-hud .fh-rows div { display: flex; flex-direction: column; }
+#flight-hud .fh-rows small { opacity: 0.7; font-size: 10px; }
+#flight-hud .fh-rows b { font-size: 14px; font-variant-numeric: tabular-nums; }
+#flight-hud .fh-pow { position: absolute; left: -10px; top: 8px; bottom: 8px; width: 5px; border-radius: 3px; background: rgba(255, 255, 255, 0.15); overflow: hidden; display: flex; align-items: flex-end; }
+#flight-hud .fh-pow i { display: block; width: 100%; background: #f2b330; }
+#flight-hud .fh-warn { grid-column: 1 / -1; background: #c62828; color: #fff; border-radius: 8px; padding: 4px 8px; text-align: center; font-size: 13px; animation: fhblink 0.8s infinite alternate; }
+@keyframes fhblink { from { opacity: 1; } to { opacity: 0.55; } }
+body.touch #flight-hud { top: calc(56px + env(safe-area-inset-top, 0px)); transform: none; padding: 6px; font-size: 11px; }
+body.touch #flight-hud canvas { width: 72px; height: 72px; }
+#ftouch { position: fixed; inset: 0; z-index: 4; pointer-events: none; direction: ltr; }
+#ftouch button, #ftouch .ft-stick, #ftouch .ft-lever { pointer-events: auto; touch-action: none; }
+#ftouch button { border: 1.5px solid rgba(255, 255, 255, 0.22); color: #fff; background: rgba(18, 18, 22, 0.4); border-radius: 12px; font: 700 12px/1 'Cairo', sans-serif; min-width: 52px; height: 40px; padding: 0 8px; }
+#ftouch button.on { background: rgba(242, 179, 48, 0.85); color: #1a1408; }
+.ft-stick { position: absolute; left: calc(26px + env(safe-area-inset-left, 0px)); bottom: calc(26px + env(safe-area-inset-bottom, 0px)); width: 150px; height: 150px; border-radius: 50%; background: rgba(18, 18, 22, 0.32); border: 1.5px solid rgba(255, 255, 255, 0.22); display: grid; place-items: center; }
+.ft-stick::before, .ft-stick::after { content: ''; position: absolute; background: rgba(255, 255, 255, 0.15); }
+.ft-stick::before { width: 1px; height: 70%; } .ft-stick::after { height: 1px; width: 70%; }
+.ft-knob { width: 58px; height: 58px; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #5a5a60, #1e1e22); border: 2px solid rgba(255, 255, 255, 0.35); pointer-events: none; }
+.ft-right { position: absolute; right: calc(22px + env(safe-area-inset-right, 0px)); bottom: calc(22px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.ft-lever { position: relative; width: 58px; height: 170px; border-radius: 14px; background: rgba(18, 18, 22, 0.35); border: 1.5px solid rgba(255, 255, 255, 0.22); overflow: visible; }
+.ft-lever i { position: absolute; left: 0; right: 0; bottom: 0; background: rgba(242, 179, 48, 0.45); border-radius: 0 0 12px 12px; }
+.ft-lever b { position: absolute; left: -6px; right: -6px; height: 28px; border-radius: 8px; background: #e9e9ec; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4); }
+.ft-lever span { position: absolute; top: -18px; left: 50%; transform: translateX(-50%); color: #fff; font: 700 11px 'Cairo', sans-serif; white-space: nowrap; text-shadow: 0 1px 2px #000; }
+.ft-yaw { display: flex; gap: 6px; }
+.ft-btns { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(70px + env(safe-area-inset-bottom, 0px)); display: flex; gap: 6px; }
+#ftouch[data-kind="heli"] .ft-plane, #ftouch[data-kind="plane"] .ft-heli { display: none; }
+#help .help-fly { display: none; } body.flying #help .help-fly { display: block; } body.flying #help .help-car { display: none; }

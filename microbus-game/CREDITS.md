@@ -41,3 +41,12 @@
 | رينو لوجان 2004 (ملاكي/تاكسي منتشر) (`assets/models/car_logan.glb`) | "Renault Logan 2004" by Denis Petrushin — https://sketchfab.com/3d-models/renault-logan-2004-e4f9463f6e004b90bb977d12f6375b9c (via Objaverse) | CC-BY-4.0 | Simplified (gltf-transform: meshopt, WebP textures ≤512 px). |
 | دايو سييلو/نيكسيا (ملاكي منتشر) (`assets/models/car_nexia.glb`) | "Daewoo - Nexia\Cielo" by sMoKi — https://sketchfab.com/3d-models/daewoo-nexiacielo-90006f59fd594d2b95f1469f651491f1 (via Objaverse) | CC-BY-4.0 | Simplified (gltf-transform: meshopt, WebP textures ≤512 px). |
 | بيجو 404 بيك أب — ربع نقل (`assets/models/pickup_p404.glb`) | "Peugeot 404 Pick-up" by Mohamed Fsili — https://sketchfab.com/3d-models/peugeot-404-pick-up-1a4b4cfdad074045aad63afae4c1e8c7 (via Objaverse) | CC-BY-4.0 | Simplified (gltf-transform: meshopt, WebP textures ≤512 px). |
+
+## Aircraft (STAGE 7)
+
+| Asset | Source / author | License | Notes |
+|---|---|---|---|
+| Helicopter (`assets/aircraft/heli_206.glb`) | "Helicopter" by irs1182 — https://sketchfab.com/3d-models/helicopter-91366449ce6842f784748a914e29d641 (via Objaverse) | CC-BY-4.0 | Main and tail rotors split into their own parts so they can spin (`tools/models/split_heli.py`); simplified (meshopt, WebP ≤1024 px). Loaded only when the player picks the helicopter. |
+| Airbus A320 (`assets/aircraft/plane_a320.glb`) | "A320" by manilov.ap — https://sketchfab.com/3d-models/a320-ec28bdee6c944688a19bef31ea33437f (via Objaverse) | CC-BY-4.0 | **Modified**: the original airline name, logo and registration were removed and replaced by a neutral fictional livery (`tools/models/repaint_a320.py`) — the game does not imitate any real airline. Simplified (meshopt, WebP ≤1024 px). Loaded only when picked. |
+| Airport zone (runway, taxiway, terminal, tower, hangar, helipads) | Procedural, game code (`src/world/Airport.js`) | — | An in-game place labelled "مطار اللعبة", not a real airport. |
+| Flight sounds | Procedural WebAudio (`src/audio/FlightAudio.js`) | — | |

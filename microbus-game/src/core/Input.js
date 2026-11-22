@@ -38,7 +38,16 @@ export class Input {
       lookX: (k.has('KeyE') ? 1 : 0) - (k.has('KeyQ') ? 1 : 0),
       lookY: 0,
       analog: false,
-      actions: { lights: this.consume('KeyL'), camera: this.consume('KeyC'), reset: this.consume('KeyR'), time: this.consume('KeyT'), help: this.consume('KeyI') || this.consume('F1'), mute: this.consume('KeyM'), fps: this.consume('KeyF'), siren: this.consume('KeyG') },
+      actions: { lights: this.consume('KeyL'), camera: this.consume('KeyC'), reset: this.consume('KeyR'), time: this.consume('KeyT'), help: this.consume('KeyI') || this.consume('F1'), mute: this.consume('KeyM'), fps: this.consume('KeyF'), siren: this.consume('KeyG'),
+        flapsDown: this.consume('KeyV'), flapsUp: this.consume('KeyX'), sas: this.consume('KeyZ') },
+      // الطيران: الأسهم = العصاية (فوق = الأنف لتحت زي الطيارات الحقيقية)، W/S = الدفع/الـ collective، A/D = الدفة/البدالات
+      fly: {
+        pitch: (k.has('ArrowDown') ? 1 : 0) - (k.has('ArrowUp') ? 1 : 0),
+        roll: (k.has('ArrowRight') ? 1 : 0) - (k.has('ArrowLeft') ? 1 : 0),
+        yaw: (k.has('KeyD') ? 1 : 0) - (k.has('KeyA') ? 1 : 0),
+        lever: (k.has('KeyW') ? 1 : 0) - (k.has('KeyS') ? 1 : 0),
+        brake: k.has('Space') ? 1 : 0,
+      },
     };
     this.pressed.clear();
     // تحكم اللمس (موبايل)
@@ -51,6 +60,16 @@ export class Input {
       st.handbrake = Math.max(st.handbrake, ts.handbrake);
       st.horn = st.horn || ts.horn;
       for (const a of t.takeActions()) st.actions[a] = true;
+    }
+    // تحكم اللمس بتاع الطيران (عصاية + ذراع الدفع)
+    const ft = this.flightTouch;
+    if (ft && ft.active) {
+      const f = ft.state, F = st.fly;
+      if (f.stickHeld) { F.pitch = f.pitch; F.roll = f.roll; }
+      if (f.yaw) F.yaw = f.yaw;
+      if (f.leverTouched) { F.lever = f.lever; F.leverAbs = true; }
+      F.brake = Math.max(F.brake, f.brake);
+      for (const a of ft.takeActions()) st.actions[a] = true;
     }
     // Gamepad (Xbox / PlayStation بالـ standard mapping)
     const pads = navigator.getGamepads ? navigator.getGamepads() : [];
@@ -76,6 +95,12 @@ export class Input {
       if (edge(8)) st.actions.reset = true;                // Back / Share
       if (edge(9)) st.actions.help = true;                 // Start / Options
       if (edge(2)) st.actions.time = true;                 // X / □
+      // الطيران: العصاية الشمال = العصاية، الزنادات = الدفع لفوق/تحت، الكتفين = الدفة
+      const sy = dz(gp.axes[1] || 0);
+      if (Math.abs(sx) > 0 || Math.abs(sy) > 0) { st.fly.roll = sx; st.fly.pitch = sy; }
+      if (rt > 0.05 || lt > 0.05) st.fly.lever = rt - lt;
+      if (b(5) > 0.5 || b(4) > 0.5) st.fly.yaw = b(5) - b(4);
+      if (edge(12)) st.actions.flapsDown = true; if (edge(13)) st.actions.flapsUp = true;
     }
     return st;
   }

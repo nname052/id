@@ -172,6 +172,7 @@ export function buildMonuments(W, group) {
       W._addCollider({ cx: b.cx, cz: b.cz, hx: b.hw * 0.92, hz: b.hd * 0.92, angle: -b.ang, restitution: 0.1, kind: 'building' }, null);
       zone(b.cx, b.cz, b.hw + 4, b.hd + 4, -b.ang, l.footprint);
       out.push({ name, kind: 'pyramid', h: +h.toFixed(1) });
+      (W.airObstacles ||= []).push({ kind: 'pyr', cx: b.cx, cz: b.cz, hw: b.hw, hd: b.hd, ang: b.ang, h }); // (للطيران: ارتفاع الهرم عند أي نقطة)
       continue;
     }
     // ===== أبو الهول =====
@@ -200,6 +201,7 @@ export function buildMonuments(W, group) {
     // ===== برج القاهرة =====
     if (/برج القاهرة/.test(name)) {
       const H = 187, P = [];
+      (W.airObstacles ||= []).push({ kind: 'cyl', cx: l.x, cz: l.z, r: 9, h: H });
       if (real('mon_cairo_tower', l)) {
         W._addCollider({ cx: l.x, cz: l.z, hx: 7.5, hz: 7.5, angle: 0, restitution: 0.1, kind: 'building' }, null);
         zone(l.x, l.z, 14, 14, 0, null); out.push({ name, kind: 'tower', h: H, model: 'real' }); continue;

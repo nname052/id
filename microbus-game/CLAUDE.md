@@ -48,6 +48,16 @@
 - **Phone cost**: traffic LOD from 35/28 m on mobile (was never → ~1000 draw calls in chase view), mobile pixel ratio ≤ 1.6/1.75.
   The HiAce interior must stay visible in chase view (hiding it makes the van look hollow through the windows).
 - `ExhaustSmoke` (render/): one Points draw, created lazily on first started frame.
+- **Flight (STAGE 7)**: `heli` / `plane` kinds → `AirDriver` (gameplay/) like `TrainDriver` (`game.driving` = 'heli'/'plane'; car physics
+  frozen, `ph.x/z/yaw` follow the aircraft). Physics in `vehicles/Aircraft.js` (6-DOF `RigidBody`, fixed 1/120 s): `PlaneFDM` (CL(α)+stall,
+  drag polar, thrust, flaps, gear springs, A320-like Normal Law: stick = flight-path change, α-protection, bank 33°/67°; ground: pitch-rate
+  ≤3°/s), `HeliFDM` (thrust along the cyclic-tilted disk at the hub, ground effect, ETL, climb inflow, VRS, torque + tail rotor, SAS =
+  attitude + hover/heading hold). Ground for aircraft = roads/decks + building roofs (`_bldFoot[].h`) + `W.airObstacles` (pyramids,
+  Cairo Tower) + `Airport.boxes`; water/side hits = crash → respawn. `Airport` (world/) is an in-game zone 750 m east of the map
+  (runway 36/18 2600 m, PAPI, helipads). Models are lazy (`assets/aircraft/*`, `AssetManager.loadLazy`, excluded from the eager glob).
+  Tests: `node tools/tests/fdm-sim.mjs` (no browser), `flight.mjs`, `flight-mobile.mjs` (touch stick/lever; frames without rendering).
+  Model prep: `tools/models/split_heli.py` (rotors as parts), `repaint_a320.py` (real airline livery removed). Preview any GLB:
+  `node tools/models/preview.mjs <abs path under the repo> out.png` (dev server).
 - New GLBs in `assets/models` need a dev-server restart (kill the `node .../vite` PID, not the npx wrapper).
 
 ## Data post-processing (run after `tools/osm/build_region.py`, in this order)
