@@ -46,6 +46,7 @@ import { PoliceMission } from '../gameplay/PoliceMission.js';
 import { AmbulanceMission } from '../gameplay/AmbulanceMission.js';
 import { TourMission } from '../gameplay/TourMission.js';
 import { PyramidAnimals } from '../world/shibin/PyramidAnimals.js';
+import { ExhaustSmoke } from '../render/ExhaustSmoke.js';
 import { Intercity } from '../gameplay/Intercity.js';
 import { Cinematic } from '../camera/Cinematic.js';
 import { ShibinCrowd } from '../world/shibin/ShibinCrowd.js';
@@ -185,7 +186,9 @@ export class Game {
     this.crowd.traffic = this.traffic; this.traffic.crowd = this.crowd; mark('crowd');
     // المرايات مش بترسم هالات/بقع نور الأعمدة (ديكور)
     PlayerVehicle.mirrorHide = [this.world.lamps?.glow, this.world.lamps?.pools].filter(Boolean);
-    this.traffic.lodNear = this.tier === 'low' ? 90 : 1e5; // كل العربيات اللي باينة بكامل جودتها (النسخة الخفيفة للجودة الواطية بس)
+    // العربيات البعيدة بنسخة خفيفة (رسمة واحدة بدل ~8): الكمبيوتر كله بكامل جودته؛
+    // الموبايل من 35م (عالية) / 28م (متوسطة) — كان 1e5 = كل عربية باينة كاملة = ~270 رسمة للمرور لوحده (سخونية)
+    this.traffic.lodNear = this.tier === 'low' ? (this.mobile ? 24 : 90) : this.mobile ? (this.tier === 'high' ? 35 : 28) : 1e5;
     this.statics = [];
 
     const colOut = [];
@@ -256,9 +259,9 @@ export class Game {
     if (this.traffic) this.patrol = new Patrol(this.scene, { traffic: this.traffic, audio: this.audio, hud: this.hud, incidents: this.incidents, assets: this.assets });
     // مهمات الشرطة (لما تسوق البوكس) + المشهد القصير اللي قبلها
     this.cine = new Cinematic();
-    if (this.traffic) this.policeMission = new PoliceMission({ traffic: this.traffic, audio: this.audio, hud: this.hud, wallet: this.wallet, cine: this.cine });
+    if (this.traffic) this.policeMission = new PoliceMission({ traffic: this.traffic, audio: this.audio, hud: this.hud, wallet: this.wallet, cine: this.cine, world: this.world, scene: this.scene });
     if (this.world) this.intercity = new Intercity({ world: this.world, hud: this.hud, wallet: this.wallet, passengers: this.passengers });
-    if (this.world && this.crowd) this.ambulanceMission = new AmbulanceMission({ world: this.world, crowd: this.crowd, audio: this.audio, hud: this.hud, wallet: this.wallet, cine: this.cine });
+    if (this.world && this.crowd) this.ambulanceMission = new AmbulanceMission({ world: this.world, crowd: this.crowd, audio: this.audio, hud: this.hud, wallet: this.wallet, cine: this.cine, scene: this.scene });
     if (this.world && this.tier !== 'low') { try { this.pyramidAnimals = new PyramidAnimals(this.scene, this.world, this.assets, { mobile: this.mobile }); } catch (e) { console.warn('[animals]', e); } }
     if (this.world && this.crowd) this.tourMission = new TourMission({ world: this.world, crowd: this.crowd, hud: this.hud, wallet: this.wallet, cine: this.cine, passengers: this.passengers });
         this.docs = new Docs(this, this.touch ? this.touch.root.querySelector('.t-top') : null);
@@ -696,7 +699,8 @@ export class Game {
     // (كانت 1.5/1.35/1.2/1.0/0.85 — على شاشة 3x المتوسطة كانت بتتمط 2.5 مرة = مبكسلة/مغبشة)
     // (الأوطى كانت 1.15/1.0 = مبكسلة جدًا على شاشات الموبايل الحادة: أقل حاجة دلوقتي 1.3 — بنوفّر من الضل ومسافة الرؤية بدلها)
     // (الآيفون: 2.1 كان بيرسم 4.4 بكسل لكل نقطة × 60 فريم = سخونية؛ 1.8 = 27% بكسلات أقل وفرق شبه مش باين)
-    const MPR = this.ios ? [2.0, 1.8, 1.65, 1.5, 1.4] : [1.8, 1.65, 1.55, 1.45, 1.4];
+    // (سخونية: 1.8 على شاشة 3× = ~1.07 مليون بكسل × 30 فريم. 1.6 = ~21% بكسلات أقل وفرق شبه مش باين على شاشة الموبايل الكثيفة)
+    const MPR = this.ios ? [1.75, 1.6, 1.5, 1.4, 1.3] : [1.6, 1.5, 1.42, 1.35, 1.3];
     const pr = this.mobile
       ? Math.min(window.devicePixelRatio, level < 0 ? 1.75 : MPR[level])
       : level < 0 ? Math.min(window.devicePixelRatio, 2) : Math.max(floor, [base, base, base * 0.9, base * 0.8, base * 0.72][level]);
@@ -1029,6 +1033,8 @@ export class Game {
       } else this._streetCand = key;
     }
     if (this.driving !== 'train') this.player.syncVisuals(dt, this.acc / FIXED_DT);
+    // دخان الشكمان (بنزين جامد / نقلة فتيس) — مش في القطر
+    if (this.started && this.driving !== 'train') { (this.exhaust ||= new ExhaustSmoke(this.scene, { max: this.tier === 'low' ? 70 : 160 })).update(dt, this.player, input, this.camera, this.renderer); }
     this.cams.update(dt, input);
     if (this.driving === 'train') this.trainDrive.camera(this.camera, this.cams.mode, dt);
     this.cine?.update(dt, this.camera);

@@ -33,6 +33,7 @@ function labelSprite(seat, name) {
   const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false, transparent: true, opacity: 0.92, sizeAttenuation: false }));
   s.scale.set(0.12, 0.03, 1); // (كان كبير وبيحجب الرؤية)
   s.renderOrder = 5;
+  s.userData.lbl = { seat, name }; // (للاختبارات: الرقم والاسم اللي اترسموا فعلًا)
   return s;
 }
 
@@ -181,6 +182,7 @@ export class Multiplayer {
     if (!key) return;
     const l = labelSprite(this.me.seat || '•', name);
     l.position.y = LABEL_Y[g.player.kind] ?? 2.75;
+    { const H = Math.max(240, g.renderer?.domElement?.clientHeight || innerHeight), sy = (22 * 2) / H; l.scale.set(sy * 4, sy, 1); }
     root.add(l);
     this._mine = l;
   }
@@ -235,6 +237,10 @@ export class Multiplayer {
     }
     // الاسم يبان من 2م لحد 600م (كان بيستخبى لما العربية تبعد وتتحول لنسخة LOD)
     R.label.position.set(x, y + LABEL_Y[R.kind], z);
+    // حجمه بالبكسل (مش نسبة ثابتة من الشاشة: 3% من شاشة موبايل 390 بكسل = 7 بكسل = مش مقروء خالص):
+    // ~22 بكسل قريب، بيصغر لحد ~15 بكسل على بعد 250م+
+    { const H = Math.max(240, this.game.renderer?.domElement?.clientHeight || innerHeight), d = Math.sqrt(d2);
+      const px = 22 - 7 * Math.min(1, Math.max(0, (d - 20) / 230)), sy = (px * 2) / H; R.label.scale.set(sy * 4, sy, 1); }
     // قريب أوي (أقل من 8م) بيختفي عشان مايغطيش على العربية والطريق
     R.label.visible = d2 > 8 * 8 && d2 < 600 * 600;
   }

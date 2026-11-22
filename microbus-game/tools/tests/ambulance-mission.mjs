@@ -17,14 +17,14 @@ const r = await p.evaluate(async () => {
   go(M.case.rx, M.case.rz); step(10);
   out.atCase = M.state;
   for (let i = 0; i < 20 && M.state === 'load'; i++) step(15);
-  out.afterLoad = { state: M.state, hosp: M.hosp?.name, extras: M.extras };
+  out.afterLoad = { state: M.state, hosp: M.hosp?.name, real: M.hosp?.real, marker: !!M.marker?.group.visible, extras: M.extras };
   const money0 = g.wallet.balance;
   if (M.state === 'toHosp') { go(M.hosp.x, M.hosp.z); step(20); }
-  out.end = { ...M.debugStats(), earned: g.wallet.balance - money0 };
+  out.end = { ...M.debugStats(), earned: g.wallet.balance - money0, markerAfter: !!M.marker?.group.visible };
   return out;
 });
 await b.close();
 console.log(JSON.stringify({ r, errs }));
-const ok = r.kind === 'ambulance' && r.bar && r.dispatch.cine && r.dispatch.lying && r.atCase === 'load' && r.afterLoad.state === 'toHosp' && r.end.done === 1 && r.end.earned > 0 && !errs.length;
+const ok = r.kind === 'ambulance' && r.bar && r.dispatch.cine && r.dispatch.lying && r.atCase === 'load' && r.afterLoad.state === 'toHosp' && r.afterLoad.marker && !r.end.markerAfter && r.end.done === 1 && r.end.earned > 0 && !errs.length;
 console.log(ok ? 'PASS ambulance-mission' : 'FAIL ambulance-mission');
 process.exit(ok ? 0 : 1);

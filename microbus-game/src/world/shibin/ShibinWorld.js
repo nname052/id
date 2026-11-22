@@ -7,6 +7,7 @@
 import * as THREE from 'three';
 import { buildMonuments, buildAirport } from './Monuments.js';
 import { REGION_BASE, loadJSON, releaseBase, dropCache, buildGraph, edgePoint, edgesNear } from './ShibinData.js';
+import { blocksRoad, rectPoly } from './roadClear.js';
 import { StreetKit } from './ShibinStreetKit.js';
 import { ShibinRail } from './ShibinRail.js';
 import { styledRealBuilding, buildWorship } from './ShibinCivic.js';
@@ -877,6 +878,7 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
   }
 
   _unloadTile(T) {
+    if (this._bldFoot) this._bldFoot = this._bldFoot.filter((q) => q.T !== T.name);
     T.dead = true;
     // ملفات المربع مش محتاجينها في الذاكرة بعد ما اتشال (لو رجعنا بنحمّلها تاني — الكاش بتاع المتصفح بيخليها سريعة)
     for (const L of this.meta.tiles[T.name] || []) dropCache(`${this.base}${L}/${T.name}.json`);
@@ -1120,6 +1122,16 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
       const pip = (P, x, z) => { let c = false; for (let i = 0, j = P.length - 1; i < P.length; j = i++) { const [xi, zi] = P[i], [xj, zj] = P[j]; if ((zi > z) !== (zj > z) && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) c = !c; } return c; };
       Bd = { ...Bd, gen: Bd.gen.filter(([x, z]) => !this.clearZones.some((P) => pip(P, x, z))) };
     }
+    // مفيش مبنى (مولّد أو حقيقي) لامس أسفلت أي طريق — بيتشال (مش بيتصغّر): الطريق دايمًا مفتوح
+    {
+      const st = (this.stats.roadBlockersRemoved ||= { gen: 0, real: 0 });
+      if (Bd.gen?.length) { const n0 = Bd.gen.length; Bd = { ...Bd, gen: Bd.gen.filter(([x, z, w, d, a]) => !blocksRoad(this.graph, rectPoly(x, z, w, d, a))) }; st.gen += n0 - Bd.gen.length; }
+      if (Bd.real?.length) {
+        const n0 = Bd.real.length;
+        Bd = { ...Bd, real: Bd.real.filter((rb) => { const r0 = rb.rings?.[0]; if (!r0 || r0.length < 6) return true; const P = []; for (let i = 0; i + 1 < r0.length; i += 2) P.push([r0[i], r0[i + 1]]); return !blocksRoad(this.graph, P, 0); }) }; // (الحقيقي: بيتشال لو لمس الأسفلت نفسه — اللي على الرصيف بس بيفضل)
+        st.real += n0 - Bd.real.length;
+      }
+    }
     if (Bd.gen?.length) {
       const P = (this.stats.bldParts ||= { geo: 0, kit: 0, street: 0, col: 0, real: 0, n: 0 }); let t = performance.now();
       const lap = (k) => { const n = performance.now(); P[k] = Math.max(P[k], n - t); t = n; };
@@ -1132,6 +1144,8 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
       lap('kit');
       this.streetKit?.addTile(T.name, Bd.gen); lap('street');
       for (const c of colliders) this._addCollider(c, T);
+      // بصمات المباني (للاختبارات وفحص "العربية جوه مبنى")
+      for (const [cx, cz, w, d, a] of Bd.gen) { const c = Math.cos(a), s = Math.sin(a); (this._bldFoot ||= []).push({ kind: 'gen', T: T.name, P: [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([u, v]) => [cx + u * w / 2 * c + v * d / 2 * s, cz - u * w / 2 * s + v * d / 2 * c]) }); }
       lap('col'); P.n = Math.max(P.n, Bd.gen.length);
       this.stats.buildings += T.nB;
     }
@@ -1142,11 +1156,22 @@ float nC(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
       const { group } = styledRealBuilding(rb, this);
       T.group.add(group);
       if (rb.kind === 'train_station') this.rail?.realStationLoaded?.(rb);
+      { const r0 = rb.rings[0], Pp = []; for (let i = 0; i + 1 < r0.length; i += 2) Pp.push([r0[i], r0[i + 1]]); (this._bldFoot ||= []).push({ kind: 'real', T: T.name, P: Pp }); }
       // التصادم: صناديق صغيرة على حيطان المضلع
-      for (const ring of rb.rings) for (let i = 0; i + 3 < ring.length; i += 2) {
-        const ax = ring[i], az = ring[i + 1], bx = ring[i + 2], bz = ring[i + 3], L = Math.hypot(bx - ax, bz - az);
-        if (L < 0.3) continue;
-        this._addCollider({ cx: (ax + bx) / 2, cz: (az + bz) / 2, hx: 0.3, hz: L / 2, angle: Math.atan2(bx - ax, bz - az), restitution: 0.1, kind: 'building' }, T);
+      // (الحيطة كانت 60 سم بس: خبطة مايلة على 50 كم/س كانت بتعدّي منها والعربية تخلص جوه المبنى 5م.
+      //  دلوقتي كل حيطة سُمكها 2.4م لجوه المبنى — الوش اللي برّه في نفس مكانه بالظبط)
+      const TH = 2.4;
+      for (const ring of rb.rings) {
+        const inside = (x, z) => { let c = false; for (let i = 0, j = ring.length - 2; i < ring.length; j = i, i += 2) { const xi = ring[i], zi = ring[i + 1], xj = ring[j], zj = ring[j + 1]; if ((zi > z) !== (zj > z) && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) c = !c; } return c; };
+        for (let i = 0; i + 3 < ring.length; i += 2) {
+          const ax = ring[i], az = ring[i + 1], bx = ring[i + 2], bz = ring[i + 3], L = Math.hypot(bx - ax, bz - az);
+          if (L < 0.3) continue;
+          const mx = (ax + bx) / 2, mz = (az + bz) / 2;
+          let nx = -(bz - az) / L, nz = (bx - ax) / L; // عمودي على الحيطة — ناحية جوه المبنى
+          if (!inside(mx + nx * 0.5, mz + nz * 0.5)) { nx = -nx; nz = -nz; }
+          const off = TH / 2 - 0.3;
+          this._addCollider({ cx: mx + nx * off, cz: mz + nz * off, hx: TH / 2, hz: L / 2, angle: Math.atan2(bx - ax, bz - az), restitution: 0.1, kind: 'building' }, T);
+        }
       }
     }
   }

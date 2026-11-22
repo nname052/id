@@ -4,12 +4,14 @@
 //  من OSM. المكافأة على قد سرعتك (حالة المصاب بتسوء مع الوقت). من غير أي مشاهد دموية: المصاب نايم بس.
 // =====================================================================
 import { edgePoint } from '../world/shibin/ShibinData.js';
+import { nearestPlace, DropMarker } from './Destinations.js';
 
 const REWARD = 140, LIMIT = 240, LOAD_T = 4, WAIT = [6, 12];
 
 export class AmbulanceMission {
-  constructor({ world, crowd, audio, hud, wallet, cine }) {
+  constructor({ world, crowd, audio, hud, wallet, cine, scene }) {
     Object.assign(this, { world, crowd, audio, hud, wallet, cine });
+    this.marker = scene ? new DropMarker(scene, 0xff3b3b) : null; // (مكان التسليم عند المستشفى: حلقة حمرا منوّرة)
     this.state = 'off'; this.done = 0; this.dispatched = 0; this.failed = 0;
     this.hospitals = (world?.landmarks?.confirmed || []).filter((l) => l.kind === 'hospital' && l.inside_region !== false);
   }
@@ -18,6 +20,7 @@ export class AmbulanceMission {
     const on = player?.kind === 'ambulance';
     if (!on) { if (this.state !== 'off') { this._clear(); this.state = 'off'; } return; }
     this._lights(dt, player.rig.policeBar, !!player.sirenOn || this.state === 'load');
+    this.marker?.update(dt);
     if (this.state === 'off') { this.state = 'wait'; this._next = 4; this.hud?.toast('🚑 إنت في الإسعاف — استنى البلاغ', 2.6); return; }
     if (this.state === 'wait') { this._next -= dt; if (this._next <= 0) this._dispatch(ph); return; }
     this.t += dt;
@@ -32,13 +35,14 @@ export class AmbulanceMission {
       if (this._lt >= LOAD_T) {
         this._removeExtras();
         this.hosp = this._hospital(ph);
-        this.state = 'toHosp'; 
-        this.hud?.toast(`🏥 على ${this.hosp.name} بسرعة`, 2.8);
+        this.state = 'toHosp';
+        this.marker?.show(this.hosp, this.world?.height?.(this.hosp.x, this.hosp.z) ?? 0);
+        this.hud?.toast(`🏥 أقرب مستشفى: ${this.hosp.name} (${Math.round(Math.hypot(this.hosp.x - ph.x, this.hosp.z - ph.z))}م) — اقف في الدايرة الحمرا`, 3.2);
       }
     } else if (this.state === 'toHosp') {
       const H = this.hosp, d = Math.hypot(H.x - ph.x, H.z - ph.z);
       this.dist = d;
-      if (d < 25 && Math.abs(ph.speed) < 1) {
+      if (d < 14 && Math.abs(ph.speed) < 1) {
         const bonus = Math.max(0, Math.round((LIMIT - this.t) * 0.8));
         this.wallet?.add(REWARD + bonus, 'ambulance', 'وصّلت مصاب للمستشفى');
         this.hud?.toast(`✅ المصاب وصل المستشفى! +${REWARD + bonus} ج`, 3.2);
@@ -75,22 +79,16 @@ export class AmbulanceMission {
     this.cine?.play({ target: () => ({ x: C.x, z: C.z, yaw: C.yaw }), title: '🚑 بلاغ: حالة طوارئ', sub: `فيه مصاب في ${C.name} — روح له ووصّله أقرب مستشفى` });
   }
 
-  /** أقرب مستشفى حقيقية (OSM) — على الطريق اللي جنبها؛ ولو مفيش في الخريطة: نقطة بعيدة على طريق رئيسي */
-  _hospital(ph) {
-    const W = this.world;
-    let H = null, bd = Infinity;
-    for (const h of this.hospitals) { const d = Math.hypot(h.x - ph.x, h.z - ph.z); if (d < bd && d > 80) { bd = d; H = h; } }
-    if (H) { const r = W.roadPose(H.x, H.z); return { x: r ? r.x : H.x, z: r ? r.z : H.z, name: H.name || 'المستشفى' }; }
-    const sp = W.spawnPose();
-    return { x: sp.x, z: sp.z, name: 'المستشفى العام' };
-  }
+  /** أقرب مستشفى حقيقية (المعالم + نقط OSM، وبعدين العيادات) — نقطة الوقوف على الشارع اللي جنبها.
+   *  لو الخريطة مافيهاش: "نقطة إسعاف (مكان في اللعبة)" على طريق رئيسي — مش اسم مستشفى متألف */
+  _hospital(ph) { return nearestPlace(this.world, 'hospital', ph.x, ph.z, 80); }
 
   _removeExtras() {
     const ex = this.crowd?.extras;
     if (ex && this.extras) for (const q of this.extras) { const i = ex.indexOf(q); if (i >= 0) ex.splice(i, 1); }
     this.extras = null;
   }
-  _clear() { this._removeExtras();  if (this.cine?.active) this.cine.stop(); this.case = null; this.hosp = null; }
+  _clear() { this._removeExtras(); this.marker?.hide(); if (this.cine?.active) this.cine.stop(); this.case = null; this.hosp = null; }
   _finish() { this._clear(); this.state = 'wait'; this._next = WAIT[0] + Math.random() * (WAIT[1] - WAIT[0]); }
   _fail() { this.failed++; this.hud?.toast('⏱ اتأخرت — إسعاف تاني وصل للمصاب', 3); this._finish(); }
 
