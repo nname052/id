@@ -38,6 +38,16 @@
 - **Colour grade** lives in the tone mapping (`THREE.CustomToneMapping` patched in `Game` constructor: warmth + saturation, then ACES)
   so phones get it for free; PostFX's grade pass is only a light complement.
 - **Map markers** (`MiniMap._pois`): 10–15 by importance from `landmarks.confirmed` + named `features.pois` + microbus terminals.
+- **Buildings vs roads** (`roadClear.js`, `ShibinWorld._buildBuildings`): any generated/real building touching a road's asphalt is
+  dropped at tile build (all cities, no data rebuild). Real building walls are 2.4 m thick colliders toward the inside (thin walls let
+  angled hits through). `W._bldFoot` keeps footprints; test `tools/tests/building-solid.mjs` (MAP, KIND, N).
+- **Multiplayer labels** are sized in pixels (~22 px) every frame — a fixed sprite scale was ~7 px on phones. Test `mp-names.mjs`
+  (two pages, simulated Claude room via BroadcastChannel).
+- **Mission destinations** (`gameplay/Destinations.js`): nearest real hospital / police station (landmarks + OSM pois), else a
+  labelled in-game point ("… (مكان في اللعبة)"), never an invented name; `DropMarker` ring + beam.
+- **Phone cost**: traffic LOD from 35/28 m on mobile (was never → ~1000 draw calls in chase view), mobile pixel ratio ≤ 1.6/1.75.
+  The HiAce interior must stay visible in chase view (hiding it makes the van look hollow through the windows).
+- `ExhaustSmoke` (render/): one Points draw, created lazily on first started frame.
 - New GLBs in `assets/models` need a dev-server restart (kill the `node .../vite` PID, not the npx wrapper).
 
 ## Data post-processing (run after `tools/osm/build_region.py`, in this order)
