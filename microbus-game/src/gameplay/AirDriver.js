@@ -216,6 +216,7 @@ export class AirDriver {
 
   // ===================== الكاميرا =====================
   camera(cam, mode, dt, input) {
+    if (!this.kind) return; // (بين طيارة وطيارة وهي بتتحمّل)
     const B = this.fdm.B, rig = this.rig, plane = this.kind === 'plane';
     const P = B.pos;
     const hideBody = mode === 0;
@@ -268,6 +269,7 @@ export class AirDriver {
   }
   /** الضباب أبعد وانت طاير (بيتنادي بعد ما الجودة تظبط الضباب) */
   fog() {
+    if (!this.kind) return;
     const f = this.g.scene.fog, B = this.fdm.B;
     const alt = Math.max(0, B.pos.y);
     f.near = 250 + alt * 2; f.far = Math.min(4200, 1600 + alt * 6);
@@ -275,6 +277,7 @@ export class AirDriver {
 
   // ===================== العدادات =====================
   hud() {
+    if (!this.kind) return;
     const g = this.g, H = g.hud, F = this.fdm, B = F.B;
     const kt = Math.round(B.vel.length() * 1.944), kmh = Math.round(B.vel.length() * 3.6);
     H.speed.textContent = kmh;
